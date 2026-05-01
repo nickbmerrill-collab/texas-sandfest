@@ -20,10 +20,13 @@
 		8AD1C210E31D4AC09A2AB081 /* AdminDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D2D2F7158CB5526A5008504 /* AdminDashboardView.swift */; };
 		8E6C1B9EBF98BE36A9DE7392 /* sandfest-seed.json in Resources */ = {isa = PBXBuildFile; fileRef = 14666CC63BD806C8F2385B35 /* sandfest-seed.json */; };
 		95D327E3C6E9BF25A9C56904 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA315742174BA3305A51AFA9 /* Models.swift */; };
+		9C1FC76D5D672DAEA9942678 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D09EF91607F49410A5A2645 /* NotificationManager.swift */; };
 		A929CFE330A850CFD4F7B9EE /* AdminFinanceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88A2BE4EDB3F7DE07E019A64 /* AdminFinanceView.swift */; };
+		B84918B3BC828459683D277C /* QRCodeGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42F23F9B30D21595C297B9AB /* QRCodeGenerator.swift */; };
 		BC303AFBB2D2070E6B653A69 /* ScheduleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1163268BF13DE9BFDF5425F /* ScheduleView.swift */; };
 		D4DA66A4A021236B4B3F5F1F /* TicketsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A084361E5D5E98B103B5712 /* TicketsView.swift */; };
 		DDB466D90791E15F6AF8A42A /* TexasSandFestApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FE52C12D256F44D441A73E8 /* TexasSandFestApp.swift */; };
+		E7574A61C6B9AB35290D8C46 /* FavoritesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E93E5F8B3D5C0703A1883D4 /* FavoritesStore.swift */; };
 		FD939155C5210E2D22B680BB /* AdminSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35FA2B9DDE9ACE64C9208A4F /* AdminSettingsView.swift */; };
 /* End PBXBuildFile section */
 
@@ -34,12 +37,15 @@
 		35FA2B9DDE9ACE64C9208A4F /* AdminSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminSettingsView.swift; sourceTree = "<group>"; };
 		3A084361E5D5E98B103B5712 /* TicketsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TicketsView.swift; sourceTree = "<group>"; };
 		419EDC2EDEEA3CF4FFED6B65 /* TexasSandFest.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TexasSandFest.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		42F23F9B30D21595C297B9AB /* QRCodeGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRCodeGenerator.swift; sourceTree = "<group>"; };
 		4527D8728096BF89BE1EA3FD /* ConciergeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConciergeView.swift; sourceTree = "<group>"; };
 		45FBC9090CA50C1CC8EB6171 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		4D09EF91607F49410A5A2645 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		53F78C64F4BD9FA6190D18D5 /* LiveBeachView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveBeachView.swift; sourceTree = "<group>"; };
 		5C6D726F8724C21BFFDAB314 /* MapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapView.swift; sourceTree = "<group>"; };
 		6F3A7CEC1DB60CE0816CCE15 /* AdminPartnersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminPartnersView.swift; sourceTree = "<group>"; };
 		71666C616CAB0478CF9E0DBD /* OpsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpsView.swift; sourceTree = "<group>"; };
+		7E93E5F8B3D5C0703A1883D4 /* FavoritesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesStore.swift; sourceTree = "<group>"; };
 		806C8EDE8EE727731CC8DF59 /* SandFestTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SandFestTheme.swift; sourceTree = "<group>"; };
 		88A2BE4EDB3F7DE07E019A64 /* AdminFinanceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminFinanceView.swift; sourceTree = "<group>"; };
 		8A17B986F097F115828A9018 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -86,11 +92,14 @@
 				F7A4D6B7050CE53483611B82 /* AppDataStore.swift */,
 				8A17B986F097F115828A9018 /* Assets.xcassets */,
 				4527D8728096BF89BE1EA3FD /* ConciergeView.swift */,
+				7E93E5F8B3D5C0703A1883D4 /* FavoritesStore.swift */,
 				250D6E54785B8CFE8754310F /* Info.plist */,
 				53F78C64F4BD9FA6190D18D5 /* LiveBeachView.swift */,
 				5C6D726F8724C21BFFDAB314 /* MapView.swift */,
 				DA315742174BA3305A51AFA9 /* Models.swift */,
+				4D09EF91607F49410A5A2645 /* NotificationManager.swift */,
 				71666C616CAB0478CF9E0DBD /* OpsView.swift */,
+				42F23F9B30D21595C297B9AB /* QRCodeGenerator.swift */,
 				45FBC9090CA50C1CC8EB6171 /* RootView.swift */,
 				806C8EDE8EE727731CC8DF59 /* SandFestTheme.swift */,
 				D1163268BF13DE9BFDF5425F /* ScheduleView.swift */,
@@ -175,10 +184,13 @@
 				FD939155C5210E2D22B680BB /* AdminSettingsView.swift in Sources */,
 				7271794860C93AEFFB958A92 /* AppDataStore.swift in Sources */,
 				62ED55E5F91CFE6F6DB71E07 /* ConciergeView.swift in Sources */,
+				E7574A61C6B9AB35290D8C46 /* FavoritesStore.swift in Sources */,
 				6B2A9DBB72133C30946A1850 /* LiveBeachView.swift in Sources */,
 				6CFD6F60D11DF0F010FE5D52 /* MapView.swift in Sources */,
 				95D327E3C6E9BF25A9C56904 /* Models.swift in Sources */,
+				9C1FC76D5D672DAEA9942678 /* NotificationManager.swift in Sources */,
 				45A248205EF7F4A3A7EFD762 /* OpsView.swift in Sources */,
+				B84918B3BC828459683D277C /* QRCodeGenerator.swift in Sources */,
 				0C1B4720FEFDCA8CF6BE9A71 /* RootView.swift in Sources */,
 				1F24D12EB45E476233EE799E /* SandFestTheme.swift in Sources */,
 				BC303AFBB2D2070E6B653A69 /* ScheduleView.swift in Sources */,

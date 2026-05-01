@@ -10,10 +10,27 @@ final class AppDataStore: ObservableObject {
     init() {
         let fallback = SandFestPayload.sample
         do {
-            let loadedPayload = try Self.loadSeedPayload()
-            payload = loadedPayload
-            alert = loadedPayload.alert
-            source = "Bundled seed"
+            let loaded = try Self.loadSeedPayload()
+            // Until the bootstrap → ios:seed pipeline is regenerated with the
+            // ACL-shaped schedule and the user's wristbands, prefer the in-code
+            // SampleData for those slots. Everything else (guide/zones/sponsors)
+            // still rides the seed file.
+            let needsRichSchedule = loaded.schedule.count < 10
+            let mergedSchedule = needsRichSchedule ? SampleData.schedule : loaded.schedule
+            payload = SandFestPayload(
+                guide: loaded.guide,
+                alert: loaded.alert,
+                schedule: mergedSchedule,
+                zones: loaded.zones,
+                ticketOptions: loaded.ticketOptions,
+                sponsors: loaded.sponsors,
+                vendors: loaded.vendors,
+                coverage: loaded.coverage,
+                financeSignals: loaded.financeSignals,
+                myTickets: loaded.myTickets ?? SampleData.myTickets
+            )
+            alert = loaded.alert
+            source = needsRichSchedule ? "Bundled seed (sample schedule overlay)" : "Bundled seed"
         } catch {
             payload = fallback
             alert = fallback.alert
