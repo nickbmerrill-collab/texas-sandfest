@@ -38,10 +38,32 @@ final class AppDataStore: ObservableObject {
         }
     }
 
-    func refreshPublicAlert(apiBase: URL = URL(string: "http://127.0.0.1:8788")!) async {
+    /// Resolved API base, in priority order:
+    /// 1. CommandLine `-apiBase URL` (handy for demos / local routing)
+    /// 2. `SANDFEST_API_BASE` env var (CI / TestFlight builds)
+    /// 3. Info.plist `SandFestAPIBase` (per-config plist override)
+    /// 4. https://api.heyelab.com/sandfest (production default)
+    /// 5. http://127.0.0.1:8788 (debug fallback when running against local API)
+    static var apiBase: URL {
+        let args = CommandLine.arguments
+        if let i = args.firstIndex(of: "-apiBase"), i + 1 < args.count,
+           let url = URL(string: args[i + 1]) { return url }
+        if let env = ProcessInfo.processInfo.environment["SANDFEST_API_BASE"],
+           let url = URL(string: env) { return url }
+        if let plist = Bundle.main.object(forInfoDictionaryKey: "SandFestAPIBase") as? String,
+           let url = URL(string: plist) { return url }
+        #if DEBUG
+        return URL(string: "http://127.0.0.1:8788")!
+        #else
+        return URL(string: "https://api.heyelab.com/sandfest")!
+        #endif
+    }
+
+    func refreshPublicAlert(apiBase: URL? = nil) async {
+        let base = apiBase ?? Self.apiBase
         syncState = .refreshing
         do {
-            let url = apiBase.appending(path: "/api/public/alert")
+            let url = base.appending(path: "/api/public/alert")
             let (data, response) = try await URLSession.shared.data(from: url)
             guard (response as? HTTPURLResponse)?.statusCode == 200 else {
                 syncState = .offline

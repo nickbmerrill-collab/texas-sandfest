@@ -1,0 +1,13 @@
+.git
+.github
+node_modules
+dist
+ios
+public
+src
+docs
+README.md
+"Texas SandFest Vault"
+*.md
+.env
+.env.*

@@ -17,6 +17,7 @@
     "ios:seed": "node scripts/build-ios-seed.mjs",
     "vault:build": "node scripts/build-obsidian-vault.mjs",
     "api:dev": "node scripts/admin-api-server.mjs",
+    "api:start": "NODE_ENV=production SANDFEST_ENV=production node scripts/admin-api-server.mjs",
     "api:load-test": "node scripts/load-test-api.mjs",
     "qb:status": "node scripts/quickbooks.mjs status",
     "qb:auth-url": "node scripts/quickbooks.mjs auth-url",

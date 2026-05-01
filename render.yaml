@@ -1,0 +1,73 @@
+# One-click deploy via the Render Blueprint button:
+# https://render.com/deploy?repo=https://github.com/nickbmerrill-collab/texas-sandfest
+#
+# Stands up:
+#   - Web service: sandfest-api (node, /health probe, custom domain api.heyelab.com)
+#   - Postgres: sandfest-db (free tier; upgrade for prod)
+#
+# After it boots, point heyelab.com DNS:
+#   CNAME api.heyelab.com   → sandfest-api.onrender.com
+#   CNAME sandfest-admin.heyelab.com → sandfest-admin.onrender.com (if you split admin out later)
+# See docs/heyelab-backend-deployment.md for the full cutover.
+
+services:
+  - type: web
+    name: sandfest-api
+    runtime: docker
+    plan: starter
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: SANDFEST_ENV
+        value: production
+      - key: SANDFEST_API_PORT
+        value: "8788"
+      # Bearer-token mode is rejected in production (see deployment doc).
+      # We pre-wire the JWKS env so that once auth.heyelab.com is live, the
+      # API switches to JWT validation automatically — no redeploy needed.
+      - key: SANDFEST_AUTH_MODE
+        value: jwt
+      - key: SANDFEST_AUTH_JWKS_URL
+        value: https://auth.heyelab.com/.well-known/jwks.json
+      - key: SANDFEST_AUTH_ISSUER
+        value: https://auth.heyelab.com/
+      - key: SANDFEST_AUTH_AUDIENCE
+        value: https://api.heyelab.com/sandfest
+      - key: SANDFEST_AUTH_ROLE_CLAIM
+        value: sandfest_role
+      - key: SANDFEST_API_PUBLIC_BASE_URL
+        value: https://api.heyelab.com/sandfest
+      - key: SANDFEST_ADMIN_BASE_URL
+        value: https://sandfest-admin.heyelab.com
+      - key: SANDFEST_CORS_ORIGINS
+        value: https://sandfest-admin.heyelab.com,https://www.texassandfest.org,https://texassandfest.org,https://nickbmerrill-collab.github.io
+      - key: SANDFEST_DATABASE_URL
+        fromDatabase:
+          name: sandfest-db
+          property: connectionString
+      - key: SANDFEST_DATABASE_SSL
+        value: no-verify
+      - key: SANDFEST_RATE_LIMIT_WINDOW_MS
+        value: "60000"
+      - key: SANDFEST_PUBLIC_RATE_LIMIT
+        value: "600"
+      - key: SANDFEST_ADMIN_RATE_LIMIT
+        value: "120"
+      - key: SANDFEST_CHECKOUT_RATE_LIMIT
+        value: "30"
+      # Stripe pre-wired in test mode; flip to true + add live keys later.
+      - key: STRIPE_TICKETING_ENABLED
+        value: "false"
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_SUCCESS_URL
+        value: https://www.texassandfest.org/tickets/success?session_id={CHECKOUT_SESSION_ID}
+      - key: STRIPE_CANCEL_URL
+        value: https://www.texassandfest.org/#tickets
+
+databases:
+  - name: sandfest-db
+    plan: free
+    postgresMajorVersion: "16"
