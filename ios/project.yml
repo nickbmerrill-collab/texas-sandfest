@@ -26,6 +26,7 @@ targets:
         UIRequiresFullScreen: true
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: false
+        NSCameraUsageDescription: Scan your Eventeny ticket QR to add it to your SandFest wristbands.
     entitlements:
       path: TexasSandFest/TexasSandFest.entitlements
       properties:

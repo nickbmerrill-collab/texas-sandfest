@@ -9,16 +9,35 @@ import SwiftUI
 // When the real CSV/sheet schedule lands we replace the SampleData.schedule
 // payload — the view doesn't need to change.
 
+enum ScheduleMode: String, CaseIterable, Identifiable {
+    case time
+    case artist
+    var id: String { rawValue }
+    var label: String { self == .time ? "BY TIME" : "BY ARTIST" }
+}
+
 struct ScheduleView: View {
     @EnvironmentObject private var dataStore: AppDataStore
     @StateObject private var favorites = FavoritesStore()
     @StateObject private var notifications = NotificationManager.shared
 
-    @State private var selectedDay: String = "Friday"
+    @State private var mode: ScheduleMode = ScheduleView.initialMode()
+    @State private var selectedDay: String = LiveTimeline.currentFestivalDay() ?? "Friday"
     @State private var myScheduleOnly = false
     @State private var permissionAlertVisible = false
 
     private let days = ["Friday", "Saturday", "Sunday"]
+
+    private var liveSummary: LiveTimeline.LiveSummary {
+        LiveTimeline.summarize(dataStore.payload.schedule)
+    }
+
+    private static func initialMode() -> ScheduleMode {
+        let args = CommandLine.arguments
+        if let i = args.firstIndex(of: "-scheduleMode"), i + 1 < args.count,
+           args[i + 1] == "artist" { return .artist }
+        return .time
+    }
 
     private var visibleItems: [ScheduleItem] {
         let dayFiltered = dataStore.payload.schedule.filter { $0.day == selectedDay }
@@ -37,25 +56,36 @@ struct ScheduleView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                dayPicker
-                myToggleRow
-                Divider().opacity(0.4)
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 12) {
-                        if visibleItems.isEmpty {
-                            emptyState
-                        } else {
-                            ForEach(visibleItems) { item in
-                                ScheduleRow(
-                                    item: item,
-                                    isStarred: favorites.isStarred(item.id),
-                                    onStar: { handleStar(item) }
-                                )
+                modeSwitcher
+                if mode == .time {
+                    if !liveSummary.nowPlaying.isEmpty || !liveSummary.upNext.isEmpty {
+                        NowPlayingBanner(summary: liveSummary)
+                            .padding(.horizontal, 16)
+                            .padding(.bottom, 8)
+                    }
+                    dayPicker
+                    myToggleRow
+                    Divider().opacity(0.4)
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 12) {
+                            if visibleItems.isEmpty {
+                                emptyState
+                            } else {
+                                ForEach(visibleItems) { item in
+                                    ScheduleRow(
+                                        item: item,
+                                        isStarred: favorites.isStarred(item.id),
+                                        isLive: liveSummary.nowPlaying.contains { $0.id == item.id },
+                                        onStar: { handleStar(item) }
+                                    )
+                                }
                             }
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 16)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 16)
+                } else {
+                    LineupView()
                 }
             }
             .background(Color.lbCream.ignoresSafeArea())
@@ -67,6 +97,30 @@ struct ScheduleView: View {
                 Text("To remind you 15 min before your starred sets, enable notifications in Settings → Texas SandFest.")
             }
         }
+    }
+
+    private var modeSwitcher: some View {
+        HStack(spacing: 8) {
+            ForEach(ScheduleMode.allCases) { m in
+                Button {
+                    withAnimation(.easeInOut(duration: 0.18)) { mode = m }
+                } label: {
+                    Text(m.label)
+                        .font(.caption.weight(.bold))
+                        .tracking(1.4)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .frame(maxWidth: .infinity)
+                        .foregroundStyle(mode == m ? Color.lbCream : Color.lbNavy)
+                        .background(mode == m ? Color.lbNavy : Color.white.opacity(0.6))
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 6)
+        .padding(.bottom, 8)
     }
 
     // MARK: Sections
@@ -232,6 +286,7 @@ struct ScheduleView: View {
 private struct ScheduleRow: View {
     let item: ScheduleItem
     let isStarred: Bool
+    let isLive: Bool
     let onStar: () -> Void
 
     var body: some View {
@@ -249,6 +304,9 @@ private struct ScheduleRow: View {
                 }
 
                 HStack(spacing: 6) {
+                    if isLive {
+                        livePill
+                    }
                     categoryChip
                     if let stage = item.stage {
                         stageChip(stage)
@@ -276,13 +334,39 @@ private struct ScheduleRow: View {
         }
         .padding(14)
         .background(
-            LinearGradient(colors: [.white, Color.lbYellow.opacity(0.10)], startPoint: .top, endPoint: .bottom)
+            LinearGradient(colors: rowGradient, startPoint: .top, endPoint: .bottom)
         )
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(isStarred ? Color.lbCoral2.opacity(0.4) : Color.lbNavy.opacity(0.08), lineWidth: 1)
+                .stroke(rowStroke, lineWidth: isLive ? 2 : 1)
         )
+    }
+
+    private var rowGradient: [Color] {
+        if isLive {
+            return [Color.lbCoral2.opacity(0.16), Color.white]
+        }
+        return [.white, Color.lbYellow.opacity(0.10)]
+    }
+
+    private var rowStroke: Color {
+        if isLive { return Color.lbCoral2.opacity(0.55) }
+        if isStarred { return Color.lbCoral2.opacity(0.4) }
+        return Color.lbNavy.opacity(0.08)
+    }
+
+    private var livePill: some View {
+        HStack(spacing: 4) {
+            Circle().fill(Color.lbCoral2).frame(width: 6, height: 6)
+            Text("LIVE")
+                .font(.caption2.weight(.bold))
+                .tracking(1.2)
+        }
+        .padding(.horizontal, 8).padding(.vertical, 3)
+        .background(Color.lbCoral2.opacity(0.18))
+        .foregroundStyle(Color(red: 0.42, green: 0.17, blue: 0.07))
+        .clipShape(Capsule())
     }
 
     private var timeColumn: some View {

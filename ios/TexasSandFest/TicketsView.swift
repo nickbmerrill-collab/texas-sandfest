@@ -2,10 +2,24 @@ import SwiftUI
 
 struct TicketsView: View {
     @EnvironmentObject private var dataStore: AppDataStore
+    @StateObject private var userTickets = UserTicketsStore()
     @State private var pulseGlow = false
+    @State private var scannerVisible = false
+    @State private var importToast: String? = nil
 
-    private var tickets: [Ticket] {
+    private var seedTickets: [Ticket] {
         dataStore.payload.myTickets ?? SampleData.myTickets
+    }
+
+    /// Imported (user-scanned) tickets first, then bundled seed tickets. De-duped by id.
+    private var tickets: [Ticket] {
+        var seen = Set<String>()
+        var out: [Ticket] = []
+        for t in userTickets.imported + seedTickets where !seen.contains(t.id) {
+            seen.insert(t.id)
+            out.append(t)
+        }
+        return out
     }
 
     var body: some View {
@@ -34,6 +48,48 @@ struct TicketsView: View {
             .background(Color.lbCream.ignoresSafeArea())
             .navigationTitle("Tickets")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        scannerVisible = true
+                    } label: {
+                        Label("Add", systemImage: "qrcode.viewfinder")
+                    }
+                }
+            }
+            .sheet(isPresented: $scannerVisible) {
+                NavigationStack {
+                    QRScannerView { payload in
+                        let ticket = userTickets.importFromQR(payload)
+                        importToast = "Added \(ticket.band.rawValue) wristband"
+                        scannerVisible = false
+                        Task {
+                            try? await Task.sleep(nanoseconds: 3_000_000_000)
+                            importToast = nil
+                        }
+                    }
+                    .navigationTitle("Scan ticket QR")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button("Cancel") { scannerVisible = false }
+                        }
+                    }
+                }
+                .presentationDetents([.large])
+            }
+            .overlay(alignment: .bottom) {
+                if let toast = importToast {
+                    Text(toast)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.lbCream)
+                        .padding(.horizontal, 16).padding(.vertical, 10)
+                        .background(Color.lbNavy)
+                        .clipShape(Capsule())
+                        .padding(.bottom, 100)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
             .onAppear {
                 withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) {
                     pulseGlow = true
