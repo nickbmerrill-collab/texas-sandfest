@@ -1,0 +1,375 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0C1B4720FEFDCA8CF6BE9A71 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45FBC9090CA50C1CC8EB6171 /* RootView.swift */; };
+		1775818503EFAFFF2CC2BC15 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8A17B986F097F115828A9018 /* Assets.xcassets */; };
+		1F24D12EB45E476233EE799E /* SandFestTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 806C8EDE8EE727731CC8DF59 /* SandFestTheme.swift */; };
+		2A6CD665FC99358DA420F09A /* AdminPartnersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F3A7CEC1DB60CE0816CCE15 /* AdminPartnersView.swift */; };
+		45A248205EF7F4A3A7EFD762 /* OpsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71666C616CAB0478CF9E0DBD /* OpsView.swift */; };
+		62ED55E5F91CFE6F6DB71E07 /* ConciergeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4527D8728096BF89BE1EA3FD /* ConciergeView.swift */; };
+		6B2A9DBB72133C30946A1850 /* LiveBeachView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53F78C64F4BD9FA6190D18D5 /* LiveBeachView.swift */; };
+		6CFD6F60D11DF0F010FE5D52 /* MapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C6D726F8724C21BFFDAB314 /* MapView.swift */; };
+		7271794860C93AEFFB958A92 /* AppDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7A4D6B7050CE53483611B82 /* AppDataStore.swift */; };
+		7B123FC7BD2E3502211358AD /* TodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA468D65536B1F4405067D19 /* TodayView.swift */; };
+		8AD1C210E31D4AC09A2AB081 /* AdminDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D2D2F7158CB5526A5008504 /* AdminDashboardView.swift */; };
+		8E6C1B9EBF98BE36A9DE7392 /* sandfest-seed.json in Resources */ = {isa = PBXBuildFile; fileRef = 14666CC63BD806C8F2385B35 /* sandfest-seed.json */; };
+		95D327E3C6E9BF25A9C56904 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA315742174BA3305A51AFA9 /* Models.swift */; };
+		A929CFE330A850CFD4F7B9EE /* AdminFinanceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88A2BE4EDB3F7DE07E019A64 /* AdminFinanceView.swift */; };
+		BC303AFBB2D2070E6B653A69 /* ScheduleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1163268BF13DE9BFDF5425F /* ScheduleView.swift */; };
+		D4DA66A4A021236B4B3F5F1F /* TicketsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A084361E5D5E98B103B5712 /* TicketsView.swift */; };
+		DDB466D90791E15F6AF8A42A /* TexasSandFestApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FE52C12D256F44D441A73E8 /* TexasSandFestApp.swift */; };
+		FD939155C5210E2D22B680BB /* AdminSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35FA2B9DDE9ACE64C9208A4F /* AdminSettingsView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		14666CC63BD806C8F2385B35 /* sandfest-seed.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "sandfest-seed.json"; sourceTree = "<group>"; };
+		1FE52C12D256F44D441A73E8 /* TexasSandFestApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TexasSandFestApp.swift; sourceTree = "<group>"; };
+		250D6E54785B8CFE8754310F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		35FA2B9DDE9ACE64C9208A4F /* AdminSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminSettingsView.swift; sourceTree = "<group>"; };
+		3A084361E5D5E98B103B5712 /* TicketsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TicketsView.swift; sourceTree = "<group>"; };
+		419EDC2EDEEA3CF4FFED6B65 /* TexasSandFest.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TexasSandFest.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4527D8728096BF89BE1EA3FD /* ConciergeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConciergeView.swift; sourceTree = "<group>"; };
+		45FBC9090CA50C1CC8EB6171 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		53F78C64F4BD9FA6190D18D5 /* LiveBeachView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveBeachView.swift; sourceTree = "<group>"; };
+		5C6D726F8724C21BFFDAB314 /* MapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapView.swift; sourceTree = "<group>"; };
+		6F3A7CEC1DB60CE0816CCE15 /* AdminPartnersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminPartnersView.swift; sourceTree = "<group>"; };
+		71666C616CAB0478CF9E0DBD /* OpsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpsView.swift; sourceTree = "<group>"; };
+		806C8EDE8EE727731CC8DF59 /* SandFestTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SandFestTheme.swift; sourceTree = "<group>"; };
+		88A2BE4EDB3F7DE07E019A64 /* AdminFinanceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminFinanceView.swift; sourceTree = "<group>"; };
+		8A17B986F097F115828A9018 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		8D2D2F7158CB5526A5008504 /* AdminDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminDashboardView.swift; sourceTree = "<group>"; };
+		D0E7AEEF912C40CBF43D6DE3 /* TexasSandFest.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TexasSandFest.entitlements; sourceTree = "<group>"; };
+		D1163268BF13DE9BFDF5425F /* ScheduleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleView.swift; sourceTree = "<group>"; };
+		DA315742174BA3305A51AFA9 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		EA468D65536B1F4405067D19 /* TodayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayView.swift; sourceTree = "<group>"; };
+		F7A4D6B7050CE53483611B82 /* AppDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDataStore.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		1979F7610BE0258CEB1E06C7 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				419EDC2EDEEA3CF4FFED6B65 /* TexasSandFest.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		291D137BB5A83B844A08D842 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				14666CC63BD806C8F2385B35 /* sandfest-seed.json */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		A29054CD1266C4E931566DD7 = {
+			isa = PBXGroup;
+			children = (
+				D9CEECC0ABC5AE7329A950F4 /* TexasSandFest */,
+				1979F7610BE0258CEB1E06C7 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		D9CEECC0ABC5AE7329A950F4 /* TexasSandFest */ = {
+			isa = PBXGroup;
+			children = (
+				8D2D2F7158CB5526A5008504 /* AdminDashboardView.swift */,
+				88A2BE4EDB3F7DE07E019A64 /* AdminFinanceView.swift */,
+				6F3A7CEC1DB60CE0816CCE15 /* AdminPartnersView.swift */,
+				35FA2B9DDE9ACE64C9208A4F /* AdminSettingsView.swift */,
+				F7A4D6B7050CE53483611B82 /* AppDataStore.swift */,
+				8A17B986F097F115828A9018 /* Assets.xcassets */,
+				4527D8728096BF89BE1EA3FD /* ConciergeView.swift */,
+				250D6E54785B8CFE8754310F /* Info.plist */,
+				53F78C64F4BD9FA6190D18D5 /* LiveBeachView.swift */,
+				5C6D726F8724C21BFFDAB314 /* MapView.swift */,
+				DA315742174BA3305A51AFA9 /* Models.swift */,
+				71666C616CAB0478CF9E0DBD /* OpsView.swift */,
+				45FBC9090CA50C1CC8EB6171 /* RootView.swift */,
+				806C8EDE8EE727731CC8DF59 /* SandFestTheme.swift */,
+				D1163268BF13DE9BFDF5425F /* ScheduleView.swift */,
+				D0E7AEEF912C40CBF43D6DE3 /* TexasSandFest.entitlements */,
+				1FE52C12D256F44D441A73E8 /* TexasSandFestApp.swift */,
+				3A084361E5D5E98B103B5712 /* TicketsView.swift */,
+				EA468D65536B1F4405067D19 /* TodayView.swift */,
+				291D137BB5A83B844A08D842 /* Resources */,
+			);
+			path = TexasSandFest;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		AC0D20584DFF09EEC0C8E628 /* TexasSandFest */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A8D7D0A627A452AF3F0CE7F4 /* Build configuration list for PBXNativeTarget "TexasSandFest" */;
+			buildPhases = (
+				FC77D586F3DC4A5427177CA3 /* Sources */,
+				723B4F242AD55CB70E3C7C62 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TexasSandFest;
+			packageProductDependencies = (
+			);
+			productName = TexasSandFest;
+			productReference = 419EDC2EDEEA3CF4FFED6B65 /* TexasSandFest.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		48D4C323D0928CD227A5AC97 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+			};
+			buildConfigurationList = D5AC1BFCF6CE07B9D6C2CA5B /* Build configuration list for PBXProject "TexasSandFest" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = A29054CD1266C4E931566DD7;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				AC0D20584DFF09EEC0C8E628 /* TexasSandFest */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		723B4F242AD55CB70E3C7C62 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1775818503EFAFFF2CC2BC15 /* Assets.xcassets in Resources */,
+				8E6C1B9EBF98BE36A9DE7392 /* sandfest-seed.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		FC77D586F3DC4A5427177CA3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8AD1C210E31D4AC09A2AB081 /* AdminDashboardView.swift in Sources */,
+				A929CFE330A850CFD4F7B9EE /* AdminFinanceView.swift in Sources */,
+				2A6CD665FC99358DA420F09A /* AdminPartnersView.swift in Sources */,
+				FD939155C5210E2D22B680BB /* AdminSettingsView.swift in Sources */,
+				7271794860C93AEFFB958A92 /* AppDataStore.swift in Sources */,
+				62ED55E5F91CFE6F6DB71E07 /* ConciergeView.swift in Sources */,
+				6B2A9DBB72133C30946A1850 /* LiveBeachView.swift in Sources */,
+				6CFD6F60D11DF0F010FE5D52 /* MapView.swift in Sources */,
+				95D327E3C6E9BF25A9C56904 /* Models.swift in Sources */,
+				45A248205EF7F4A3A7EFD762 /* OpsView.swift in Sources */,
+				0C1B4720FEFDCA8CF6BE9A71 /* RootView.swift in Sources */,
+				1F24D12EB45E476233EE799E /* SandFestTheme.swift in Sources */,
+				BC303AFBB2D2070E6B653A69 /* ScheduleView.swift in Sources */,
+				DDB466D90791E15F6AF8A42A /* TexasSandFestApp.swift in Sources */,
+				D4DA66A4A021236B4B3F5F1F /* TicketsView.swift in Sources */,
+				7B123FC7BD2E3502211358AD /* TodayView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		3A07C9D7C074A3458AEAA3DA /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = TexasSandFest/TexasSandFest.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = TexasSandFest/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.portalcodex.texassandfest;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		639576E3657D85F4F92E227E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		79AB16A82BAC6C65A4485478 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = TexasSandFest/TexasSandFest.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = TexasSandFest/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.portalcodex.texassandfest;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		DF36EC97F55A1B407EF1317C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A8D7D0A627A452AF3F0CE7F4 /* Build configuration list for PBXNativeTarget "TexasSandFest" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3A07C9D7C074A3458AEAA3DA /* Debug */,
+				79AB16A82BAC6C65A4485478 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		D5AC1BFCF6CE07B9D6C2CA5B /* Build configuration list for PBXProject "TexasSandFest" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DF36EC97F55A1B407EF1317C /* Debug */,
+				639576E3657D85F4F92E227E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 48D4C323D0928CD227A5AC97 /* Project object */;
+}

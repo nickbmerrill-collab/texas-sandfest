@@ -1,0 +1,22 @@
+---
+type: ingestion_lane
+status: ready
+drop_folder: data/incoming/quickbooks
+---
+
+# QuickBooks Intake
+
+## Drop Folder
+
+`/Users/nick/Projects/Teaxs Sandfest/data/incoming/quickbooks`
+
+## Expected Data
+
+OAuth callback captures, company info snapshots, invoice/payment exports, chart of accounts reports
+
+## Processing Notes
+
+- Add files to the drop folder.
+- Create or update source notes in this vault.
+- Extract entities and unresolved questions.
+- Promote only reviewed facts into canonical notes.

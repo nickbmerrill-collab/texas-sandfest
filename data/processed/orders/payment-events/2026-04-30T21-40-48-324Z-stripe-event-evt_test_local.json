@@ -1,0 +1,22 @@
+{
+  "id": "evt_test_local",
+  "provider": "stripe",
+  "type": "checkout.session.completed",
+  "verified": false,
+  "verificationReason": "webhook_secret_not_configured",
+  "receivedAt": "2026-04-30T21:40:48.324Z",
+  "objectId": "cs_test_local",
+  "checkoutSessionId": "cs_test_local",
+  "paymentIntentId": "pi_test_local",
+  "fulfillmentStatus": "queued",
+  "raw": {
+    "id": "evt_test_local",
+    "type": "checkout.session.completed",
+    "data": {
+      "object": {
+        "id": "cs_test_local",
+        "payment_intent": "pi_test_local"
+      }
+    }
+  }
+}

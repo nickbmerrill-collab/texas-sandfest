@@ -1,0 +1,52 @@
+{
+  "id": "audit_77373630-aac5-4853-92e4-1b66a9fd225a",
+  "eventId": "texas-sandfest-2026",
+  "action": "config.rollback",
+  "target": {
+    "type": "alert",
+    "id": "alert_none"
+  },
+  "actor": {
+    "id": "snapshot-test",
+    "role": "super_admin",
+    "permissions": [
+      "*"
+    ],
+    "type": "local-bearer-token",
+    "tokenHint": "Bearer dev-admin-t...",
+    "ip": "127.0.0.1",
+    "userAgent": "curl/8.7.1"
+  },
+  "requestId": "req_d3ffb733-aa99-4124-a367-f39fc4585f4b",
+  "before": {
+    "id": "alert_f8b1cef7-15ab-4e5e-8fc7-cad398cb8ff5",
+    "active": true,
+    "severity": "watch",
+    "title": "Snapshot test",
+    "message": "Testing snapshot before alert publish.",
+    "audience": [
+      "public"
+    ],
+    "updatedAt": "2026-05-01T01:57:19.674Z",
+    "expiresAt": null,
+    "source": "admin"
+  },
+  "after": {
+    "id": "alert_none",
+    "active": false,
+    "severity": "info",
+    "title": "",
+    "message": "",
+    "audience": [
+      "public"
+    ],
+    "updatedAt": "2026-04-30T00:00:00.000Z",
+    "expiresAt": null,
+    "source": "admin"
+  },
+  "metadata": {
+    "snapshotId": "snap_b90c2071-69c3-4f41-aca2-b8bab26bf82f",
+    "snapshotFile": "2026-05-01T01-57-19-677Z-alert-snapshot-snap_b90c2071-69c3-4f41-aca2-b8bab26bf82f.json"
+  },
+  "createdAt": "2026-05-01T01:57:30.006Z"
+}

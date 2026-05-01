@@ -1,0 +1,18 @@
+{
+  "main": {
+    "id": "sandfest-main",
+    "type": "split",
+    "children": []
+  },
+  "left": {
+    "id": "sandfest-left",
+    "type": "split",
+    "children": []
+  },
+  "right": {
+    "id": "sandfest-right",
+    "type": "split",
+    "children": []
+  },
+  "active": "sandfest-main"
+}

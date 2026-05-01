@@ -1,0 +1,13 @@
+{
+  "id": "alert_none",
+  "active": false,
+  "severity": "info",
+  "title": "",
+  "message": "",
+  "audience": [
+    "public"
+  ],
+  "updatedAt": "2026-04-30T00:00:00.000Z",
+  "expiresAt": null,
+  "source": "admin"
+}

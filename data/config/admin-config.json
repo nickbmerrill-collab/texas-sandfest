@@ -1,0 +1,117 @@
+{
+  "lastUpdated": "2026-04-30T21:29:11.601Z",
+  "deployment": {
+    "ownerSite": "Heyelab",
+    "apiSubdomain": "api.heyelab.com",
+    "adminSubdomain": "sandfest-admin.heyelab.com",
+    "publicOrigins": [
+      "http://127.0.0.1:4173",
+      "http://127.0.0.1:5173",
+      "https://www.texassandfest.org",
+      "https://texassandfest.org"
+    ]
+  },
+  "ticketing": {
+    "enabled": false,
+    "provider": "stripe",
+    "checkoutEndpoint": "/api/stripe/create-checkout-session",
+    "webhookEndpoint": "/api/stripe/webhook",
+    "applePayEnabled": false,
+    "productsSource": "data/processed/ticket-products.json"
+  },
+  "sponsorPackages": [
+    {
+      "id": "whale",
+      "name": "Whale",
+      "amount": 2500000,
+      "currency": "usd",
+      "publicLabel": "$25k+",
+      "active": true,
+      "requiresApproval": true,
+      "stripePriceId": null,
+      "quickBooksItemId": null,
+      "benefits": [
+        "Top visibility",
+        "Main-stage recognition",
+        "VIP footprint"
+      ]
+    },
+    {
+      "id": "marlin",
+      "name": "Marlin",
+      "amount": 1500000,
+      "currency": "usd",
+      "publicLabel": "$15k",
+      "active": true,
+      "requiresApproval": true,
+      "stripePriceId": null,
+      "quickBooksItemId": null,
+      "benefits": [
+        "Beach signage",
+        "Digital placement",
+        "Hospitality support"
+      ]
+    },
+    {
+      "id": "sailfish",
+      "name": "Sailfish",
+      "amount": 1000000,
+      "currency": "usd",
+      "publicLabel": "$10k",
+      "active": true,
+      "requiresApproval": true,
+      "stripePriceId": null,
+      "quickBooksItemId": null,
+      "benefits": [
+        "Category sponsorship",
+        "Social media package"
+      ]
+    },
+    {
+      "id": "tarpon",
+      "name": "Tarpon",
+      "amount": 500000,
+      "currency": "usd",
+      "publicLabel": "$5k",
+      "active": true,
+      "requiresApproval": true,
+      "stripePriceId": null,
+      "quickBooksItemId": null,
+      "benefits": [
+        "On-site logo placement",
+        "Web listing"
+      ]
+    }
+  ],
+  "adminModules": [
+    {
+      "id": "ticket-pricing",
+      "label": "Ticket pricing",
+      "description": "Configure GA, VIP, raffle review gates, Stripe Price IDs, and active sale windows.",
+      "roles": [
+        "super_admin",
+        "finance_admin",
+        "ticketing_admin"
+      ]
+    },
+    {
+      "id": "sponsorships",
+      "label": "Sponsorships",
+      "description": "Configure sponsor tiers, benefits, QuickBooks items, Stripe Payment Links, and approval status.",
+      "roles": [
+        "super_admin",
+        "sponsor_admin",
+        "finance_admin"
+      ]
+    },
+    {
+      "id": "checkout-settings",
+      "label": "Checkout settings",
+      "description": "Control Stripe live mode, Apple Pay readiness, success URLs, cancellation URLs, and webhook status.",
+      "roles": [
+        "super_admin",
+        "finance_admin"
+      ]
+    }
+  ]
+}

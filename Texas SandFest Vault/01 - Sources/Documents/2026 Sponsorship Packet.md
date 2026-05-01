@@ -1,0 +1,156 @@
+---
+type: source_document
+status: needs_review
+source_path: data/processed/documents/f800df_e5cf5ff6492f4698904263d7fe3fd1ac.txt
+---
+
+# 2026 Sponsorship Packet
+
+## Extracted Text
+
+```text
+--- page 1 ---
+2026Sponsorships
+
+--- page 2 ---
+About Us
+Texas SandFest is a 501c(3) nonprofit that operates under a
+Board of Directors. W hat was once a sm all, local sand
+sculpting com petition, has now grown into a 3-day
+internationally recognized event. Thanks to the popularity of
+this event, SandFest has been able to raise and give back to
+the com m unity over $2.4 M illion dollars from  2012-2025.
+Thanks to our Sponsors at every level, we have been able to
+provide funds to m ultiple organizations around the Coastal
+Bend. In 2025, a total of $464,169 was donated to local non-
+profit organizations with $274,419 going to Port Aransas
+Independent School District for scholarships.
+
+--- page 3 ---
+StudioShodweSponsorshipPackages
+225VIP Wristbands
+250 3-Day General Admission Wristbands
+100 VIP Parking Passes (and Beach Permits)
+2 30x30 Booth Spaces (tents provided)
+Presenting Sponsor of Texas SandFest
+1 billboard (location TBD)
+Logo included on TV commercial as a partner
+Logo on the full North side of Logo Mountain
+Name on Music Stage
+Logo on Big Checks at presentation Ceremony 
+Full page Ad in Port Aransas South Jetty SandFest guide
+Prominent display of company logo on website, promotional
+materials, and event signage 
+2 full-page ads in SandFest Magazine, premium location
+15 Social Media posts throughout the year 
+Logo on Sponsor Gift Bags
+Premium Sponsor Gift Bag
+$250,000
+The Kraken 
+150 VIP Wristbands
+175 3-Day General Admission Wristbands
+60 VIP Parking Passes (and Beach Permits)
+1 30x30 Booth Space (tent provided)
+Logo on the full West side of Logo Mountain
+Prominent display of company logo on website, promotional
+materials, and event signage
+1 Full Page ad in SandFest Magazine
+10 Social Media posts throughout the year
+Premium Sponsor Gift Bag
+$125,000
+Megalodon
+1 Available
+1 Available
+
+
+--- page 4 ---
+StudioShodwe
+100 VIP Wristbands
+125 3-Day General Admission Wristbands
+45 VIP Parking Passes (and Beach Permits)
+Logo on the top half of the East side of Logo Mountain
+Prominent display of company logo on website, promotional
+materials, and event signage 
+1 full-page ad in SandFest Magazine 
+7 Social Media posts throughout the year 
+Premium Sponsor Gift Bag
+$75,000
+Giant Squid
+72 VIP Wristbands
+100 3-Day General Admission Wristbands
+36 VIP Parking Passes (and Beach Permits)
+Logo on the lower half of the East side of Logo Mountain
+Prominent display of company logo on website, promotional
+materials, and event signage
+1 Full Page ad in SandFest Magazine
+5 Social Media posts throughout the year
+Premium Sponsor Gift Bag
+$50,000
+Whale
+36 VIP Wristbands
+50 3-Day General Admission Wristbands
+18 VIP Parking passes (and Beach Permits)
+Logo on the top tier of Logo Mountain
+Company logo on website, promotional materials 
+1/2 page ad in SandFest Magazine
+Sponsor Gift Bag
+$25,000
+Shark
+1 Available
+1 Available
+4 Available
+
+--- page 5 ---
+25 VIP Wristbands
+30 3-Day General Admission Wristbands
+10 VIP Parking passes (and Beach Permits)
+*Logo mid Gallery near Duo Sculptors or the mid-tier of Logo
+Mountain 
+Company logo on website
+Sponsor Gift Bag
+8 VIP Wristbands
+10 3-Day General Admission Wristbands
+4 VIP Parking Passes (and Beach Permits)
+Simplified Logo on the West side of the Gallery near the Semi-
+Pro Sculptors
+Company logo on website
+Sponsor Gift Bag
+$15,000
+$10,000
+$5,000
+Marlin
+Sailfish
+Tarpon
+4 VIP Wristbands
+6 3-Day General Admission Wristbands
+2 VIP Parking Passes (and Beach Permits)
+Name on a wall 
+Company logo on website
+Sponsor Gift Bag
+$2,500
+Trout
+15 VIP Wristbands
+20 3-Day General Admission Wristbands
+6 VIP Parking Passes (and Beach Permits)
+*Logo mid Gallery near the Solo Sculptors, or the *South end of
+the Amateur Area, or the bottom tier, of the South side of Logo
+Mountain
+Company Logo on the website
+Sponsor Gift Bag
+
+--- page 6 ---
+Sponsor Package Add-On’s 
+Front inside cover in Magazine - $1,000
+Back inside cover in Magazine - $500
+Logo 1 side of Koozies at Beer Tent - $5,000 (5k
+Koozies) Deadline 3.12.2026
+Logo 1 side Merchandise Bag - $5,000 (5K Bags)
+Deadline 2.1.2026
+Deadlines 
+Deadline for name on t-shirts  - 3.31.2026
+Deadline for booth - 2.1.2026
+Deadline for logo or name in sand - 4.1.2026
+*Spaces limited for Sculptors - first come, first
+served  
+*Payment plans available  - contact us for details! 
+```

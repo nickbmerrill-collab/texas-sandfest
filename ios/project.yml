@@ -1,0 +1,35 @@
+name: TexasSandFest
+options:
+  bundleIdPrefix: com.portalcodex
+  deploymentTarget:
+    iOS: "18.0"
+settings:
+  MARKETING_VERSION: "0.1.0"
+  CURRENT_PROJECT_VERSION: "1"
+  SWIFT_VERSION: "6.0"
+targets:
+  TexasSandFest:
+    type: application
+    platform: iOS
+    sources:
+      - TexasSandFest
+    resources:
+      - TexasSandFest/Resources
+    info:
+      path: TexasSandFest/Info.plist
+      properties:
+        CFBundleDisplayName: Texas SandFest
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UIRequiresFullScreen: true
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: false
+    entitlements:
+      path: TexasSandFest/TexasSandFest.entitlements
+      properties:
+        aps-environment: development
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.portalcodex.texassandfest
+      ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

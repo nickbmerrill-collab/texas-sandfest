@@ -1,0 +1,26 @@
+{
+  "id": "order_fbad2708-5c4a-4411-9383-81e8b7d8f5ed",
+  "eventId": "texas-sandfest-2026",
+  "status": "checkout_not_configured",
+  "provider": "stripe",
+  "lineItems": [
+    {
+      "productId": "general-admission-3-day",
+      "name": "General Admission 3-Day Wristband",
+      "quantity": 2,
+      "stripePriceId": "price_test_general_admission",
+      "unitAmount": 2500,
+      "fulfillment": "qr_wristband"
+    }
+  ],
+  "customer": {
+    "email": null,
+    "phone": null
+  },
+  "totals": {
+    "knownAmount": 5000,
+    "currency": "usd"
+  },
+  "createdAt": "2026-04-30T21:40:48.261Z",
+  "updatedAt": "2026-04-30T21:40:48.261Z"
+}

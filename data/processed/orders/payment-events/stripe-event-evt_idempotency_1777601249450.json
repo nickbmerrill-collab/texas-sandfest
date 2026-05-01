@@ -1,0 +1,34 @@
+{
+  "id": "evt_idempotency_1777601249450",
+  "provider": "stripe",
+  "type": "checkout.session.completed",
+  "verified": false,
+  "verificationReason": "webhook_secret_not_configured",
+  "receivedAt": "2026-05-01T02:07:29.485Z",
+  "objectId": "cs_idem_1777601249450",
+  "checkoutSessionId": "cs_idem_1777601249450",
+  "paymentIntentId": "pi_evt_idempotency_1777601249450",
+  "fulfillmentStatus": "queued",
+  "raw": {
+    "id": "evt_idempotency_1777601249450",
+    "type": "checkout.session.completed",
+    "data": {
+      "object": {
+        "id": "cs_idem_1777601249450",
+        "client_reference_id": "order_idem_1777601249450",
+        "payment_intent": "pi_evt_idempotency_1777601249450",
+        "customer_details": {
+          "email": "test@example.com",
+          "name": "Webhook Test"
+        },
+        "metadata": {
+          "sandfest_line_items": "[{\"productId\":\"general-admission-3-day\",\"name\":\"General Admission\",\"quantity\":2,\"fulfillment\":\"qr_code\"}]"
+        }
+      }
+    }
+  },
+  "fulfillmentRecordIds": [
+    "ful_901c7d7a-593a-46bb-ac2c-8ec779470076",
+    "ful_43105b3b-d331-4863-84b5-61a708ad9e24"
+  ]
+}

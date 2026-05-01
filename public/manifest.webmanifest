@@ -1,0 +1,24 @@
+{
+  "name": "Texas SandFest AI",
+  "short_name": "SandFest",
+  "description": "Texas SandFest visitor guide, tickets, alerts, and event operations companion.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f8f5ec",
+  "theme_color": "#f7b733",
+  "orientation": "portrait-primary",
+  "categories": [
+    "travel",
+    "entertainment",
+    "events"
+  ],
+  "icons": [
+    {
+      "src": "/assets/sandfest-app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

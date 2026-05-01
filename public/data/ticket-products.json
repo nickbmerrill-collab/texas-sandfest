@@ -1,0 +1,126 @@
+{
+  "lastUpdated": "2026-04-30T21:40:48.383Z",
+  "currency": "usd",
+  "provider": "stripe",
+  "checkoutEndpoint": "/api/stripe/create-checkout-session",
+  "webhookEndpoint": "/api/stripe/webhook",
+  "applePay": {
+    "status": "ready_for_domain_and_merchant_setup",
+    "webDomain": "texassandfest.org",
+    "iosMerchantIdentifier": "merchant.org.texassandfest"
+  },
+  "products": [
+    {
+      "id": "general-admission-3-day",
+      "name": "General Admission 3-Day Wristband",
+      "category": "ticket",
+      "priceLabel": "Set in Stripe",
+      "unitAmount": null,
+      "stripePriceId": "price_replace_general_admission_3_day",
+      "quantity": {
+        "min": 1,
+        "max": 12
+      },
+      "checkoutMode": "payment",
+      "requiresReview": false,
+      "fulfillment": "qr_wristband",
+      "source": "www-texassandfest-org-generaladmissionticket",
+      "description": "Ages 13+. Wristbands are good for all 3 days. No 1-day general admission tickets listed in the public scrape.",
+      "terms": [
+        "Resale of tickets is not allowed.",
+        "Wristband must stay on for re-entry.",
+        "Ticket terms should include filming/photography notice and service-animals-only policy."
+      ]
+    },
+    {
+      "id": "vip-wristband-friday",
+      "name": "VIP Wristband - Friday",
+      "category": "vip",
+      "priceLabel": "Set in Stripe",
+      "unitAmount": null,
+      "stripePriceId": "price_replace_vip_friday",
+      "quantity": {
+        "min": 1,
+        "max": 8
+      },
+      "checkoutMode": "payment",
+      "requiresReview": false,
+      "fulfillment": "vip_will_call",
+      "source": "www-texassandfest-org-vipwristbands",
+      "description": "1-day VIP wristband with food, beverages, air-conditioned tent access, shade, and private indoor restrooms. VIP parking pass excluded."
+    },
+    {
+      "id": "vip-wristband-saturday",
+      "name": "VIP Wristband - Saturday",
+      "category": "vip",
+      "priceLabel": "Set in Stripe",
+      "unitAmount": null,
+      "stripePriceId": "price_replace_vip_saturday",
+      "quantity": {
+        "min": 1,
+        "max": 8
+      },
+      "checkoutMode": "payment",
+      "requiresReview": false,
+      "fulfillment": "vip_will_call",
+      "source": "www-texassandfest-org-vipwristbands",
+      "description": "Limited-quantity 1-day VIP wristband for Saturday hospitality access."
+    },
+    {
+      "id": "vip-wristband-sunday",
+      "name": "VIP Wristband - Sunday",
+      "category": "vip",
+      "priceLabel": "Set in Stripe",
+      "unitAmount": null,
+      "stripePriceId": "price_replace_vip_sunday",
+      "quantity": {
+        "min": 1,
+        "max": 8
+      },
+      "checkoutMode": "payment",
+      "requiresReview": false,
+      "fulfillment": "vip_will_call",
+      "source": "www-texassandfest-org-vipwristbands",
+      "description": "Limited-quantity 1-day VIP wristband for Sunday hospitality access."
+    },
+    {
+      "id": "sponsor-package-request",
+      "name": "VIP / Sponsor Package",
+      "category": "sponsor",
+      "priceLabel": "Request checkout",
+      "unitAmount": null,
+      "stripePriceId": null,
+      "quantity": {
+        "min": 1,
+        "max": 1
+      },
+      "checkoutMode": "invoice_or_payment_link",
+      "requiresReview": true,
+      "fulfillment": "sponsor_crm",
+      "source": "www-texassandfest-org-sponsorship",
+      "description": "Sponsor-ready intake for tailored VIP bundles, hospitality, visibility, and sponsor tier selection before invoice or Stripe Payment Link creation."
+    },
+    {
+      "id": "golf-cart-raffle",
+      "name": "Golf Cart Raffle Ticket",
+      "category": "raffle",
+      "priceLabel": "$50.00",
+      "unitAmount": 5000,
+      "stripePriceId": "price_replace_golf_cart_raffle",
+      "quantity": {
+        "min": 1,
+        "max": 20
+      },
+      "checkoutMode": "payment",
+      "requiresReview": true,
+      "fulfillment": "raffle_ticket_registry",
+      "source": "www-texassandfest-org-golf-cart-raffle",
+      "description": "Raffle ticket surfaced from the public rules page. Keep disabled until finance/legal approval confirms online checkout flow, eligibility, receipt text, and reporting.",
+      "terms": [
+        "Only individuals aged 18+ who are U.S. residents are eligible.",
+        "650 total tickets listed in public rules.",
+        "Drawing listed for April 19, 2026 around 2:45 PM CDT."
+      ]
+    }
+  ]
+}

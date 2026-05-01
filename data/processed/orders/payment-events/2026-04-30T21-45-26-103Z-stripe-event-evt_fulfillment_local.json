@@ -1,0 +1,35 @@
+{
+  "id": "evt_fulfillment_local",
+  "provider": "stripe",
+  "type": "checkout.session.completed",
+  "verified": false,
+  "verificationReason": "webhook_secret_not_configured",
+  "receivedAt": "2026-04-30T21:45:26.101Z",
+  "objectId": "cs_fulfillment_local",
+  "checkoutSessionId": "cs_fulfillment_local",
+  "paymentIntentId": "pi_fulfillment_local",
+  "fulfillmentStatus": "queued",
+  "raw": {
+    "id": "evt_fulfillment_local",
+    "type": "checkout.session.completed",
+    "data": {
+      "object": {
+        "id": "cs_fulfillment_local",
+        "client_reference_id": "order_local_fulfillment",
+        "payment_intent": "pi_fulfillment_local",
+        "customer_details": {
+          "email": "buyer@example.com",
+          "name": "Buyer Example"
+        },
+        "metadata": {
+          "order_id": "order_local_fulfillment",
+          "sandfest_line_items": "[{\"productId\":\"general-admission-3-day\",\"name\":\"General Admission 3-Day Wristband\",\"quantity\":2,\"fulfillment\":\"qr_wristband\"}]"
+        }
+      }
+    }
+  },
+  "fulfillmentRecordIds": [
+    "ful_3b39c805-bdab-4f8c-878c-71ec7b0ab518",
+    "ful_4e0df112-bf77-47f9-a281-4c8376851110"
+  ]
+}

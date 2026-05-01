@@ -1,0 +1,44 @@
+{
+  "integration": {
+    "name": "QuickBooks Online",
+    "environment": "sandbox",
+    "oauth_scope": "com.intuit.quickbooks.accounting",
+    "minor_version": "75",
+    "source_of_truth": "QuickBooks for accounting transactions; SandFest platform for operational status and fulfillment"
+  },
+  "entities": {
+    "sponsor": {
+      "sandfest_owner": "Sponsor CRM",
+      "quickbooks_objects": ["Customer", "Invoice", "Payment", "Item", "Class"],
+      "external_id_fields": ["realmId", "Customer.Id", "Invoice.Id", "Payment.Id"],
+      "sync_direction": "bidirectional_status_read_write_invoice_create",
+      "notes": "Sponsor tier, package, and benefit fulfillment stay in SandFest. Invoice/payment state comes from QuickBooks."
+    },
+    "vendor": {
+      "sandfest_owner": "Vendor Command",
+      "quickbooks_objects": ["Vendor", "Bill", "Purchase", "Payment"],
+      "external_id_fields": ["realmId", "Vendor.Id", "Bill.Id", "Purchase.Id"],
+      "sync_direction": "qbo_read_financials_sandfest_write_operational_status",
+      "notes": "Vendor approval, booth, load-in, permits, and inspection remain operational records."
+    },
+    "donation_distribution": {
+      "sandfest_owner": "Finance + Board",
+      "quickbooks_objects": ["JournalEntry", "Account", "Class"],
+      "external_id_fields": ["realmId", "JournalEntry.Id"],
+      "sync_direction": "qbo_read_report_sandfest_report",
+      "notes": "Use for nonprofit and scholarship impact reporting. Do not infer restricted-fund allocations without finance review."
+    },
+    "raffle": {
+      "sandfest_owner": "Commerce",
+      "quickbooks_objects": ["Item", "SalesReceipt", "Payment"],
+      "external_id_fields": ["realmId", "SalesReceipt.Id", "Payment.Id"],
+      "sync_direction": "qbo_read_reconcile",
+      "notes": "Raffle entrant data may be sensitive; store only what is necessary for reconciliation and compliance."
+    }
+  },
+  "canonical_statuses": {
+    "invoice": ["draft", "sent", "partially_paid", "paid", "void", "overdue"],
+    "payment": ["unmatched", "matched", "refunded", "failed"],
+    "sync": ["not_connected", "ready", "syncing", "error", "paused"]
+  }
+}

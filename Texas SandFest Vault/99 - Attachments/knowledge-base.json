@@ -1,0 +1,2351 @@
+{
+  "fetchedAt": "2026-04-30T20:38:45.882Z",
+  "event": {
+    "name": "Texas SandFest",
+    "knownDates": [
+      "April 17 - 19, 2026",
+      "April 17",
+      "Apr 17, 2026",
+      "Apr 19, 2026",
+      "April 13",
+      "April 14",
+      "April 15",
+      "April 16",
+      "April 14 - 16",
+      "April 17 - 19",
+      "April 17 - 18",
+      "April 19, 2026",
+      "April 1, 2026",
+      "March 23, 2026",
+      "April 12, 2026",
+      "April 18, 2026",
+      "April 17-18, 2026",
+      "April 17, 2026",
+      "April 6, 2026",
+      "February 2, 2026",
+      "April 18",
+      "April 19",
+      "April 18, 2018"
+    ],
+    "knownTimes": [
+      "9:00AM",
+      "3:00PM",
+      "2:00PM",
+      "9:00 AM",
+      "8:00 PM",
+      "9:30 AM",
+      "10:00 AM",
+      "11:00 AM",
+      "12:30 PM",
+      "2:45PM",
+      "4:30PM",
+      "4:30 PM",
+      "6:30 PM",
+      "6:00 PM",
+      "6:30PM",
+      "7:00 PM",
+      "7:30 PM",
+      "7:30 AM",
+      "8:30 AM",
+      "12:15 PM",
+      "2:30 PM",
+      "2:45 PM",
+      "4:00 PM",
+      "5:15 PM",
+      "4:45 PM",
+      "5:30 PM",
+      "2:00 PM",
+      "8:20 AM",
+      "6:00PM",
+      "7:15PM",
+      "8:00 AM",
+      "10:30 AM",
+      "1:00 PM",
+      "3:00 PM",
+      "5:00 PM",
+      "5:45 PM",
+      "10AM",
+      "12PM",
+      "2PM",
+      "4PM"
+    ],
+    "knownPrices": [
+      "$0",
+      "$7",
+      "$5,000",
+      "$20",
+      "$12",
+      "$8",
+      "$2",
+      "$22,000",
+      "$50",
+      "$29,500",
+      "$4",
+      "$40",
+      "$35",
+      "$75",
+      "$60",
+      "$125",
+      "$150",
+      "$200",
+      "$30",
+      "$5",
+      "$464,169",
+      "$274,419",
+      "$189,750",
+      "$3",
+      "$1",
+      "$10",
+      "$15",
+      "$464,000",
+      "$45.00",
+      "$100.00",
+      "$95.00",
+      "$20.00",
+      "$120.00",
+      "$25.00",
+      "$130.00",
+      "$40.00",
+      "$85.00",
+      "$10.00",
+      "$7.50",
+      "$130",
+      "$15.00"
+    ]
+  },
+  "contacts": [
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/maps"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/maps"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/daily-schedule"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/daily-schedule"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/sustainablity"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/sustainablity"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/accessibility"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/accessibility"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/faq"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/faq"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/golf-cart-raffle"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/golf-cart-raffle"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/copy-of-press-release"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/copy-of-press-release"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/copy-of-at-sandfest"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/copy-of-at-sandfest"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/advancedamateurs"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/advancedamateurs"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/generaladmissionticket"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/generaladmissionticket"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/bollard-buddies"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/bollard-buddies"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/magazine"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/magazine"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/winners"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/winners"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/vipwristbands"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/vipwristbands"
+    },
+    {
+      "type": "email",
+      "value": "amateur@texassandfest.org",
+      "source": "https://www.texassandfest.org/amateur-competition"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/amateur-competition"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/amateur-competition"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/at-sandfest"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/at-sandfest"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/history"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/history"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/getting-to-sandfest"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/getting-to-sandfest"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/board"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/board"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/mission"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/mission"
+    },
+    {
+      "type": "email",
+      "value": "jgowdy@aol.com",
+      "source": "https://www.texassandfest.org/master-duo-sculptors"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/master-duo-sculptors"
+    },
+    {
+      "type": "phone",
+      "value": "609-517-0222",
+      "source": "https://www.texassandfest.org/master-duo-sculptors"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/master-duo-sculptors"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/get-involved"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/get-involved"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/contact-us"
+    },
+    {
+      "type": "email",
+      "value": "volunteer@texassandfest.org",
+      "source": "https://www.texassandfest.org/contact-us"
+    },
+    {
+      "type": "email",
+      "value": "vendors@texassandfest.org",
+      "source": "https://www.texassandfest.org/contact-us"
+    },
+    {
+      "type": "email",
+      "value": "sponsors@texassandfest.org",
+      "source": "https://www.texassandfest.org/contact-us"
+    },
+    {
+      "type": "email",
+      "value": "media@texassandfest.org",
+      "source": "https://www.texassandfest.org/contact-us"
+    },
+    {
+      "type": "email",
+      "value": "music@texassandfest.org",
+      "source": "https://www.texassandfest.org/contact-us"
+    },
+    {
+      "type": "email",
+      "value": "kidscorner@texassandfest.org",
+      "source": "https://www.texassandfest.org/contact-us"
+    },
+    {
+      "type": "email",
+      "value": "logistics@texassandfest.org",
+      "source": "https://www.texassandfest.org/contact-us"
+    },
+    {
+      "type": "email",
+      "value": "sculptors@texassandfest.org",
+      "source": "https://www.texassandfest.org/contact-us"
+    },
+    {
+      "type": "email",
+      "value": "amateur@texassandfest.org",
+      "source": "https://www.texassandfest.org/contact-us"
+    },
+    {
+      "type": "email",
+      "value": "scholarships@texassandfest.org",
+      "source": "https://www.texassandfest.org/contact-us"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/contact-us"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/parking-shuttles"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/parking-shuttles"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/kidscorner"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/kidscorner"
+    },
+    {
+      "type": "email",
+      "value": "volunteer@texassandfest.org",
+      "source": "https://www.texassandfest.org/volunteer"
+    },
+    {
+      "type": "email",
+      "value": "volunteers@texassandfest.org",
+      "source": "https://www.texassandfest.org/volunteer"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/volunteer"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/volunteer"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/about"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/about"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/sculptors/master-solo-sculptors"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/sculptors/master-solo-sculptors"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/master-solo-sculptors2024"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/master-solo-sculptors2024"
+    },
+    {
+      "type": "email",
+      "value": "media@texassandfest.org",
+      "source": "https://www.texassandfest.org/pressrelease"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/pressrelease"
+    },
+    {
+      "type": "phone",
+      "value": "512.936.8746",
+      "source": "https://www.texassandfest.org/pressrelease"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/pressrelease"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/sculptors"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/sculptors"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/livemusic"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/livemusic"
+    },
+    {
+      "type": "email",
+      "value": "waltermcdonald@facebook.com",
+      "source": "https://www.texassandfest.org/non-competing-sculptors"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/non-competing-sculptors"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/non-competing-sculptors"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/ferry"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/ferry"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/guestsurvey"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/guestsurvey"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/semi-pro-sculptors"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/semi-pro-sculptors"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/petpolicy"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/petpolicy"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/copy-of-live-music"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/copy-of-live-music"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/live-music"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/live-music"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/sponsorship"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/sponsorship"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/things-to-do"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/things-to-do"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/master-duo-sculptors2024"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/master-duo-sculptors2024"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/vendors"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/vendors"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product-9"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product-9"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product-10"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product-10"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product-1"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product-1"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product-5"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product-5"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product-11"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product-11"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product-3"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product-3"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product-8"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product-8"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product-7"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product-7"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product-2"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product-2"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product-6"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product-6"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product-4"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product-4"
+    },
+    {
+      "type": "email",
+      "value": "info@texassandfest.org",
+      "source": "https://www.texassandfest.org/category/all-products"
+    },
+    {
+      "type": "phone",
+      "value": "361-267-2474",
+      "source": "https://www.texassandfest.org/category/all-products"
+    }
+  ],
+  "eventenyLinks": [
+    "https://www.eventeny.com/users/?ref=/events/texas-sandfest-2026-21603/",
+    "https://www.eventeny.com/users/signup/?ref=/events/texas-sandfest-2026-21603/",
+    "https://www.eventeny.com/inbox/conversation/?in&to=1599110",
+    "https://www.eventeny.com/events/ticket/?id=21603",
+    "https://www.eventeny.com/users/?ref=https://www.eventeny.com/events/texas-sandfest-2026-21603/",
+    "https://www.eventeny.com/users/?ref=/events/ticket/?id=21603",
+    "https://www.eventeny.com/users/signup/?ref=/events/ticket/?id=21603",
+    "https://www.eventeny.com/events/texas-sandfest-2026-21603/",
+    "https://www.eventeny.com/inbox/?to=280170&event=21603&type=1",
+    "https://www.eventeny.com/events/ticket/?id=21603&amp;type=tickets&amp;show=custom&amp;custom=47451",
+    "https://www.eventeny.com/events/ticket/?id=21603&amp;type=tickets&amp;show=custom&amp;custom=39512",
+    "https://www.eventeny.com/events/texas-sandfest-2025-7959/?action=vendor",
+    "https://www.eventeny.com/events/texas-sandfest-2026-21603/?action=sponsor"
+  ],
+  "socialLinks": [
+    "https://www.instagram.com/texas_sandfest/",
+    "https://www.facebook.com/TexasSandFest/",
+    "https://www.facebook.com/eventeny/",
+    "https://twitter.com/eventenyteam/",
+    "https://www.linkedin.com/company/eventeny/",
+    "https://www.instagram.com/eventenyteam/",
+    "https://www.tiktok.com/@eventeny/",
+    "https://www.facebook.com/blacksheepsoulatx",
+    "https://www.facebook.com/yarnbombinginporta/",
+    "https://www.facebook.com/PortAransasVFW",
+    "https://www.facebook.com/PortAransasPoliceFoundation",
+    "https://x.com/PortA_Ferry",
+    "http://www.facebook.com/sharer.php?u=https%3A%2F%2Fwww.texassandfest.org%2Fproduct-page%2Fi-m-a-product-9&amp;title=I&#x27;m+a+product",
+    "https://twitter.com/intent/tweet?url=https%3A%2F%2Fwww.texassandfest.org%2Fproduct-page%2Fi-m-a-product-9&amp;text=I&#x27;m+a+product%0A",
+    "http://www.facebook.com/sharer.php?u=https%3A%2F%2Fwww.texassandfest.org%2Fproduct-page%2Fi-m-a-product-10&amp;title=I&#x27;m+a+product",
+    "https://twitter.com/intent/tweet?url=https%3A%2F%2Fwww.texassandfest.org%2Fproduct-page%2Fi-m-a-product-10&amp;text=I&#x27;m+a+product%0A",
+    "http://www.facebook.com/sharer.php?u=https%3A%2F%2Fwww.texassandfest.org%2Fproduct-page%2Fi-m-a-product-1&amp;title=I&#x27;m+a+product",
+    "https://twitter.com/intent/tweet?url=https%3A%2F%2Fwww.texassandfest.org%2Fproduct-page%2Fi-m-a-product-1&amp;text=I&#x27;m+a+product%0A",
+    "http://www.facebook.com/sharer.php?u=https%3A%2F%2Fwww.texassandfest.org%2Fproduct-page%2Fi-m-a-product-11&amp;title=I&#x27;m+a+product",
+    "https://twitter.com/intent/tweet?url=https%3A%2F%2Fwww.texassandfest.org%2Fproduct-page%2Fi-m-a-product-11&amp;text=I&#x27;m+a+product%0A",
+    "http://www.facebook.com/sharer.php?u=https%3A%2F%2Fwww.texassandfest.org%2Fproduct-page%2Fi-m-a-product-3&amp;title=I&#x27;m+a+product",
+    "https://twitter.com/intent/tweet?url=https%3A%2F%2Fwww.texassandfest.org%2Fproduct-page%2Fi-m-a-product-3&amp;text=I&#x27;m+a+product%0A",
+    "http://www.facebook.com/sharer.php?u=https%3A%2F%2Fwww.texassandfest.org%2Fproduct-page%2Fi-m-a-product-8&amp;title=I&#x27;m+a+product",
+    "https://twitter.com/intent/tweet?url=https%3A%2F%2Fwww.texassandfest.org%2Fproduct-page%2Fi-m-a-product-8&amp;text=I&#x27;m+a+product%0A",
+    "http://www.facebook.com/sharer.php?u=https%3A%2F%2Fwww.texassandfest.org%2Fproduct-page%2Fi-m-a-product-7&amp;title=I&#x27;m+a+product",
+    "https://twitter.com/intent/tweet?url=https%3A%2F%2Fwww.texassandfest.org%2Fproduct-page%2Fi-m-a-product-7&amp;text=I&#x27;m+a+product%0A",
+    "http://www.facebook.com/sharer.php?u=https%3A%2F%2Fwww.texassandfest.org%2Fproduct-page%2Fi-m-a-product&amp;title=I&#x27;m+a+product",
+    "https://twitter.com/intent/tweet?url=https%3A%2F%2Fwww.texassandfest.org%2Fproduct-page%2Fi-m-a-product&amp;text=I&#x27;m+a+product%0A",
+    "http://www.facebook.com/sharer.php?u=https%3A%2F%2Fwww.texassandfest.org%2Fproduct-page%2Fi-m-a-product-2&amp;title=I&#x27;m+a+product",
+    "https://twitter.com/intent/tweet?url=https%3A%2F%2Fwww.texassandfest.org%2Fproduct-page%2Fi-m-a-product-2&amp;text=I&#x27;m+a+product%0A",
+    "http://www.facebook.com/sharer.php?u=https%3A%2F%2Fwww.texassandfest.org%2Fproduct-page%2Fi-m-a-product-4&amp;title=I&#x27;m+a+product",
+    "https://twitter.com/intent/tweet?url=https%3A%2F%2Fwww.texassandfest.org%2Fproduct-page%2Fi-m-a-product-4&amp;text=I&#x27;m+a+product%0A"
+  ],
+  "documents": [
+    "https://assets.simpleviewinc.com/simpleview/image/upload/v1/clients/portaransastx/2023_Detailed_Street_Map_Back_98fa7b66-86ba-44c9-9d4f-99aab1c94cb8.pdf",
+    "https://www.texassandfest.org/_files/ugd/f800df_e5cf5ff6492f4698904263d7fe3fd1ac.pdf"
+  ],
+  "facts": [
+    {
+      "topic": "tickets",
+      "source": "https://www.texassandfest.org/",
+      "title": "Official Texas SandFest | Port Aransas, TX",
+      "headings": [
+        "April 17 - 19, 2026",
+        "The Largest Beach Sand sculpture Competition in the USA, raising money for local non profit organizations and scholarships&nbsp;",
+        "365d",
+        "24h",
+        "60m",
+        "60s",
+        "VENDORS",
+        "SPONSORSHIP",
+        "VOLUNTEER",
+        "Whale Sponsors",
+        "Marlin Sponsors",
+        "Sailfish Sponsors",
+        "Tarpon Sponsors",
+        "Trout Sponsors",
+        "Flounder Sponsors"
+      ],
+      "dates": [
+        "April 17 - 19, 2026"
+      ],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> Official Texas SandFest | Port Aransas, TX top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. April 17 - 19, 2026 The Largest Beach Sand sculpture Competition in the USA, raising money for local non profit organizations and scholarships Our Mission 365d 24h 60m 60s VENDORS SPONSORSHIP VOLUNTEER Whale Sponsors Marlin Sponsors Sailfish Sponsors Tarpon Sponsors Trout Sponsors Flounder Sponsors 200 S. Alister Street, Suite E Port Aransas, TX 78373​ ​ P: 361-267-2474 E: info@texassandfest.org ​​ Mailing Adress: PO Box 1076 Port Aransas, TX 78373​ Office Hours Wednesday: 9:00AM - 3:00PM Friday: 9:00AM - 2:00PM​ ​ Sign up for Newsletter! &copy; 2026 Texas SandFest. All rights reserved​ We use Ramp at Texas SandFest, see how it could help your business! bottom of page"
+    },
+    {
+      "topic": "tickets",
+      "source": "https://www.eventeny.com/events/texas-sandfest-2026-21603/",
+      "title": "Texas Sandfest - 2026 - Eventeny",
+      "headings": [
+        "Organize",
+        "Participate",
+        "Texas Sandfest - 2026",
+        "Share this event",
+        "Map",
+        "Check in with your tickets",
+        "Enter your confirmation code Have an account? Sign in to autoload Confirmation code info Please enter your confirmation number. check Check in close Close share Share close Close const facebookAppId = '1562058430844259'; window.fbAsyncInit = function() { FB.init({ appId : facebookAppId, status : true, xfbml : true, version : 'v2.12' }); }; (function(d, s, id) { let js, fjs = d.getElementsByTagName(s)[0]; if (d.getElementById(id)) return; js = d.createElement(s); js.id = id; js.src = \"//connect.facebook.net/en_US/sdk.js\"; fjs.parentNode.insertBefore(js, fjs); }(document, 'script', 'facebook-jssdk')); /*----Share modal----*/ #share-modal .input-group{ display: -webkit-box; display: -ms-flexbox; display: flex; position: relative; } #share-modal .input-group .faux-input{ background-color: #FFF; border: 1px solid #C3C4C7; border-radius: 3px; color: #484848; display: block; font-size: 16px; font-weight: 400; height: 58px; line-height: 22px; max-width: calc(100% - 45px); outline: 0; overflow: hidden; padding: 6px 4px; resize: none; transition: border 0.2s linear 0s, box-shadow 0.2s linear 0s, -webkit-box-shadow 0.2s linear 0s; width: 100%; } #share-modal .input-group-btn{ display: table-cell; font-size: inherit; position: relative; white-space: nowrap; } #share-modal .input-group-btn > .btn{ border-bottom-left-radius: 0; border-top-left-radius: 0; border-color: rgba(0,0,0,0); height: 58px; margin-left: -1px; position: relative; } #share-modal .input-group .btn{ min-width: 100px; padding: 4px 10px; } ._ni{ display: table-cell; vertical-align: middle; } ._n4{ padding-bottom: 0; padding-top: 0; } ._1d{ background-color: #FFF; box-sizing: border-box; padding: 64px; } ._p0{ margin-bottom: 16px; } ._1r{ background-color: transparent; border: 0; color: buttontext; cursor: pointer; display: block; } ._rz{ color: #484848; font-size: 22px; font-weight: 700; letter-spacing: -.2px; line-height: 28px; margin: 0; padding-bottom: 0; padding-top: 0; word-wrap: break-word; } ._15{ color: #484848; font-size: 15px; font-weight: 300; letter-spacing: .2px; line-height: 18px; margin: 0; padding-bottom: 0; padding-top: 0; word-wrap: break-word; } ._1vf{ font-size: 19px; font-weight: 300; line-height: 1; } ._ru{ border-bottom: 1px solid #DBDBDB; border-top: 1px solid #DBDBDB; padding-bottom: 24px; padding-top: 24px; } ._3s{ color: #484848; display: inline; font-size: 19px; font-weight: normal; line-height: 24px; margin: 0; padding-bottom: 0; padding-top: 0; word-wrap: break-word; } ._1j{ background: transparent; border: 0; color: #0ABAB5; cursor: pointer; display: inline-block; font-size: 16px; font-weight: 500; margin: 0; padding: 0; text-align: left; text-decoration: none; user-select: auto; -webkit-appearance: none; } ._1j:hover{ text-decoration: underline; } ._1f{ border-bottom: 1px solid #DBDBDB; padding-bottom: 24px; padding-top: 24px; } ._1vf .f7-icons{ color: rgb(72,72,72); font-size: 18px; } /*----Email----*/ ._14u{ background-color: #FFF; margin: auto; max-width: 1032px; position: relative; width: 100%; } ._cv{ display: table; table-layout: fixed; width: 100%; } ._1p{ background-color: #FFF; box-sizing: border-box; display: table-cell; padding: 32px; vertical-align: top; width: 50%; } ._1y{ z-index: 1; } ._124{ color: #484848; font-size: 48px; font-weight: 700; letter-spacing: -.8px; line-height: 56px; margin: 0; padding-bottom: 8px; padding-top: 8px; word-wrap: break-word; } ._tp{ color: inherit; font-size: 1em; font-weight: inherit; line-height: inherit; margin: 0; padding: 0; } ._36{ display: inline-block; } ._1xb{ margin-bottom: 36px; } ._mn{ position: absolute; width: 420px; z-index: 100; } .email-input-typeahead-container{ border: 1px solid #C4C4C4; border-radius: 2px; border-bottom-left-radius: 0; border-bottom-right-radius: 0; position: relative; } .input-tag-list{ background-color: #FFF; border: 0; display: block; margin: 0; padding-bottom: 0; padding-top: 6px; position: relative; width: 100%; } .input-tag-list li{ padding: 0 6px; } .input-tag-list .input-list-item{ height: 34px; width: 100%; } .twitter-typehead{ display: block; width: 100%; } .email-input-typeahead-container .twitter-typehead{ width: 100%; } .input-tag-list input{ border: 0; font-weight: inherit; line-height: 28px; margin-bottom: 6px; outline-width: 0; padding-bottom: 0; padding-left: 0; padding-top: 0; } ._9h{ display: block; width: 100%; } ._ri{ background: transparent; border: 0; cursor: pointer; display: block; padding: 0; } ._9s{ border: 1px solid #DBDBDB; border-radius: 2px; color: #484848; display: block; font-size: 19px; font-weight: 300; line-height: 24px; margin-bottom: 8px; padding: 11px; width: 100%; } ._ej{ background: #0073BD; border: 2px solid transparent; border-radius: 4px; color: #484848; cursor: pointer; display: inline-block; font-size: 19px; font-weight: 700; line-height: 22px; min-width: 77px; padding: 12px 24px; position: relative; text-align: center; text-decoration: none; transition: background .3s, border-color .3s; width: auto; } ._9t{ color: #FFF; font-size: 19px; line-height: 22px; padding-bottom: 0; padding-top: 0; transition: color .3s; } ._ej:hover{ background: #0085DB; } ._9v{ display: table-cell; overflow: hidden; position: relative; vertical-align: top; width: 50%; } ._1b{ display: block; height: 100%; left: 50%; max-width: none; min-width: 100%; position: absolute; top: 50%; transform: translateX(-50%) translateY(-50%); width: auto; } @media (min-width:1128px){ ._1p{ height: 516px; padding: 48px; } } @media (max-width:743px){ ._cv{ display: block; } ._1p{ display: block; width: 100%; } ._9v{ display: block; } .email-input-typeahead-container{ width: 80%; } } Share this link to give direct access to pay invoices Copy Link close Close Share this link with friends and family Copy Link Facebook Twitter \"X\" LinkedIn Email SMS WhatsApp Messenger function eleOpenShareModal(link){ $('#share-modal').attr('data-href', link); $('.link-to-share').val(link); $('body').addClass('noscroll'); $('#share-modal').addClass('show'); if(link.includes('#invoices')){ $('.share').addClass('hide'); $('.invoices').removeClass('hide'); $('.close-modal-button').first().addClass('hide'); $('.modal_content').css({ padding: '2rem' }); }else{ $('.share').removeClass('hide'); $('.invoices').addClass('hide'); } } $('#share-modal .share-ele-buttons').on('click', function(e){ e.preventDefault(); let link = $('#share-modal').attr('data-href'); let encodedLink = encodeURIComponent(link); // Default external share URLs let sharingLinks = { facebook: `https://www.facebook.com/dialog/share?app_id=${facebookAppId}&display=popup&href=${encodedLink}`, twitter: `https://twitter.com/intent/tweet?via=eventenyteam&url=${encodedLink}`, linkedin:`https://www.linkedin.com/shareArticle?mini=true&url=${encodedLink}`, email: `mailto:?body=${encodedLink}`, sms: `sms:;?&body=${encodedLink}`, messenger: `https://www.facebook.com/dialog/send?app_id=${facebookAppId}&link=${encodedLink}&redirect_uri=${encodedLink}`, whatsapp: `https://web.whatsapp.com/send?text=${encodedLink}`, } // Update URLs with custom text for product share (where available) if (link.includes('/company/product/')) { let productShareBodyText = 'Available Now On Eventeny!'; sharingLinks.twitter += `&text=${productShareBodyText}`; sharingLinks.email = `mailto:?body=${productShareBodyText} ${encodedLink}`; sharingLinks.sms = `sms:;?&body=${productShareBodyText} ${encodedLink}`; sharingLinks.whatsapp = `https://web.whatsapp.com/send?text=${productShareBodyText} ${encodedLink}`; } if($(this).hasClass('copy_link')){ let temp = $(' '); $('body').append(temp); temp.val(link).select(); document.execCommand('copy'); temp.remove(); $('#share-modal .share-ele-buttons.copy_link').html(' Copied'); setTimeout(function(){ $('#share-modal .share-ele-buttons.copy_link').html('Copy Link'); }, 3000); } for (const platform in sharingLinks) { if ($(this).hasClass(platform)) { window.open(sharingLinks[platform]); } } }); $('#share-modal .close-modal-button').on('click', function(e){ $('body').removeClass('noscroll'); $('#share-modal').removeClass('show'); }); footer#base-footer{ position: relative; z-index: 1; display: block;} footer#base-footer *{ font-family: 'Plus Jakarta Sans', 'Roboto', sans-serif !important; } #base-footer section{ background-color: #FFF; margin-left: auto; margin-right: auto; width: 100%; } #base-footer section .container-fluid{ margin-left: auto; margin-right: auto; padding: 25px 15px 30px; } #base-footer .container-fluid::before, #base-footer .container-fluid::after{ content: ''; display: table; } #base-footer .container-fluid::after{ clear: both; } #base-footer .footer-main-links{ margin-left: -15px; margin-right: -15px; } #base-footer .footer-main-links::before, #base-footer .footer-main-links::after{ content: ''; display: table; } #base-footer .footer-main-links::after{ clear: both; } #base-footer .col-xs-6, #base-footer .col-xs-12, #base-footer .col-sm-3, #base-footer .col-sm-12, #base-footer .col-2, #base-footer .col-4{ float: left; min-height: 1px; padding-left: 15px; padding-right: 15px; position: relative; } #base-footer .col-2{ width: 16.66667%; } #base-footer .col-4{ width: 33.33333%; } #base-footer section .footer-main-links .col-2:nth-child(3){ clear: none; } #base-footer ul, #base-footer ol{ margin-bottom: 10px; margin-top: 0; } #base-footer ul{ list-style: none; padding-left: 0; } #base-footer section .footer-main-links h5{ color: #022D2B; font-size: 1rem; font-weight: 600; line-height: 1.35rem; margin-bottom: 20px; margin-top: 10px; } #base-footer section .footer-main-links ul li{ font-size: 0.95rem; margin: 0 0 9px 0; padding-left: 0; } #base-footer section .footer-main-links ul li a{ background-color: transparent; color: #6E6E6E; font-size: 0.9025rem; font-weight: 400; line-height: 1.42857; text-decoration: none; -webkit-transition: all 125ms ease-in-out; transition: all 125ms ease-in-out; } #base-footer section .footer-main-links ul li , #base-footer section .footer-main-links ul li, #base-footer section .footer-main-links ul li{ color: #6E6E6E; text-decoration: none; } #base-foter a:active{ color: #0389A0; } #base-foter a:hover{ color: #555555; } #base-foter a:visited{ color: #9E66B2; } #base-footer .text-love{ color: #0ABAB5 !important; } #base-footer .text-weight-semibold{ font-weight: 700 !important; } #base-footer span.span-block-xs{ display: block !important; float: none !important; } #base-footer section .footer-main-links .about{ margin-top: 20px; } #base-footer .border-dashed-bottom-salt{ border-bottom: 1px dashed #E1E1E3; } #base-footer section .footer-main-links .about p{ color: #6E6E6E; font-size: 0.9025rem; line-height: 1.45rem; margin: 0 0 1.25rem; } #base-footer section .footer-main-links .about ui.legal{ display: inline; } #base-footer section .footer-main-links .about ul.social-links li, #base-footer section .footer-main-links .about ul.legal li{ display: inline-block; margin-right: 5px; } #base-footer .footer-main-links .about ul.legal li{ color: #6E6E6E; opacity: 0.7; } #base-footer .footer-main-links .about ul.legal li:first-child{ opacity: 1; } #base-footer .flex{ display: -webkit-box; display: -moz-flex; display: -ms-flexbox; display: flex; } #base-footer .flex-vertical-center{ -webkit-box-align: center !important; -ms-flex-align: center !important; align-items: center !important; } #base-footer svg{ border: 0; max-width: 100%; vertical-align: middle; } #base-footer .img-responsive{ display: block; height: auto; max-width: 100%; } #base-footer .img-square-xs-15px{ height: 15px !important; width: 15px !important; } #base-footer .img-square-xs-20px{ height: 20px !important; width: 20px !important; } #base-footer section .footer-main-links .about ul.social-links svg{ opacity: 0.4; } #base-footer section .footer-main-links .about ul.social-links svg:hover{ opacity: 0.6; } .bottom #newsletter-checkbox-offers { display: none; } label[for=\"newsletter-checkbox-offers\"] { padding-top: 4px; display: inline-block; width: 25px; height: 25px; cursor: pointer; background-image: url(/images/icons/blank_circle_icon.svg); background-repeat: no-repeat; background-size: 20px; } .bottom #newsletter-checkbox-offers:checked + label{ background-image: url(/images/icons/checkmark-filled-primary-icon.svg) } .bottom #newsletter-organizer-type-selector{ background-image: url(/images/icons/chevron_down_circle_dark_gray.svg); background-repeat: no-repeat; background-position: right center; background-position-x: 95%; } .newsletter-select-checkbox:checked+div+label>p{ font-weight: bold; } .bottom #newsletter-organizer-type-selector:active{ border: 2px solid black; } .newsletter-select-checkbox{ display: none; } .newsletter-select-checkbox+label{ background: none; height: 12px; width: 12px; } .newsletter-select-checkbox:checked+div{ visibility: visible !important; background: url(/images/icons/checkmark-filled-primary-icon.svg) no-repeat center left; height: 12px; width: 12px; } li>label{ border-bottom: 1px solid #D0D5DD; margin-right: -80px; } li:last-child>label{ border-bottom: none; } li.newsletter-option{ border: none !important; } li.newsletter-option:hover{ background-color: rgba(5, 163, 190, 0.2); } .custom-dropdown-menu-style-single::-webkit-scrollbar{ width: 10px; } .custom-dropdown-menu-style-single::-webkit-scrollbar-track{ background: #f1f1f1; margin-right: 5px; } .custom-dropdown-menu-style-single::-webkit-scrollbar-thumb{ background: #888; border-radius: 5px; } .custom-dropdown-menu-style-single::-webkit-scrollbar-thumb:hover{ background: #555; } .primary-border { border: 1.5px solid #0BD2CD !important; } #newsletter-submit-btn:disabled:hover{ border: none; box-shadow: 0px 4px 4px rgba(0, 0, 0, .2); } #newsletter-form input:focus{ border: none !important; outline: none; } .newsletter-title{ padding-left: 6px; } .newsletter-input{ padding: 0; border: none; } .newsletter-input-container{ border: 1px solid #EAEAEA; box-shadow: 0 1px 1px rgba(0,0,0,0.075); border-radius: 16px; height: 45px; padding: 0 12px 0 1rem; margin-top: 6px; display: flex; align-items: center; } input:-webkit-autofill, input:-webkit-autofill:focus { transition: background-color 600000s 0s, color 600000s 0s; } input[data-autocompleted] { background-color: transparent !important; } @media (max-width: 39.99rem){ .bottom #newsletter-modal{ overflow: auto; } .bottom #newsletter-organizer-type-selector, .newsletter-input{ height: 37px !important; } #base-footer .col-xs-6{ width: 50%; } #base-footer .col-xs-12{ width: 100%; } #base-footer section .footer-main-links .col-xs-6:nth-child(3){ clear: both; } } @media (min-width: 40rem){ .bottom #newsletter-modal .modal-wrapper{ width: 512px; } @media (max-width: 51.99rem){ #base-footer .col-sm-3{ width: 25%; } #base-footer .col-sm-12{ width: 100%; } } } @media (min-width: 52rem){ @media (max-width: 71.99rem){ .bottom #newsletter-modal .modal-wrapper{ width: 512px; } #base-footer section{ background-color: #FFF; } #base-footer section .container-fluid{ padding-bottom: 90px; padding-top: 70px; } #base-footer section .footer-main-links .about{ margin-top: 0; } } } @media (min-width: 72rem){ .bottom #newsletter-modal .modal-wrapper{ width: 512px; } #base-footer section{ background-color: #FFF; width: 100%; } #base-footer section .container-fluid{ width: 72rem; } #base-footer section .container-fluid{ padding-bottom: 90px; padding-top: 70px; } #base-footer section .footer-main-links .about{ margin-top: 0; } } /* Cookie consent */ #cookie-consent-container { display: flex; justify-content: center; position: fixed; width: 100%; bottom: 0; z-index: 1000; /* Ensure it appears above other content */ } #cookie-consent-content { border: 1.5px #0BD2CD solid; border-radius: 6px; background-color: #FFFFFF; max-width: max-content; } We use &#x1F36A; cookies to improve your experience. By continuing, you agree to our Privacy Policy and Cookie Policy. Accept Decline Product Create my first event Events Applications Products Why Eventeny Artist, vendor, &amp; exhibitor management Volunteer management Sponsor management Ticketing and registration Scalable maps &amp seating charts Event programming &amp; talent management - New Interactive schedules Hardware rentals Organizer mobile app - New Legacy mobile app Pricing Google reviews Event Type Food & drink festivals Art festivals Community events Fairs Fandom conventions Pride events Music festivals Markets Heritage festivals Resources Refer Knowledge base Community center Case studies Compare Our partners Podcast episodes evPride pledge Blog Media kit What's new Resource hub Eventeny for vendors & artists About Eventeny About the company Global enrichment efforts Careers - We're hiring! Commitment to accessibility Terms Privacy Security Contact us Talk to support: Contact us here Experience Easier Events! Join our mailing list below to receive product updates, industry news, promotions, & more. Join You&apos;re in — welcome to the evFamily!! Check your inbox for some helpful resources to get you started on the path to easier event management. hbspt.forms.create({ region: \"na1\", portalId: \"4492849\", formId: \"a3a849d4-fee8-4020-83b7-f43152d116d3\" }); Sign-up to Receive Updates!"
+      ],
+      "dates": [
+        "April 17",
+        "Apr 17, 2026",
+        "Apr 19, 2026",
+        "November 20"
+      ],
+      "times": [
+        "9:00 AM",
+        "8:00 PM"
+      ],
+      "prices": [],
+      "summaryText": "Texas Sandfest - 2026 - Eventeny Organize Event Management Tools Event mapping Ticketing / registration Artist, vendor & exhibitor management Volunteer management Sponsor management Event programming & talent management - New Interactive schedules Hardware solutions Mobile app for organizers - New Solutions by event type About Eventeny Product overview Company values Pricing Helpful Resources Knowledge base Community center Comparison guide Blog Contact sales Product updates Case studies See all events Create an Event Participate Artists, Vendors & Exhibitors Your applications Create a shop page View your sales Ticket Buyers / Attendees Your tickets Your orders Volunteers Your applications Sponsors Your sponsorships Create a shop page View your sales Explore new applications Download the mobile app Browse help articles Find your next event Search for events, applications, tickets or products. Sign in Sign up 0 Organize Event Management Tools Event mapping Ticketing / registration Artists, Vendors & Exhibitors Volunteer management Sponsor management Event programming & talent management - New Interactive schedules Hardware solutions Mobile app for organizers - New Solutions by event type About Eventeny Product overview Company values Pricing Helpful Resources Knowledge base Community center Comparison guide Blog Contact sales Product updates Case studies Participate Artists, Vendors & Exhibitors Your applications Create a shop page View your sales Ticket Buyers / Attendees Your tickets Your orders Volunteers Your applications Sponsors Your sponsorships Create a shop page View your sales Resources Explore new applications Download the mobile app Browse help articles Find your next event Create your event Log in > Don't have an account? Sign up! Events Tickets Products App"
+    },
+    {
+      "topic": "tickets",
+      "source": "https://www.eventeny.com/events/ticket/?id=21603",
+      "title": "Ticket - Texas Sandfest - 2026 - Eventeny",
+      "headings": [
+        "Organize",
+        "Participate",
+        "Texas Sandfest - 2026 Tickets",
+        "Orders are not reserved until payment is complete.",
+        "Billing address",
+        "Processing your payment...",
+        "Contact us"
+      ],
+      "dates": [],
+      "times": [],
+      "prices": [
+        "$0",
+        "$7"
+      ],
+      "summaryText": "Ticket - Texas Sandfest - 2026 - Eventeny Organize Event Management Tools Event mapping Ticketing / registration Artist, vendor & exhibitor management Volunteer management Sponsor management Event programming & talent management - New Interactive schedules Hardware solutions Mobile app for organizers - New Solutions by event type About Eventeny Product overview Company values Pricing Helpful Resources Knowledge base Community center Comparison guide Blog Contact sales Product updates Case studies See all events Create an Event Participate Artists, Vendors & Exhibitors Your applications Create a shop page View your sales Ticket Buyers / Attendees Your tickets Your orders Volunteers Your applications Sponsors Your sponsorships Create a shop page View your sales Explore new applications Download the mobile app Browse help articles Find your next event Search for events, applications, tickets or products. Sign in Sign up 0 Organize Event Management Tools Event mapping Ticketing / registration Artists, Vendors & Exhibitors Volunteer management Sponsor management Event programming & talent management - New Interactive schedules Hardware solutions Mobile app for organizers - New Solutions by event type About Eventeny Product overview Company values Pricing Helpful Resources Knowledge base Community center Comparison guide Blog Contact sales Product updates Case studies Participate Artists, Vendors & Exhibitors Your applications Create a shop page View your sales Ticket Buyers / Attendees Your tickets Your orders Volunteers Your applications Sponsors Your sponsorships Create a shop page View your sales Resources Explore new applications Download the mobile app Browse help articles Find your next event Create your event Log in > Don't have an account? Sign up! Events Tickets Pro"
+    },
+    {
+      "topic": "visitor",
+      "source": "https://www.texassandfest.org/maps",
+      "title": "Maps | Texas Sandfest",
+      "headings": [
+        "Maps",
+        "Detailed Street Map"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> Maps | Texas Sandfest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Maps Make your way to (and around) Port A Whether you're driving in from the south side of Mustang Island or across the ferry from the north, you're never too far from Port A. Even though it's a short drive from home, your worries will feel like they're a world away once you take that first breath of salty sea air. Wherever you stay in Port A, you'll have direct access to the beach so you can soak in the sun, sea and surf anytime you want. ​ Once you get here, you won't want to miss any of the incredible attractions on the map below. Detailed Street Map Need more specific directions? This detailed map will help you get around the streets of Port Aransas and will show you several important points of interest See Full Map You're never far from the beach! No matter where you are in Texas, you're never more than a few hours' drive from the sandy beaches of Port Aransas. Take this as your sign to make your way to Port Aransas. 200 S. Alister Street, Suite E Port Aransas, TX 78373​ ​ P: 361-267-2474 E: info@texassandfest.org ​​ Mailing Adress: PO Box 1076 Port Aransas, TX 78373​ Office Hours Wednesday: 9:00AM - 3:00PM Friday: 9:00AM - 2:00PM​ ​ Sign up for Newsletter! &copy; 2026 Texas SandFest. All rights reserved​ We use Ramp at "
+    },
+    {
+      "topic": "program",
+      "source": "https://www.texassandfest.org/daily-schedule",
+      "title": "Daily Schedule | Texas Sandfest",
+      "headings": [
+        "Daily Schedule",
+        "FRIDAY&nbsp;",
+        "SATURDAY",
+        "SUNDAY",
+        "Pre-Festival Activities",
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday"
+      ],
+      "dates": [
+        "April 13",
+        "April 14",
+        "Marker 13",
+        "April 15",
+        "April 16"
+      ],
+      "times": [
+        "9:00 AM",
+        "9:30 AM",
+        "10:00 AM",
+        "11:00 AM",
+        "12:30 PM",
+        "2:45PM",
+        "4:30PM",
+        "4:30 PM",
+        "6:30 PM",
+        "6:00 PM",
+        "6:30PM",
+        "7:00 PM",
+        "7:30 PM",
+        "7:30 AM",
+        "8:30 AM",
+        "12:15 PM",
+        "2:30 PM",
+        "2:45 PM",
+        "4:00 PM",
+        "5:15 PM",
+        "4:45 PM",
+        "5:30 PM",
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> Daily Schedule | Texas Sandfest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Daily Schedule Check out the daily schedule from the 2026 Texas SandFest below! FRIDAY DAY 1 9:00 AM - Open Gates Guest Relations/Lost & Found Texas SandFest Official Merchandise Tent Vendors Masters' Gallery Kids Corner (a parent or adult guardian must accompany ages 3-14. Click here for Kids Corner Schedule) ​ 9:30 AM Quick Carve Competition (Music Stage) ​ 10:00 AM ​ Beer tents open (North Entrance, South Entrance and Music Stage) Amateur contest check-in open (South Entrance) Celebrity sand sculpture demonstrations by Amazin' Walter open Sand Sculpture Demonstrations (North Gate next to Beer Tent) ​ 11:00 AM Quick Carve Competition (Music Stage) ​ 12:30 PM Quick Carve Competition (Music Stage) ​ ​ ​ ​ ​ 2:45PM Quick carve competition (Music Stage) ​ ​ ​ 3:00 - 4:30PM Musical performance by Cruise Control (Music Stage) ​ ​ ​ ​ ​ 4:30 PM Celebrity sand sculpture demonstrations by Amazin' Walter closes ​ ​ 5:00 - 6:30 PM ​ Musical performance by Clay Hollis (Music Stage) ​ ​ 6:00 PM Lesson Mountain closes​ Beer tents close (North & South Entrances) ​ ​ ​ 6:30PM ​Kid's Corner closes ​ Master's Gallery closes Wristband sales close ​ 7:00 PM ​ ​ ​ Texas SandFest Official Merchandise Tents Close Guest Relations/Lost & "
+    },
+    {
+      "topic": "organization",
+      "source": "https://www.texassandfest.org/sustainablity",
+      "title": "Sustainablity | Texas Sandfest",
+      "headings": [
+        "Sustainability at Texas SandFest",
+        "Keep Port Aransas Beautiful (KPAB)",
+        "Flynn&#39;s Beach Squad"
+      ],
+      "dates": [],
+      "times": [
+        "9:00 AM",
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [
+        "$5,000"
+      ],
+      "summaryText": "--> Sustainablity | Texas Sandfest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Sustainability at Texas SandFest Texas SandFest is more than just a good time! Texas SandFest prides itself on keeping the beaches in Port Aransas better than they found them and protecting our environment. With initiatives toward recycling happening throughout the event, it's important to remember that sustainability is one of the number one goals for SandFest. Texas Sandfest is proud to partner with Keep Port Aransas Beautiful, Pitch in Port Aransas, the Mills Family, Gulf Coast Growth Ventures , and CORE Projects Energy on our ongoing sustainability initiative. ​ ​ ​ Keep Port Aransas Beautiful (KPAB) Keep Port Aransas Beautiful is a proud affiliate of Keep Texas Beautiful and Keep America Beautiful. The organization has been designated a Gold Star Affiliate of Keep Texas Beautiful. LEARN MORE Keep Port Aransas Beautiful ​ The initial attraction to Port Aransas, for both locals and visitors, is the natural beauty of the area. The sandy coastal dunes, the crashing waves, the wildlife of both land and sea-it's difficult to imagine anything better. Preserving that natural beauty, however, requires that the people who enjoy the environment also become its stewards. ​ Keep Port Aransas Beautiful (KPAB), a Gold Star aff"
+    },
+    {
+      "topic": "visitor",
+      "source": "https://www.texassandfest.org/accessibility",
+      "title": "Accessibility | Texas Sandfest",
+      "headings": [
+        "Accessibility at Texas SandFest",
+        "Accessible Parking",
+        "Accessible parking is available for vehicles displaying a current, valid state-issued accessible placard or license plate.",
+        "Location: On the beach inside the bollards at Marker 12.5, near the North entrance of SandFest.",
+        "Details: Spaces are limited and available on a first-come, first-served basis. No spots may be held or reserved.",
+        "For best access, arrive early, as availability can fill quickly during peak times.",
+        "​",
+        "Accessible Toilets",
+        "Accessible portable toilets are available throughout the event grounds. They are located at the north entrance, near the music stage, and at the south entrance.",
+        "Personal Mobility Devices (Guest-Owned Wheelchairs and Motorized Scooters)",
+        "Motorized scooters and wheelchairs are permitted at SandFest. However, most standard models perform poorly in sand. We strongly recommend using a beach wheelchair (see below) for improved mobility on the beach. ​",
+        "Beach Wheelchairs",
+        "A limited number of beach wheelchairs are available for free use to help guests navigate the sand. These are non-motorized and require someone in your group to push them.",
+        "Key Details",
+        "Usage time: 1 hour and 45 minutes per reservation/use.",
+        "Weight capacity: 250 pounds (maximum; includes occupant and any items carried).",
+        "Reservation: Highly recommended to guarantee availability. Only one reservation per person is allowed for the entire event. Attempts to bypass the system may result in cancellation.",
+        "How to reserve: Use the Reserve Now link at the bottom of this page.",
+        "Without reservation: Check availability at the Guest Relations Tent (North gate entrance, near beach marker 12.5). No guarantees without a reservation.",
+        "Pickup and Requirements",
+        "Pick up at the Guest Relations Tent (North gate entrance, near beach marker 12.5).",
+        "Arrive at least 15 minutes before your reserved time. Late arrival will not extend your usage period.",
+        "Required at pickup:",
+        "$20 cash deposit (fully refunded upon on-time return with no damage).",
+        "A current driver&#39;s license from someone in your group (held as collateral and returned upon drop-off).",
+        "Completed and signed beach wheelchair usage agreement.",
+        "Important Notes",
+        "Texas SandFest provides beach wheelchairs similar to standard all-terrain models with large wheels for sand (example pictured below).",
+        "We are not responsible for injury, damage, or loss related to use. Users assume responsibility for safe operation.",
+        "Return the wheelchair to the guest relations tent at the north gate, on time and in good condition, to receive your deposit and license back.",
+        "​ ​",
+        "Service Animals",
+        "Only service animals are permitted. Please click here for more information.",
+        "For additional information or questions, contact us at: info@texassandfest.org"
+      ],
+      "dates": [
+        "Marker 12",
+        "marker 12"
+      ],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [
+        "$20"
+      ],
+      "summaryText": "--> Accessibility | Texas Sandfest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Accessibility at Texas SandFest Accessible Parking Accessible parking is available for vehicles displaying a current, valid state-issued accessible placard or license plate. Location: On the beach inside the bollards at Marker 12.5, near the North entrance of SandFest. Details: Spaces are limited and available on a first-come, first-served basis. No spots may be held or reserved. For best access, arrive early, as availability can fill quickly during peak times. ​ Accessible Toilets Accessible portable toilets are available throughout the event grounds. They are located at the north entrance, near the music stage, and at the south entrance. ​ Personal Mobility Devices (Guest-Owned Wheelchairs and Motorized Scooters) Motorized scooters and wheelchairs are permitted at SandFest. However, most standard models perform poorly in sand. We strongly recommend using a beach wheelchair (see below) for improved mobility on the beach. ​ ​ Beach Wheelchairs A limited number of beach wheelchairs are available for free use to help guests navigate the sand. These are non-motorized and require someone in your group to push them. Key Details Usage time: 1 hour and 45 minutes per reservation/use. Weight capacity: 250 pounds (maximum; in"
+    },
+    {
+      "topic": "visitor",
+      "source": "https://www.texassandfest.org/faq",
+      "title": "FAQ's | Texas Sandfest",
+      "headings": [
+        "Frequently Asked Questions",
+        "​ 🐾 Pet Policy - Updated&nbsp;",
+        "&nbsp;",
+        "What is the Pet Policy for 2026?",
+        "Texas SandFest is now a Service Animals Only event. Only Service Animals, as defined by the ADA, are permitted within the festival grounds.",
+        "​",
+        "Are Emotional Support Animals (ESAs) or therapy pets allowed?",
+        "No. Per the ADA, the above do not qualify as Service Animals and will not be admitted.",
+        "What are the responsibilities of a Service Animal handler?",
+        "A Service Animal must be under the control of its handler. Under the ADA, Service Animals must be harnessed, leashed, or tethered, unless the individual&rsquo;s disability prevents using these devices or these devices interfere with the Service Animal&rsquo;s safe, effective performance of tasks. In that case, the individual must maintain control of the animal through voice, signal, or other effective controls.",
+        "Additionally:",
+        "The animal must be housebroken and well-behaved.",
+        "The handler is fully responsible for the animal&rsquo;s care, cleanup, and any damages caused.",
+        "Can I still bring my pet to the beach outside the festival?",
+        "Yes. This policy applies only to the Texas SandFest event grounds.&nbsp;",
+        "Where can I find more information on ADA requirements?",
+        "For official federal guidance, visit the ADA website.",
+        "👜 Know Before You Go",
+        "Can I bring a wagon to the event?",
+        "Small children may be pulled in a wagon.",
+        "Are there any nearby hotels or accommodations?",
+        "Yes, there are many great options in Port Aransas. Plan your stay via the Port Aransas Tourism Bureau &amp; Chamber of Commerce website.",
+        "Can I bring folding chairs?",
+        "Yes, folding chairs are permitted, provided they do not block pedestrian traffic.",
+        "Can I bring a beach umbrella or other shade structure?",
+        "No",
+        "ℹ️ General",
+        "When is Texas SandFest 2027?",
+        "April 16&ndash;18, 2027",
+        "How do I become a volunteer?",
+        "Please follow this link to sign up and learn more about volunteering.",
+        "Are there kid activities?",
+        "Yes, most take place at the South end of the grounds in Kids&#39; Corner , including Lesson Mountain, face painting, fun games, and more! ​",
+        "Do you have a list of local restaurants?",
+        "Yes! See the full list on the Port Aransas Tourism Bureau &amp; Chamber of Commerce website.",
+        "How does the golf cart raffle work?",
+        "All details are available here .",
+        "Are photos or videos taken at Texas SandFest? What about using my image?",
+        "Yes. Texas SandFest (and authorized partners) may photograph, film, video, audio-record, or otherwise record attendees and anyone else throughout the event area.",
+        "By entering the premises, from 3 weeks before the event through the day after it closes (including setup, the festival, and teardown, you grant Texas SandFest, its affiliates, and licensees irrevocable permission to capture, use, publish, stream, display, reproduce, and distribute your image, likeness, voice, or appearance (with or without your name) without compensation. This applies to any media now known or developed in the future, worldwide, and in perpetuity&mdash;for promotional, commercial, news, or other purposes.",
+        "Your presence constitutes consent; no individual releases are needed. By entering, you also waive claims related to compensation, approval rights, privacy, publicity, or similar issues.",
+        "Even if you are just watching the sculptors build or walking through the area, you are included. ​",
+        "For the full details, see our Crowd Release / Notice of Filming and Photography. ​",
+        "🚗 Traffic, Parking &amp; Transportation",
+        "Where is Texas SandFest located?",
+        "On the beach between Markers 13 and 17. North gate entrance: Marker 13. South gate entrance: Marker 17.",
+        "Can we park our RV at Texas SandFest?",
+        "Yes and no.",
+        "Yes, outside the bollards south of Marker 19 (perpendicular parking only, max 3 nights). See City of Port Aransas RV parking regulations .",
+        "No, inside the bollards, and no RVs, trailers, or oversized vehicles in SandFest parking lots. Texas SandFest assumes no liability for stuck vehicles, damage, or loss of property.",
+        "Can I park my trailer, RV, or other oversized vehicle inside the general Texas SandFest beach parking lots?",
+        "No, none are permitted in public SandFest beach parking lots. Park outside the bollards, per City rules (see above), or in the Gracies Way parking lot.",
+        "Where can I park my trailer, RV, or other oversized vehicle?",
+        "At Gracie&#39;s Way &nbsp;parking lot",
+        "No overnight parking",
+        "This parking lot is a field; park at your own risk.",
+        "Can I park my RV on the beach outside Texas SandFest?",
+        "Generally, yes on the west side of the bollards, north of Ave G or south of Marker 19, which is just south of Access Road 1A. No RV/trailer parking between Ave G and Marker 19 during the week leading up to the event and during the event. Obey all city ordinances and signage.",
+        "Will traffic be one-way on the beach?",
+        "Yes, typically southbound from ~9:00 AM to ~7:00 PM (Friday, Saturday &amp; Sunday) between Ave G and Access Road 1A. Both directions north of Ave G and south of Access Road 1A.",
+        "SandFest Beach Access &amp; Parking The Best Route: 📍 Avenue G is your best option for accessing beach parking via vehicle or golf cart.",
+        "Will I need a beach parking permit if I park in the Texas SandFest parking lots on the beach?",
+        "Yes, it is required for any beach parking. More info here .",
+        "Is there a cost to park?",
+        "No, Texas SandFest does not charge for parking; the City requires a $12 parking permit (calendar year) for all beach parking. All three remote lots are free and do not require a parking permit.",
+        "Where are the remote parking lots located?",
+        "Gracie&#39;s Way :&nbsp; just off Access Road 1A (grass field)",
+        "Roberts Point Park: 301 J.C. Barr Blvd.",
+        "Port Aransas Community Park: 700 Clark Parkway",
+        "Is overnight parking allowed in the parking lots?",
+        "No overnight parking is permitted in any Texas SandFest lots, including Gracie&#39;s Way.",
+        "Where is the bus parking?",
+        "All bus parking (tour, school, charter) is at the remote lot at Gracie&#39;s Way &nbsp; (grass field)",
+        "Will there be a golf cart shuttle to take me to and from my car?",
+        "Yes and no. Yes, the shuttles will take you to the vicinity (generally ~1000 feet from where you parked), but not to your car. This applies to the main lot (inside bollards, ~Marker 12 to Ave G) and Gracie&#39;s Way . &nbsp;Priority: disabilities, injuries, elderly.",
+        "What hours do the golf cart shuttles operate?",
+        "9:00 AM until 8:00 PM sharp each event day.",
+        "Can we drive our golf carts inside the event?",
+        "No, only official Texas SandFest golf carts allowed.",
+        "Is there a lot of walking involved?"
+      ],
+      "dates": [
+        "April 16",
+        "Markers 13",
+        "Marker 13",
+        "Marker 17",
+        "Marker 19",
+        "Marker 12",
+        "April 14 - 16",
+        "April 17 - 19",
+        "April 17 - 18"
+      ],
+      "times": [
+        "9:00 AM",
+        "7:00 PM",
+        "8:00 PM",
+        "6:00 PM",
+        "6:30 PM",
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [
+        "$12",
+        "$8",
+        "$2",
+        "$22,000"
+      ],
+      "summaryText": "--> FAQ's | Texas Sandfest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Frequently Asked Questions * These FAQ responses are subject to change. ​ 🐾 Pet Policy - Updated What is the Pet Policy for 2026? Texas SandFest is now a Service Animals Only event. Only Service Animals, as defined by the ADA, are permitted within the festival grounds. ​ Are Emotional Support Animals (ESAs) or therapy pets allowed? No. Per the ADA, the above do not qualify as Service Animals and will not be admitted. ​ What are the responsibilities of a Service Animal handler? A Service Animal must be under the control of its handler. Under the ADA, Service Animals must be harnessed, leashed, or tethered, unless the individual&rsquo;s disability prevents using these devices or these devices interfere with the Service Animal&rsquo;s safe, effective performance of tasks. In that case, the individual must maintain control of the animal through voice, signal, or other effective controls. Additionally: The animal must be housebroken and well-behaved. The handler is fully responsible for the animal&rsquo;s care, cleanup, and any damages caused. Can I still bring my pet to the beach outside the festival? Yes. This policy applies only to the Texas SandFest event grounds. ​ Where can I find more information on ADA requirements? For "
+    },
+    {
+      "topic": "tickets",
+      "source": "https://www.texassandfest.org/golf-cart-raffle",
+      "title": "Golf Cart Raffle | Texas Sandfest",
+      "headings": [
+        "Golf Cart Raffle"
+      ],
+      "dates": [
+        "April 19, 2026",
+        "December 22, 2025",
+        "April 1, 2026",
+        "Nov. 24, 2025"
+      ],
+      "times": [
+        "2:00 PM",
+        "2:45 PM",
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [
+        "$50",
+        "$29,500"
+      ],
+      "summaryText": "--> Golf Cart Raffle | Texas Sandfest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Golf Cart Raffle Ride around the Island in style! You could be the lucky winner of a custom E-Z-GO Express L6 from Mission Golf Carts ! Whether you&rsquo;re hitting the beach or cruising the neighborhood, the Express L6 is the ultimate ride. With advanced technology and unexpected comforts, it offers unmatched safety, reliability, and high-end performance. Equipped with: 14-inch Custom Wheels Custom Canopy with matching canvas Kicker four-speaker stereo Port A Coastal Package Custom Premium Seats 2-year limited warranty Purchase Tickets Resale of tickets not allowed Texas SandFest Golf Cart Raffle Rules 1. Sponsor and Eligibility This raffle is sponsored by Texas SandFest, a 501(c)(3) nonprofit located at 200 S Alister St STE E, Port Aransas, TX 78373, organized to support community charities and scholarships. Only individuals aged 18+ who are U.S. residents are eligible to participate. Employees, board members, and immediate families of Texas SandFest are excluded. 2. Raffle Purpose and Proceeds 100% of net proceeds from ticket sales benefit Texas SandFest&rsquo;s mission, including community scholarships and donations to local nonprofits. Net proceeds are calculated after direct prize-related costs. 3. Ticket In"
+    },
+    {
+      "topic": "organization",
+      "source": "https://www.texassandfest.org/copy-of-press-release",
+      "title": "About | Texas SandFest",
+      "headings": [
+        "Media Room"
+      ],
+      "dates": [
+        "April 17 - 19",
+        "March 23, 2026"
+      ],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> About | Texas SandFest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Media Room Texas SandFest 2026 Media Hub Thank you for your interest in Texas SandFest 2026. We welcome media coverage to help us showcase the artistry and community spirit of Port Aransas. ​ ​ To ensure a seamless experience for you and your crew, as well as our sculptors, volunteers, musicians, and guests, all media personnel interested in covering the event must submit a formal Media Credentials & Interview Application. ​ Before applying, please review our General Media Guidelines to familiarize yourself with our site access policies, safety requirements, and equipment regulations. ​ ​ Next Steps for Media ​ 1. Review Our Guidelines Before submitting your application, please carefully review the Media Participation & General Guidelines. These include pre-event site access policies, safety requirements, and other important information: ​ ​ Media Participation General Guidelines ​ 2. Submit Your Application Please use the unified application link below to request media credentials or coordinate interviews. ​ Application Requirements: Pre-Event: Media credentials are not required for site access prior to the event start. However, this application is required if you wish to coordinate interviews before the festival begins. Du"
+    },
+    {
+      "topic": "program",
+      "source": "https://www.texassandfest.org/copy-of-at-sandfest",
+      "title": "At SandFest | Texas SandFest",
+      "headings": [
+        "Important Notices",
+        "Crowd Release",
+        "Notice of Filming and Photography",
+        "Consent to Use of Image and Likeness",
+        "By entering the event premises&mdash;from 3 weeks before the event through the day after it closes (including setup, the festival itself, and teardown)&mdash;you acknowledge that photography, audio recording, video recording, and other forms of capture will occur.",
+        "By your presence on the premises, you consent to being photographed, filmed, audio-recorded, streamed, or otherwise recorded by Texas SandFest, its affiliates, designated agents, media partners, and contractors. This applies even if you are not attending the paid event (e.g., observing sculptors during setup or walking through the area).",
+        "&nbsp;",
+        "Usage Rights",
+        "You grant Texas SandFest the absolute and irrevocable right and permission to capture, use, publish, exhibit, reproduce, stream, distribute, or otherwise exploit such recordings of your appearance, voice, likeness, or name in any and all media now existing or hereafter devised (including but not limited to websites, social media, television, news, advertising, and promotional materials) for any purpose whatsoever, including promotional and commercial purposes, worldwide and in perpetuity, without compensation.",
+        "Release of Liability",
+        "By entering the event premises, you waive and release any and all claims against Texas SandFest, its officers, directors, employees, agents, affiliates, licensees, and volunteers, including but not limited to:",
+        "Claims for payment, royalties, or any form of compensation.",
+        "The right to inspect, approve, or receive copies of the final product(s).",
+        "Claims for invasion of privacy, violation of the right of publicity, defamation, or similar causes of action.",
+        "Claims for copyright infringement or other intellectual property issues related to the recordings.",
+        "Contact Information",
+        "If you have questions regarding this policy, please contact Texas SandFest at: info@texassandfest.org"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> At SandFest | Texas SandFest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Important Notices Crowd Release Notice of Filming and Photography ​ Consent to Use of Image and Likeness By entering the event premises&mdash;from 3 weeks before the event through the day after it closes (including setup, the festival itself, and teardown)&mdash;you acknowledge that photography, audio recording, video recording, and other forms of capture will occur. By your presence on the premises, you consent to being photographed, filmed, audio-recorded, streamed, or otherwise recorded by Texas SandFest, its affiliates, designated agents, media partners, and contractors. This applies even if you are not attending the paid event (e.g., observing sculptors during setup or walking through the area). Usage Rights You grant Texas SandFest the absolute and irrevocable right and permission to capture, use, publish, exhibit, reproduce, stream, distribute, or otherwise exploit such recordings of your appearance, voice, likeness, or name in any and all media now existing or hereafter devised (including but not limited to websites, social media, television, news, advertising, and promotional materials) for any purpose whatsoever, including promotional and commercial purposes, worldwide and in perpetuity, without compensation."
+    },
+    {
+      "topic": "competition",
+      "source": "https://www.texassandfest.org/advancedamateurs",
+      "title": "Advanced Amateurs | Texas Sandfest",
+      "headings": [
+        "Advanced Amateurs"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [
+        "$4"
+      ],
+      "summaryText": "--> Advanced Amateurs | Texas Sandfest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Advanced Amateurs On their way to becoming Pros! Being a Semi-Pro or Master Sculptor doesn't happen overnight. These Amateurs have spent years perfecting their skills and are well on their way to becoming Pro's. Come cheer them on! David Brandon - Texas/ Portugal This is David Brandon’s 8th Sandfest. He is from Austin Texas but, since retiring from a career in IT in 2025, he moved to Ferragudo, Portugal; where there are over 100 sandy beaches within a 30-minute drive. David has sculpted sand around the world and now, since retiring, can sculpt frequently and teach sand castle building lessons. His favorite sculpting beaches are Port Aransas Texas, Praia da Marina de Portimão Portugal, Praia Angrinha de Ferragudo Portugal, and al. Janet Moore Schrader - Michigan At the age of 36, Janet was diagnosed with Stage 4 non-Hodgkin’s lymphoma. With an eye patch and hair loss, she resembled a pirate. To cope with the effects of cancer and its treatment, she began walking along her favorite spot: the shores of Lake Michigan. One day, Janet built a small sandcastle. Though it wasn't particularly impressive, she was captivated by the experience. Finding the book Sand Castles Step-by-Step at her local library changed her life."
+    },
+    {
+      "topic": "tickets",
+      "source": "https://www.texassandfest.org/generaladmissionticket",
+      "title": "General Admission | Texas Sandfest",
+      "headings": [
+        "General Admission"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> General Admission | Texas Sandfest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. General Admission 3-Day Wristbands ONLINE TICKET SALES ARE CLOSED. TICKETS CAN BE PURCHASED AT EVENT ​ Ages 13+. Wristbands are good for all 3 days of Texas SandFest. You will need to keep your wristband on for re-entry. No 1-Day tickets available The quantity of entrance wristbands to be sold is not limited Resale of tickets is not allowed. Crowd Release/ Notice of Filming and Photography By entering an event or program of Texas SandFest, you are entering an area where photography, audio and video recording may occur. Your entry and presence on the event premises constitute your consent to be photographed, filmed or recorded, and to the use, publication, exhibition or reproduction of such recordings of your appearance, voice or name for Texas SandFest's promotional purposes, including on websites, social media, news and advertising. This consent is granted in perpetuity. ​ By entering the event premises, you waive and release any claims against Texas SandFest, its officers, directors, employees, agents and volunteers related to the use of recorded media, including the right to inspect or approve photos, videos, or audio and any claims for invasion of privacy, violation of right of publicity, defamation (provided"
+    },
+    {
+      "topic": "tickets",
+      "source": "https://www.texassandfest.org/bollard-buddies",
+      "title": "Bollard Buddies | Texas Sandfest",
+      "headings": [
+        "Bollard Buddies",
+        "Diana Vondra Founder of Bollard Buddies"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> Bollard Buddies | Texas Sandfest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Bollard Buddies Port Aransas has been yarn-bombed! When you drive down the Port Aransas beach, you might find a welcome surprise made of yarn. The little bundles of joy that sit atop the bollards on the beach are called \"Bollard Buddies\". These fun friends bring smiles to everyone who sees them and are just another thing that makes Port Aransas such a special place. The Full Story ​ Diana Vondra, the founder of Bollard Buddies, answered questions many people have been dying to know about these fun little beach friends. \"My husband and I were traveling in France and we came upon a street decorated in yarn. The trees, bike racks, railings and even doorknobs were yarn bombed. I immediately thought of Port Aransas. I had a friend Lorranie Care measure the bollards and began making sweaters for them.\", said Diana. This is the 8th year the bollard buddies are being displayed in Port Aransas. The first year Diana put the buddies up, she started with 82. Now, there are over 400 on the Port Aransas beach during the winter months. Wondering how these cute little crafts are made? Diana said, \"Most of the buddies are either crocheted or knitted, butt hey can be other things also. One is a face painted on material and sewed tog"
+    },
+    {
+      "topic": "organization",
+      "source": "https://www.texassandfest.org/magazine",
+      "title": "Texas SandFest Magazine",
+      "headings": [
+        "Check out our 2025 Texas SandFest Magazine!"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> Texas SandFest Magazine top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Check out our 2025 Texas SandFest Magazine! 200 S. Alister Street, Suite E Port Aransas, TX 78373​ ​ P: 361-267-2474 E: info@texassandfest.org ​​ Mailing Adress: PO Box 1076 Port Aransas, TX 78373​ Office Hours Wednesday: 9:00AM - 3:00PM Friday: 9:00AM - 2:00PM​ ​ Sign up for Newsletter! &copy; 2026 Texas SandFest. All rights reserved​ We use Ramp at Texas SandFest, see how it could help your business! bottom of page"
+    },
+    {
+      "topic": "competition",
+      "source": "https://www.texassandfest.org/winners",
+      "title": "Winners | Texas Sandfest",
+      "headings": [
+        "2025 Winners",
+        "Master Solor Winners",
+        "&nbsp;Master Duo Winners",
+        "&nbsp;Semi-Pro Winners"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> Winners | Texas Sandfest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. 2025 Winners They took home the glory! Through all the works of art at Texas SandFest are magnificent, there is only one winner each category every year. Those categories are: Master Solo, Master Duo, Semi-Pro and Amateur. There is also a \"People's Choice\" winner in each respective category. Master Solor Winners First Place Marie-Line Gagne: \"On the Edge\" Second Place Benoit Durtherage: \"Freedom in a Box\" Master Duo Winners First Place Greg Grady & Abe Waterman: \"You Are What You Eat\" Second Place Chris Guinto & Melineigh Beauregard: \"The Ferryman\" Semi-Pro Winners First Place Brendan Schaffer: \"El Chupacabra vs. The Jersey Devil\" Second Place Leonard Gonzales: \"Poor Unfortunate Souls\" 200 S. Alister Street, Suite E Port Aransas, TX 78373​ ​ P: 361-267-2474 E: info@texassandfest.org ​​ Mailing Adress: PO Box 1076 Port Aransas, TX 78373​ Office Hours Wednesday: 9:00AM - 3:00PM Friday: 9:00AM - 2:00PM​ ​ Sign up for Newsletter! &copy; 2026 Texas SandFest. All rights reserved​ We use Ramp at Texas SandFest, see how it could help your business! bottom of page"
+    },
+    {
+      "topic": "tickets",
+      "source": "https://www.texassandfest.org/vipwristbands",
+      "title": "VIP Wristbands | Texas Sandfest",
+      "headings": [
+        "VIP Wristbands",
+        "Friday Menu",
+        "Saturday Menu",
+        "Sunday Menu"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> VIP Wristbands | Texas Sandfest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. VIP Wristbands 1-Day Wristbands ​ VIP Wristbands are good for 1 day. Free Food and Beverages (alcohol included) provided Air-Conditioned Tent with shade Private indoor restrooms The quantity of VIP wristbands to be sold is limited Resale of tickets is not allowed. Excludes VIP Parking Pass Friday Menu Breakfast Omlet Station Breakfast Tacos Smoked Salmon with Bagles Danishes Fresh Fruit ​ Lunch Skirt Steak Fajitas Chipotle Honey Grill Chicken Flour/ Corn Tortillas Cilantro Lime Rice Charred Street Corn Salad Heirloom Tomato Salad Lemon Bars Assorted Cookies ​ Mid-Day Snack Dylan's Pizza ​ Dinner Beef Tenderloin with Horseradish Sauce Chimichurri Grilled Shrimp Skewers Truffle Mac & Cheese Roasted Asparagus with Parmesan Wedge Salad Artisan Bread Cheese Cake Saturday Menu Breakfast Spinach Feta Egg white Fritatta Brioche stuffed French Toast Berry Parfait Bar Fresh Fruit Assorted Mini Muffins ​ Lunch Lemon Dill Grilled Salmon Chicken Shawarma Greek Charcuterie Board Orzo Feta Salad Cucumber Greek Salad Baklava Portokalopita ​ Mid-Day Snack Dylan's Pizza ​ ​ Dinner Prime Beef Brisket Bourbon glazed Port Tenderloin Jalapeno Chedder Cheese Grits Grilled Broccolini Watermelon Feta & Mint Salad Brownies ​ ​ Sunday Menu Br"
+    },
+    {
+      "topic": "competition",
+      "source": "https://www.texassandfest.org/amateur-competition",
+      "title": "Amateur Competition | Texas Sandfest",
+      "headings": [
+        "Register for the Amateur Competition"
+      ],
+      "dates": [
+        "November 1, 2025",
+        "April 12, 2026",
+        "April 18, 2026",
+        "April 17-18, 2026",
+        "April 17, 2026"
+      ],
+      "times": [
+        "9:00 AM",
+        "8:30 AM",
+        "4:00 PM",
+        "5:30 PM",
+        "10:00 AM",
+        "6:30 PM",
+        "7:30 AM",
+        "8:20 AM",
+        "5:15 PM",
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [
+        "$20",
+        "$40",
+        "$35",
+        "$75",
+        "$60",
+        "$125",
+        "$150",
+        "$200"
+      ],
+      "summaryText": "--> Amateur Competition | Texas Sandfest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Register for the Amateur Competition Registration is now closed for 2026! Get Tickets Here (closed) ​ Open Registration: November 1, 2025 - April 12, 2026 Registration Deadline: Closed for 2026 NOTE: Registration will close early if all plots are filled before the deadline date. ​ About the Amateur Competition ​ ​ ​ ​ 2026 Registration Fees Guppy (3-7 years) - $20 Youth Solo (8-12 years) - $20 Youth Team (8-12 years) - $40 Teen Solo (13-17 years) - $35 Teen Team (13-17 years) $75 Family (up to 6 members, limited to 2 Adults) - $75 Adult Solo 1 Day - $60 Adult Team 1 Day - $125 2 Day Open Solo - $75 2 Day Open Team - $150 ​ About the Amateur Competition Competition Hours 1 Day Amateur Competition: Saturday, April 18, 2026 2 Day Open Competition: Friday & Saturday, April 17-18, 2026 Guppies & Youth: Saturday 9:00 AM - Noon Teen & Adult: Saturday 8:30 AM - 4:00 PM 2 Day Open Solo & Teams Friday Noon - 5:30 PM​ Saturday 8:30 AM - 4:00 PM ​ ​ ​ Check-In You will receive your packets and wristbands at check-in. Early Check-In: Friday, April 17, 2026, 10:00 AM - 6:30 PM (South entrance at SandFest) Saturday, April 18, 2026, 7:30 AM - 8:20 AM (South entrance to SandFest) ​ Plots The number of competition plots is limit"
+    },
+    {
+      "topic": "program",
+      "source": "https://www.texassandfest.org/at-sandfest",
+      "title": "At SandFest | Texas SandFest",
+      "headings": [
+        "At SandFest",
+        "New to 2025"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "6:00PM",
+        "7:15PM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [
+        "$30",
+        "$5",
+        "$50"
+      ],
+      "summaryText": "--> At SandFest | Texas SandFest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. At SandFest You'll find a million things to do at SandFest​ in addition to the majestic sculptures. You can indulge on some fantastic fair food like fresh, hot funnel cakes or dance the day away in the sand to some of the best genres of music. Take a look at what's on tap and buy your tickets now to avoid the lines and ensure your sand-filled days of fun in Port Aransas! New to 2025 There will be NO public RV parking lot inside the bollards. Learn more about parking and shuttles at Texas SandFest here . The following will be available at the Guest Relations Tent next to the North gate. Services available Tuesday, Wednesday and Thursday (4/14 - 4/16) 9:00AM - 6:00PM each day:​ Advanced wristband sales. Wristband prices each: $30-Adults 13+ and $5-Youth aged 6-12​ Golf Cart Raffle tickets are $50 (limited availability) Will call tickets will be available for pickup Beach wheelchair sign-up (limited availability) Answering questions regarding SandFest Services available Friday and Saturday (4/16- 4/17) from 9:00AM - 7:15PM each day: Beach wheelchair pickup and return (must have a reservation)​ Beach wheelchair reservations (very limited availability) Lost & Found Answering questions regarding SandFest Guest Survey The Por"
+    },
+    {
+      "topic": "organization",
+      "source": "https://www.texassandfest.org/history",
+      "title": "History | Texas Sandfest",
+      "headings": [
+        "The History of SandFest"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> History | Texas Sandfest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. The History of SandFest Texas SandFest began in 1997 as a small local competition for sand sculptors to showcase their abilities and talent. It was organized by the Port Aransas Art Center, formerly the Art Center for the Islands and led by Sharon Schafer. The event is held every year in Port Aransas over a weekend in April. Port Aransas Community Theatre (PACT) was formed and all Texas SandFest business was conducted under the umbrella of the theatre. The event would be considered a fundraiser for the theater and PACT would receive the profits from the sand sculpting event. ​ The event has successfully brought thousands of people to visit the island. This has provided extra business opportunities for restaurants, shops and local merchants. By 2006, a request was made to release the festival to stand alone as a nonprofit group. The new theatre was built by PACT after several years of fundraising. The community was willing to donate more to the theatre group. People were more responsive to an event that could spread profits to other non-profit groups in the community. Texas SandFest became a nonprofit organization when it filed and received its 501(c)3 nonprofit status. It began work under a selected Board of Directors. 200"
+    },
+    {
+      "topic": "visitor",
+      "source": "https://www.texassandfest.org/getting-to-sandfest",
+      "title": "Getting to SandFest | Texas SandFest",
+      "headings": [
+        "How to Get to SandFest",
+        "FERRY",
+        "MAPS",
+        "2024 Texas SandFest Grounds Map"
+      ],
+      "dates": [
+        "marker 9",
+        "Marker 19"
+      ],
+      "times": [
+        "8:00 AM",
+        "8:00 PM",
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> Getting to SandFest | Texas SandFest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. How to Get to SandFest Many people wonder what's the best way to get to SandFest? You can find the best places to park here . But getting to Port A has options to consider. ​ First, it is important to understand that the beach road is often restricted to one-way traffic heading southbound from Avenue G to Access Road 1A. This starts at about 8:00 AM and remains this way until about 8:00 PM on each day of the event. ​ So, whether you are coming in from the south via 361 North, or coming across the ferry landing to Port Aransas, you should definitely map out where you wish to access the festival. During peak times, you can expect the main beach access points to be backed up with slow moving traffic. ​ There are many Shuttle pickup points around the town, and there are many parking lots to consider. The most popular parking lots are the North Gate Parking lot around beach marker 9 primarily accessible from Avenue G, and the South Gate parking lot near Mile Marker 19. ​ Pack a little patience as you enter and leave the area and take some time to enjoy the salty breeze and sunshine. Most of all, arrive safe and having an amazing Port A experience! ​​ FERRY MAPS 2024 Texas SandFest Grounds Map 200 S. Alister Street, "
+    },
+    {
+      "topic": "organization",
+      "source": "https://www.texassandfest.org/board",
+      "title": "Board | Texas Sandfest",
+      "headings": [
+        "Meet the Board of Directors",
+        "The Texas SandFest Board Members are volunteer individuals in the Port Aransas community who have chosen to dedicate their time and energy to making Texas SandFest the flagship event that it is. Need to get in touch with a Board Member? Email info@texassandfest.org",
+        "Executive Board Members",
+        "Board Members"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> Board | Texas Sandfest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Meet the Board of Directors The Texas SandFest Board Members are volunteer individuals in the Port Aransas community who have chosen to dedicate their time and energy to making Texas SandFest the flagship event that it is. Need to get in touch with a Board Member? Email info@texassandfest.org Executive Board Members Tim Parke President Logistics Coordinator Richard Kay Vice President Vendors Shana Craine Treasurer ​ Mark Landrum Secretary Sculptor Relations​ Board Members Vivian Frank | Admin Trailer ​ Jennifer Murphy | Kids Corner & Sculptors ​ Darlene Secich | Sculptors ​ Michele Vaughan | Merchandise ​ ​ Rene Cano | Music & Cart Raffle Celeste Edwards | VIP Tent ​ Claire Schroer | VIP Tent ​ ​ ​ ​ Greg Carr | Music ​ ​ Wendy Jordan | Medical & Shuttles ​ Rhonie Stuart | Volunteers 200 S. Alister Street, Suite E Port Aransas, TX 78373​ ​ P: 361-267-2474 E: info@texassandfest.org ​​ Mailing Adress: PO Box 1076 Port Aransas, TX 78373​ Office Hours Wednesday: 9:00AM - 3:00PM Friday: 9:00AM - 2:00PM​ ​ Sign up for Newsletter! &copy; 2026 Texas SandFest. All rights reserved​ We use Ramp at Texas SandFest, see how it could help your business! bottom of page"
+    },
+    {
+      "topic": "organization",
+      "source": "https://www.texassandfest.org/mission",
+      "title": "About | Texas SandFest",
+      "headings": [
+        "The Texas SandFest Mission",
+        "HELPING HANDS FOOD PANTRY &nbsp;",
+        "FRIENDS OF THE ELLIS MRMORIAL LIBRARY &nbsp;"
+      ],
+      "dates": [
+        "July 20"
+      ],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [
+        "$464,169",
+        "$274,419",
+        "$189,750",
+        "$3",
+        "$1"
+      ],
+      "summaryText": "--> About | Texas SandFest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. The Texas SandFest Mission The mission of Texas SandFest is to give back to the community by raising funds for local non-profit organizations and scholarships. ​ Our commitment to this community truly shines through at Texas SandFest. ​ In 2025, Texas SandFest contributed a total of $464,169 to the Port Aransas community. We are honored to report that $274,419 of those funds were awarded as scholarships, with the remaining $189,750 distributed among our community-driven initiatives and local charitable organizations. ​ This is part of our growing legacy of giving: since 2012, Texas SandFest's total contributions have surpassed $3.3 Million . This impressive figure includes over $1.4 Million dedicated to student scholarships and more than $1.9 Million supporting community-driven initiatives and local charitable organizations. ​ Texas SandFest Grant Application Thank you for your organization's interest in applying for a grant from Texas SandFest. Below are the rules: Applications will only be accepted through our online portal Limit of one application per organization Submission of an application does not guarantee funding Organization must be a 501c3 in good standing Additional information or clarification may be required, a"
+    },
+    {
+      "topic": "competition",
+      "source": "https://www.texassandfest.org/master-duo-sculptors",
+      "title": "Master Duo Sculptors | Texas Sandfest",
+      "headings": [
+        "Master Duo Sculptors"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> Master Duo Sculptors | Texas Sandfest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Master Duo Sculptors It takes two to...sand sculpt? Some say it takes two to make a thing go right...and these artists totally believe it and practice it! These teams of two join forces as a duo to be reckoned with as they tackle the sand together to make their artistic vision come ot life masterfully in the sand. Chris Guinto & Melineigh Beauregard Though we work worldwide, Broken Glass is the only professional sand sculpting company based on the Hawaiian Islands. MasterClass sand sculpting instructors Melineige Beauregard & Chris Guinto have clawed their way to the top of the sand-sculpting food chain with a combined 40+ years experience creating works of art for an array of clientele around the globe in over 20 countries and counting. We’ve appeared on Travel Channel’s hit shows Sand Blasters, Sand Wars and Sand Masters continually raising the bar along the way. We’ve set Guinness World Records, won a gazillion awards and also organize one of the largest international sand sculpting competitions in the universe held annually at Revere Beach, Massachusetts. Mic dropped. Chris and Mel have been doing sand sculpting for the last 25 years, have won multiple awards, appear in a variety of TV shows and traveled a"
+    },
+    {
+      "topic": "partner",
+      "source": "https://www.texassandfest.org/get-involved",
+      "title": "Get Involved | Texas SandFest",
+      "headings": [
+        "Ready to Get Involved?&nbsp;",
+        "VENDORS",
+        "VOLUNTEER",
+        "SPONSORSHIP"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> Get Involved | Texas SandFest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Ready to Get Involved? Whether you want to volunteer, become a sponsor, or sell your wares...there is a variety of ways to get involved with Texas SandFest! VENDORS VOLUNTEER SPONSORSHIP 200 S. Alister Street, Suite E Port Aransas, TX 78373​ ​ P: 361-267-2474 E: info@texassandfest.org ​​ Mailing Adress: PO Box 1076 Port Aransas, TX 78373​ Office Hours Wednesday: 9:00AM - 3:00PM Friday: 9:00AM - 2:00PM​ ​ Sign up for Newsletter! &copy; 2026 Texas SandFest. All rights reserved​ We use Ramp at Texas SandFest, see how it could help your business! bottom of page"
+    },
+    {
+      "topic": "organization",
+      "source": "https://www.texassandfest.org/contact-us",
+      "title": "Contact Us | Texas SandFest",
+      "headings": [
+        "Contact Us&nbsp;",
+        "Subscribe to our newsletter • Don’t miss out!"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> Contact Us | Texas SandFest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Contact Us Experience the thrill of the annual sand sculpting competition on the beautiful beach of Port Aransas, Texas. Whether you're a participant or a spectator, there's something for everyone at Texas SandFest. Get in touch with us to learn more about this exciting event! ​ General Inquiries: info@texassandfest.org Volunteers: volunteer@texassandfest.org Vendors: vendors@texassandfest.org Sponsors : sponsors@texassandfest.org Media Inquiries: media@texassandfest.org Entertainment: music@texassandfest.org Kids Corner: kidscorner@texassandfest.org Logistics Inquiries: logistics@texassandfest.org Professional Sculptor Inquiries: sculptors@texassandfest.org Semi-Pro & Amateur Sculptor Inquiries: amateur@texassandfest.org Scholarship Inquiries: scholarships@texassandfest.org ​ ​ ​ Subscribe to our newsletter • Don’t miss out! Email * Join I want to subscribe to your mailing list. Newsletter 200 S. Alister Street, Suite E Port Aransas, TX 78373​ ​ P: 361-267-2474 E: info@texassandfest.org ​​ Mailing Adress: PO Box 1076 Port Aransas, TX 78373​ Office Hours Wednesday: 9:00AM - 3:00PM Friday: 9:00AM - 2:00PM​ ​ Sign up for Newsletter! &copy; 2026 Texas SandFest. All rights reserved​ We use Ramp at Texas SandFest, see how it"
+    },
+    {
+      "topic": "visitor",
+      "source": "https://www.texassandfest.org/parking-shuttles",
+      "title": "Parking & Shuttles | Texas Sandfest",
+      "headings": [
+        "Parking &amp; Transportation",
+        "Wondering about the best way to get around?",
+        "Use the guide below to navigate the festival and find the most convenient parking for your needs.",
+        "&nbsp;",
+        "​ 🅿️ Off-Site Parking &amp; Shuttle Options",
+        "🚌 Park &amp; Ride (FREE Shuttle)",
+        "The Regional Transportation Authority (CCRTA), in conjunction with the City of Port A, provides this free shuttle.&nbsp;",
+        "ℹ️ General Information:",
+        "Operating Hours:&nbsp;",
+        "Friday: 9:00 AM &ndash; 8:00 PM",
+        "Saturday: 9:00 AM &ndash; 8:00 PM",
+        "Sunday: 9:00 AM &ndash; 8:00 PM",
+        "Pickup and Drop-off Locations:",
+        "Roberts Point Park: Located near the ferry landing. (Free Parking)",
+        "Port Aransas Community Park: 700 Clark Parkway. (Free Parking)",
+        "Near the South Entrance of the event (end of Access Road 1A at the Beach)",
+        "​​",
+        "🛺 Gracie&#39;s Way",
+        "For a quicker, &quot;island-style&quot; transfer directly to the South Entrance, utilize the Gracie&#39;s Way lot.​",
+        "Gracie&#39;s Way (near the intersection of 11th St and Access 1A)​​​",
+        "Cost:",
+        "Both parking and golf cart shuttle service are free",
+        "📍 On the Beach Parking Areas",
+        "🏖️ General SandFest Parking Lot",
+        "Located at the North end of the event grounds.",
+        "Entrance: Beach Marker 9",
+        "Exit: Marker 0 at Avenue G",
+        "⚠️ Rules:",
+        "A valid city Beach Parking Permit is required.",
+        "No RVs, trailers, or oversized vehicles.",
+        "♿ Accessible SandFest Parking",
+        "Space is limited and available on a first-come, first-served basis.",
+        "Located at the North entrance. Look for the &quot;Accessible Parking&quot; Feather Flag.",
+        "Entrance: Marker 12.5",
+        "Exit: Marker 11.5.",
+        "Must display a valid state-issued accessible placard or accessible plate, or Disabled Veterans plate&nbsp;",
+        "A parking attendant will be at the entrance to verify a valid state-issued accessible placard/plate",
+        "A valid city Beach Parking Permit is required.​",
+        "🌟 VIP Parking",
+        "ℹ️ General Information:​",
+        "Located at the South entrance of the event. Look for the &quot;VIP Parking&quot; Feather Flag.",
+        "Entrance: Marker 19.",
+        "Exit: Marker 17.5 at Access Road 1A.",
+        "A parking attendant will be at the entrance to verify a valid VIP Placard",
+        "An official SandFest VIP placard must be displayed on the dashboard",
+        "A city Beach Parking Permit is also required.",
+        "📜 Beach Parking Permits",
+        "Beach parking permits ($12) are valid for the calendar year and must be visibly displayed on all motorized vehicles (including golf carts) parked on the beach.",
+        "Where to Purchase:",
+        "The Texan or Stripes Convenience Stores",
+        "Lowes Market (formerly IGA) &ndash; 418 S. Alister St.",
+        "Tourism Bureau &amp; Chamber Welcome Center &ndash; 403 W. Cotter Ave.",
+        "⚠️ Important Parking Notes:",
+        "Golf Carts: Only official SandFest carts are allowed inside the gates. Personal/rental carts must park in the designated beach lots.",
+        "Enforcement: All beach lots are regularly patrolled by city parking enforcement.",
+        "Free Parking: Extremely limited free spots are available between the South Jetty and Horace Caldwell Pier. These fill up very early; purchasing a permit is highly recommended."
+      ],
+      "dates": [
+        "Marker 9",
+        "Marker 0",
+        "Marker 12",
+        "Marker 11",
+        "Marker 19",
+        "Marker 17"
+      ],
+      "times": [
+        "9:00 AM",
+        "8:00 PM",
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [
+        "$12"
+      ],
+      "summaryText": "--> Parking & Shuttles | Texas Sandfest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Parking & Transportation Wondering about the best way to get around? Use the guide below to navigate the festival and find the most convenient parking for your needs. ​ 🅿️ Off-Site Parking & Shuttle Options 🚌 Park & Ride (FREE Shuttle) The Regional Transportation Authority (CCRTA), in conjunction with the City of Port A, provides this free shuttle. ℹ️ General Information: Operating Hours: Friday: 9:00 AM &ndash; 8:00 PM Saturday: 9:00 AM &ndash; 8:00 PM Sunday: 9:00 AM &ndash; 8:00 PM Pickup and Drop-off Locations: Roberts Point Park: Located near the ferry landing. (Free Parking) Port Aransas Community Park: 700 Clark Parkway. (Free Parking) Near the South Entrance of the event (end of Access Road 1A at the Beach) ​​ 🛺 Gracie's Way For a quicker, \"island-style\" transfer directly to the South Entrance, utilize the Gracie's Way lot.​ ℹ️ General Information: Operating Hours: Friday: 9:00 AM &ndash; 8:00 PM Saturday: 9:00 AM &ndash; 8:00 PM Sunday: 9:00 AM &ndash; 8:00 PM Pickup and Drop-off Locations: Gracie's Way (near the intersection of 11th St and Access 1A)​​​ Near the South Entrance of the event (end of Access Road 1A at the Beach) Cost: Both parking and golf cart shuttle service are free ​ 📍 On the Beac"
+    },
+    {
+      "topic": "program",
+      "source": "https://www.texassandfest.org/kidscorner",
+      "title": "Daily Schedule | Texas Sandfest",
+      "headings": [
+        "Kid&#39;s Corner Schedule",
+        "FRIDAY&nbsp;",
+        "SATURDAY",
+        "SUNDAY"
+      ],
+      "dates": [],
+      "times": [
+        "9:00 AM",
+        "6:30 PM",
+        "4:00 PM",
+        "6:00 PM",
+        "10:00 AM",
+        "2:00 PM",
+        "10:30 AM",
+        "11:00 AM",
+        "12:30 PM",
+        "1:00 PM",
+        "2:30 PM",
+        "3:00 PM",
+        "4:30 PM",
+        "5:00 PM",
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> Daily Schedule | Texas Sandfest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Kid's Corner Schedule Kids Corner open 9:00 AM - 6:30 PM Friday - Sunday Kids Activity Tent open 4:00 PM - 6:00 PM Friday and 9:00 AM - 6:00 PM Sat - Sun ​ FRIDAY DAY 1 9:00 AM Kids Corner open - Ages 3-12 must be accompanied by a parent or guardian ​ 10:00 AM Face painting & Ballon Twister opens Sand sculpting lesson for children (ages 5-12) at Lesson Mountain ​ NOON Sand sculpting lesson for children (ages 5-12) at Lesson Mountain ​ 2:00 PM Sand sculpting lesson for children (ages 5-12) at Lesson Mountain ​ 4:00 PM Kids Activity Tent open - Ages 3-12 must be accompanied by a parent or guardian Interactive Educational Program: TBD ​ ​ 6:00 PM Lesson Mountain closes Face painting closes Kids' Activity Tent closes ​ ​ ​ ​ ​ ​ ​ ​ Come get your Chick-Fil-A fix Friday & Saturday! SATURDAY DAY 2 9:00 AM Kids Corner open - Ages 3-12 must be accompanied by a parent or guardian Kids Activity Tent open - Ages 3-12 must be accompanied by a parent or guardian ​ 10:00 AM Interactive Educational Program: TBD Face painting & Ballon Twister opens Sand sculpting lesson for children (ages 5-12) at Lesson Mountain ​ 10:30 AM Meet Flynn! Port A's favorite Sea Turtle. He's here to teach people about how to Respect our Island Home! ​ ​"
+    },
+    {
+      "topic": "partner",
+      "source": "https://www.texassandfest.org/volunteer",
+      "title": "Volunteer | Texas Sandfest",
+      "headings": [
+        "Become a Volunteer!",
+        "General Volunteer Information",
+        "Volunteer Guidelines",
+        "General Information",
+        "Volunteering Details",
+        "Setup Volunteers",
+        "Missed Shifts and Substitutes",
+        "Equipment and Parking",
+        "Support (Set-up, Event &amp; Tear Down)&nbsp;",
+        "Wristbands",
+        "Food Vouchers (Event Only)",
+        "Snacks &amp; Drinks"
+      ],
+      "dates": [
+        "April 6, 2026"
+      ],
+      "times": [
+        "7:30 AM",
+        "7:30 PM",
+        "7:00 PM",
+        "8:00 AM",
+        "4:00 PM",
+        "11:00 AM",
+        "6:00 PM",
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [
+        "$10",
+        "$15"
+      ],
+      "summaryText": "--> Volunteer | Texas Sandfest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Become a Volunteer! We love our Volunteers and are so greatful for your interest in becoming a Volunteer for Texas SandFest. Our success would not be possible without the time and support of our volunteers. General Volunteer Information ​ ​ ​ The minimum age to volunteer for all positions is 14. This event is outside, and almost all jobs will be in the sun and elements, including but not limited to heat, wind, and rain. The majority of jobs require standing and/ or walking for most of the shift. Most shifts are approximately 5.5 hours. Some jobs have a minimum age requirement and/or require a valid driver's license. Anyone driving equipment and/or a golf cart must be 25 years old​ Need assistance? Find one of these helpful Texas SandFest contacts for volunteer assistance: Rhonie Stuart: Board Member, Volunteer Coordinator ​ If you have any questions, please feel free to reach out to our Volunteer Coordinator at: volunteer@texassandfest.org Volunteer Guidelines General Information Walk-Up Volunteers: We do not accept walk-up volunteers. Late Sign-Ups: Due to event size and logistics, you cannot sign up to volunteer after online registration closes. Online Registration Deadline: Registration closes about ten days before th"
+    },
+    {
+      "topic": "organization",
+      "source": "https://www.texassandfest.org/about",
+      "title": "About | Texas SandFest",
+      "headings": [
+        "About Texas SandFest"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> About | Texas SandFest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. About Texas SandFest Texas SandFest is a 501c(3) nonprofit that operates under a Board of Directors. What began as a small, local competition in 1997 has grown into an internationally recognized three-day family event that draws renowned sand sculptors and tens of thousands of visitors from around the world each year to Port Aransas. ​ You'll want to plan a trip and stay a while for this flagship festival. Attendees stroll through the festival enjoying mind-blowing sand sculptors, bopping their heads to live music and getting a taste of the coast from local food vendors. Adults can stop for a drink at the beer garden before letting their kids learn at \"Lesson Mountain\" or to hydrate before hitting up vendors for arts and crafts, apparel, jewelry, furniture, souvenirs and more. ​ The Master's Gallery is where the competition sculptures are created. Magnificent works of art, created over three days of literal tons of sand, can be found within this area. Sculptors work as solos or as teams of two and begin planning their sculpture weeks, even months, before the event to determine use of forms and what tools are needed. Other sculptors let the sand speak to them and create their art from inspiration of the moment. Regardless of "
+    },
+    {
+      "topic": "competition",
+      "source": "https://www.texassandfest.org/sculptors/master-solo-sculptors",
+      "title": "Master Solo Sculptors | Texas Sandfest",
+      "headings": [
+        "Master Solo Sculptors",
+        "Damon Langlois",
+        "Bruce Peck"
+      ],
+      "dates": [
+        "March 6, 1981",
+        "July 20"
+      ],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> Master Solo Sculptors | Texas Sandfest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Master Solo Sculptors The grains of sand meet up with a single artist to create a mastery in sand sculptors. you will stand in awe of what these masters of the art of sandcastle sculpting will create right in front of your eyes. They know what they want, they know how to do it, and they build a masterpiece on the shore. Damon Langlois Damon Langlois is a Canadian sand sculptor and designer known for his competitive work at major international sand sculpture events, including Texas SandFest. He is a five-time World Championship of Sand Sculpting winner and has competed at the master level for decades. Langlois gained widespread attention in the competitive sand sculpture world with his 2019 Texas SandFest entry Liberty Crumbling, The piece, depicting a facepalming Abraham Lincoln, has continued to be one of the most shared sand sculptures from the event and remains among his best-known competitive works. In addition to his competition achievements, Langlois was the creative director and engineer that set the Guinness World Record for the tallest sand castle in 2015. Built with the Sand Sculpture Company and partner sculptor Ted Siebert, the structure reached 45 feet, 10.25 inches, pushing technical limits for "
+    },
+    {
+      "topic": "competition",
+      "source": "https://www.texassandfest.org/master-solo-sculptors2024",
+      "title": "Master Solo Sculptors | Texas Sandfest",
+      "headings": [
+        "Master Solo Sculptors",
+        "Damon Langlois",
+        "Bruce Peck"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> Master Solo Sculptors | Texas Sandfest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Master Solo Sculptors The grains of sand meet up with a single artist to create a mastery in sand sculptors. you will stand in awe of what these masters of the art of sandcastle sculpting will create right in front of your eyes. They know what they want, they know how to do it, and they build a masterpiece on the shore. Damon Langlois Damon Langlois is a five-time world championship sand sculpting winner, designer of he tallest sand castle in 2015, creator of Liberty Crumbling, winner of Texas SandFest in 2019 and the most shared sand sculpture on the internet. He is also the author of the book 'Stories in Sand: The Arabian nights', an epic telling of stories from the Arabian Nights through his rewritten and shorter translations and photographs of Sand Sculptors created at the largest sand sculpture park ever made. Damon was the creative director. As the founder of Codetta Product Design, Damon is also an inventor and industrial designer with 14 patents and multiple design awards. He lives with his family in a forest in a house he designed and built on the west coast of Canada. Bruce Peck Bruce Peck was born and raised in St. Louis, Missouri. It only took one year of studying architecture to scare him far, fa"
+    },
+    {
+      "topic": "organization",
+      "source": "https://www.texassandfest.org/pressrelease",
+      "title": "About | Texas SandFest",
+      "headings": [
+        "Newsroom"
+      ],
+      "dates": [
+        "February 2, 2026",
+        "April 17"
+      ],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> About | Texas SandFest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Newsroom Media Contacts: Please email inquiries to: media@texassandfest.org Texas SandFest Announces Service Animals Only Policy PORT ARANSAS, TX &ndash; February 2, 2026 &ndash; Texas SandFest is adopting a Service Animals Only policy. &ldquo;Our goal is to keep Texas SandFest a fun and enjoyable destination for every guest and their families,&rdquo; said Tim Parke, President. &ldquo;We know how much guests cherish bringing their pets, and this decision wasn&rsquo;t made lightly. Texas SandFest is fully committed to ADA accessibility. We&rsquo;re deeply grateful to our pet-loving community for understanding and supporting this step.&rdquo; Under the ADA, only dogs (any breed) or miniature horses that perform disability-related tasks qualify as Service Animals. Emotional support animals, therapy animals, comfort animals, pets, and all other animals do not qualify and will not be permitted. Handlers must keep Service Animals under control, ensure they are housebroken and well-behaved, and handle all care/cleanup. For official ADA guidance ADA.gov Texas SandFest 2026 takes place April 17&ndash;19 on the beach in Port Aransas. For details, tickets, or planning, visit www.TexasSandFest.org . for the full Pet Policy. Texas Herita"
+    },
+    {
+      "topic": "competition",
+      "source": "https://www.texassandfest.org/sculptors",
+      "title": "Sculptors | Texas SandFest",
+      "headings": [
+        "Meet the Sculptors",
+        "More Sand Sculptor Fun",
+        "Amateur Competition Registration",
+        "2025 Winners"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> Sculptors | Texas SandFest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Meet the Sculptors Art is a virtue that in the sandcastle sculpting business takes a lot of patience. These artists have either just begun their mastery of the sand carving trade or are indeed masters of creating artwork through the sand, one grain at a time. MASTER DUO SCULPTORS MASTER SOLO SCULPTORS SEMI PRO SCULPTORS More Sand Sculptor Fun Try your luck at being a Master Sculptor! Calling all kids, teens families, solo or teams to enter the Texas SandFest Amateur Sculpting Competition. Amateur Competition Registration 2025 Winners 200 S. Alister Street, Suite E Port Aransas, TX 78373​ ​ P: 361-267-2474 E: info@texassandfest.org ​​ Mailing Adress: PO Box 1076 Port Aransas, TX 78373​ Office Hours Wednesday: 9:00AM - 3:00PM Friday: 9:00AM - 2:00PM​ ​ Sign up for Newsletter! &copy; 2026 Texas SandFest. All rights reserved​ We use Ramp at Texas SandFest, see how it could help your business! bottom of page"
+    },
+    {
+      "topic": "program",
+      "source": "https://www.texassandfest.org/livemusic",
+      "title": "Live Music | Texas Sandfest",
+      "headings": [
+        "Friday, April 17",
+        "Saturday, April 18",
+        "Sunday, April 19"
+      ],
+      "dates": [
+        "April 17",
+        "April 18",
+        "April 19"
+      ],
+      "times": [
+        "3:00 PM",
+        "5:00 PM",
+        "1:00 PM",
+        "5:45 PM",
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> Live Music | Texas Sandfest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Friday, April 17 Cruise Control 3:00 PM Clay Hollis ​ 5:00 PM Saturday, April 18 VHS ​ 1:00 PM Kelo McKane 3:00 PM John King 5:00 PM Sunday, April 19 Sergio Espinosa ​ 1:00 PM Nick Taylor 3:00 PM Josh Abbott Band 5:45 PM 200 S. Alister Street, Suite E Port Aransas, TX 78373​ ​ P: 361-267-2474 E: info@texassandfest.org ​​ Mailing Adress: PO Box 1076 Port Aransas, TX 78373​ Office Hours Wednesday: 9:00AM - 3:00PM Friday: 9:00AM - 2:00PM​ ​ Sign up for Newsletter! &copy; 2026 Texas SandFest. All rights reserved​ We use Ramp at Texas SandFest, see how it could help your business! bottom of page"
+    },
+    {
+      "topic": "competition",
+      "source": "https://www.texassandfest.org/non-competing-sculptors",
+      "title": "Non-Competing Sculptors | Texas Sandfest",
+      "headings": [
+        "Non-Competing Master Sculptors"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> Non-Competing Sculptors | Texas Sandfest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Non-Competing Master Sculptors It's not all about winning, it's about having fun! You don't have to compete in Texas SandFest to enjoy all the fun of creating sand sculptures. These artists have sculpted under the Port A sun just for fun. Learn more about these sculptors below. Mitch Guerrero - SWAT Team Mitch is going on his 10th year as a sand sculptor and due to his full time work as a sand sculptor he has decided to become a professional artist and pursue art as a career. This will be his second season as a lead member of the S.W.A.T team at the Texas SandFest! In October of 2023, Mitch decided to walk away from a 23-year desk job as a senior website designer to pursue his love for this art form and his love for art in general. When he is not competing, Mitch likes to teach sandcastle lessons to tourists on Siesta Key Beach in Sarasota, Florida. As a 4th generation artist, he also loves to draw, paint and use clay to create sculptures. Marc Mangia - SWAT Team I grew up and currently live in Columbus Ohio. I have worked in the construction business as a carpenter since I was a teenager with my father. I took over the construction company about 30 years ago and just retired last year. I took up sand sculp"
+    },
+    {
+      "topic": "visitor",
+      "source": "https://www.texassandfest.org/ferry",
+      "title": "Ferry | Texas Sandfest",
+      "headings": [
+        "Ferry Get Ferried Around"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> Ferry | Texas Sandfest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Ferry Get Ferried Around There are two main ways to get into Port Aransas - from the South side of the island via State Highway 361 or across the ferry from the North. Of the two, the second is the more exciting by a landslide. When you board the ferry on the Aransas Pass side and cross that strip of water into Port Aransas, your easiest mode of Transportaion also becomes the portal to your vacation destination. Enjoy the short ten-minute ride from your car or walk aboard to watch the dolphins play in the wake and see huge ships pass through the channel. ​ ​ For more detailed information, including real-time ferry waits, ferry rules, and more, see the Texas Department of Transportation . For ferry camera viewing, see webcams . Operation Times The Port Aransas ferry system, one of only two total in Texas, operates 24 hours a day, 7 days a week, weather permitting. Anywhere from two to six ferry boats run in a day, depending on traffic and season. ​ The ferry will be closed in event of a severe storm or hurricane making landfall near Port A, as increased water heights mean the ferries cannon be safely secured at the loading and unloading ramps. ​ ​ Boarding Traffic coming off the ferry from Aransas Pass can head straight onto "
+    },
+    {
+      "topic": "organization",
+      "source": "https://www.texassandfest.org/guestsurvey",
+      "title": "Guest Survey | Texas Sandfest",
+      "headings": [
+        "Guest Survey"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> Guest Survey | Texas Sandfest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Guest Survey We love to hear from you! ​ Click HERE to access our Guest Survey ​ ​ 200 S. Alister Street, Suite E Port Aransas, TX 78373​ ​ P: 361-267-2474 E: info@texassandfest.org ​​ Mailing Adress: PO Box 1076 Port Aransas, TX 78373​ Office Hours Wednesday: 9:00AM - 3:00PM Friday: 9:00AM - 2:00PM​ ​ Sign up for Newsletter! &copy; 2026 Texas SandFest. All rights reserved​ We use Ramp at Texas SandFest, see how it could help your business! bottom of page"
+    },
+    {
+      "topic": "competition",
+      "source": "https://www.texassandfest.org/semi-pro-sculptors",
+      "title": "Semi-Pro Sculptors | Texas Sandfest",
+      "headings": [
+        "Semi-Pro Sculptors"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> Semi-Pro Sculptors | Texas Sandfest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Semi-Pro Sculptors These artists' journey has not just begun, but their skills continue to strengthen with each carving of a sandcastle they create and each competition in which they spend time building out an artistry of sand. You won't want to miss watching these semi-pro artists transform into excellence right before your eyes with unbelievable talent create sand sculptures worth remembering. Darrell O'Connor I live in Wilmington Delaware, but for the last 40 years I’ve spent summer weekends building sandcastles at Dewey Beach. My journey into sand sculpting began in the mid 1980’s when I entered my first contest at Rehoboth Beach. While I didn’t place in that first competition, I continued practicing and refining my skills, mostly through trial and error, with the occasional “how-to” book for guidance. The practice paid off and I went on to win the Rehoboth contest nine times. Everything changed in 2014 when I entered my first advanced amateur contest in Wildwood New Jersey. There I was fortunate enough to meet a master sand sculptor, and our friendship became a turning point in the quality of my work. With his constructive feedback and new techniques, my castles improved exponentially. This connection also "
+    },
+    {
+      "topic": "visitor",
+      "source": "https://www.texassandfest.org/petpolicy",
+      "title": "Pets | Texas Sandfest",
+      "headings": [
+        "Pet Policy &nbsp;",
+        "We have made the tough call to update our Pet Policy. Effective for 2026 and moving forward, Texas SandFest will be a Service Animals Only event.",
+        "Only Service Animals, as defined by the Americans with Disabilities Act (ADA), are permitted inside the event area.&nbsp;",
+        "We truly understand this change may feel disappointing for many of you who look forward to sharing the sand with your dogs. We get it, and we&#39;re grateful for your understanding.",
+        "Key Details:",
+        "What qualifies as a Service Animal? Under the ADA, a Service Animal is a dog (any breed) or miniature horse that performs work or tasks directly related to a person&rsquo;s disability.&nbsp;",
+        "What does NOT qualify? Emotional support animals, therapy animals, comfort animals, companion animals, and pets do not qualify as Service Animals under the ADA and will not be admitted.",
+        "Service Animal Handler Responsibilities:",
+        "The Service Animal must be under the control of its handler. Under the ADA, Service Animals must be harnessed, leashed, or tethered, unless the individual&rsquo;s disability prevents using these devices or these devices interfere with the Service Animal&rsquo;s safe, effective performance of tasks. In that case, the individual must maintain control of the animal through voice, signal, or other effective controls.",
+        "The animal must be housebroken and well-behaved.",
+        "The handler is fully responsible for the animal&rsquo;s care, cleanup, and any damages caused.",
+        "Texas SandFest remains fully committed to ADA compliance and accessibility for all. For official ADA guidance, visit: ADA.gov &nbsp;&nbsp;",
+        "Note: While the festival grounds are now limited to service animals only, your pups are still welcome to enjoy the rest of the beach outside our gates.",
+        "Questions? We&#39;re here to help. Contact us at&nbsp; info@texassandfest.org."
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> Pets | Texas Sandfest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Pet Policy Important Safety Update: Service Animals Only Policy for Texas SandFest 2026 We have made the tough call to update our Pet Policy. Effective for 2026 and moving forward, Texas SandFest will be a Service Animals Only event. Only Service Animals, as defined by the Americans with Disabilities Act (ADA), are permitted inside the event area. We truly understand this change may feel disappointing for many of you who look forward to sharing the sand with your dogs. We get it, and we're grateful for your understanding. Key Details: What qualifies as a Service Animal? Under the ADA, a Service Animal is a dog (any breed) or miniature horse that performs work or tasks directly related to a person&rsquo;s disability. What does NOT qualify? Emotional support animals, therapy animals, comfort animals, companion animals, and pets do not qualify as Service Animals under the ADA and will not be admitted. Service Animal Handler Responsibilities: The Service Animal must be under the control of its handler. Under the ADA, Service Animals must be harnessed, leashed, or tethered, unless the individual&rsquo;s disability prevents using these devices or these devices interfere with the Service Animal&rsquo;s safe, effective performance of"
+    },
+    {
+      "topic": "program",
+      "source": "https://www.texassandfest.org/copy-of-live-music",
+      "title": "Live Music | Texas Sandfest",
+      "headings": [
+        "LINEUP COMING SOON"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> Live Music | Texas Sandfest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. LINEUP COMING SOON 200 S. Alister Street, Suite E Port Aransas, TX 78373​ ​ P: 361-267-2474 E: info@texassandfest.org ​​ Mailing Adress: PO Box 1076 Port Aransas, TX 78373​ Office Hours Wednesday: 9:00AM - 3:00PM Friday: 9:00AM - 2:00PM​ ​ Sign up for Newsletter! &copy; 2026 Texas SandFest. All rights reserved​ We use Ramp at Texas SandFest, see how it could help your business! bottom of page"
+    },
+    {
+      "topic": "program",
+      "source": "https://www.texassandfest.org/live-music",
+      "title": "Live Music | Texas Sandfest",
+      "headings": [
+        "Timber Wilde",
+        "Passing Strangers",
+        "Bart Crow",
+        "Dueling Pianos",
+        "Curtis Grimes",
+        "Rob Baird",
+        "80&#39;s Obsession",
+        "Ranch Road Band",
+        "Gary P. Nunn"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> Live Music | Texas Sandfest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Timber Wilde Friday 1:00 - 2:30 Texas Rock & Soul from the heart of the hill country. Passing Strangers Friday 3:30 - 5:00 San Antonio based tribute band gracing the Texas club scene for over 30 years Bart Crow Friday 6:00 - 7:30 Enjoy this flow of Red Dirt, Texas Country and Americana music Dueling Pianos Saturday 12:30 - 2:00 Watch two talented pianists go head to head in a friendly competition, delivering an unforgettable live music experience. Curtis Grimes Saturday 3:00 - 4:30 Listening to Grimes is like taking a trip through the heart of country music. Rob Baird Saturday 5:30 - 7:00 A cinematic mix of alt-country and rock and roll. 80's Obsession Sunday 12:30 - 2:00 Experience the energy and emotion of the best Emo and Pop Punk hits! Ranch Road Band Sunday 3:00 - 4:30 An Americana/ Tex Country band playing Tejano, R&B Rock and Classics. Gary P. Nunn Sunday 5:30 - 7:00 Gary P. Nunn has been taking Texas to the Country and world for 40 years and is an icon of Lone Star music. 200 S. Alister Street, Suite E Port Aransas, TX 78373​ ​ P: 361-267-2474 E: info@texassandfest.org ​​ Mailing Adress: PO Box 1076 Port Aransas, TX 78373​ Office Hours Wednesday: 9:00AM - 3:00PM Friday: 9:00AM - 2:00PM​ ​ Sign up for Newsletter!"
+    },
+    {
+      "topic": "partner",
+      "source": "https://www.texassandfest.org/sponsorship",
+      "title": "Sponsorship | Texas Sandfest",
+      "headings": [
+        "Sponsorship",
+        "Why Become a Sponsor?&nbsp; As the U.S.&#39;s largest native sand sculpture festival, Texas SandFest welcomes over 100,000 visitors to the island, providing your company with on-site branding during this 3-day event and reaching even more through yearlong digital marketing.&nbsp; ​ Sponsorships are the largest way we raise funds for the non-profits we support as well as scholarships we award.&nbsp; We raised over $464,000 in 2025 - a record-breaking achievement we are proud to share! We&#39;re aiming even higher for 2026 and hope you&#39;ll be a part of it!&nbsp;",
+        "2026 Sponsorship",
+        "Ready to Apply?"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [
+        "$464,000"
+      ],
+      "summaryText": "--> Sponsorship | Texas Sandfest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Sponsorship Why Become a Sponsor? As the U.S.'s largest native sand sculpture festival, Texas SandFest welcomes over 100,000 visitors to the island, providing your company with on-site branding during this 3-day event and reaching even more through yearlong digital marketing. ​ Sponsorships are the largest way we raise funds for the non-profits we support as well as scholarships we award. We raised over $464,000 in 2025 - a record-breaking achievement we are proud to share! We're aiming even higher for 2026 and hope you'll be a part of it! Become A Sponsor 2026 Sponsorship Texas SandFest would not be possible without the generous support of our sponsors. Download this packet and choose a sponsorship level - or ask how we can tailor... Download the Packet Ready to Apply? You've downloaded the packet and chosen your sponsorship. Now what? It's simple, just click here , scroll down to \"Sponsor Applications\" and click \"Apply\" for the sponsorship you're interested in. We appreciate your support! 200 S. Alister Street, Suite E Port Aransas, TX 78373​ ​ P: 361-267-2474 E: info@texassandfest.org ​​ Mailing Adress: PO Box 1076 Port Aransas, TX 78373​ Office Hours Wednesday: 9:00AM - 3:00PM Friday: 9:00AM - 2:00PM​ ​ Sign up for"
+    },
+    {
+      "topic": "tickets",
+      "source": "https://www.texassandfest.org",
+      "title": "Official Texas SandFest | Port Aransas, TX",
+      "headings": [
+        "April 17 - 19, 2026",
+        "The Largest Beach Sand sculpture Competition in the USA, raising money for local non profit organizations and scholarships&nbsp;",
+        "365d",
+        "24h",
+        "60m",
+        "60s",
+        "VENDORS",
+        "SPONSORSHIP",
+        "VOLUNTEER",
+        "Whale Sponsors",
+        "Marlin Sponsors",
+        "Sailfish Sponsors",
+        "Tarpon Sponsors",
+        "Trout Sponsors",
+        "Flounder Sponsors"
+      ],
+      "dates": [
+        "April 17 - 19, 2026"
+      ],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> Official Texas SandFest | Port Aransas, TX top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. April 17 - 19, 2026 The Largest Beach Sand sculpture Competition in the USA, raising money for local non profit organizations and scholarships Our Mission 365d 24h 60m 60s VENDORS SPONSORSHIP VOLUNTEER Whale Sponsors Marlin Sponsors Sailfish Sponsors Tarpon Sponsors Trout Sponsors Flounder Sponsors 200 S. Alister Street, Suite E Port Aransas, TX 78373​ ​ P: 361-267-2474 E: info@texassandfest.org ​​ Mailing Adress: PO Box 1076 Port Aransas, TX 78373​ Office Hours Wednesday: 9:00AM - 3:00PM Friday: 9:00AM - 2:00PM​ ​ Sign up for Newsletter! &copy; 2026 Texas SandFest. All rights reserved​ We use Ramp at Texas SandFest, see how it could help your business! bottom of page"
+    },
+    {
+      "topic": "program",
+      "source": "https://www.texassandfest.org/things-to-do",
+      "title": "Things To Do | Texas Sandfest",
+      "headings": [
+        "Things to do at Texas SandFest"
+      ],
+      "dates": [],
+      "times": [
+        "10AM",
+        "12PM",
+        "2PM",
+        "4PM",
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> Things To Do | Texas Sandfest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Things to do at Texas SandFest You've probably never dreamed that one day you'd be headed to the Port Aransas beach to see people carve majestic works of art right in front of your eyes out of small grains of sand. With towering sculptures ahead of you, you'll fall in love with the crowd favorite food stands, drinks and one-of-a-kind souvenirs to buy on the beach. ​ The Texas SandFest in Port Aransas, the only festival on the beach in Port Aransas, also offers lots of great attractions to fill your day of a fun in the sun and sand. You can take a crack at learning how to build your own sandcastles, enjoy many kid-friendly activities and dance your worries away in the sand as the line-up of great musical acts await. ​ Plan your day and weekend to make the most of your time in Port Aransas, the True Texas Coast! ​ ​ Live Music Texas SandFest is your chance to see live music performed right on the sand! Check out the lineup this year! Photo Ops Donations accepted for a photo op on top of tribute mountain. Plus, three other photo opportunities located throughout the grounds! Lesson Mountain Give the kiddos a chance to hone their skills with a real sand sculpture! Lessons take place daily at 10AM, 12PM, 2PM and 4PM for chi"
+    },
+    {
+      "topic": "competition",
+      "source": "https://www.texassandfest.org/master-duo-sculptors2024",
+      "title": "Master Duo Sculptors | Texas Sandfest",
+      "headings": [
+        "Master Duo Sculptors"
+      ],
+      "dates": [
+        "July 20",
+        "April 18, 2018"
+      ],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> Master Duo Sculptors | Texas Sandfest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Master Duo Sculptors It takes two to...sand sculpt? Some say it takes two to make a thing go right...and these artists totally believe it and practice it! These teams of two join forces as a duo to be reckoned with as they tackle the sand together to make their artistic vision come ot life masterfully in the sand. Chris Guinto & Melineigh Beauregard \"If you ain't first, you're last.\" This has been the family mantra sine granddaddy Guinto invented fire and Chris continues to carry that torch to this day. Evident in his sculpturesin which millions have made pilgrimages to wittness, words like \"Supernatural\", \"Divine Providence\" and \"Number one on my bucket list\" are often used to describe his sculptures. In a nutshell, as Chuck Norris once said: \"Sculpting? I leave that to Chris Guinto\". That was true until he met his nemesis, Melineigh Beauregard. It was at that point he truly understood he might not stand at the top of the food chain anymore. Opposites attract, and like fire and water, they've competed for the \"King of the Hill\" title, pushing each other to the extreme limits of their abilities. Sure enough, they ended up sharing he view on the top of the hill, because what is a Queen without her King? Chris a"
+    },
+    {
+      "topic": "partner",
+      "source": "https://www.texassandfest.org/vendors",
+      "title": "Vendors | Texas Sandfest",
+      "headings": [
+        "Become a Vendor",
+        "Food Vendor Application",
+        "Non Food Vendor Application &nbsp;"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> Vendors | Texas Sandfest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Become a Vendor The shops, food stalls and other vendors at Texas SandFest are integral to the experience. There are two types of SandFest vendors - Food and Non-Food. All Vendors​ spots are SOLD OUT ! We look forward to seeing you all there! Food Vendor Application Non Food Vendor Application 200 S. Alister Street, Suite E Port Aransas, TX 78373​ ​ P: 361-267-2474 E: info@texassandfest.org ​​ Mailing Adress: PO Box 1076 Port Aransas, TX 78373​ Office Hours Wednesday: 9:00AM - 3:00PM Friday: 9:00AM - 2:00PM​ ​ Sign up for Newsletter! &copy; 2026 Texas SandFest. All rights reserved​ We use Ramp at Texas SandFest, see how it could help your business! bottom of page"
+    },
+    {
+      "topic": "commerce",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product-9",
+      "title": "I'm a product | Texas Sandfest 2",
+      "headings": [
+        "I&#x27;m a product",
+        "PRODUCT INFO",
+        "RETURN &amp; REFUND POLICY",
+        "SHIPPING INFO"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [
+        "$45.00"
+      ],
+      "summaryText": "--> I'm a product | Texas Sandfest 2 top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. I&#x27;m a product $45.00 Price Quantity * Add to Cart Buy Now I'm a product description. I'm a great place to add more details about your product such as sizing, material, care instructions and cleaning instructions. PRODUCT INFO I'm a product detail. I'm a great place to add more information about your product such as sizing, material, care and cleaning instructions. This is also a great space to write what makes this product special and how your customers can benefit from this item. RETURN & REFUND POLICY I’m a Return and Refund policy. I’m a great place to let your customers know what to do in case they are dissatisfied with their purchase. Having a straightforward refund or exchange policy is a great way to build trust and reassure your customers that they can buy with confidence. SHIPPING INFO I'm a shipping policy. I'm a great place to add more information about your shipping methods, packaging and cost. Providing straightforward information about your shipping policy is a great way to build trust and reassure your customers that they can buy from you with confidence. 200 S. Alister Street, Suite E Port Aransas, TX 78373​ ​ P: 361-267-2474 E: info@texassandfest.org ​​ Mailing Adress: PO Box 1076 Port Aransas"
+    },
+    {
+      "topic": "commerce",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product-10",
+      "title": "I'm a product | Texas Sandfest 2",
+      "headings": [
+        "I&#x27;m a product",
+        "PRODUCT INFO",
+        "RETURN &amp; REFUND POLICY",
+        "SHIPPING INFO"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [
+        "$100.00",
+        "$95.00"
+      ],
+      "summaryText": "--> I'm a product | Texas Sandfest 2 top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. I&#x27;m a product $100.00 Regular Price $95.00 Sale Price Quantity * Add to Cart Buy Now I'm a product description. I'm a great place to add more details about your product such as sizing, material, care instructions and cleaning instructions. PRODUCT INFO I'm a product detail. I'm a great place to add more information about your product such as sizing, material, care and cleaning instructions. This is also a great space to write what makes this product special and how your customers can benefit from this item. RETURN & REFUND POLICY I’m a Return and Refund policy. I’m a great place to let your customers know what to do in case they are dissatisfied with their purchase. Having a straightforward refund or exchange policy is a great way to build trust and reassure your customers that they can buy with confidence. SHIPPING INFO I'm a shipping policy. I'm a great place to add more information about your shipping methods, packaging and cost. Providing straightforward information about your shipping policy is a great way to build trust and reassure your customers that they can buy from you with confidence. 200 S. Alister Street, Suite E Port Aransas, TX 78373​ ​ P: 361-267-2474 E: info@texassandfest.org ​​ Mailing Adres"
+    },
+    {
+      "topic": "commerce",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product-1",
+      "title": "I'm a product | Texas Sandfest 2",
+      "headings": [
+        "I&#x27;m a product",
+        "PRODUCT INFO",
+        "RETURN &amp; REFUND POLICY",
+        "SHIPPING INFO"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [
+        "$20.00"
+      ],
+      "summaryText": "--> I'm a product | Texas Sandfest 2 top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. I&#x27;m a product $20.00 Price Color * Quantity * Add to Cart Buy Now I'm a product description. I'm a great place to add more details about your product such as sizing, material, care instructions and cleaning instructions. PRODUCT INFO I'm a product detail. I'm a great place to add more information about your product such as sizing, material, care and cleaning instructions. This is also a great space to write what makes this product special and how your customers can benefit from this item. RETURN & REFUND POLICY I’m a Return and Refund policy. I’m a great place to let your customers know what to do in case they are dissatisfied with their purchase. Having a straightforward refund or exchange policy is a great way to build trust and reassure your customers that they can buy with confidence. SHIPPING INFO I'm a shipping policy. I'm a great place to add more information about your shipping methods, packaging and cost. Providing straightforward information about your shipping policy is a great way to build trust and reassure your customers that they can buy from you with confidence. 200 S. Alister Street, Suite E Port Aransas, TX 78373​ ​ P: 361-267-2474 E: info@texassandfest.org ​​ Mailing Adress: PO Box 1076 Port"
+    },
+    {
+      "topic": "commerce",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product-5",
+      "title": "I'm a product | Texas Sandfest 2",
+      "headings": [],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> I'm a product | Texas Sandfest 2 top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. ! Widget Didn’t Load Check your internet and refresh this page. If that doesn’t work, contact us. 200 S. Alister Street, Suite E Port Aransas, TX 78373​ ​ P: 361-267-2474 E: info@texassandfest.org ​​ Mailing Adress: PO Box 1076 Port Aransas, TX 78373​ Office Hours Wednesday: 9:00AM - 3:00PM Friday: 9:00AM - 2:00PM​ ​ Sign up for Newsletter! &copy; 2026 Texas SandFest. All rights reserved​ We use Ramp at Texas SandFest, see how it could help your business! bottom of page"
+    },
+    {
+      "topic": "commerce",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product-11",
+      "title": "I'm a product | Texas Sandfest 2",
+      "headings": [
+        "I&#x27;m a product",
+        "PRODUCT INFO",
+        "RETURN &amp; REFUND POLICY",
+        "SHIPPING INFO"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [
+        "$120.00"
+      ],
+      "summaryText": "--> I'm a product | Texas Sandfest 2 top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. I&#x27;m a product $120.00 Price Size * Small Large Quantity * Add to Cart Buy Now I'm a product description. I'm a great place to add more details about your product such as sizing, material, care instructions and cleaning instructions. PRODUCT INFO I'm a product detail. I'm a great place to add more information about your product such as sizing, material, care and cleaning instructions. This is also a great space to write what makes this product special and how your customers can benefit from this item. RETURN & REFUND POLICY I’m a Return and Refund policy. I’m a great place to let your customers know what to do in case they are dissatisfied with their purchase. Having a straightforward refund or exchange policy is a great way to build trust and reassure your customers that they can buy with confidence. SHIPPING INFO I'm a shipping policy. I'm a great place to add more information about your shipping methods, packaging and cost. Providing straightforward information about your shipping policy is a great way to build trust and reassure your customers that they can buy from you with confidence. 200 S. Alister Street, Suite E Port Aransas, TX 78373​ ​ P: 361-267-2474 E: info@texassandfest.org ​​ Mailing Adress: PO B"
+    },
+    {
+      "topic": "commerce",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product-3",
+      "title": "I'm a product | Texas Sandfest 2",
+      "headings": [
+        "I&#x27;m a product",
+        "PRODUCT INFO",
+        "RETURN &amp; REFUND POLICY",
+        "SHIPPING INFO"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [
+        "$25.00"
+      ],
+      "summaryText": "--> I'm a product | Texas Sandfest 2 top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. I&#x27;m a product $25.00 Price Size * Small Medium Large Quantity * Add to Cart Buy Now I'm a product description. I'm a great place to add more details about your product such as sizing, material, care instructions and cleaning instructions. PRODUCT INFO I'm a product detail. I'm a great place to add more information about your product such as sizing, material, care and cleaning instructions. This is also a great space to write what makes this product special and how your customers can benefit from this item. RETURN & REFUND POLICY I’m a Return and Refund policy. I’m a great place to let your customers know what to do in case they are dissatisfied with their purchase. Having a straightforward refund or exchange policy is a great way to build trust and reassure your customers that they can buy with confidence. SHIPPING INFO I'm a shipping policy. I'm a great place to add more information about your shipping methods, packaging and cost. Providing straightforward information about your shipping policy is a great way to build trust and reassure your customers that they can buy from you with confidence. 200 S. Alister Street, Suite E Port Aransas, TX 78373​ ​ P: 361-267-2474 E: info@texassandfest.org ​​ Mailing Adress"
+    },
+    {
+      "topic": "commerce",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product-8",
+      "title": "I'm a product | Texas Sandfest 2",
+      "headings": [
+        "I&#x27;m a product",
+        "PRODUCT INFO",
+        "RETURN &amp; REFUND POLICY",
+        "SHIPPING INFO"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [
+        "$130.00"
+      ],
+      "summaryText": "--> I'm a product | Texas Sandfest 2 top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. I&#x27;m a product $130.00 Price Quantity * Add to Cart Buy Now I'm a product description. I'm a great place to add more details about your product such as sizing, material, care instructions and cleaning instructions. PRODUCT INFO I'm a product detail. I'm a great place to add more information about your product such as sizing, material, care and cleaning instructions. This is also a great space to write what makes this product special and how your customers can benefit from this item. RETURN & REFUND POLICY I’m a Return and Refund policy. I’m a great place to let your customers know what to do in case they are dissatisfied with their purchase. Having a straightforward refund or exchange policy is a great way to build trust and reassure your customers that they can buy with confidence. SHIPPING INFO I'm a shipping policy. I'm a great place to add more information about your shipping methods, packaging and cost. Providing straightforward information about your shipping policy is a great way to build trust and reassure your customers that they can buy from you with confidence. 200 S. Alister Street, Suite E Port Aransas, TX 78373​ ​ P: 361-267-2474 E: info@texassandfest.org ​​ Mailing Adress: PO Box 1076 Port Aransa"
+    },
+    {
+      "topic": "commerce",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product-7",
+      "title": "I'm a product | Texas Sandfest 2",
+      "headings": [
+        "I&#x27;m a product",
+        "PRODUCT INFO",
+        "RETURN &amp; REFUND POLICY",
+        "SHIPPING INFO"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [
+        "$40.00"
+      ],
+      "summaryText": "--> I'm a product | Texas Sandfest 2 top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. I&#x27;m a product $40.00 Price Quantity * Add to Cart Buy Now I'm a product description. I'm a great place to add more details about your product such as sizing, material, care instructions and cleaning instructions. PRODUCT INFO I'm a product detail. I'm a great place to add more information about your product such as sizing, material, care and cleaning instructions. This is also a great space to write what makes this product special and how your customers can benefit from this item. RETURN & REFUND POLICY I’m a Return and Refund policy. I’m a great place to let your customers know what to do in case they are dissatisfied with their purchase. Having a straightforward refund or exchange policy is a great way to build trust and reassure your customers that they can buy with confidence. SHIPPING INFO I'm a shipping policy. I'm a great place to add more information about your shipping methods, packaging and cost. Providing straightforward information about your shipping policy is a great way to build trust and reassure your customers that they can buy from you with confidence. 200 S. Alister Street, Suite E Port Aransas, TX 78373​ ​ P: 361-267-2474 E: info@texassandfest.org ​​ Mailing Adress: PO Box 1076 Port Aransas"
+    },
+    {
+      "topic": "commerce",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product",
+      "title": "I'm a product | Texas Sandfest 2",
+      "headings": [
+        "I&#x27;m a product",
+        "PRODUCT INFO",
+        "RETURN &amp; REFUND POLICY",
+        "SHIPPING INFO"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [
+        "$85.00"
+      ],
+      "summaryText": "--> I'm a product | Texas Sandfest 2 top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. I&#x27;m a product $85.00 Price Quantity * Add to Cart Buy Now I'm a product description. I'm a great place to add more details about your product such as sizing, material, care instructions and cleaning instructions. PRODUCT INFO I'm a product detail. I'm a great place to add more information about your product such as sizing, material, care and cleaning instructions. This is also a great space to write what makes this product special and how your customers can benefit from this item. RETURN & REFUND POLICY I’m a Return and Refund policy. I’m a great place to let your customers know what to do in case they are dissatisfied with their purchase. Having a straightforward refund or exchange policy is a great way to build trust and reassure your customers that they can buy with confidence. SHIPPING INFO I'm a shipping policy. I'm a great place to add more information about your shipping methods, packaging and cost. Providing straightforward information about your shipping policy is a great way to build trust and reassure your customers that they can buy from you with confidence. 200 S. Alister Street, Suite E Port Aransas, TX 78373​ ​ P: 361-267-2474 E: info@texassandfest.org ​​ Mailing Adress: PO Box 1076 Port Aransas"
+    },
+    {
+      "topic": "commerce",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product-2",
+      "title": "I'm a product | Texas Sandfest 2",
+      "headings": [
+        "I&#x27;m a product",
+        "PRODUCT INFO",
+        "RETURN &amp; REFUND POLICY",
+        "SHIPPING INFO"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [
+        "$10.00"
+      ],
+      "summaryText": "--> I'm a product | Texas Sandfest 2 top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. I&#x27;m a product $10.00 Price Color * Quantity * Add to Cart Buy Now I'm a product description. I'm a great place to add more details about your product such as sizing, material, care instructions and cleaning instructions. PRODUCT INFO I'm a product detail. I'm a great place to add more information about your product such as sizing, material, care and cleaning instructions. This is also a great space to write what makes this product special and how your customers can benefit from this item. RETURN & REFUND POLICY I’m a Return and Refund policy. I’m a great place to let your customers know what to do in case they are dissatisfied with their purchase. Having a straightforward refund or exchange policy is a great way to build trust and reassure your customers that they can buy with confidence. SHIPPING INFO I'm a shipping policy. I'm a great place to add more information about your shipping methods, packaging and cost. Providing straightforward information about your shipping policy is a great way to build trust and reassure your customers that they can buy from you with confidence. 200 S. Alister Street, Suite E Port Aransas, TX 78373​ ​ P: 361-267-2474 E: info@texassandfest.org ​​ Mailing Adress: PO Box 1076 Port"
+    },
+    {
+      "topic": "commerce",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product-6",
+      "title": "I'm a product | Texas Sandfest 2",
+      "headings": [],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [],
+      "summaryText": "--> I'm a product | Texas Sandfest 2 top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. ! Widget Didn’t Load Check your internet and refresh this page. If that doesn’t work, contact us. 200 S. Alister Street, Suite E Port Aransas, TX 78373​ ​ P: 361-267-2474 E: info@texassandfest.org ​​ Mailing Adress: PO Box 1076 Port Aransas, TX 78373​ Office Hours Wednesday: 9:00AM - 3:00PM Friday: 9:00AM - 2:00PM​ ​ Sign up for Newsletter! &copy; 2026 Texas SandFest. All rights reserved​ We use Ramp at Texas SandFest, see how it could help your business! bottom of page"
+    },
+    {
+      "topic": "commerce",
+      "source": "https://www.texassandfest.org/product-page/i-m-a-product-4",
+      "title": "I'm a product | Texas Sandfest 2",
+      "headings": [
+        "I&#x27;m a product",
+        "PRODUCT INFO",
+        "RETURN &amp; REFUND POLICY",
+        "SHIPPING INFO"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [
+        "$7.50"
+      ],
+      "summaryText": "--> I'm a product | Texas Sandfest 2 top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. I&#x27;m a product $7.50 Price Size * Small Large Quantity * Add to Cart Buy Now I'm a product description. I'm a great place to add more details about your product such as sizing, material, care instructions and cleaning instructions. PRODUCT INFO I'm a product detail. I'm a great place to add more information about your product such as sizing, material, care and cleaning instructions. This is also a great space to write what makes this product special and how your customers can benefit from this item. RETURN & REFUND POLICY I’m a Return and Refund policy. I’m a great place to let your customers know what to do in case they are dissatisfied with their purchase. Having a straightforward refund or exchange policy is a great way to build trust and reassure your customers that they can buy with confidence. SHIPPING INFO I'm a shipping policy. I'm a great place to add more information about your shipping methods, packaging and cost. Providing straightforward information about your shipping policy is a great way to build trust and reassure your customers that they can buy from you with confidence. 200 S. Alister Street, Suite E Port Aransas, TX 78373​ ​ P: 361-267-2474 E: info@texassandfest.org ​​ Mailing Adress: PO Box"
+    },
+    {
+      "topic": "commerce",
+      "source": "https://www.texassandfest.org/category/all-products",
+      "title": "All Products | Texas Sandfest 2",
+      "headings": [
+        "All Products",
+        "Browse by",
+        "Filter by"
+      ],
+      "dates": [],
+      "times": [
+        "9:00AM",
+        "3:00PM",
+        "2:00PM"
+      ],
+      "prices": [
+        "$7",
+        "$130",
+        "$85.00",
+        "$20.00",
+        "$10.00",
+        "$25.00",
+        "$7.50",
+        "$15.00",
+        "$40.00",
+        "$130.00",
+        "$45.00",
+        "$100.00",
+        "$95.00",
+        "$120.00"
+      ],
+      "summaryText": "--> All Products | Texas Sandfest 2 top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Home All Products All Products This is your category description. It’s a great place to tell customers what this category is about, connect with your audience and draw attention to your products. This is your category descr iptio n. It’s a great place to tell customers what this category is about, connect with your audience and draw attention to your products. … Read more Browse by All Products Filter by Price $7 $130 Color Size 250 ml 500 ml 80 ml Large Medium Small 12 products Sort by: Recommended I&#x27;m a product Price $85.00 I&#x27;m a product Price $20.00 Best Seller I&#x27;m a product Price $10.00 I&#x27;m a product Price $25.00 New I&#x27;m a product Price $7.50 I&#x27;m a product Price $15.00 I&#x27;m a product Price $85.00 I&#x27;m a product Price $40.00 I&#x27;m a product Price $130.00 I&#x27;m a product Price $45.00 Sale I&#x27;m a product Regular Price $100.00 Sale Price $95.00 I&#x27;m a product Price $120.00 200 S. Alister Street, Suite E Port Aransas, TX 78373​ ​ P: 361-267-2474 E: info@texassandfest.org ​​ Mailing Adress: PO Box 1076 Port Aransas, TX 78373​ Office Hours Wednesday: 9:00AM - 3:00PM Friday: 9:00AM - 2:00PM​ ​ Sign up for Newsletter! &copy; 2026 Texas SandFest. All rights reserved​ We "
+    }
+  ]
+}

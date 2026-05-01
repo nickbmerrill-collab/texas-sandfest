@@ -1,0 +1,35 @@
+{
+  "id": "snap_4f1f968d-1dad-4826-a7d4-2550e2bca41e",
+  "eventId": "texas-sandfest-2026",
+  "target": {
+    "type": "alert",
+    "id": "alert_none"
+  },
+  "reason": "Before restoring snapshot snap_b90c2071-69c3-4f41-aca2-b8bab26bf82f",
+  "actor": {
+    "id": "snapshot-test",
+    "role": "super_admin",
+    "permissions": [
+      "*"
+    ],
+    "type": "local-bearer-token",
+    "tokenHint": "Bearer dev-admin-t...",
+    "ip": "127.0.0.1",
+    "userAgent": "curl/8.7.1"
+  },
+  "requestId": "req_d3ffb733-aa99-4124-a367-f39fc4585f4b",
+  "data": {
+    "id": "alert_f8b1cef7-15ab-4e5e-8fc7-cad398cb8ff5",
+    "active": true,
+    "severity": "watch",
+    "title": "Snapshot test",
+    "message": "Testing snapshot before alert publish.",
+    "audience": [
+      "public"
+    ],
+    "updatedAt": "2026-05-01T01:57:19.674Z",
+    "expiresAt": null,
+    "source": "admin"
+  },
+  "createdAt": "2026-05-01T01:57:30.004Z"
+}

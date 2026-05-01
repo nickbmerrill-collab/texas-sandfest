@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+data/incoming/quickbooks/*.json
+data/incoming/quickbooks/*.token
+*.xcuserdata/
+DerivedData/
+.DS_Store
+.build/
+ios/build/
+ios/TexasSandFest.xcodeproj/xcuserdata/
+ios/TexasSandFest.xcodeproj/project.xcworkspace/xcuserdata/

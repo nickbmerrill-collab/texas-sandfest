@@ -1,0 +1,19 @@
+{
+  "id": "ful_3b39c805-bdab-4f8c-878c-71ec7b0ab518",
+  "orderId": "order_local_fulfillment",
+  "eventId": "texas-sandfest-2026",
+  "checkoutSessionId": "cs_fulfillment_local",
+  "paymentIntentId": "pi_fulfillment_local",
+  "productId": "general-admission-3-day",
+  "name": "General Admission 3-Day Wristband",
+  "fulfillmentType": "qr_wristband",
+  "status": "queued",
+  "holder": {
+    "email": "buyer@example.com",
+    "name": "Buyer Example"
+  },
+  "sourceEventId": "evt_fulfillment_local",
+  "createdAt": "2026-04-30T21:45:26.102Z",
+  "updatedAt": "2026-04-30T21:45:26.102Z",
+  "notes": []
+}

@@ -1,0 +1,35 @@
+{
+  "id": "snap_b90c2071-69c3-4f41-aca2-b8bab26bf82f",
+  "eventId": "texas-sandfest-2026",
+  "target": {
+    "type": "alert",
+    "id": "alert_none"
+  },
+  "reason": "Before alert publish",
+  "actor": {
+    "id": "snapshot-test",
+    "role": "super_admin",
+    "permissions": [
+      "*"
+    ],
+    "type": "local-bearer-token",
+    "tokenHint": "Bearer dev-admin-t...",
+    "ip": "127.0.0.1",
+    "userAgent": "curl/8.7.1"
+  },
+  "requestId": "req_a6384433-84f4-44c8-859e-190c9680395d",
+  "data": {
+    "id": "alert_none",
+    "active": false,
+    "severity": "info",
+    "title": "",
+    "message": "",
+    "audience": [
+      "public"
+    ],
+    "updatedAt": "2026-04-30T00:00:00.000Z",
+    "expiresAt": null,
+    "source": "admin"
+  },
+  "createdAt": "2026-05-01T01:57:19.677Z"
+}

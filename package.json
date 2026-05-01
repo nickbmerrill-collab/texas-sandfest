@@ -1,0 +1,34 @@
+{
+  "name": "teaxs-sandfest",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI-powered platform prototype for Texas SandFest operations and visitor experience.",
+  "type": "module",
+  "scripts": {
+    "start": "vite --host 127.0.0.1",
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "scrape:public": "node scripts/scrape-public-data.mjs",
+    "media:download": "node scripts/download-public-media.mjs",
+    "incoming:scan": "node scripts/scan-incoming.mjs",
+    "public:sync": "node scripts/sync-public-data.mjs",
+    "extract:documents": "/Users/nick/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3 scripts/extract-documents.py",
+    "ios:seed": "node scripts/build-ios-seed.mjs",
+    "vault:build": "node scripts/build-obsidian-vault.mjs",
+    "api:dev": "node scripts/admin-api-server.mjs",
+    "api:load-test": "node scripts/load-test-api.mjs",
+    "qb:status": "node scripts/quickbooks.mjs status",
+    "qb:auth-url": "node scripts/quickbooks.mjs auth-url",
+    "qb:callback": "node scripts/quickbooks-oauth-callback.mjs",
+    "qb:company-info": "node scripts/quickbooks.mjs company-info",
+    "qb:open-invoices": "node scripts/quickbooks.mjs open-invoices"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^5.0.0",
+    "jose": "^6.2.3",
+    "pg": "^8.20.0",
+    "typescript": "^5.6.3",
+    "vite": "^7.0.0"
+  }
+}

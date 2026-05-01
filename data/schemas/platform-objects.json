@@ -1,0 +1,114 @@
+{
+  "event": {
+    "id": "texas-sandfest-2026",
+    "name": "Texas SandFest 2026",
+    "startsAt": "2026-04-17T09:00:00-05:00",
+    "endsAt": "2026-04-19T20:00:00-05:00",
+    "location": "On the beach, Port Aransas, TX 78373",
+    "visibility": "public"
+  },
+  "scheduleItem": {
+    "id": "schedule_item_id",
+    "eventId": "texas-sandfest-2026",
+    "title": "Beach gates open",
+    "startsAt": "2026-04-17T09:00:00-05:00",
+    "endsAt": "2026-04-17T20:00:00-05:00",
+    "zoneId": "north-gate",
+    "audience": ["guest"],
+    "sourceId": "source_record_id",
+    "updatedAt": "2026-04-30T00:00:00Z"
+  },
+  "venueZone": {
+    "id": "north-gate",
+    "eventId": "texas-sandfest-2026",
+    "name": "North Gate",
+    "marker": "12.5",
+    "type": "gate",
+    "publicDescription": "Ticket scan, Guest Relations, ADA routing, and wristband support.",
+    "opsChannel": "gate-ops"
+  },
+  "policy": {
+    "id": "service-animals-only",
+    "title": "Service Animals Only",
+    "audience": ["guest", "staff", "volunteer"],
+    "riskLevel": "high",
+    "answer": "Only ADA-defined service animals are permitted inside festival grounds.",
+    "sourceId": "faq_public_page",
+    "owner": "guest-relations",
+    "lastReviewedAt": "2026-04-30T00:00:00Z"
+  },
+  "sponsorTier": {
+    "id": "whale",
+    "name": "Whale",
+    "price": 25000,
+    "benefits": ["VIP wristbands", "general admission wristbands", "parking passes", "website logo", "signage"],
+    "sourceId": "sponsorship_packet_2026"
+  },
+  "ticketProduct": {
+    "id": "general-admission-3-day",
+    "eventId": "texas-sandfest-2026",
+    "name": "General Admission 3-Day Wristband",
+    "category": "ticket",
+    "currency": "usd",
+    "unitAmount": null,
+    "stripePriceId": "price_replace_general_admission_3_day",
+    "requiresReview": false,
+    "fulfillment": "qr_wristband",
+    "sourceId": "www-texassandfest-org-generaladmissionticket",
+    "updatedAt": "2026-04-30T00:00:00Z"
+  },
+  "ticketOrder": {
+    "id": "ticket_order_id",
+    "eventId": "texas-sandfest-2026",
+    "customerId": "customer_id",
+    "email": "buyer@example.com",
+    "status": "pending_checkout",
+    "paymentProvider": "stripe",
+    "stripeCheckoutSessionId": "cs_test_or_live_id",
+    "stripePaymentIntentId": "pi_test_or_live_id",
+    "lineItems": [
+      {
+        "ticketProductId": "general-admission-3-day",
+        "quantity": 2,
+        "unitAmount": 0
+      }
+    ],
+    "totalAmount": 0,
+    "currency": "usd",
+    "createdAt": "2026-04-30T00:00:00Z",
+    "fulfilledAt": null,
+    "quickBooksSyncStatus": "not_synced"
+  },
+  "paymentProviderEvent": {
+    "id": "stripe_event_id",
+    "provider": "stripe",
+    "type": "checkout.session.completed",
+    "objectId": "cs_test_or_live_id",
+    "processedAt": null,
+    "status": "received",
+    "rawPayloadPath": "data/incoming/finance/stripe-events/event.json"
+  },
+  "sponsorCheckout": {
+    "id": "sponsor_checkout_id",
+    "sponsorId": "sponsor_account_id",
+    "tierId": "whale",
+    "status": "needs_review",
+    "checkoutMode": "invoice_or_payment_link",
+    "stripePaymentLinkId": null,
+    "quickBooksInvoiceId": null,
+    "requestedBy": "sponsor_contact_id",
+    "notes": "VIP bundle and sponsor benefits must be approved before payment collection."
+  },
+  "incident": {
+    "id": "incident_id",
+    "eventId": "texas-sandfest-2026",
+    "type": "lost_party",
+    "zoneId": "north-gate",
+    "severity": "medium",
+    "status": "open",
+    "reportedBy": "staff_user_id",
+    "assignedTo": "ops_user_id",
+    "createdAt": "2026-04-17T15:30:00-05:00",
+    "syncedAt": null
+  }
+}

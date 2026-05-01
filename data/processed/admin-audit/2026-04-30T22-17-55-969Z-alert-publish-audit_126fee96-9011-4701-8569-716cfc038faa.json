@@ -1,0 +1,50 @@
+{
+  "id": "audit_126fee96-9011-4701-8569-716cfc038faa",
+  "eventId": "texas-sandfest-2026",
+  "action": "alert.publish",
+  "target": {
+    "type": "alert",
+    "id": "alert_ba3912bc-4947-466f-aa25-d2be3afdb900"
+  },
+  "actor": {
+    "id": "nick-local",
+    "role": "super_admin",
+    "permissions": [
+      "*"
+    ],
+    "type": "local-bearer-token",
+    "tokenHint": "Bearer dev-admin-t...",
+    "ip": "127.0.0.1",
+    "userAgent": "curl/8.7.1"
+  },
+  "before": {
+    "id": "alert_none",
+    "active": false,
+    "severity": "info",
+    "title": "",
+    "message": "",
+    "audience": [
+      "public"
+    ],
+    "updatedAt": "2026-04-30T00:00:00.000Z",
+    "expiresAt": null,
+    "source": "admin"
+  },
+  "after": {
+    "id": "alert_ba3912bc-4947-466f-aa25-d2be3afdb900",
+    "active": true,
+    "severity": "watch",
+    "title": "Role test",
+    "message": "Testing permissioned alert publish.",
+    "audience": [
+      "public"
+    ],
+    "updatedAt": "2026-04-30T22:17:55.969Z",
+    "expiresAt": null,
+    "source": "admin"
+  },
+  "metadata": {
+    "severity": "watch"
+  },
+  "createdAt": "2026-04-30T22:17:55.969Z"
+}

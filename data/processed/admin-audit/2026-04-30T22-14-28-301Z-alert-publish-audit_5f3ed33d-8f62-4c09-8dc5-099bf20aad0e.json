@@ -1,0 +1,45 @@
+{
+  "id": "audit_5f3ed33d-8f62-4c09-8dc5-099bf20aad0e",
+  "eventId": "texas-sandfest-2026",
+  "action": "alert.publish",
+  "target": {
+    "type": "alert",
+    "id": "alert_973635ce-4513-45ac-9c92-791087a3aa75"
+  },
+  "actor": {
+    "type": "bearer-token",
+    "tokenHint": "Bearer dev-admin-t...",
+    "ip": "127.0.0.1",
+    "userAgent": "curl/8.7.1"
+  },
+  "before": {
+    "id": "alert_none",
+    "active": false,
+    "severity": "info",
+    "title": "",
+    "message": "",
+    "audience": [
+      "public"
+    ],
+    "updatedAt": "2026-04-30T00:00:00.000Z",
+    "expiresAt": null,
+    "source": "admin"
+  },
+  "after": {
+    "id": "alert_973635ce-4513-45ac-9c92-791087a3aa75",
+    "active": true,
+    "severity": "watch",
+    "title": "Audit test",
+    "message": "Testing admin audit logging.",
+    "audience": [
+      "public"
+    ],
+    "updatedAt": "2026-04-30T22:14:28.300Z",
+    "expiresAt": null,
+    "source": "admin"
+  },
+  "metadata": {
+    "severity": "watch"
+  },
+  "createdAt": "2026-04-30T22:14:28.301Z"
+}

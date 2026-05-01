@@ -1,0 +1,40 @@
+---
+type: public_web_page
+status: scraped
+category: program
+url: https://www.texassandfest.org/livemusic
+fetched_at: 2026-04-30T20:05:27.555Z
+word_count: 188
+---
+
+# Live Music - Texas Sandfest
+
+## Source
+
+https://www.texassandfest.org/livemusic
+
+## Headings
+
+- Friday, April 17
+- Saturday, April 18
+- Sunday, April 19
+
+## Extracted Dates
+
+- April 17
+- April 18
+- April 19
+
+## Extracted Prices
+
+- None extracted
+
+## Outbound Links
+
+- [https://www.instagram.com/texas_sandfest/](https://www.instagram.com/texas_sandfest/)
+- [https://www.facebook.com/TexasSandFest/](https://www.facebook.com/TexasSandFest/)
+- [https://ramp.com/?rc=PQJ9SN&amp;referral_location=referral_page](https://ramp.com/?rc=PQJ9SN&amp;referral_location=referral_page)
+
+## Text Preview
+
+--> Live Music | Texas Sandfest top of page At SandFest Daily Schedule Things To Do Live Music Kids Corner Sustainablity Parking & Shuttles Pets Accessibility Notices About Our Mission FAQ&#x27;s Magazine Guest Survey Meet the Board Get Involved Vendors Sponsorship Volunteer Sculptors Winners Master Solo Sculptors Master Duo Sculptors Semi-Pro Sculptors Non-Competing Sculptors Advanced Amateurs Amateur Competition Media Room Press Release Tickets Golf Cart Raffle General Admission VIP Wristbands Contact Us More Use tab to navigate through the menu items. Friday, April 17 Cruise Control 3:00 PM Clay Hollis ​ 5:00 PM Saturday, April 18 VHS ​ 1:00 PM Kelo McKane 3:00 PM John King 5:00 PM Sunday, April 19 Sergio Espinosa ​ 1:00 PM Nick Taylor 3:00 PM Josh Abbott Band 5:45 PM 200 S. Alister Street, Suite E Port Aransas, TX 78373​ ​ P: 361-267-2474 E: info@texassandfest.org ​​ Mailing Adress: PO Box 1076 Port Aransas, TX 78373​ Office Hours Wednesday: 9:00AM - 3:00PM Friday: 9:00AM - 2:00PM​ ​ Sign up for Newsletter! &copy; 2026 Texas SandFest. All rights reserved​ We use Ramp at Texas SandFest, see how it could help your business! bottom of page
