@@ -10,6 +10,9 @@ const incomingInventory = await fetch("/data/incoming-inventory.json")
 const ticketCatalog = await fetch("/data/ticket-products.json")
   .then(response => response.ok ? response.json() : null)
   .catch(() => null);
+const sculptorData = await fetch("/data/sculptors.json")
+  .then(response => response.ok ? response.json() : null)
+  .catch(() => null);
 
 const mediaAssets = mediaManifest?.assets ?? [];
 const heroImage = mediaAssets.find(asset => asset.role === "hero")?.publicPath
@@ -33,6 +36,30 @@ const assetStats = mediaManifest
   : [];
 const ticketProducts = ticketCatalog?.products ?? [];
 const ticketCart = new Map();
+
+const sculptors = sculptorData?.sculptors ?? [];
+const sculptureEntries = sculptorData?.entries ?? [];
+const sculpturePois = sculptorData?.pois ?? [];
+const sculptorLegend = sculptorData?.legend ?? [];
+const sculptorsById = new Map(sculptors.map(s => [s.id, s]));
+const entriesById = new Map(sculptureEntries.map(e => [e.id, e]));
+const divisionLabels = {
+  master_solo: "Master Solo",
+  master_duo: "Master Duo",
+  semi_pro: "Semi-Pro",
+  amateur: "Amateur",
+  non_competing_master: "Non-Competing Master"
+};
+const statusLabels = {
+  planning: "Setting up",
+  sculpting: "Sculpting live",
+  complete: "Complete",
+  judged: "Judged"
+};
+const legendColorByKey = new Map(sculptorLegend.map(l => [l.colorKey, l.colorHex]));
+function divisionLabel(key) {
+  return divisionLabels[key] ?? key;
+}
 let adminConfigState = null;
 let adminSessionState = null;
 
@@ -361,6 +388,7 @@ app.innerHTML = `
       <a href="#live-beach">Live Beach</a>
       <a href="#concierge">Concierge</a>
       <a href="#tickets">Tickets</a>
+      <a href="#sculptors-showcase">Sculptors</a>
       <a href="#operations">Ops</a>
       <a href="#media">Media</a>
       <a href="#admin">Admin</a>
@@ -371,6 +399,10 @@ app.innerHTML = `
       <a href="#roadmap">Build</a>
     </nav>
     <div class="app-status-controls">
+      <div class="site-mode-toggle" role="tablist" aria-label="Site mode">
+        <button data-site-mode="public" type="button" role="tab">Visitor</button>
+        <button data-site-mode="ops" type="button" role="tab">Operations</button>
+      </div>
       <span id="network-status" class="network-status" data-state="online">Live</span>
       <button id="install-app-btn" class="install-app-btn" type="button" hidden>Install</button>
     </div>
@@ -680,6 +712,42 @@ app.innerHTML = `
       </div>
     </section>
 
+    <section class="section sculptors-section" id="sculptors-showcase">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">The sculptors</p>
+          <h2>Meet the artists &mdash; and find them on the beach.</h2>
+          <p class="section-copy">Browse the roster, filter by division, and tap a sculpture on the corridor map to see who's carving it and where, by beach marker.</p>
+        </div>
+        <span class="sculptor-count">${sculptors.length} sculptors</span>
+      </div>
+      <div class="sculptor-layout">
+        <div class="corridor-map-wrap">
+          <div class="corridor-map" id="corridor-map" role="group" aria-label="Competition corridor map with sculpture locations"></div>
+          <div class="corridor-legend" id="corridor-legend"></div>
+        </div>
+        <aside class="sculptor-detail" id="sculptor-detail" aria-live="polite"></aside>
+      </div>
+      <div class="sculptor-filters" id="sculptor-filters"></div>
+      <div class="sculptor-roster" id="sculptor-roster"></div>
+
+      <div class="passport-panel" id="passport-panel">
+        <div class="passport-head">
+          <div>
+            <p class="eyebrow">Sculpture Passport</p>
+            <h3>Collect every master sculpture &mdash; finish to enter the prize drawing.</h3>
+            <p class="section-copy">On the beach, scan the QR at each sculpture to stamp your passport. Here's a preview of the trail.</p>
+          </div>
+          <div class="passport-progress">
+            <div class="passport-ring" id="passport-ring"><span id="passport-count">0</span></div>
+            <button id="passport-reset" class="button secondary" type="button">Reset</button>
+          </div>
+        </div>
+        <div class="passport-stamps" id="passport-stamps"></div>
+        <div class="passport-reward" id="passport-reward" hidden></div>
+      </div>
+    </section>
+
     <section class="section admin-config-section" id="admin-config">
       <div class="section-heading">
         <div>
@@ -800,6 +868,27 @@ app.innerHTML = `
             <div id="admin-snapshot-list" class="admin-record-list">
               <article class="empty-state"><span>No snapshots loaded.</span></article>
             </div>
+          </div>
+        </div>
+      </div>
+      <div class="admin-revenue-panel">
+        <div class="editor-heading">
+          <p class="eyebrow">Revenue dashboard</p>
+          <h3>Unified ticket, vendor, sponsor &amp; merch revenue</h3>
+        </div>
+        <button id="admin-load-revenue" class="button secondary" data-requires-permission="revenue:read" type="button">Load revenue</button>
+        <p id="admin-revenue-updated" class="admin-revenue-updated">Reconciles Stripe, Eventeny, Square, and manual entries to QuickBooks. Load config, or click Load revenue.</p>
+        <div id="admin-revenue-kpis" class="admin-revenue-kpis">
+          <article class="empty-state"><span>No revenue loaded.</span></article>
+        </div>
+        <div class="admin-revenue-breakdown">
+          <div>
+            <strong>By category</strong>
+            <div id="admin-revenue-categories" class="admin-revenue-rows"></div>
+          </div>
+          <div>
+            <strong>By source</strong>
+            <div id="admin-revenue-sources" class="admin-revenue-rows"></div>
           </div>
         </div>
       </div>
@@ -1021,7 +1110,7 @@ app.innerHTML = `
       </div>
     </section>
 
-    <section class="section workflows">
+    <section class="section workflows" id="workflows">
       <p class="eyebrow">Platform modules</p>
       <h2>Built around the jobs SandFest actually has to run.</h2>
       <div class="workflow-grid">
@@ -1618,6 +1707,302 @@ function snapshotCard(item) {
   `;
 }
 
+function pinColor(colorKey) {
+  return legendColorByKey.get(colorKey) || "var(--gulf)";
+}
+
+function corridorPinMarkup(poi) {
+  const xy = poi.illustratedMapXY || { x: 0.5, y: 0.5 };
+  const entry = poi.entryId ? entriesById.get(poi.entryId) : null;
+  const sculptor = entry ? sculptorsById.get(entry.sculptorId) : null;
+  const isSculpture = poi.type === "sculpture";
+  const label = entry ? entry.title : (poi.label || poi.type);
+  const live = entry && entry.status === "sculpting";
+  const title = sculptor
+    ? `${entry.title} — ${sculptor.name} (marker ${poi.beachMarker})`
+    : `${label} (marker ${poi.beachMarker})`;
+  return `<button class="corridor-pin${isSculpture ? "" : " corridor-pin-amenity"}${live ? " is-live" : ""}" type="button"
+     style="left:${(xy.x * 100).toFixed(1)}%;top:${(xy.y * 100).toFixed(1)}%;--pin:${pinColor(poi.colorKey)}"
+     ${sculptor ? `data-sculptor="${sculptor.id}"` : ""} data-poi="${poi.id}"
+     title="${title}" aria-label="${title}">
+     <span class="corridor-pin-dot"></span>
+     <span class="corridor-pin-label">${isSculpture ? poi.beachMarker : label}</span>
+   </button>`;
+}
+
+function renderCorridorMap() {
+  const map = document.querySelector("#corridor-map");
+  if (!map) return;
+  map.innerHTML = `
+    <span class="corridor-water" aria-hidden="true"></span>
+    <span class="corridor-sand" aria-hidden="true"></span>
+    <span class="corridor-axis" aria-hidden="true">Gulf shoreline · North Gate → beach markers 12.5&ndash;14.5</span>
+    ${sculpturePois.map(corridorPinMarkup).join("")}
+  `;
+  map.querySelectorAll("[data-sculptor]").forEach(pin => {
+    pin.addEventListener("click", () => selectSculptor(pin.dataset.sculptor));
+  });
+  const legend = document.querySelector("#corridor-legend");
+  if (legend) {
+    legend.innerHTML = sculptorLegend
+      .map(item => `<span><i style="background:${item.colorHex}"></i>${item.label}</span>`)
+      .join("");
+  }
+}
+
+function sculptorCardMarkup(sculptor) {
+  const entry = sculptor.entryId ? entriesById.get(sculptor.entryId) : null;
+  return `
+    <button class="sculptor-card" type="button" data-sculptor="${sculptor.id}" data-division="${sculptor.division}">
+      <span class="sculptor-card-chip" style="--pin:${pinColor(sculptor.division)}">${divisionLabel(sculptor.division)}</span>
+      <strong>${sculptor.name}</strong>
+      <span class="sculptor-card-home">${sculptor.hometown ?? ""}</span>
+      ${entry ? `<span class="sculptor-card-entry">&ldquo;${entry.title}&rdquo; · marker ${entry.beachMarker}</span>` : ""}
+      <span class="sculptor-card-return${sculptor.returning ? "" : " sculptor-card-new"}">${sculptor.returning ? "Returning artist" : "New this year"}</span>
+    </button>`;
+}
+
+function renderSculptorRoster(filter) {
+  const roster = document.querySelector("#sculptor-roster");
+  if (!roster) return;
+  const list = [...sculptors]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .filter(s => filter === "all" || s.division === filter);
+  roster.innerHTML = list.length
+    ? list.map(sculptorCardMarkup).join("")
+    : '<article class="empty-state"><span>No sculptors in this division yet.</span></article>';
+  roster.querySelectorAll("[data-sculptor]").forEach(card => {
+    card.addEventListener("click", () => selectSculptor(card.dataset.sculptor));
+  });
+}
+
+function renderSculptorFilters(active) {
+  const el = document.querySelector("#sculptor-filters");
+  if (!el) return;
+  const divisions = [...new Set(sculptors.map(s => s.division))];
+  const chips = [["all", "All"], ...divisions.map(d => [d, divisionLabel(d)])];
+  el.innerHTML = chips
+    .map(([key, label]) => `<button class="sculptor-chip${key === active ? " is-active" : ""}" type="button" data-filter="${key}">${label}</button>`)
+    .join("");
+  el.querySelectorAll("[data-filter]").forEach(chip => {
+    chip.addEventListener("click", () => {
+      renderSculptorFilters(chip.dataset.filter);
+      renderSculptorRoster(chip.dataset.filter);
+    });
+  });
+}
+
+function selectSculptor(id) {
+  const sculptor = sculptorsById.get(id);
+  const detail = document.querySelector("#sculptor-detail");
+  if (!detail || !sculptor) return;
+  const entry = sculptor.entryId ? entriesById.get(sculptor.entryId) : null;
+  const status = entry ? (statusLabels[entry.status] ?? entry.status) : null;
+  detail.innerHTML = `
+    <div class="sculptor-detail-head" style="--pin:${pinColor(sculptor.division)}">
+      <span class="sculptor-detail-chip">${divisionLabel(sculptor.division)}</span>
+      ${entry && entry.status === "sculpting"
+        ? `<span class="sculptor-detail-live">&#9679; ${status}</span>`
+        : (status ? `<span class="sculptor-detail-status">${status}</span>` : "")}
+    </div>
+    <h3>${sculptor.name}</h3>
+    <p class="sculptor-detail-home">${sculptor.hometown ?? ""}${sculptor.returning ? " · Returning artist" : " · New this year"}</p>
+    ${entry ? `<p class="sculptor-detail-entry"><strong>&ldquo;${entry.title}&rdquo;</strong> — beach marker ${entry.beachMarker}</p>` : ""}
+    ${entry && entry.statement ? `<p class="sculptor-detail-statement">${entry.statement}</p>` : ""}
+    <p class="sculptor-detail-bio">${sculptor.bio ?? ""}</p>
+    ${sculptor.socials && sculptor.socials.instagram ? `<p class="sculptor-detail-social">${sculptor.socials.instagram}</p>` : ""}
+  `;
+  document.querySelectorAll(".corridor-pin").forEach(pin => {
+    pin.classList.toggle("is-selected", pin.dataset.sculptor === id);
+  });
+}
+
+function defaultSculptorDetail() {
+  const detail = document.querySelector("#sculptor-detail");
+  if (!detail) return;
+  detail.innerHTML = '<div class="sculptor-detail-empty"><strong>Tap a sculpture or a sculptor</strong><span>See the artist, their work, and where to find them on the beach.</span></div>';
+}
+
+// Public/ops split: the visitor site is the default; internal ops/admin/build
+// surfaces move behind Operations mode (mirrors the iOS Customer/Admin switch).
+const OPS_SECTION_IDS = new Set(["operations", "admin-config", "admin", "workflows", "surfaces", "finance", "roadmap"]);
+
+function classifyAudiences() {
+  document.querySelectorAll("main > section").forEach(sec => {
+    if (sec.classList.contains("hero")) { sec.dataset.audience = "all"; return; }
+    sec.dataset.audience = OPS_SECTION_IDS.has(sec.id) ? "ops" : "public";
+  });
+  document.querySelectorAll("header nav a").forEach(link => {
+    const id = (link.getAttribute("href") || "").replace("#", "");
+    link.dataset.audience = OPS_SECTION_IDS.has(id) ? "ops" : "public";
+  });
+}
+
+function setSiteMode(mode) {
+  const normalized = mode === "ops" ? "ops" : "public";
+  document.body.classList.toggle("mode-ops", normalized === "ops");
+  document.body.classList.toggle("mode-public", normalized === "public");
+  document.querySelectorAll("[data-site-mode]").forEach(btn => {
+    const active = btn.dataset.siteMode === normalized;
+    btn.classList.toggle("is-active", active);
+    btn.setAttribute("aria-selected", String(active));
+  });
+  try { localStorage.setItem("sandfest_site_mode", normalized); } catch { /* ignore */ }
+}
+
+function initSiteMode() {
+  classifyAudiences();
+  let saved = "public";
+  try { saved = localStorage.getItem("sandfest_site_mode") || "public"; } catch { /* ignore */ }
+  setSiteMode(saved);
+  document.querySelectorAll("[data-site-mode]").forEach(btn => {
+    btn.addEventListener("click", () => setSiteMode(btn.dataset.siteMode));
+  });
+}
+
+const PASSPORT_KEY = "sandfest_passport_v1";
+const passportCheckpoints = sculptureEntries.filter(e => sculptorsById.has(e.sculptorId));
+
+function readPassport() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(PASSPORT_KEY) || "[]"));
+  } catch {
+    return new Set();
+  }
+}
+
+function writePassport(set) {
+  try {
+    localStorage.setItem(PASSPORT_KEY, JSON.stringify([...set]));
+  } catch {
+    /* localStorage unavailable — session-only */
+  }
+}
+
+function collectStamp(entryId) {
+  const collected = readPassport();
+  if (collected.has(entryId)) collected.delete(entryId);
+  else collected.add(entryId);
+  writePassport(collected);
+  renderPassport();
+}
+
+function resetPassport() {
+  writePassport(new Set());
+  renderPassport();
+}
+
+function renderPassport() {
+  const stampsEl = document.querySelector("#passport-stamps");
+  if (!stampsEl || !passportCheckpoints.length) {
+    const panel = document.querySelector("#passport-panel");
+    if (panel && !passportCheckpoints.length) panel.hidden = true;
+    return;
+  }
+  const collected = readPassport();
+  const total = passportCheckpoints.length;
+  const count = passportCheckpoints.filter(e => collected.has(e.id)).length;
+
+  stampsEl.innerHTML = passportCheckpoints.map(entry => {
+    const sculptor = sculptorsById.get(entry.sculptorId);
+    const done = collected.has(entry.id);
+    return `
+      <button class="passport-stamp${done ? " is-collected" : ""}" type="button" data-collect="${entry.id}"
+        aria-pressed="${done}" title="${done ? "Collected" : "Tap to collect (simulates the on-beach QR scan)"}">
+        <span class="passport-stamp-mark" style="--pin:${pinColor(entry.division)}">${done ? "&#10003;" : entry.beachMarker}</span>
+        <strong>${entry.title}</strong>
+        <span class="passport-stamp-artist">${sculptor ? sculptor.name : ""}</span>
+        <span class="passport-stamp-state">${done ? "Stamped" : "Scan at marker " + entry.beachMarker}</span>
+      </button>`;
+  }).join("");
+
+  stampsEl.querySelectorAll("[data-collect]").forEach(btn => {
+    btn.addEventListener("click", () => collectStamp(btn.dataset.collect));
+  });
+
+  const countEl = document.querySelector("#passport-count");
+  const ring = document.querySelector("#passport-ring");
+  if (countEl) countEl.textContent = `${count}/${total}`;
+  if (ring) {
+    const pct = total ? Math.round((count / total) * 100) : 0;
+    ring.style.setProperty("--pct", `${pct}`);
+    ring.classList.toggle("is-complete", count === total);
+  }
+
+  const reward = document.querySelector("#passport-reward");
+  if (reward) {
+    if (count === total && total > 0) {
+      reward.hidden = false;
+      reward.innerHTML = `<strong>&#127881; Passport complete!</strong><span>You'd now be entered into the prize drawing and earn a digital finisher badge.</span>`;
+    } else {
+      reward.hidden = true;
+    }
+  }
+}
+
+function initSculptors() {
+  if (!document.querySelector("#corridor-map")) return;
+  renderCorridorMap();
+  renderSculptorFilters("all");
+  renderSculptorRoster("all");
+  defaultSculptorDetail();
+  renderPassport();
+  const resetBtn = document.querySelector("#passport-reset");
+  if (resetBtn) resetBtn.addEventListener("click", resetPassport);
+}
+
+function revenueKpiCard(label, value, sub) {
+  return `<article><span>${label}</span><strong>${value}</strong>${sub ? `<b>${sub}</b>` : ""}</article>`;
+}
+
+function revenueRow(name, bucket) {
+  return `
+    <article>
+      <span>${name.replace(/_/g, " ")}</span>
+      <b>${adminMoney(bucket.netCents)}</b>
+      <em>${bucket.count} ${bucket.count === 1 ? "entry" : "entries"}</em>
+    </article>`;
+}
+
+function renderAdminRevenue(payload) {
+  const s = payload.summary;
+  const kpis = document.querySelector("#admin-revenue-kpis");
+  const updated = document.querySelector("#admin-revenue-updated");
+  const cats = document.querySelector("#admin-revenue-categories");
+  const sources = document.querySelector("#admin-revenue-sources");
+  if (!kpis || !s) return;
+  kpis.innerHTML = [
+    revenueKpiCard("Gross", adminMoney(s.totals.grossCents), `${s.totals.count} entries`),
+    revenueKpiCard("Fees", adminMoney(s.totals.feeCents), `${s.totals.effectiveFeeRatePct}% of gross`),
+    revenueKpiCard("Net", adminMoney(s.totals.netCents), s.spendPerAttendeeCents ? `${adminMoney(s.spendPerAttendeeCents)}/guest` : ""),
+    revenueKpiCard("Reconciled", `${s.reconciliation.pctReconciled}%`, `${adminMoney(s.reconciliation.unreconciledNetCents)} pending`),
+    revenueKpiCard("Tickets sold", `${s.tickets.sold}`, s.tickets.pctSold != null ? `${s.tickets.pctSold}% of ${s.tickets.capacity}` : "")
+  ].join("");
+  cats.innerHTML = Object.entries(s.byCategory).map(([k, v]) => revenueRow(k, v)).join("")
+    || '<article class="empty-state"><span>No entries.</span></article>';
+  sources.innerHTML = Object.entries(s.bySource).map(([k, v]) => revenueRow(k, v)).join("")
+    || '<article class="empty-state"><span>No entries.</span></article>';
+  updated.textContent = payload.lastUpdated
+    ? `Ledger updated ${new Date(payload.lastUpdated).toLocaleString()} · ${payload.entries.length} entries · seeded sample until live feeds are wired.`
+    : "Revenue loaded.";
+}
+
+async function loadAdminRevenue({ quiet = false } = {}) {
+  const button = document.querySelector("#admin-load-revenue");
+  if (button) button.disabled = true;
+  try {
+    const data = await adminFetch("/api/admin/revenue");
+    renderAdminRevenue(data);
+    if (!quiet) setAdminStatus(`Loaded revenue: ${adminMoney(data.summary.totals.netCents)} net across ${data.summary.totals.count} entries.`, "ok");
+    return data;
+  } catch (error) {
+    if (!quiet) setAdminStatus(`${error.message}. Revenue needs the revenue:read permission and a running backend.`, "error");
+    throw error;
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
 async function loadAdminTransactions() {
   const button = document.querySelector("#admin-load-orders");
   const orderList = document.querySelector("#admin-order-list");
@@ -1786,6 +2171,9 @@ document.querySelector("#admin-load-config").addEventListener("click", async () 
     adminConfigState = await adminFetch("/api/admin/config");
     await loadAdminAlert();
     renderAdminEditors();
+    if (adminCan("revenue:read")) {
+      await loadAdminRevenue({ quiet: true }).catch(() => {});
+    }
     setAdminStatus(`Loaded ${adminConfigState.tickets.products.length} ticket products and ${adminConfigState.config.sponsorPackages.length} sponsor packages.`, "ok");
   } catch (error) {
     setAdminStatus(`${error.message}. Confirm npm run api:dev is running and the token matches SANDFEST_ADMIN_API_TOKEN.`, "error");
@@ -1821,6 +2209,10 @@ document.querySelector("#admin-clear-alert").addEventListener("click", async () 
 });
 
 document.querySelector("#admin-load-orders").addEventListener("click", loadAdminTransactions);
+document.querySelector("#admin-load-revenue").addEventListener("click", () => loadAdminRevenue());
+
+initSiteMode();
+initSculptors();
 
 loadPublicAlert();
 window.setInterval(loadPublicAlert, 30000);

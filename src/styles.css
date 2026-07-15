@@ -2709,3 +2709,398 @@ time {
   }
   .lb-route { stroke-dasharray: 0; }
 }
+
+/* Revenue dashboard (admin console) */
+.admin-revenue-panel {
+  margin-top: 28px;
+  display: grid;
+  gap: 16px;
+}
+.admin-revenue-panel #admin-load-revenue {
+  justify-self: start;
+}
+.admin-revenue-updated {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+}
+.admin-revenue-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+.admin-revenue-kpis article {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: grid;
+  gap: 4px;
+  align-content: start;
+}
+.admin-revenue-kpis article.empty-state {
+  grid-column: 1 / -1;
+}
+.admin-revenue-kpis span {
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.admin-revenue-kpis strong {
+  color: var(--deep);
+  font-size: 22px;
+  line-height: 1.1;
+}
+.admin-revenue-kpis b {
+  color: var(--gulf);
+  font-size: 12px;
+  font-weight: 600;
+}
+.admin-revenue-breakdown {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+.admin-revenue-breakdown > div > strong {
+  display: block;
+  margin-bottom: 8px;
+}
+.admin-revenue-rows {
+  display: grid;
+  gap: 8px;
+}
+.admin-revenue-rows article {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 10px;
+  align-items: center;
+  background: var(--foam);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 12px;
+}
+.admin-revenue-rows article span {
+  text-transform: capitalize;
+}
+.admin-revenue-rows b {
+  color: var(--deep);
+}
+.admin-revenue-rows em {
+  color: var(--muted);
+  font-style: normal;
+  font-size: 12px;
+}
+@media (max-width: 720px) {
+  .admin-revenue-breakdown {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Sculptors section + corridor map */
+.sculptors-section .sculptor-count {
+  align-self: center;
+  background: var(--deep);
+  color: var(--sand);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.sculptor-layout {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: 20px;
+  margin-top: 8px;
+}
+.corridor-map-wrap {
+  display: grid;
+  gap: 12px;
+}
+.corridor-map {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  background: linear-gradient(180deg, #0e5a63 0%, #1f8a92 34%, #7ec8cc 46%, var(--sand) 58%, #efd79f 100%);
+}
+.corridor-water,
+.corridor-sand { position: absolute; left: 0; right: 0; }
+.corridor-axis {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--deep);
+  background: rgba(255, 253, 247, 0.7);
+  border-radius: 8px;
+  padding: 3px 8px;
+}
+.corridor-pin {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  padding: 0;
+  --pin: var(--gulf);
+}
+.corridor-pin-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(45deg);
+  background: var(--pin);
+  border: 2px solid var(--white);
+  box-shadow: 0 4px 10px rgba(18, 51, 58, 0.35);
+  transition: transform 0.15s ease;
+}
+.corridor-pin:hover .corridor-pin-dot,
+.corridor-pin.is-selected .corridor-pin-dot {
+  transform: rotate(45deg) scale(1.25);
+}
+.corridor-pin.is-selected .corridor-pin-dot {
+  outline: 3px solid rgba(255, 253, 247, 0.9);
+  outline-offset: 1px;
+}
+.corridor-pin-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--deep);
+  background: rgba(255, 253, 247, 0.85);
+  border-radius: 6px;
+  padding: 1px 5px;
+  white-space: nowrap;
+}
+.corridor-pin-amenity .corridor-pin-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  transform: none;
+  background: rgba(101, 116, 124, 0.9);
+}
+.corridor-pin.is-live .corridor-pin-dot {
+  animation: pinPulse 1.8s ease-out infinite;
+}
+@keyframes pinPulse {
+  0% { box-shadow: 0 4px 10px rgba(18, 51, 58, 0.35), 0 0 0 0 rgba(232, 93, 74, 0.55); }
+  100% { box-shadow: 0 4px 10px rgba(18, 51, 58, 0.35), 0 0 0 14px rgba(232, 93, 74, 0); }
+}
+.corridor-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.corridor-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.corridor-legend i { width: 12px; height: 12px; border-radius: 4px; display: inline-block; }
+.sculptor-detail {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 20px;
+  min-height: 220px;
+}
+.sculptor-detail-empty { display: grid; gap: 6px; color: var(--muted); }
+.sculptor-detail-empty strong { color: var(--deep); font-size: 16px; }
+.sculptor-detail-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; --pin: var(--gulf); }
+.sculptor-detail-chip {
+  background: var(--pin);
+  color: var(--white);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.sculptor-detail-live { color: var(--coral); font-weight: 700; font-size: 12px; }
+.sculptor-detail-status { color: var(--muted); font-size: 12px; }
+.sculptor-detail h3 { margin: 4px 0; }
+.sculptor-detail-home { color: var(--muted); font-size: 13px; margin: 0 0 10px; }
+.sculptor-detail-entry { margin: 8px 0 4px; }
+.sculptor-detail-statement { color: var(--deep); font-style: italic; margin: 4px 0; }
+.sculptor-detail-bio { color: var(--ink); font-size: 14px; }
+.sculptor-detail-social { color: var(--gulf); font-weight: 600; font-size: 13px; }
+.sculptor-filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 22px 0 14px; }
+.sculptor-chip {
+  border: 1px solid var(--line);
+  background: var(--white);
+  border-radius: 999px;
+  padding: 7px 15px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--muted);
+}
+.sculptor-chip.is-active { background: var(--deep); color: var(--sand); border-color: var(--deep); }
+.sculptor-roster {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 14px;
+}
+.sculptor-card {
+  text-align: left;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px;
+  display: grid;
+  gap: 5px;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.sculptor-card:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
+.sculptor-card-chip {
+  justify-self: start;
+  background: var(--pin, var(--gulf));
+  color: var(--white);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.sculptor-card strong { font-size: 16px; color: var(--deep); }
+.sculptor-card-home { color: var(--muted); font-size: 13px; }
+.sculptor-card-entry { font-size: 13px; color: var(--ink); }
+.sculptor-card-return { font-size: 12px; color: var(--gulf); font-weight: 600; }
+.sculptor-card-return.sculptor-card-new { color: var(--coral); }
+@media (max-width: 860px) {
+  .sculptor-layout { grid-template-columns: 1fr; }
+}
+
+/* Sculpture Passport (scavenger hunt) */
+.passport-panel {
+  margin-top: 32px;
+  background: linear-gradient(180deg, var(--deep), #0b2a30);
+  color: var(--foam);
+  border-radius: 20px;
+  padding: 26px;
+}
+.passport-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.passport-head .eyebrow { color: var(--sun); }
+.passport-head h3 { margin: 4px 0; color: var(--white); }
+.passport-head .section-copy { color: rgba(248, 245, 236, 0.75); margin: 0; }
+.passport-progress { display: flex; align-items: center; gap: 14px; }
+.passport-ring {
+  --pct: 0;
+  width: 74px;
+  height: 74px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: conic-gradient(var(--sun) calc(var(--pct) * 1%), rgba(255,255,255,0.15) 0);
+  font-weight: 800;
+  color: var(--white);
+}
+.passport-ring span {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: var(--deep);
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+}
+.passport-ring.is-complete { --pct: 100; }
+.passport-stamps {
+  margin-top: 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+}
+.passport-stamp {
+  text-align: left;
+  background: rgba(255, 253, 247, 0.06);
+  border: 1px dashed rgba(248, 245, 236, 0.3);
+  border-radius: 14px;
+  padding: 14px;
+  display: grid;
+  gap: 4px;
+  cursor: pointer;
+  color: var(--foam);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.passport-stamp:hover { transform: translateY(-2px); }
+.passport-stamp.is-collected {
+  background: rgba(247, 183, 51, 0.12);
+  border-style: solid;
+  border-color: var(--sun);
+}
+.passport-stamp-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--pin, var(--gulf));
+  color: var(--white);
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+.passport-stamp.is-collected .passport-stamp-mark { background: var(--sun); color: var(--deep); }
+.passport-stamp strong { color: var(--white); font-size: 14px; }
+.passport-stamp-artist { color: rgba(248, 245, 236, 0.75); font-size: 12px; }
+.passport-stamp-state { color: rgba(248, 245, 236, 0.55); font-size: 11px; }
+.passport-stamp.is-collected .passport-stamp-state { color: var(--sun); }
+.passport-reward {
+  margin-top: 18px;
+  background: var(--sun);
+  color: var(--deep);
+  border-radius: 14px;
+  padding: 16px 18px;
+  display: grid;
+  gap: 4px;
+}
+.passport-reward strong { font-size: 16px; }
+
+/* Public / Operations mode split */
+.site-mode-toggle {
+  display: inline-flex;
+  background: var(--foam);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px;
+  gap: 2px;
+}
+.site-mode-toggle button {
+  border: 0;
+  background: none;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.site-mode-toggle button.is-active {
+  background: var(--deep);
+  color: var(--sand);
+}
+/* Visitor mode hides internal ops surfaces; Operations mode hides visitor-only marketing sections. Hero shows in both. */
+body.mode-public main > section[data-audience="ops"],
+body.mode-public header nav a[data-audience="ops"] {
+  display: none;
+}
+body.mode-ops main > section[data-audience="public"],
+body.mode-ops header nav a[data-audience="public"] {
+  display: none;
+}
+@media (max-width: 900px) {
+  .site-mode-toggle button { padding: 6px 9px; }
+}
