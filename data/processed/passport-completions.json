@@ -1,5 +1,5 @@
 {
-  "_note": "Sculpture Passport stamp completions (lib/passport.mjs). Appended by POST /api/public/passport/stamp. Seed shows sample attendees for admin KPIs.",
+  "_note": "Sculpture Passport completions (lib/passport.mjs). Mutated by public stamp API.",
   "lastUpdated": "2026-07-15T18:00:00Z",
   "completions": [
     {

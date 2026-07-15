@@ -42,6 +42,21 @@ import {
   publicCheckpoint,
   summarizePassport
 } from "../lib/passport.mjs";
+import {
+  applyVote,
+  normalizeBallotEntry,
+  normalizeVote,
+  summarizeVoting,
+  tallyVotes,
+  voteForAttendee
+} from "../lib/voting.mjs";
+import {
+  enrichBooths,
+  normalizeBooth,
+  normalizeVendor,
+  publicBoothPins,
+  summarizeBooths
+} from "../lib/booths.mjs";
 
 await loadDotEnv();
 
@@ -138,6 +153,8 @@ const rolePermissions = {
     "volunteers:read",
     "consent:read",
     "passport:read",
+    "voting:read",
+    "booths:read",
     "fulfillment:read",
     "fulfillment:update",
     "audit:read",
@@ -174,6 +191,8 @@ const rolePermissions = {
     "volunteers:read",
     "consent:read",
     "passport:read",
+    "voting:read",
+    "booths:read",
     "fulfillment:read",
     "audit:read",
     "snapshot:read"
@@ -188,6 +207,8 @@ const rolePermissions = {
     "volunteers:read",
     "consent:read",
     "passport:read",
+    "voting:read",
+    "booths:read",
     "fulfillment:read",
     "audit:read",
     "snapshot:read"
@@ -433,6 +454,71 @@ async function writePassportCompletions(completions) {
   };
   await writeFile(PASSPORT_COMPLETIONS_PATH, `${JSON.stringify(payload, null, 2)}\n`);
   return payload;
+}
+
+const PEOPLES_CHOICE_PATH = path.join(ROOT, "data", "processed", "peoples-choice.json");
+const BOOTH_MAP_PATH = path.join(ROOT, "data", "processed", "booth-map.json");
+
+async function readPeoplesChoice() {
+  try {
+    const doc = JSON.parse(await readFile(PEOPLES_CHOICE_PATH, "utf8"));
+    return {
+      lastUpdated: doc.lastUpdated ?? null,
+      eventId: doc.eventId ?? "texas-sandfest-2026",
+      votingOpen: doc.votingOpen !== false,
+      title: doc.title ?? "People's Choice",
+      description: doc.description ?? "",
+      entries: Array.isArray(doc.entries) ? doc.entries.map(normalizeBallotEntry) : [],
+      votes: Array.isArray(doc.votes) ? doc.votes.map(normalizeVote) : []
+    };
+  } catch {
+    return {
+      lastUpdated: null,
+      eventId: "texas-sandfest-2026",
+      votingOpen: false,
+      title: "People's Choice",
+      description: "",
+      entries: [],
+      votes: []
+    };
+  }
+}
+
+async function writePeoplesChoice(doc) {
+  await mkdir(path.dirname(PEOPLES_CHOICE_PATH), { recursive: true });
+  const payload = {
+    _note: "People's Choice ballot + votes (lib/voting.mjs).",
+    lastUpdated: new Date().toISOString(),
+    eventId: doc.eventId ?? "texas-sandfest-2026",
+    votingOpen: doc.votingOpen !== false,
+    title: doc.title ?? "People's Choice",
+    description: doc.description ?? "",
+    entries: doc.entries ?? [],
+    votes: doc.votes ?? []
+  };
+  await writeFile(PEOPLES_CHOICE_PATH, `${JSON.stringify(payload, null, 2)}\n`);
+  return payload;
+}
+
+async function readBoothMap() {
+  try {
+    const doc = JSON.parse(await readFile(BOOTH_MAP_PATH, "utf8"));
+    return {
+      lastUpdated: doc.lastUpdated ?? null,
+      eventId: doc.eventId ?? "texas-sandfest-2026",
+      source: doc.source ?? "seed",
+      booths: Array.isArray(doc.booths) ? doc.booths.map(normalizeBooth) : [],
+      vendors: Array.isArray(doc.vendors) ? doc.vendors.map(normalizeVendor) : []
+    };
+  } catch {
+    return {
+      lastUpdated: null,
+      eventId: "texas-sandfest-2026",
+      source: "empty",
+      booths: [],
+      vendors: []
+    };
+  }
 }
 
 function deploymentProfile() {
@@ -1317,6 +1403,80 @@ async function handleRequest(request, response) {
       return;
     }
 
+    // People's Choice voting
+    if (method === "GET" && pathname === "/api/public/voting") {
+      const doc = await readPeoplesChoice();
+      const tally = tallyVotes(doc.entries, doc.votes);
+      sendJson(request, response, 200, {
+        lastUpdated: doc.lastUpdated,
+        eventId: doc.eventId,
+        votingOpen: doc.votingOpen,
+        title: doc.title,
+        description: doc.description,
+        entries: doc.entries,
+        leaderboard: tally.leaderboard,
+        totals: { totalVotes: tally.totalVotes, uniqueVoters: tally.uniqueVoters }
+      }, publicCacheHeaders(30));
+      return;
+    }
+
+    if (method === "GET" && pathname === "/api/public/voting/me") {
+      const attendeeRef = String(url.searchParams.get("attendeeRef") || "").trim();
+      if (!attendeeRef || attendeeRef.length < 4) {
+        sendJson(request, response, 400, { error: "Query attendeeRef is required." });
+        return;
+      }
+      const doc = await readPeoplesChoice();
+      sendJson(request, response, 200, {
+        vote: voteForAttendee(doc.votes, attendeeRef),
+        votingOpen: doc.votingOpen
+      }, { "cache-control": "no-store" });
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/public/voting") {
+      const body = await readBody(request);
+      const doc = await readPeoplesChoice();
+      const result = applyVote({
+        eventId: doc.eventId,
+        votingOpen: doc.votingOpen,
+        entries: doc.entries,
+        votes: doc.votes
+      }, body, {
+        idFactory: () => `vote_${randomUUID()}`,
+        now: new Date().toISOString()
+      });
+      if (!result.ok) {
+        sendJson(request, response, 400, { error: result.error });
+        return;
+      }
+      if (result.changed) {
+        await writePeoplesChoice({ ...doc, votes: result.votes });
+      }
+      const tally = tallyVotes(doc.entries, result.votes);
+      sendJson(request, response, result.changed ? 201 : 200, {
+        ok: true,
+        changed: result.changed,
+        vote: result.vote,
+        leaderboard: tally.leaderboard,
+        totals: { totalVotes: tally.totalVotes, uniqueVoters: tally.uniqueVoters }
+      });
+      return;
+    }
+
+    // Public booth / vendor map (Eventeny CSV mirror)
+    if (method === "GET" && pathname === "/api/public/booths") {
+      const map = await readBoothMap();
+      sendJson(request, response, 200, {
+        lastUpdated: map.lastUpdated,
+        eventId: map.eventId,
+        source: map.source,
+        pins: publicBoothPins(map.booths, map.vendors),
+        summary: summarizeBooths(map.booths, map.vendors)
+      }, publicCacheHeaders(60));
+      return;
+    }
+
     if (method === "POST" && pathname === "/api/stripe/create-checkout-session") {
       await handleCreateCheckoutSession(request, response);
       return;
@@ -1603,6 +1763,34 @@ async function handleRequest(request, response) {
         hunt: huntDoc.hunt,
         summary,
         checkpoints: huntDoc.checkpoints.map(publicCheckpoint)
+      });
+      return;
+    }
+
+    if (method === "GET" && pathname === "/api/admin/voting") {
+      if (!(await requirePermission(request, response, "voting:read"))) return;
+      const doc = await readPeoplesChoice();
+      sendJson(request, response, 200, {
+        lastUpdated: doc.lastUpdated,
+        summary: summarizeVoting(doc.entries, doc.votes, {
+          eventId: doc.eventId,
+          votingOpen: doc.votingOpen,
+          generatedAt: doc.lastUpdated
+        }),
+        votingOpen: doc.votingOpen,
+        title: doc.title
+      });
+      return;
+    }
+
+    if (method === "GET" && pathname === "/api/admin/booths") {
+      if (!(await requirePermission(request, response, "booths:read"))) return;
+      const map = await readBoothMap();
+      sendJson(request, response, 200, {
+        lastUpdated: map.lastUpdated,
+        source: map.source,
+        summary: summarizeBooths(map.booths, map.vendors),
+        booths: enrichBooths(map.booths, map.vendors)
       });
       return;
     }

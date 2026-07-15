@@ -389,6 +389,7 @@ app.innerHTML = `
       <a href="#concierge">Concierge</a>
       <a href="#tickets">Tickets</a>
       <a href="#sculptors-showcase">Sculptors</a>
+      <a href="#vendors-map">Vendors</a>
       <a href="#operations">Ops</a>
       <a href="#media">Media</a>
       <a href="#admin">Admin</a>
@@ -766,6 +767,39 @@ app.innerHTML = `
         <div class="passport-stamps" id="passport-stamps"></div>
         <div class="passport-reward" id="passport-reward" hidden></div>
       </div>
+
+      <div class="voting-panel" id="voting-panel">
+        <div class="passport-head">
+          <div>
+            <p class="eyebrow">People's Choice</p>
+            <h3>Vote for your favorite sculpture</h3>
+            <p class="section-copy">One vote per device. Change it anytime until voting closes Sunday evening.</p>
+          </div>
+          <div class="voting-totals" id="voting-totals">
+            <strong id="voting-count">—</strong>
+            <span>votes</span>
+          </div>
+        </div>
+        <div class="voting-ballot" id="voting-ballot">
+          <article class="empty-state"><span>Loading ballot…</span></article>
+        </div>
+        <p id="voting-status" class="checkout-status"></p>
+      </div>
+    </section>
+
+    <section class="section booths-section" id="vendors-map">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Food &amp; vendors</p>
+          <h2>Find booths on the beach corridor</h2>
+          <p class="section-copy">Public map pins mirrored from Eventeny booth assignments. Seed data until the live CSV/export is wired.</p>
+        </div>
+        <span class="sculptor-count" id="booth-pin-count">— booths</span>
+      </div>
+      <div class="booth-map-layout">
+        <div class="booth-corridor" id="booth-corridor" aria-label="Vendor booth map"></div>
+        <div class="booth-list" id="booth-list"></div>
+      </div>
     </section>
 
     <section class="section admin-config-section" id="admin-config">
@@ -996,6 +1030,26 @@ app.innerHTML = `
           <article class="empty-state"><span>No passport stats loaded.</span></article>
         </div>
         <div id="admin-passport-checkpoints" class="admin-fleet-rows"></div>
+      </div>
+      <div class="admin-voting-panel">
+        <div class="editor-heading">
+          <p class="eyebrow">People's Choice</p>
+          <h3>Live vote tallies</h3>
+        </div>
+        <button id="admin-load-voting" class="button secondary" data-requires-permission="voting:read" type="button">Load votes</button>
+        <div id="admin-voting-kpis" class="admin-revenue-kpis">
+          <article class="empty-state"><span>No votes loaded.</span></article>
+        </div>
+      </div>
+      <div class="admin-booths-panel">
+        <div class="editor-heading">
+          <p class="eyebrow">Booth map</p>
+          <h3>Vendor readiness &amp; public pins</h3>
+        </div>
+        <button id="admin-load-booths" class="button secondary" data-requires-permission="booths:read" type="button">Load booths</button>
+        <div id="admin-booths-kpis" class="admin-revenue-kpis">
+          <article class="empty-state"><span>No booths loaded.</span></article>
+        </div>
       </div>
       <div class="admin-editor-layout">
         <div>
@@ -2130,6 +2184,139 @@ function initSculptors() {
   hydratePassportFromApi().catch(() => {});
 }
 
+// --- People's Choice ---
+const VOTING_KEY = "sandfest_vote_entry_v1";
+
+function readLocalVote() {
+  try { return localStorage.getItem(VOTING_KEY) || null; } catch { return null; }
+}
+function writeLocalVote(entryId) {
+  try { localStorage.setItem(VOTING_KEY, entryId); } catch { /* ignore */ }
+}
+
+function renderVotingBallot(payload) {
+  const ballot = document.querySelector("#voting-ballot");
+  const countEl = document.querySelector("#voting-count");
+  if (!ballot) return;
+  const myVote = readLocalVote();
+  const board = payload.leaderboard || [];
+  if (countEl) countEl.textContent = String(payload.totals?.totalVotes ?? board.reduce((s, e) => s + (e.votes || 0), 0));
+  ballot.innerHTML = board.map(entry => {
+    const selected = myVote === entry.id;
+    return `
+      <button type="button" class="voting-card${selected ? " is-selected" : ""}" data-vote-entry="${entry.id}" ${payload.votingOpen === false ? "disabled" : ""}>
+        <strong>${entry.title}</strong>
+        <span>${entry.sculptorName || ""} · marker ${entry.beachMarker || "—"}</span>
+        <b>${entry.votes || 0} votes · ${entry.sharePct || 0}%</b>
+        <em>${selected ? "Your pick" : "Tap to vote"}</em>
+      </button>`;
+  }).join("") || '<article class="empty-state"><span>No eligible entries.</span></article>';
+  ballot.querySelectorAll("[data-vote-entry]").forEach(btn => {
+    btn.addEventListener("click", () => castVote(btn.dataset.voteEntry));
+  });
+}
+
+async function loadVoting() {
+  try {
+    const response = await fetch(`${publicApiBase()}/api/public/voting`, { cache: "no-store" });
+    if (!response.ok) throw new Error("Voting API unavailable");
+    const data = await response.json();
+    renderVotingBallot(data);
+    return data;
+  } catch {
+    // Offline fallback from sculptors seed
+    const board = passportCheckpoints.map(e => ({
+      id: e.id,
+      title: e.title,
+      sculptorName: sculptorsById.get(e.sculptorId)?.name || "",
+      beachMarker: e.beachMarker,
+      votes: 0,
+      sharePct: 0
+    }));
+    renderVotingBallot({ leaderboard: board, totals: { totalVotes: 0 }, votingOpen: true });
+  }
+}
+
+async function castVote(entryId) {
+  const status = document.querySelector("#voting-status");
+  writeLocalVote(entryId);
+  if (status) status.textContent = "Saving your vote…";
+  try {
+    const response = await fetch(`${publicApiBase()}/api/public/voting`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        attendeeRef: passportAttendeeRef(),
+        entryId,
+        channel: "web"
+      })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || `Vote failed (${response.status})`);
+    renderVotingBallot(data);
+    if (status) status.textContent = data.changed ? "Vote saved." : "Already your pick.";
+  } catch (error) {
+    renderVotingBallot({
+      leaderboard: passportCheckpoints.map(e => ({
+        id: e.id,
+        title: e.title,
+        sculptorName: sculptorsById.get(e.sculptorId)?.name || "",
+        beachMarker: e.beachMarker,
+        votes: 0,
+        sharePct: 0
+      })),
+      totals: { totalVotes: 0 },
+      votingOpen: true
+    });
+    if (status) status.textContent = `${error.message} — pick kept on this device.`;
+  }
+}
+
+// --- Booth / vendor map ---
+async function loadBooths() {
+  const corridor = document.querySelector("#booth-corridor");
+  const list = document.querySelector("#booth-list");
+  const countEl = document.querySelector("#booth-pin-count");
+  if (!corridor || !list) return;
+  try {
+    const response = await fetch(`${publicApiBase()}/api/public/booths`, { cache: "no-store" });
+    if (!response.ok) throw new Error("Booths API unavailable");
+    const data = await response.json();
+    renderBoothMap(data.pins || []);
+    if (countEl) countEl.textContent = `${data.pins?.length || 0} public pins`;
+  } catch {
+    corridor.innerHTML = '<p class="empty-state">Start the API to load booth pins, or re-sync Eventeny CSV.</p>';
+    list.innerHTML = "";
+  }
+}
+
+function renderBoothMap(pins) {
+  const corridor = document.querySelector("#booth-corridor");
+  const list = document.querySelector("#booth-list");
+  if (!corridor || !list) return;
+  corridor.innerHTML = `
+    <div class="booth-corridor-inner">
+      <span class="booth-corridor-label">Gulf → dunes</span>
+      ${pins.map(p => {
+        const x = ((p.illustratedMapXY?.x ?? 0.5) * 100).toFixed(1);
+        const y = ((p.illustratedMapXY?.y ?? 0.5) * 100).toFixed(1);
+        return `<button type="button" class="booth-pin type-${p.type}" style="left:${x}%;top:${y}%" title="${p.label}" data-booth="${p.id}">${p.id}</button>`;
+      }).join("")}
+    </div>`;
+  list.innerHTML = pins.map(p => `
+    <article class="booth-card" id="booth-card-${p.id}">
+      <strong>${p.label}</strong>
+      <span>${p.category} · ${p.id}${p.beachMarker ? ` · marker ${p.beachMarker}` : ""}</span>
+      <p>${p.description || ""}</p>
+    </article>
+  `).join("") || '<article class="empty-state"><span>No public booths.</span></article>';
+  corridor.querySelectorAll("[data-booth]").forEach(pin => {
+    pin.addEventListener("click", () => {
+      document.querySelector(`#booth-card-${pin.dataset.booth}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+  });
+}
+
 async function hydratePassportFromApi() {
   const attendeeRef = passportAttendeeRef();
   const response = await fetch(`${publicApiBase()}/api/public/passport/progress?attendeeRef=${encodeURIComponent(attendeeRef)}`, { cache: "no-store" });
@@ -2486,6 +2673,54 @@ async function loadAdminPassport({ quiet = false } = {}) {
   }
 }
 
+async function loadAdminVoting({ quiet = false } = {}) {
+  const button = document.querySelector("#admin-load-voting");
+  if (button) button.disabled = true;
+  try {
+    const data = await adminFetch("/api/admin/voting");
+    const kpis = document.querySelector("#admin-voting-kpis");
+    if (kpis && data.summary) {
+      const s = data.summary;
+      kpis.innerHTML = [
+        revenueKpiCard("Votes", `${s.totals.totalVotes}`, `${s.totals.uniqueVoters} voters`),
+        revenueKpiCard("Entries", `${s.totals.eligibleEntries}`, data.votingOpen ? "open" : "closed"),
+        revenueKpiCard("Leader", s.leader?.title || "—", s.leader ? `${s.leader.votes} votes` : "")
+      ].join("");
+    }
+    if (!quiet) setAdminStatus(`Loaded People's Choice: ${data.summary.totals.totalVotes} votes.`, "ok");
+    return data;
+  } catch (error) {
+    if (!quiet) setAdminStatus(error.message, "error");
+    throw error;
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+async function loadAdminBooths({ quiet = false } = {}) {
+  const button = document.querySelector("#admin-load-booths");
+  if (button) button.disabled = true;
+  try {
+    const data = await adminFetch("/api/admin/booths");
+    const kpis = document.querySelector("#admin-booths-kpis");
+    if (kpis && data.summary) {
+      const t = data.summary.totals;
+      kpis.innerHTML = [
+        revenueKpiCard("Booths", `${t.booths}`, `${t.assigned} assigned`),
+        revenueKpiCard("Vendors", `${t.vendors}`, `${t.docsNeeded} need docs`),
+        revenueKpiCard("Public pins", `${t.publicPins}`, data.source || "seed")
+      ].join("");
+    }
+    if (!quiet) setAdminStatus(`Loaded booths: ${data.summary.totals.booths} total.`, "ok");
+    return data;
+  } catch (error) {
+    if (!quiet) setAdminStatus(error.message, "error");
+    throw error;
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
 async function loadAdminTransactions() {
   const button = document.querySelector("#admin-load-orders");
   const orderList = document.querySelector("#admin-order-list");
@@ -2669,6 +2904,12 @@ document.querySelector("#admin-load-config").addEventListener("click", async () 
     if (adminCan("passport:read")) {
       await loadAdminPassport({ quiet: true }).catch(() => {});
     }
+    if (adminCan("voting:read")) {
+      await loadAdminVoting({ quiet: true }).catch(() => {});
+    }
+    if (adminCan("booths:read")) {
+      await loadAdminBooths({ quiet: true }).catch(() => {});
+    }
     setAdminStatus(`Loaded ${adminConfigState.tickets.products.length} ticket products and ${adminConfigState.config.sponsorPackages.length} sponsor packages.`, "ok");
   } catch (error) {
     setAdminStatus(`${error.message}. Confirm npm run api:dev is running and the token matches SANDFEST_ADMIN_API_TOKEN.`, "error");
@@ -2711,9 +2952,13 @@ document.querySelector("#admin-fleet-checkin")?.addEventListener("click", () => 
 document.querySelector("#admin-load-volunteers")?.addEventListener("click", () => loadAdminVolunteers());
 document.querySelector("#admin-load-consent")?.addEventListener("click", () => loadAdminConsent());
 document.querySelector("#admin-load-passport")?.addEventListener("click", () => loadAdminPassport());
+document.querySelector("#admin-load-voting")?.addEventListener("click", () => loadAdminVoting());
+document.querySelector("#admin-load-booths")?.addEventListener("click", () => loadAdminBooths());
 
 initSiteMode();
 initSculptors();
+loadVoting().catch(() => {});
+loadBooths().catch(() => {});
 
 loadPublicAlert();
 window.setInterval(loadPublicAlert, 30000);

@@ -118,5 +118,9 @@ Four features built and verified (DOM + `npm run build`):
 6. **Volunteer coverage mirror** — `lib/volunteers.mjs` + seed `data/processed/volunteer-mirror.json` + `GET /api/admin/volunteers` / `.../coverage` (`volunteers:read`) + web ops panel (zone fill, understaffed shifts, hours). Buy VolunteerLocal; mirror only.
 7. **Consent + Twilio SMS scaffold** — `lib/consent.mjs` + `lib/sms.mjs` + checkout opt-in UI (email / SMS promo / SMS safety, unchecked by default) + ledger `data/processed/consent-ledger.json` + `GET /api/admin/consent` + alert publish optional SMS fan-out (gated by `SMS_ENABLED`; Twilio env slots already in `.env.example`).
 8. **Sculpture Passport backend** — `lib/passport.mjs` + hunt seed + completions ledger; public `GET/POST /api/public/passport` (+ stamp/progress); admin `GET /api/admin/passport` (`passport:read`); web + iOS offline-first stamp sync.
+9. **People's Choice voting** — `lib/voting.mjs` + public vote/leaderboard API + web ballot + admin tallies.
+10. **Public booth/vendor map** — `lib/booths.mjs` + Eventeny-shaped CSV import (`npm run import:booths`) + public pins + ops readiness KPIs.
+11. **Platform test suite** — `npm run test:platform` / `test:platform:api` (pure libs + live API smoke).
+12. **Board briefing deck** — `docs/presentations/SandFest-Board-Platform-Briefing.pptx`.
 
-**Next up (blocked on logins where noted):** live Stripe/Eventeny/QuickBooks → revenue ledger; VolunteerLocal CSV → volunteer mirror; Twilio credentials → enable SMS; Mapbox token → GPS map layer; People's Choice voting; website visitor/ops cutover polish.
+**Next up (blocked on logins where noted):** live Stripe/Eventeny/QuickBooks → revenue ledger; VolunteerLocal CSV → volunteer mirror; Twilio credentials → enable SMS; Mapbox token → GPS map layer; website visitor cutover from Wix.

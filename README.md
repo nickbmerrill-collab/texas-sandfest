@@ -18,6 +18,9 @@ Standalone prototype for turning Texas SandFest into a unified AI-powered visito
 - Volunteer coverage mirror (`lib/volunteers.mjs`): VolunteerLocal-shaped roster/shifts/hours → ops fill-vs-needed by zone, understaffed shift list, hour totals. `GET /api/admin/volunteers` (`volunteers:read`). Seeded from `data/processed/volunteer-mirror.json`.
 - Consent capture at checkout + Twilio SMS scaffold (`lib/consent.mjs`, `lib/sms.mjs`): separate unchecked email / SMS promo / SMS safety opt-ins; `GET /api/admin/consent`; alert publish can fan out to safety-SMS list when `SMS_ENABLED=true` (idle by default).
 - Sculpture Passport backend (`lib/passport.mjs`): public stamp API + progress + admin stats; web/iOS offline-first clients sync stamps when the API is reachable. QR: `tsf:cp:<id>` / `tsf:entry:<entryId>` / `TSF-CP-000N`.
+- People's Choice voting (`lib/voting.mjs`) + public booth/vendor map (`lib/booths.mjs`, Eventeny CSV import).
+- Full suite: `npm run test:platform` (libs) and `npm run test:platform:api` (live smoke).
+- Board deck: `docs/presentations/SandFest-Board-Platform-Briefing.pptx`.
 - Installable/offline-capable public web shell for spotty event-day connectivity.
 
 ## Commands
@@ -34,6 +37,10 @@ npm run ios:seed
 npm run vault:build
 npm run api:dev
 npm run api:load-test
+npm run test:platform
+npm run test:platform:api
+npm run import:booths
+npm run import:volunteers
 npm run qb:status
 ```
 

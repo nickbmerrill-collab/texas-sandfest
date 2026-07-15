@@ -1,0 +1,92 @@
+{
+  "_note": "People's Choice ballot + votes (lib/voting.mjs).",
+  "lastUpdated": "2026-07-15T18:30:00Z",
+  "eventId": "texas-sandfest-2026",
+  "votingOpen": true,
+  "title": "People's Choice",
+  "description": "Vote for your favorite sculpture. One vote per device \u2014 you can change it until Sunday evening.",
+  "entries": [
+    {
+      "id": "ent_tidal_guardian",
+      "title": "Tidal Guardian",
+      "sculptorName": "River Delgado",
+      "division": "master_solo",
+      "beachMarker": "13",
+      "eligible": true
+    },
+    {
+      "id": "ent_coral_cathedral",
+      "title": "Coral Cathedral",
+      "sculptorName": "Marisol & Kade",
+      "division": "master_duo",
+      "beachMarker": "13.5",
+      "eligible": true
+    },
+    {
+      "id": "ent_current_song",
+      "title": "Current Song",
+      "sculptorName": "Asha Nwosu",
+      "division": "master_solo",
+      "beachMarker": "14",
+      "eligible": true
+    },
+    {
+      "id": "ent_dune_dragon",
+      "title": "Dune Dragon",
+      "sculptorName": "Theo Brand",
+      "division": "semi_pro",
+      "beachMarker": "12.5",
+      "eligible": true
+    },
+    {
+      "id": "ent_lace_tide",
+      "title": "Lace Tide",
+      "sculptorName": "Lena Portis",
+      "division": "semi_pro",
+      "beachMarker": "14.5",
+      "eligible": true
+    },
+    {
+      "id": "ent_castle_row",
+      "title": "Castle Row",
+      "sculptorName": "The Beach Buddies",
+      "division": "amateur",
+      "beachMarker": "12.5",
+      "eligible": true
+    }
+  ],
+  "votes": [
+    {
+      "id": "vote_seed_001",
+      "eventId": "texas-sandfest-2026",
+      "entryId": "ent_tidal_guardian",
+      "attendeeRef": "device_demo_visitor_a",
+      "at": "2026-04-18T15:00:00-05:00",
+      "channel": "web"
+    },
+    {
+      "id": "vote_seed_002",
+      "eventId": "texas-sandfest-2026",
+      "entryId": "ent_coral_cathedral",
+      "attendeeRef": "device_demo_visitor_b",
+      "at": "2026-04-18T15:10:00-05:00",
+      "channel": "app"
+    },
+    {
+      "id": "vote_seed_003",
+      "eventId": "texas-sandfest-2026",
+      "entryId": "ent_tidal_guardian",
+      "attendeeRef": "device_demo_visitor_c",
+      "at": "2026-04-18T16:00:00-05:00",
+      "channel": "web"
+    },
+    {
+      "id": "vote_seed_004",
+      "eventId": "texas-sandfest-2026",
+      "entryId": "ent_dune_dragon",
+      "attendeeRef": "device_demo_visitor_d",
+      "at": "2026-04-18T16:30:00-05:00",
+      "channel": "qr"
+    }
+  ]
+}

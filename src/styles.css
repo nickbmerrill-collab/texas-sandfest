@@ -995,6 +995,133 @@ time {
   justify-self: start;
 }
 
+/* People's Choice */
+.voting-panel {
+  margin-top: 28px;
+  display: grid;
+  gap: 14px;
+}
+.voting-totals {
+  text-align: center;
+  background: var(--deep);
+  color: var(--sand);
+  border-radius: 14px;
+  padding: 12px 18px;
+}
+.voting-totals strong {
+  display: block;
+  font-size: 28px;
+}
+.voting-ballot {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+.voting-card {
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--white);
+  padding: 12px 14px;
+  display: grid;
+  gap: 4px;
+  cursor: pointer;
+  font: inherit;
+}
+.voting-card.is-selected {
+  border-color: var(--gulf);
+  box-shadow: 0 0 0 2px rgba(0, 109, 119, 0.2);
+}
+.voting-card span,
+.voting-card em {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+}
+.voting-card b {
+  color: var(--gulf);
+  font-size: 13px;
+}
+
+/* Booth / vendor map */
+.booths-section .booth-map-layout {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 18px;
+}
+.booth-corridor {
+  background: linear-gradient(180deg, #d8efe9 0%, #f4dfac 55%, #f8f5ec 100%);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  min-height: 280px;
+  position: relative;
+  overflow: hidden;
+}
+.booth-corridor-inner {
+  position: relative;
+  width: 100%;
+  height: 280px;
+}
+.booth-corridor-label {
+  position: absolute;
+  left: 12px;
+  top: 10px;
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.booth-pin {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border: none;
+  border-radius: 999px;
+  background: var(--gulf);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 6px 8px;
+  cursor: pointer;
+}
+.booth-pin.type-food { background: var(--coral); }
+.booth-pin.type-sponsor { background: var(--deep); }
+.booth-pin.type-activity { background: #7a5195; }
+.booth-list {
+  display: grid;
+  gap: 8px;
+  max-height: 320px;
+  overflow: auto;
+}
+.booth-card {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: grid;
+  gap: 2px;
+}
+.booth-card span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.booth-card p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--ink);
+}
+.admin-voting-panel,
+.admin-booths-panel,
+.admin-passport-panel {
+  margin-top: 24px;
+  display: grid;
+  gap: 12px;
+}
+@media (max-width: 900px) {
+  .booths-section .booth-map-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 .checkout-status-pill[data-state="error"] {
   background: rgba(232, 93, 74, 0.12);
   color: var(--coral);
