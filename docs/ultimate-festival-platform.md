@@ -116,5 +116,6 @@ Four features built and verified (DOM + `npm run build`):
 **Also shipped this cycle:**
 5. **Fleet/asset checkout** — `lib/fleet.mjs` (normalize + check-out/in transitions) + seed `data/processed/fleet.json` + role-guarded admin API (`GET /api/admin/fleet`, resolve-qr, checkout, checkin, locations) with `fleet:read`/`fleet:write` + web ops panel + native iOS Admin → Fleet tab (QR via existing `QRScannerView`, offline-first local store). QR payload: `tsf:asset:<id>`.
 6. **Volunteer coverage mirror** — `lib/volunteers.mjs` + seed `data/processed/volunteer-mirror.json` + `GET /api/admin/volunteers` / `.../coverage` (`volunteers:read`) + web ops panel (zone fill, understaffed shifts, hours). Buy VolunteerLocal; mirror only.
+7. **Consent + Twilio SMS scaffold** — `lib/consent.mjs` + `lib/sms.mjs` + checkout opt-in UI (email / SMS promo / SMS safety, unchecked by default) + ledger `data/processed/consent-ledger.json` + `GET /api/admin/consent` + alert publish optional SMS fan-out (gated by `SMS_ENABLED`; Twilio env slots already in `.env.example`).
 
-**Next up:** consent-capture at checkout + Twilio SMS scaffold; native Mapbox/MapKit map layer; passport QR → backend completion; swap revenue/volunteer seeds for live feeds when logins arrive.
+**Next up (blocked on logins where noted):** live Stripe/Eventeny/QuickBooks → revenue ledger; VolunteerLocal CSV → volunteer mirror; Twilio credentials → enable SMS; Mapbox token → GPS map layer; passport QR → backend completion.

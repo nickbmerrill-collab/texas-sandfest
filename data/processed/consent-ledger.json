@@ -1,0 +1,59 @@
+{
+  "_note": "Phase 0 consent ledger seed (lib/consent.mjs). Separate, unchecked opt-ins for email marketing, SMS marketing, and SMS safety alerts. Ticket purchase alone is never treated as consent. Replace/grow from checkout + Eventeny/VolunteerLocal imports when live.",
+  "lastUpdated": "2026-07-15T12:00:00Z",
+  "eventId": "texas-sandfest-2026",
+  "records": [
+    {
+      "id": "consent_seed_001",
+      "eventId": "texas-sandfest-2026",
+      "email": "buyer.one@example.com",
+      "phone": "+15125551001",
+      "emailMarketing": { "optedIn": true, "at": "2026-02-01T10:20:00Z", "source": "checkout" },
+      "smsMarketing": { "optedIn": false, "at": null, "source": null },
+      "smsSafety": { "optedIn": true, "at": "2026-02-01T10:20:00Z", "source": "checkout" },
+      "orderId": "order_seed_ga_001",
+      "source": "checkout",
+      "createdAt": "2026-02-01T10:20:00Z",
+      "updatedAt": "2026-02-01T10:20:00Z"
+    },
+    {
+      "id": "consent_seed_002",
+      "eventId": "texas-sandfest-2026",
+      "email": "buyer.two@example.com",
+      "phone": "+15125551002",
+      "emailMarketing": { "optedIn": true, "at": "2026-02-14T15:00:00Z", "source": "checkout" },
+      "smsMarketing": { "optedIn": true, "at": "2026-02-14T15:00:00Z", "source": "checkout" },
+      "smsSafety": { "optedIn": true, "at": "2026-02-14T15:00:00Z", "source": "checkout" },
+      "orderId": "order_seed_vip_002",
+      "source": "checkout",
+      "createdAt": "2026-02-14T15:00:00Z",
+      "updatedAt": "2026-02-14T15:00:00Z"
+    },
+    {
+      "id": "consent_seed_003",
+      "eventId": "texas-sandfest-2026",
+      "email": "local.fan@example.com",
+      "phone": null,
+      "emailMarketing": { "optedIn": true, "at": "2026-03-01T09:00:00Z", "source": "web_form" },
+      "smsMarketing": { "optedIn": false, "at": null, "source": null },
+      "smsSafety": { "optedIn": false, "at": null, "source": null },
+      "orderId": null,
+      "source": "web_form",
+      "createdAt": "2026-03-01T09:00:00Z",
+      "updatedAt": "2026-03-01T09:00:00Z"
+    },
+    {
+      "id": "consent_seed_004",
+      "eventId": "texas-sandfest-2026",
+      "email": "safety.only@example.com",
+      "phone": "+15125551004",
+      "emailMarketing": { "optedIn": false, "at": null, "source": null },
+      "smsMarketing": { "optedIn": false, "at": null, "source": null },
+      "smsSafety": { "optedIn": true, "at": "2026-03-10T12:00:00Z", "source": "checkout" },
+      "orderId": "order_seed_ga_004",
+      "source": "checkout",
+      "createdAt": "2026-03-10T12:00:00Z",
+      "updatedAt": "2026-03-10T12:00:00Z"
+    }
+  ]
+}

@@ -700,6 +700,26 @@ app.innerHTML = `
             <span>Subtotal</span>
             <strong id="ticket-subtotal">$0.00</strong>
           </div>
+          <div class="checkout-contact">
+            <label>Email <input id="checkout-email" type="email" autocomplete="email" placeholder="you@example.com" /></label>
+            <label>Mobile <input id="checkout-phone" type="tel" autocomplete="tel" placeholder="(512) 555-0100" /></label>
+          </div>
+          <fieldset class="checkout-consent">
+            <legend>Optional updates</legend>
+            <p class="checkout-consent-note">Buying a ticket does <strong>not</strong> enroll you. Leave boxes unchecked to skip.</p>
+            <label class="consent-check">
+              <input id="consent-email-marketing" type="checkbox" />
+              <span>Email me festival news and early-bird offers</span>
+            </label>
+            <label class="consent-check">
+              <input id="consent-sms-marketing" type="checkbox" />
+              <span>Text me promo updates (separate from safety alerts)</span>
+            </label>
+            <label class="consent-check">
+              <input id="consent-sms-safety" type="checkbox" />
+              <span>Text me event-day safety &amp; logistics alerts</span>
+            </label>
+          </fieldset>
           <button id="checkout-btn" class="button primary" type="button" disabled>Continue to Stripe</button>
           <p id="checkout-status" class="checkout-status">Checkout endpoint is staged at ${ticketCatalog?.checkoutEndpoint ?? "/api/stripe/create-checkout-session"}.</p>
           <div class="payment-rails">
@@ -952,6 +972,17 @@ app.innerHTML = `
             <strong>Understaffed shifts</strong>
             <div id="admin-volunteers-gaps" class="admin-volunteers-rows"></div>
           </div>
+        </div>
+      </div>
+      <div class="admin-consent-panel">
+        <div class="editor-heading">
+          <p class="eyebrow">Consent &amp; SMS</p>
+          <h3>Checkout opt-ins feeding Brevo + Twilio</h3>
+        </div>
+        <button id="admin-load-consent" class="button secondary" data-requires-permission="consent:read" type="button">Load consent</button>
+        <p id="admin-consent-updated" class="admin-revenue-updated">Separate unchecked opt-ins for email marketing, SMS promo, and SMS safety. Twilio stays off until SMS_ENABLED=true and credentials land.</p>
+        <div id="admin-consent-kpis" class="admin-revenue-kpis">
+          <article class="empty-state"><span>No consent ledger loaded.</span></article>
         </div>
       </div>
       <div class="admin-editor-layout">
@@ -1413,14 +1444,27 @@ document.querySelectorAll("[data-ticket-request]").forEach(button => {
 document.querySelector("#checkout-btn").addEventListener("click", async () => {
   const status = document.querySelector("#checkout-status");
   const button = document.querySelector("#checkout-btn");
-  const payload = [...ticketCart.entries()].map(([productId, quantity]) => ({ productId, quantity }));
+  const items = [...ticketCart.entries()].map(([productId, quantity]) => ({ productId, quantity }));
+  const email = document.querySelector("#checkout-email")?.value?.trim() || "";
+  const phone = document.querySelector("#checkout-phone")?.value?.trim() || "";
+  const consent = {
+    emailMarketing: Boolean(document.querySelector("#consent-email-marketing")?.checked),
+    smsMarketing: Boolean(document.querySelector("#consent-sms-marketing")?.checked),
+    smsSafety: Boolean(document.querySelector("#consent-sms-safety")?.checked)
+  };
   button.disabled = true;
   status.textContent = "Validating order with the SandFest API...";
   try {
     const response = await fetch(`${publicApiBase()}${ticketCatalog?.checkoutEndpoint ?? "/api/stripe/create-checkout-session"}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ items: payload })
+      body: JSON.stringify({
+        items,
+        customer: { email: email || null, phone: phone || null },
+        email: email || null,
+        phone: phone || null,
+        consent
+      })
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || `Checkout request failed with ${response.status}`);
@@ -1429,7 +1473,14 @@ document.querySelector("#checkout-btn").addEventListener("click", async () => {
       window.location.href = data.checkoutUrl;
       return;
     }
-    status.textContent = data.message || `Checkout validated and stored as ${data.order?.id ?? "a pending order"}. Stripe is not configured yet.`;
+    const consentNote = data.order?.consent?.consentId
+      ? ` Consent saved (${[
+          data.order.consent.emailMarketing && "email",
+          data.order.consent.smsMarketing && "SMS promo",
+          data.order.consent.smsSafety && "SMS safety"
+        ].filter(Boolean).join(", ") || "flags"}).`
+      : "";
+    status.textContent = (data.message || `Checkout validated and stored as ${data.order?.id ?? "a pending order"}. Stripe is not configured yet.`) + consentNote;
   } catch (error) {
     status.textContent = `${error.message}. Start npm run api:dev locally, then retry.`;
   } finally {
@@ -2265,6 +2316,44 @@ async function loadAdminVolunteers({ quiet = false } = {}) {
   }
 }
 
+function renderAdminConsent(payload) {
+  const s = payload.summary;
+  const kpis = document.querySelector("#admin-consent-kpis");
+  const updated = document.querySelector("#admin-consent-updated");
+  if (!kpis || !s) return;
+  const smsLabel = payload.sms?.ready
+    ? "Twilio ready"
+    : payload.sms?.enabled
+      ? "Twilio misconfigured"
+      : "SMS idle";
+  kpis.innerHTML = [
+    revenueKpiCard("Records", `${s.totals.records}`, `${s.totals.withEmail} email · ${s.totals.withPhone} phone`),
+    revenueKpiCard("Email marketing", `${payload.marketingEmailCount ?? s.totals.emailMarketing}`, "Brevo-ready list"),
+    revenueKpiCard("SMS promo", `${payload.marketingSmsCount ?? s.totals.smsMarketing}`, "A2P marketing campaign"),
+    revenueKpiCard("SMS safety", `${payload.safetyRecipientCount ?? s.totals.smsSafety}`, "alert fan-out list"),
+    revenueKpiCard("Twilio", smsLabel, payload.sms?.reason || "")
+  ].join("");
+  updated.textContent = payload.lastUpdated
+    ? `Consent ledger updated ${new Date(payload.lastUpdated).toLocaleString()} · ${s.totals.records} records.`
+    : "Consent loaded.";
+}
+
+async function loadAdminConsent({ quiet = false } = {}) {
+  const button = document.querySelector("#admin-load-consent");
+  if (button) button.disabled = true;
+  try {
+    const data = await adminFetch("/api/admin/consent");
+    renderAdminConsent(data);
+    if (!quiet) setAdminStatus(`Loaded consent: ${data.summary.totals.emailMarketing} email · ${data.summary.totals.smsSafety} safety SMS.`, "ok");
+    return data;
+  } catch (error) {
+    if (!quiet) setAdminStatus(`${error.message}. Consent needs the consent:read permission and a running backend.`, "error");
+    throw error;
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
 async function loadAdminTransactions() {
   const button = document.querySelector("#admin-load-orders");
   const orderList = document.querySelector("#admin-order-list");
@@ -2442,6 +2531,9 @@ document.querySelector("#admin-load-config").addEventListener("click", async () 
     if (adminCan("volunteers:read")) {
       await loadAdminVolunteers({ quiet: true }).catch(() => {});
     }
+    if (adminCan("consent:read")) {
+      await loadAdminConsent({ quiet: true }).catch(() => {});
+    }
     setAdminStatus(`Loaded ${adminConfigState.tickets.products.length} ticket products and ${adminConfigState.config.sponsorPackages.length} sponsor packages.`, "ok");
   } catch (error) {
     setAdminStatus(`${error.message}. Confirm npm run api:dev is running and the token matches SANDFEST_ADMIN_API_TOKEN.`, "error");
@@ -2482,6 +2574,7 @@ document.querySelector("#admin-load-fleet")?.addEventListener("click", () => loa
 document.querySelector("#admin-fleet-checkout")?.addEventListener("click", () => adminFleetCheckout());
 document.querySelector("#admin-fleet-checkin")?.addEventListener("click", () => adminFleetCheckin());
 document.querySelector("#admin-load-volunteers")?.addEventListener("click", () => loadAdminVolunteers());
+document.querySelector("#admin-load-consent")?.addEventListener("click", () => loadAdminConsent());
 
 initSiteMode();
 initSculptors();

@@ -929,6 +929,72 @@ time {
   padding: 7px 10px;
 }
 
+.checkout-contact {
+  display: grid;
+  gap: 10px;
+}
+.checkout-contact label {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.checkout-contact input {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+  color: var(--ink);
+  background: var(--foam);
+  text-transform: none;
+  letter-spacing: normal;
+}
+.checkout-consent {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+  background: var(--foam);
+}
+.checkout-consent legend {
+  padding: 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--deep);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.checkout-consent-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+.consent-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 13px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.consent-check input {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+.admin-consent-panel {
+  margin-top: 28px;
+  display: grid;
+  gap: 16px;
+}
+.admin-consent-panel #admin-load-consent {
+  justify-self: start;
+}
+
 .checkout-status-pill[data-state="error"] {
   background: rgba(232, 93, 74, 0.12);
   color: var(--coral);

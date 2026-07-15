@@ -25,6 +25,14 @@ import {
   normalizeVolunteer,
   summarizeVolunteers
 } from "../lib/volunteers.mjs";
+import {
+  consentFromCheckout,
+  normalizeConsent,
+  recipientsForChannel,
+  summarizeConsent,
+  validateCheckoutConsent
+} from "../lib/consent.mjs";
+import { sendAlertSms, smsConfigFromEnv } from "../lib/sms.mjs";
 
 await loadDotEnv();
 
@@ -119,6 +127,7 @@ const rolePermissions = {
     "fleet:read",
     "fleet:write",
     "volunteers:read",
+    "consent:read",
     "fulfillment:read",
     "fulfillment:update",
     "audit:read",
@@ -131,6 +140,7 @@ const rolePermissions = {
     "orders:read",
     "payments:read",
     "revenue:read",
+    "consent:read",
     "fulfillment:read",
     "audit:read",
     "snapshot:read"
@@ -152,6 +162,7 @@ const rolePermissions = {
     "revenue:read",
     "fleet:read",
     "volunteers:read",
+    "consent:read",
     "fulfillment:read",
     "audit:read",
     "snapshot:read"
@@ -164,6 +175,7 @@ const rolePermissions = {
     "revenue:read",
     "fleet:read",
     "volunteers:read",
+    "consent:read",
     "fulfillment:read",
     "audit:read",
     "snapshot:read"
@@ -312,6 +324,61 @@ function volunteerDashboardPayload(mirror) {
   };
 }
 
+// Consent ledger: separate email marketing / SMS marketing / SMS safety opt-ins.
+const CONSENT_LEDGER_PATH = path.join(ROOT, "data", "processed", "consent-ledger.json");
+async function readConsentLedger() {
+  try {
+    const ledger = JSON.parse(await readFile(CONSENT_LEDGER_PATH, "utf8"));
+    return {
+      lastUpdated: ledger.lastUpdated ?? null,
+      eventId: ledger.eventId ?? "texas-sandfest-2026",
+      records: Array.isArray(ledger.records) ? ledger.records.map(r => normalizeConsent(r)) : []
+    };
+  } catch {
+    return { lastUpdated: null, eventId: "texas-sandfest-2026", records: [] };
+  }
+}
+
+async function writeConsentLedger(ledger) {
+  await mkdir(path.dirname(CONSENT_LEDGER_PATH), { recursive: true });
+  const payload = {
+    _note: "Consent ledger (lib/consent.mjs). Mutated by checkout opt-ins and imports.",
+    lastUpdated: new Date().toISOString(),
+    eventId: ledger.eventId ?? "texas-sandfest-2026",
+    records: ledger.records ?? []
+  };
+  await writeFile(CONSENT_LEDGER_PATH, `${JSON.stringify(payload, null, 2)}\n`);
+  return payload;
+}
+
+async function appendConsentRecord(record) {
+  const ledger = await readConsentLedger();
+  // Upsert by email+phone so repeat checkouts update flags rather than spam rows.
+  const idx = ledger.records.findIndex(r =>
+    (record.email && r.email === record.email) ||
+    (record.phone && r.phone === record.phone && record.phone)
+  );
+  if (idx === -1) {
+    ledger.records.push(record);
+  } else {
+    const prev = ledger.records[idx];
+    ledger.records[idx] = normalizeConsent({
+      ...prev,
+      ...record,
+      id: prev.id,
+      email: record.email || prev.email,
+      phone: record.phone || prev.phone,
+      emailMarketing: record.emailMarketing?.optedIn ? record.emailMarketing : prev.emailMarketing,
+      smsMarketing: record.smsMarketing?.optedIn ? record.smsMarketing : prev.smsMarketing,
+      smsSafety: record.smsSafety?.optedIn ? record.smsSafety : prev.smsSafety,
+      createdAt: prev.createdAt,
+      updatedAt: record.updatedAt
+    });
+  }
+  await writeConsentLedger(ledger);
+  return ledger.records[idx === -1 ? ledger.records.length - 1 : idx];
+}
+
 function deploymentProfile() {
   const production = SANDFEST_ENV === "production";
   const adminBase = process.env.SANDFEST_ADMIN_BASE_URL || "";
@@ -381,7 +448,17 @@ function deploymentProfile() {
     rateLimits: checkStatus(
       ADMIN_RATE_LIMIT > 0 && CHECKOUT_RATE_LIMIT > 0 && PUBLIC_RATE_LIMIT > 0,
       `Rate limits admin=${ADMIN_RATE_LIMIT}/min checkout=${CHECKOUT_RATE_LIMIT}/min public=${PUBLIC_RATE_LIMIT}/min.`
-    )
+    ),
+    sms: (() => {
+      const sms = smsConfigFromEnv(process.env);
+      return checkStatus(
+        !sms.enabled || sms.ready,
+        sms.enabled
+          ? (sms.ready ? "Twilio SMS ready (SMS_ENABLED=true)." : sms.reason)
+          : "SMS scaffold idle (SMS_ENABLED=false). Consent capture still works.",
+        sms.enabled && !sms.ready ? "error" : "warning"
+      );
+    })()
   };
   const values = Object.values(checks);
   const errors = values.filter(check => !check.ok && check.severity === "error");
@@ -728,8 +805,30 @@ async function handleCreateCheckoutSession(request, response) {
     return;
   }
 
+  // Consent is optional, but if any box is checked we require contact fields.
+  const consentCheck = validateCheckoutConsent(body);
+  if (consentCheck.error) {
+    sendJson(request, response, 400, { error: consentCheck.error });
+    return;
+  }
+
   const orderId = `order_${randomUUID()}`;
   const now = new Date().toISOString();
+  const consentRecord = consentFromCheckout(body, {
+    orderId,
+    idFactory: () => `consent_${randomUUID()}`,
+    now
+  });
+  // Only persist a consent row when the buyer left any contact + opt-in signal
+  // (or contact alone for fulfillment). Always attach the shape to the order.
+  const hasContact = Boolean(consentRecord.email || consentRecord.phone);
+  const hasOptIn = consentRecord.emailMarketing.optedIn
+    || consentRecord.smsMarketing.optedIn
+    || consentRecord.smsSafety.optedIn;
+  if (hasContact && hasOptIn) {
+    await appendConsentRecord(consentRecord);
+  }
+
   const order = {
     id: orderId,
     eventId: "texas-sandfest-2026",
@@ -737,8 +836,14 @@ async function handleCreateCheckoutSession(request, response) {
     provider: "stripe",
     lineItems: validation.lines,
     customer: {
-      email: body.customer?.email ?? null,
-      phone: body.customer?.phone ?? null
+      email: consentRecord.email ?? body.customer?.email ?? null,
+      phone: consentRecord.phone ?? body.customer?.phone ?? null
+    },
+    consent: {
+      emailMarketing: consentRecord.emailMarketing.optedIn,
+      smsMarketing: consentRecord.smsMarketing.optedIn,
+      smsSafety: consentRecord.smsSafety.optedIn,
+      consentId: hasContact && hasOptIn ? consentRecord.id : null
     },
     totals: {
       knownAmount: validation.lines.reduce((sum, line) => sum + (line.unitAmount ?? 0) * line.quantity, 0),
@@ -1344,23 +1449,66 @@ async function handleRequest(request, response) {
       return;
     }
 
+    if (method === "GET" && pathname === "/api/admin/consent") {
+      if (!(await requirePermission(request, response, "consent:read"))) return;
+      const ledger = await readConsentLedger();
+      const summary = summarizeConsent(ledger.records, {
+        eventId: ledger.eventId,
+        generatedAt: ledger.lastUpdated
+      });
+      const sms = smsConfigFromEnv(process.env);
+      sendJson(request, response, 200, {
+        lastUpdated: ledger.lastUpdated,
+        summary,
+        sms: {
+          enabled: sms.enabled,
+          ready: sms.ready,
+          reason: sms.reason
+        },
+        // Do not dump full PII lists to every admin UI load — counts + sample size only.
+        recordCount: ledger.records.length,
+        safetyRecipientCount: recipientsForChannel(ledger.records, "smsSafety").length,
+        marketingEmailCount: recipientsForChannel(ledger.records, "emailMarketing").length,
+        marketingSmsCount: recipientsForChannel(ledger.records, "smsMarketing").length
+      });
+      return;
+    }
+
     if (method === "PATCH" && pathname === "/api/admin/alert") {
       if (!(await requirePermission(request, response, "alert:write"))) return;
+      const body = await readBody(request);
       const current = await storage.config.read("emergency-alert");
-      const result = sanitizeAlertPatch(await readBody(request), current);
+      const result = sanitizeAlertPatch(body, current);
       if (result.error) {
         sendJson(request, response, 400, { error: result.error });
         return;
       }
       await writeConfigSnapshot(request, { type: "alert", id: current.id || "alert_none" }, current, `Before ${result.alert.active ? "alert publish" : "alert clear"}`);
       await storage.config.write("emergency-alert", result.alert);
+
+      // Optional SMS fan-out for active public alerts (scaffold; SMS_ENABLED gate).
+      let smsResult = null;
+      const wantSms = result.alert.active && body.sendSms !== false
+        && (Array.isArray(result.alert.audience) ? result.alert.audience.includes("public") : true);
+      if (wantSms) {
+        const ledger = await readConsentLedger();
+        const recipients = recipientsForChannel(ledger.records, "smsSafety");
+        smsResult = await sendAlertSms(result.alert, recipients, {
+          // Dev safety: never blast more than this without an explicit override.
+          limit: Number(body.smsLimit) || 500
+        });
+      }
+
       await writeAuditRecord(request, result.alert.active ? "alert.publish" : "alert.clear", {
         type: "alert",
         id: result.alert.id
       }, current, result.alert, {
-        severity: result.alert.severity
+        severity: result.alert.severity,
+        sms: smsResult
+          ? { attempted: smsResult.attempted, sent: smsResult.sent, failed: smsResult.failed, skipped: smsResult.skipped, reason: smsResult.reason }
+          : null
       });
-      sendJson(request, response, 200, { alert: result.alert });
+      sendJson(request, response, 200, { alert: result.alert, sms: smsResult });
       return;
     }
 
