@@ -13,7 +13,7 @@
     "media:download": "node scripts/download-public-media.mjs",
     "incoming:scan": "node scripts/scan-incoming.mjs",
     "public:sync": "node scripts/sync-public-data.mjs",
-    "extract:documents": "/Users/nick/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3 scripts/extract-documents.py",
+    "extract:documents": "python3 scripts/extract-documents.py",
     "ios:seed": "node scripts/build-ios-seed.mjs",
     "vault:build": "node scripts/build-obsidian-vault.mjs",
     "api:dev": "node scripts/admin-api-server.mjs",

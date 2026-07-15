@@ -33,6 +33,15 @@ import {
   validateCheckoutConsent
 } from "../lib/consent.mjs";
 import { sendAlertSms, smsConfigFromEnv } from "../lib/sms.mjs";
+import {
+  applyStamp,
+  normalizeCheckpoint,
+  normalizeCompletion,
+  normalizeHunt,
+  progressForAttendee,
+  publicCheckpoint,
+  summarizePassport
+} from "../lib/passport.mjs";
 
 await loadDotEnv();
 
@@ -128,6 +137,7 @@ const rolePermissions = {
     "fleet:write",
     "volunteers:read",
     "consent:read",
+    "passport:read",
     "fulfillment:read",
     "fulfillment:update",
     "audit:read",
@@ -163,6 +173,7 @@ const rolePermissions = {
     "fleet:read",
     "volunteers:read",
     "consent:read",
+    "passport:read",
     "fulfillment:read",
     "audit:read",
     "snapshot:read"
@@ -176,6 +187,7 @@ const rolePermissions = {
     "fleet:read",
     "volunteers:read",
     "consent:read",
+    "passport:read",
     "fulfillment:read",
     "audit:read",
     "snapshot:read"
@@ -377,6 +389,50 @@ async function appendConsentRecord(record) {
   }
   await writeConsentLedger(ledger);
   return ledger.records[idx === -1 ? ledger.records.length - 1 : idx];
+}
+
+// Sculpture Passport: hunt definition + checkpoint list + completion ledger.
+const PASSPORT_HUNT_PATH = path.join(ROOT, "data", "processed", "sculpture-passport.json");
+const PASSPORT_COMPLETIONS_PATH = path.join(ROOT, "data", "processed", "passport-completions.json");
+
+async function readPassportHunt() {
+  try {
+    const doc = JSON.parse(await readFile(PASSPORT_HUNT_PATH, "utf8"));
+    return {
+      lastUpdated: doc.lastUpdated ?? null,
+      hunt: normalizeHunt(doc.hunt || {}),
+      checkpoints: Array.isArray(doc.checkpoints) ? doc.checkpoints.map(normalizeCheckpoint) : []
+    };
+  } catch {
+    return {
+      lastUpdated: null,
+      hunt: normalizeHunt({ active: false }),
+      checkpoints: []
+    };
+  }
+}
+
+async function readPassportCompletions() {
+  try {
+    const doc = JSON.parse(await readFile(PASSPORT_COMPLETIONS_PATH, "utf8"));
+    return {
+      lastUpdated: doc.lastUpdated ?? null,
+      completions: Array.isArray(doc.completions) ? doc.completions.map(normalizeCompletion) : []
+    };
+  } catch {
+    return { lastUpdated: null, completions: [] };
+  }
+}
+
+async function writePassportCompletions(completions) {
+  await mkdir(path.dirname(PASSPORT_COMPLETIONS_PATH), { recursive: true });
+  const payload = {
+    _note: "Sculpture Passport completions (lib/passport.mjs). Mutated by public stamp API.",
+    lastUpdated: new Date().toISOString(),
+    completions: completions ?? []
+  };
+  await writeFile(PASSPORT_COMPLETIONS_PATH, `${JSON.stringify(payload, null, 2)}\n`);
+  return payload;
 }
 
 function deploymentProfile() {
@@ -1200,6 +1256,67 @@ async function handleRequest(request, response) {
       return;
     }
 
+    // Sculpture Passport — public hunt definition + stamp + progress.
+    if (method === "GET" && pathname === "/api/public/passport") {
+      const huntDoc = await readPassportHunt();
+      sendJson(request, response, 200, {
+        lastUpdated: huntDoc.lastUpdated,
+        hunt: huntDoc.hunt,
+        checkpoints: huntDoc.checkpoints.map(publicCheckpoint)
+      }, publicCacheHeaders(60));
+      return;
+    }
+
+    if (method === "GET" && pathname === "/api/public/passport/progress") {
+      const attendeeRef = String(url.searchParams.get("attendeeRef") || "").trim();
+      if (!attendeeRef || attendeeRef.length < 4) {
+        sendJson(request, response, 400, { error: "Query attendeeRef is required (min 4 chars)." });
+        return;
+      }
+      const huntDoc = await readPassportHunt();
+      const completionDoc = await readPassportCompletions();
+      sendJson(request, response, 200, {
+        progress: progressForAttendee(
+          huntDoc.checkpoints,
+          completionDoc.completions,
+          attendeeRef,
+          huntDoc.hunt.id
+        )
+      }, {
+        "cache-control": "no-store"
+      });
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/public/passport/stamp") {
+      const body = await readBody(request);
+      const huntDoc = await readPassportHunt();
+      const completionDoc = await readPassportCompletions();
+      const result = applyStamp({
+        hunt: huntDoc.hunt,
+        checkpoints: huntDoc.checkpoints,
+        completions: completionDoc.completions
+      }, body, {
+        idFactory: () => `hc_${randomUUID()}`,
+        now: new Date().toISOString()
+      });
+      if (!result.ok) {
+        sendJson(request, response, 400, { error: result.error });
+        return;
+      }
+      if (!result.alreadyStamped) {
+        await writePassportCompletions(result.completions);
+      }
+      sendJson(request, response, result.alreadyStamped ? 200 : 201, {
+        ok: true,
+        alreadyStamped: result.alreadyStamped,
+        completion: result.completion,
+        checkpoint: result.checkpoint,
+        progress: result.progress
+      });
+      return;
+    }
+
     if (method === "POST" && pathname === "/api/stripe/create-checkout-session") {
       await handleCreateCheckoutSession(request, response);
       return;
@@ -1470,6 +1587,22 @@ async function handleRequest(request, response) {
         safetyRecipientCount: recipientsForChannel(ledger.records, "smsSafety").length,
         marketingEmailCount: recipientsForChannel(ledger.records, "emailMarketing").length,
         marketingSmsCount: recipientsForChannel(ledger.records, "smsMarketing").length
+      });
+      return;
+    }
+
+    if (method === "GET" && pathname === "/api/admin/passport") {
+      if (!(await requirePermission(request, response, "passport:read"))) return;
+      const huntDoc = await readPassportHunt();
+      const completionDoc = await readPassportCompletions();
+      const summary = summarizePassport(huntDoc.checkpoints, completionDoc.completions, huntDoc.hunt, {
+        generatedAt: completionDoc.lastUpdated || huntDoc.lastUpdated
+      });
+      sendJson(request, response, 200, {
+        lastUpdated: completionDoc.lastUpdated || huntDoc.lastUpdated,
+        hunt: huntDoc.hunt,
+        summary,
+        checkpoints: huntDoc.checkpoints.map(publicCheckpoint)
       });
       return;
     }

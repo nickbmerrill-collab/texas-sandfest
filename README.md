@@ -17,6 +17,7 @@ Standalone prototype for turning Texas SandFest into a unified AI-powered visito
 - Fleet/asset checkout (`lib/fleet.mjs`) for golf carts, UTVs, generators, and equipment: role-guarded admin API (`fleet:read` / `fleet:write`), web ops panel, and iOS Admin → Fleet tab with QR check-out/in (`tsf:asset:<id>`). Seeded from `data/processed/fleet.json`.
 - Volunteer coverage mirror (`lib/volunteers.mjs`): VolunteerLocal-shaped roster/shifts/hours → ops fill-vs-needed by zone, understaffed shift list, hour totals. `GET /api/admin/volunteers` (`volunteers:read`). Seeded from `data/processed/volunteer-mirror.json`.
 - Consent capture at checkout + Twilio SMS scaffold (`lib/consent.mjs`, `lib/sms.mjs`): separate unchecked email / SMS promo / SMS safety opt-ins; `GET /api/admin/consent`; alert publish can fan out to safety-SMS list when `SMS_ENABLED=true` (idle by default).
+- Sculpture Passport backend (`lib/passport.mjs`): public stamp API + progress + admin stats; web/iOS offline-first clients sync stamps when the API is reachable. QR: `tsf:cp:<id>` / `tsf:entry:<entryId>` / `TSF-CP-000N`.
 - Installable/offline-capable public web shell for spotty event-day connectivity.
 
 ## Commands
@@ -78,6 +79,9 @@ curl -X POST -H "Authorization: Bearer dev-admin-token-change-me" -H "content-ty
 curl -H "Authorization: Bearer dev-admin-token-change-me" http://127.0.0.1:8788/api/admin/volunteers
 curl -H "Authorization: Bearer dev-admin-token-change-me" http://127.0.0.1:8788/api/admin/volunteers/coverage
 curl -H "Authorization: Bearer dev-admin-token-change-me" http://127.0.0.1:8788/api/admin/consent
+curl http://127.0.0.1:8788/api/public/passport
+curl -X POST -H "content-type: application/json" --data '{"attendeeRef":"device_demo","payload":"tsf:cp:cp_ent_tidal_guardian","method":"qr_scan"}' http://127.0.0.1:8788/api/public/passport/stamp
+curl -H "Authorization: Bearer dev-admin-token-change-me" http://127.0.0.1:8788/api/admin/passport
 curl -H "Authorization: Bearer dev-admin-token-change-me" http://127.0.0.1:8788/api/admin/config
 curl -H "Authorization: Bearer dev-admin-token-change-me" http://127.0.0.1:8788/api/admin/audit
 curl -H "Authorization: Bearer dev-admin-token-change-me" http://127.0.0.1:8788/api/admin/snapshots

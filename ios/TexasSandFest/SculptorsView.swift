@@ -11,8 +11,13 @@ import SwiftUI
 @MainActor
 final class PassportStore: ObservableObject {
     @Published private(set) var collected: Set<Int>
+    @Published private(set) var lastSyncNote: String?
+
+    /// Stable device-scoped attendee id for POST /api/public/passport/stamp.
+    let attendeeRef: String
 
     private let defaultsKey = "tsf.passport.collected"
+    private let attendeeKey = "tsf.passport.attendeeRef"
     private let defaults = UserDefaults.standard
 
     init() {
@@ -21,6 +26,13 @@ final class PassportStore: ObservableObject {
         } else {
             collected = []
         }
+        if let existing = defaults.string(forKey: attendeeKey), existing.count >= 4 {
+            attendeeRef = existing
+        } else {
+            let fresh = "ios_\(UUID().uuidString)"
+            defaults.set(fresh, forKey: attendeeKey)
+            attendeeRef = fresh
+        }
     }
 
     func isCollected(_ id: Int) -> Bool { collected.contains(id) }
@@ -28,12 +40,31 @@ final class PassportStore: ObservableObject {
     func toggle(_ id: Int) {
         if collected.contains(id) { collected.remove(id) } else { collected.insert(id) }
         persist()
+        if collected.contains(id) {
+            Task { await stampBackend(payload: "TSF-CP-\(String(format: "%04d", id))", method: "tap") }
+        }
     }
 
     func collect(_ id: Int) {
         guard !collected.contains(id) else { return }
         collected.insert(id)
         persist()
+        Task { await stampBackend(payload: "TSF-CP-\(String(format: "%04d", id))", method: "tap") }
+    }
+
+    /// Stamp from a raw QR payload (tsf:cp:… / TSF-CP-… / bare id). Always
+    /// updates local store when a local sculpture id can be derived.
+    func collectFromScan(payload: String, localSculptureId: Int?) {
+        if let localSculptureId {
+            collect(localSculptureId)
+            // collect() already posts TSF-CP-NNNN; also post the raw payload so
+            // backend resolve works for tsf:entry: / tsf:cp: codes.
+            if !payload.uppercased().hasPrefix("TSF-CP-") {
+                Task { await stampBackend(payload: payload, method: "qr_scan") }
+            }
+        } else {
+            Task { await stampBackend(payload: payload, method: "qr_scan") }
+        }
     }
 
     func reset() {
@@ -43,6 +74,46 @@ final class PassportStore: ObservableObject {
 
     private func persist() {
         defaults.set(Array(collected), forKey: defaultsKey)
+    }
+
+    /// Best-effort sync to Node public stamp API. Offline-safe (local stamp already applied).
+    func stampBackend(payload: String, method: String) async {
+        let base = AppDataStore.apiBase
+        var request = URLRequest(url: base.appending(path: "/api/public/passport/stamp"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let body: [String: Any] = [
+            "attendeeRef": attendeeRef,
+            "payload": payload,
+            "method": method
+        ]
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse else {
+                lastSyncNote = "No passport API response"
+                return
+            }
+            if http.statusCode == 200 || http.statusCode == 201 {
+                if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let progress = obj["progress"] as? [String: Any],
+                   let complete = progress["complete"] as? Bool, complete {
+                    lastSyncNote = "Passport complete — prize drawing entry saved"
+                } else if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                          let already = obj["alreadyStamped"] as? Bool, already {
+                    lastSyncNote = "Already stamped on server"
+                } else {
+                    lastSyncNote = "Stamp synced"
+                }
+            } else if http.statusCode == 400 {
+                // Unrecognized code against the seeded hunt (e.g. iOS-only sculpture).
+                lastSyncNote = "Local stamp kept (server code not in hunt)"
+            } else {
+                lastSyncNote = "Passport API \(http.statusCode) — offline local stamp kept"
+            }
+        } catch {
+            lastSyncNote = "Offline — stamp saved on device"
+        }
     }
 }
 
@@ -268,16 +339,27 @@ struct SculptorsView: View {
         }
     }
 
-    /// A sculpture QR encodes its id (e.g. "TSF-SCULPT-3" or a bare "3"). Pull
-    /// the first integer out of the payload and stamp that sculpture if it exists.
+    /// QR may be tsf:cp:…, TSF-CP-0003, TSF-SCULPT-3, or a bare id. Prefer a
+    /// local sculpture match for UI; always attempt backend stamp via PassportStore.
     private func handleScan(_ payload: String) {
-        let digits = payload.filter(\.isNumber)
-        guard let id = Int(digits), let match = sculptures.first(where: { $0.id == id }) else {
+        let trimmed = payload.trimmingCharacters(in: .whitespacesAndNewlines)
+        let digits = trimmed.filter(\.isNumber)
+        let localId = Int(digits)
+        let match = localId.flatMap { id in sculptures.first(where: { $0.id == id }) }
+
+        if let match {
+            passport.collectFromScan(payload: trimmed, localSculptureId: match.id)
+            scanNote = "Stamped: \(match.sculptor)"
+        } else if trimmed.lowercased().hasPrefix("tsf:") || trimmed.uppercased().hasPrefix("TSF-CP-") {
+            passport.collectFromScan(payload: trimmed, localSculptureId: nil)
+            scanNote = "Stamp sent to server"
+        } else {
             scanNote = "Unrecognized code"
             return
         }
-        passport.collect(match.id)
-        scanNote = "Stamped: \(match.sculptor)"
+        if let note = passport.lastSyncNote {
+            scanNote = "\(scanNote ?? "") · \(note)"
+        }
     }
 }
 

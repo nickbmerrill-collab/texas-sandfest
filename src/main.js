@@ -985,6 +985,18 @@ app.innerHTML = `
           <article class="empty-state"><span>No consent ledger loaded.</span></article>
         </div>
       </div>
+      <div class="admin-passport-panel">
+        <div class="editor-heading">
+          <p class="eyebrow">Sculpture Passport</p>
+          <h3>QR stamp completions &amp; finishers</h3>
+        </div>
+        <button id="admin-load-passport" class="button secondary" data-requires-permission="passport:read" type="button">Load passport stats</button>
+        <p id="admin-passport-updated" class="admin-revenue-updated">Public stamp API: POST /api/public/passport/stamp with attendeeRef + tsf:cp:… or tsf:entry:…</p>
+        <div id="admin-passport-kpis" class="admin-revenue-kpis">
+          <article class="empty-state"><span>No passport stats loaded.</span></article>
+        </div>
+        <div id="admin-passport-checkpoints" class="admin-fleet-rows"></div>
+      </div>
       <div class="admin-editor-layout">
         <div>
           <div class="editor-heading">
@@ -1974,7 +1986,21 @@ function initSiteMode() {
 }
 
 const PASSPORT_KEY = "sandfest_passport_v1";
+const PASSPORT_ATTENDEE_KEY = "sandfest_passport_attendee_v1";
 const passportCheckpoints = sculptureEntries.filter(e => sculptorsById.has(e.sculptorId));
+
+function passportAttendeeRef() {
+  try {
+    let id = localStorage.getItem(PASSPORT_ATTENDEE_KEY);
+    if (!id) {
+      id = `web_${crypto.randomUUID?.() || `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`}`;
+      localStorage.setItem(PASSPORT_ATTENDEE_KEY, id);
+    }
+    return id;
+  } catch {
+    return `web_session_${Date.now()}`;
+  }
+}
 
 function readPassport() {
   try {
@@ -1992,12 +2018,50 @@ function writePassport(set) {
   }
 }
 
-function collectStamp(entryId) {
+async function stampPassportBackend(entryId, { method = "tap" } = {}) {
+  const attendeeRef = passportAttendeeRef();
+  const payload = entryId.startsWith("ent_") ? `tsf:entry:${entryId}` : `tsf:entry:${entryId}`;
+  try {
+    const response = await fetch(`${publicApiBase()}/api/public/passport/stamp`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        attendeeRef,
+        payload,
+        entryId,
+        method
+      })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || `Stamp failed (${response.status})`);
+    return data;
+  } catch (error) {
+    // Offline-first: local stamp still works.
+    return { offline: true, error: error.message };
+  }
+}
+
+async function collectStamp(entryId) {
   const collected = readPassport();
-  if (collected.has(entryId)) collected.delete(entryId);
-  else collected.add(entryId);
+  const already = collected.has(entryId);
+  if (already) {
+    // Demo toggle-off stays local only (backend stamps are append-only).
+    collected.delete(entryId);
+    writePassport(collected);
+    renderPassport();
+    return;
+  }
+  collected.add(entryId);
   writePassport(collected);
   renderPassport();
+  const result = await stampPassportBackend(entryId, { method: "tap" });
+  if (result?.progress?.complete) {
+    const reward = document.querySelector("#passport-reward");
+    if (reward) {
+      reward.hidden = false;
+      reward.innerHTML = `<strong>&#127881; Passport complete!</strong><span>Stamps synced to the prize drawing${result.offline ? " (offline — will retry when API is up)" : ""}.</span>`;
+    }
+  }
 }
 
 function resetPassport() {
@@ -2062,6 +2126,28 @@ function initSculptors() {
   renderPassport();
   const resetBtn = document.querySelector("#passport-reset");
   if (resetBtn) resetBtn.addEventListener("click", resetPassport);
+  // Best-effort hydrate from backend progress for this device id.
+  hydratePassportFromApi().catch(() => {});
+}
+
+async function hydratePassportFromApi() {
+  const attendeeRef = passportAttendeeRef();
+  const response = await fetch(`${publicApiBase()}/api/public/passport/progress?attendeeRef=${encodeURIComponent(attendeeRef)}`, { cache: "no-store" });
+  if (!response.ok) return;
+  const data = await response.json();
+  const ids = data.progress?.stampedCheckpointIds || [];
+  if (!ids.length) return;
+  // Map checkpoint ids (cp_ent_…) or entry ids onto local entry ids.
+  const collected = readPassport();
+  for (const id of ids) {
+    const entryId = id.startsWith("cp_ent_") ? id.slice(3) : id.startsWith("cp_") ? null : id;
+    const resolved = entryId && passportCheckpoints.some(e => e.id === entryId)
+      ? entryId
+      : passportCheckpoints.find(e => `cp_${e.id}` === id)?.id;
+    if (resolved) collected.add(resolved);
+  }
+  writePassport(collected);
+  renderPassport();
 }
 
 function revenueKpiCard(label, value, sub) {
@@ -2354,6 +2440,52 @@ async function loadAdminConsent({ quiet = false } = {}) {
   }
 }
 
+function renderAdminPassport(payload) {
+  const s = payload.summary;
+  const kpis = document.querySelector("#admin-passport-kpis");
+  const updated = document.querySelector("#admin-passport-updated");
+  const rows = document.querySelector("#admin-passport-checkpoints");
+  if (!kpis || !s) return;
+  kpis.innerHTML = [
+    revenueKpiCard("Checkpoints", `${s.totals.checkpoints}`, payload.hunt?.active ? "hunt active" : "hunt inactive"),
+    revenueKpiCard("Stamps", `${s.totals.stamps}`, `${s.totals.uniqueAttendees} visitors`),
+    revenueKpiCard("Finishers", `${s.totals.finishers}`, "full passport"),
+    revenueKpiCard("Points", `${s.totals.totalPointsAwarded}`, "awarded")
+  ].join("");
+  if (rows) {
+    rows.innerHTML = (s.byCheckpoint || []).map(c => `
+      <article>
+        <div>
+          <strong>${c.label}</strong>
+          <span>${c.checkpointId}</span>
+        </div>
+        <b>${c.stamps}</b>
+        <em>stamps</em>
+        <i>${c.points} pts</i>
+      </article>
+    `).join("") || '<article class="empty-state"><span>No checkpoints.</span></article>';
+  }
+  updated.textContent = payload.lastUpdated
+    ? `Passport stats updated ${new Date(payload.lastUpdated).toLocaleString()}.`
+    : "Passport stats loaded.";
+}
+
+async function loadAdminPassport({ quiet = false } = {}) {
+  const button = document.querySelector("#admin-load-passport");
+  if (button) button.disabled = true;
+  try {
+    const data = await adminFetch("/api/admin/passport");
+    renderAdminPassport(data);
+    if (!quiet) setAdminStatus(`Loaded passport: ${data.summary.totals.stamps} stamps, ${data.summary.totals.finishers} finishers.`, "ok");
+    return data;
+  } catch (error) {
+    if (!quiet) setAdminStatus(`${error.message}. Passport needs the passport:read permission and a running backend.`, "error");
+    throw error;
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
 async function loadAdminTransactions() {
   const button = document.querySelector("#admin-load-orders");
   const orderList = document.querySelector("#admin-order-list");
@@ -2534,6 +2666,9 @@ document.querySelector("#admin-load-config").addEventListener("click", async () 
     if (adminCan("consent:read")) {
       await loadAdminConsent({ quiet: true }).catch(() => {});
     }
+    if (adminCan("passport:read")) {
+      await loadAdminPassport({ quiet: true }).catch(() => {});
+    }
     setAdminStatus(`Loaded ${adminConfigState.tickets.products.length} ticket products and ${adminConfigState.config.sponsorPackages.length} sponsor packages.`, "ok");
   } catch (error) {
     setAdminStatus(`${error.message}. Confirm npm run api:dev is running and the token matches SANDFEST_ADMIN_API_TOKEN.`, "error");
@@ -2575,6 +2710,7 @@ document.querySelector("#admin-fleet-checkout")?.addEventListener("click", () =>
 document.querySelector("#admin-fleet-checkin")?.addEventListener("click", () => adminFleetCheckin());
 document.querySelector("#admin-load-volunteers")?.addEventListener("click", () => loadAdminVolunteers());
 document.querySelector("#admin-load-consent")?.addEventListener("click", () => loadAdminConsent());
+document.querySelector("#admin-load-passport")?.addEventListener("click", () => loadAdminPassport());
 
 initSiteMode();
 initSculptors();
