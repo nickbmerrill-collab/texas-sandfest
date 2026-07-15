@@ -16,7 +16,8 @@ import {
   upsertVote,
   writePlatformDoc
 } from "../lib/platform-data.mjs";
-import { createMemoryRateLimiter } from "../lib/safe-json-store.mjs";
+import { createRateLimiter } from "../lib/rate-limit.mjs";
+import { enqueueJob } from "../lib/job-queue.mjs";
 import {
   applyCheckin,
   applyCheckout,
@@ -81,8 +82,12 @@ const PUBLIC_RATE_LIMIT = Number(process.env.SANDFEST_PUBLIC_RATE_LIMIT || 1200)
 const PUBLIC_WRITE_RATE_LIMIT = Number(process.env.SANDFEST_PUBLIC_WRITE_RATE_LIMIT || 60);
 const MAX_BODY_BYTES = Number(process.env.SANDFEST_MAX_BODY_BYTES || 262_144); // 256 KiB
 const ADMIN_TOKEN = process.env.SANDFEST_ADMIN_API_TOKEN || "dev-admin-token-change-me";
-const rateLimiter = createMemoryRateLimiter({ windowMs: RATE_LIMIT_WINDOW_MS });
-setInterval(() => rateLimiter.prune(), RATE_LIMIT_WINDOW_MS).unref?.();
+const rateLimiter = await createRateLimiter({ windowMs: RATE_LIMIT_WINDOW_MS });
+if (rateLimiter.kind === "memory") {
+  setInterval(() => rateLimiter.prune?.(), RATE_LIMIT_WINDOW_MS).unref?.();
+}
+const REQUIRE_TICKET_VOTE = process.env.SANDFEST_REQUIRE_TICKET_VOTE === "true";
+const ASYNC_SMS = process.env.SANDFEST_ASYNC_SMS !== "false";
 const ADMIN_ACTOR_ID = process.env.SANDFEST_ADMIN_ACTOR_ID || "local-admin";
 const ADMIN_ROLE = process.env.SANDFEST_ADMIN_ROLE || "super_admin";
 const CONFIG_PATH_OVERRIDE = process.env.SANDFEST_ADMIN_CONFIG_PATH
@@ -649,14 +654,15 @@ function rateLimitProfile(pathname, method) {
   return null;
 }
 
-function checkRateLimit(request, response, pathname, method) {
+async function checkRateLimit(request, response, pathname, method) {
   const profile = rateLimitProfile(pathname, method);
   if (!profile) return true;
   const key = `${profile.name}:${requestIp(request)}`;
-  const result = rateLimiter.check(key, profile.limit);
+  const result = await rateLimiter.check(key, profile.limit);
   response.setHeader("x-ratelimit-limit", String(profile.limit));
   response.setHeader("x-ratelimit-remaining", String(result.remaining));
   response.setHeader("x-ratelimit-reset", String(Math.ceil(result.resetAt / 1000)));
+  response.setHeader("x-ratelimit-backend", rateLimiter.kind || "memory");
   if (result.allowed) return true;
   sendJson(request, response, 429, {
     error: `Rate limit exceeded for ${profile.name} requests.`,
@@ -1248,7 +1254,7 @@ async function handleRequest(request, response) {
   const url = new URL(request.url, `http://${request.headers.host || "localhost"}`);
   const pathname = url.pathname.replace(/\/+$/, "") || "/";
   const method = request.method === "HEAD" ? "GET" : request.method;
-  if (!checkRateLimit(request, response, pathname, method)) return;
+  if (!(await checkRateLimit(request, response, pathname, method))) return;
 
   try {
     if (method === "GET" && pathname === "/health") {
@@ -1442,7 +1448,8 @@ async function handleRequest(request, response) {
         votes: doc.votes
       }, body, {
         idFactory: () => `vote_${randomUUID()}`,
-        now: new Date().toISOString()
+        now: new Date().toISOString(),
+        requireTicket: REQUIRE_TICKET_VOTE || Boolean(body.requireTicket)
       });
       if (!result.ok) {
         sendJson(request, response, 400, { error: result.error });
@@ -1835,17 +1842,36 @@ async function handleRequest(request, response) {
       await writeConfigSnapshot(request, { type: "alert", id: current.id || "alert_none" }, current, `Before ${result.alert.active ? "alert publish" : "alert clear"}`);
       await storage.config.write("emergency-alert", result.alert);
 
-      // Optional SMS fan-out for active public alerts (scaffold; SMS_ENABLED gate).
+      // Optional SMS fan-out for active public alerts.
+      // Default enterprise path: enqueue job (worker sends) so publish stays fast.
       let smsResult = null;
       const wantSms = result.alert.active && body.sendSms !== false
         && (Array.isArray(result.alert.audience) ? result.alert.audience.includes("public") : true);
       if (wantSms) {
         const ledger = await readConsentLedger();
         const recipients = recipientsForChannel(ledger.records, "smsSafety");
-        smsResult = await sendAlertSms(result.alert, recipients, {
-          // Dev safety: never blast more than this without an explicit override.
-          limit: Number(body.smsLimit) || 500
-        });
+        const limit = Number(body.smsLimit) || 500;
+        if (ASYNC_SMS && body.asyncSms !== false) {
+          const job = await enqueueJob(ROOT, {
+            type: "sms.alert_fanout",
+            payload: {
+              alert: result.alert,
+              recipientPhones: recipients.map(r => r.phone).filter(Boolean).slice(0, limit),
+              limit
+            }
+          });
+          smsResult = {
+            queued: true,
+            jobId: job.id,
+            attempted: recipients.length,
+            sent: 0,
+            failed: 0,
+            skipped: 0,
+            reason: "queued_for_worker"
+          };
+        } else {
+          smsResult = await sendAlertSms(result.alert, recipients, { limit });
+        }
       }
 
       await writeAuditRecord(request, result.alert.active ? "alert.publish" : "alert.clear", {
@@ -1854,10 +1880,27 @@ async function handleRequest(request, response) {
       }, current, result.alert, {
         severity: result.alert.severity,
         sms: smsResult
-          ? { attempted: smsResult.attempted, sent: smsResult.sent, failed: smsResult.failed, skipped: smsResult.skipped, reason: smsResult.reason }
+          ? {
+              queued: Boolean(smsResult.queued),
+              jobId: smsResult.jobId ?? null,
+              attempted: smsResult.attempted,
+              sent: smsResult.sent,
+              failed: smsResult.failed,
+              skipped: smsResult.skipped,
+              reason: smsResult.reason
+            }
           : null
       });
       sendJson(request, response, 200, { alert: result.alert, sms: smsResult });
+      return;
+    }
+
+    if (method === "GET" && pathname === "/api/admin/jobs") {
+      if (!(await requirePermission(request, response, "admin:read"))) return;
+      const { listJobs } = await import("../lib/job-queue.mjs");
+      sendJson(request, response, 200, {
+        jobs: await listJobs(ROOT, { limit: clampLimit(url.searchParams.get("limit"), 50) })
+      });
       return;
     }
 
@@ -1972,6 +2015,7 @@ async function shutdown(signal) {
   console.log(`Received ${signal}, closing SandFest admin API.`);
   server.close(async () => {
     try {
+      await rateLimiter.close?.();
       await storage.close();
     } finally {
       process.exit(0);

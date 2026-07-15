@@ -20,6 +20,8 @@
     "import:volunteers": "node scripts/import-volunteers-csv.mjs",
     "test:platform": "node scripts/test-platform.mjs",
     "test:platform:api": "node scripts/test-platform.mjs --api",
+    "worker": "node scripts/worker.mjs",
+    "worker:once": "SANDFEST_WORKER_ONCE=true node scripts/worker.mjs",
     "api:dev": "node scripts/admin-api-server.mjs",
     "api:start": "NODE_ENV=production SANDFEST_ENV=production node scripts/admin-api-server.mjs",
     "api:load-test": "node scripts/load-test-api.mjs",
@@ -31,6 +33,7 @@
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.0.0",
+    "ioredis": "^5.11.1",
     "jose": "^6.2.3",
     "pg": "^8.20.0",
     "typescript": "^5.6.3",

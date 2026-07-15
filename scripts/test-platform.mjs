@@ -15,7 +15,8 @@ import { summarizeVolunteers } from "../lib/volunteers.mjs";
 import { consentFromCheckout, summarizeConsent, validateCheckoutConsent } from "../lib/consent.mjs";
 import { smsConfigFromEnv, sendSms } from "../lib/sms.mjs";
 import { applyStamp, parsePassportPayload, summarizePassport } from "../lib/passport.mjs";
-import { applyVote, tallyVotes, summarizeVoting } from "../lib/voting.mjs";
+import { applyVote, tallyVotes, summarizeVoting, normalizeTicketRef } from "../lib/voting.mjs";
+import { enqueueJob, claimNextJobs, completeJob } from "../lib/job-queue.mjs";
 import { publicBoothPins, summarizeBooths, parseBoothCsv } from "../lib/booths.mjs";
 import { escapeHtml } from "../lib/html-escape.mjs";
 import { updateJsonFile } from "../lib/safe-json-store.mjs";
@@ -118,6 +119,28 @@ console.log("\n=== Pure library suite ===\n");
   const tally = tallyVotes(doc.entries, vote.votes);
   ok("voting tally", tally.totalVotes >= 1 && tally.leaderboard.length === doc.entries.length);
   ok("voting summary", summarizeVoting(doc.entries, vote.votes).totals.totalVotes >= 1);
+  ok("ticket ref parse", normalizeTicketRef("tsf:t:WB-29F4-7B0A") === "tsf:t:WB-29F4-7B0A");
+  const needTicket = applyVote(doc, { attendeeRef: "suite_voter2", entryId: "ent_tidal_guardian" }, { requireTicket: true });
+  ok("ticket required", !needTicket.ok);
+  const withTicket = applyVote(doc, {
+    attendeeRef: "suite_voter3",
+    entryId: "ent_tidal_guardian",
+    ticketRef: "tsf:t:WB-TEST-001"
+  }, { idFactory: () => "v_tix", requireTicket: true });
+  ok("ticket-linked vote", withTicket.ok && withTicket.vote.ticketRef === "tsf:t:WB-TEST-001");
+}
+
+// Job queue (file mode)
+{
+  const dir = await mkdtemp(path.join(tmpdir(), "sandfest-jobs-"));
+  const job = await enqueueJob(dir, { type: "quickbooks.sync_stub", payload: { orderId: "order_x" } });
+  ok("enqueue job", job.id.startsWith("job_"));
+  const claimed = await claimNextJobs(dir, { limit: 5, types: ["quickbooks.sync_stub"] });
+  ok("claim job", claimed.length === 1 && claimed[0].id === job.id);
+  await completeJob(dir, claimed[0]);
+  const again = await claimNextJobs(dir, { limit: 5 });
+  ok("job completed", again.every(j => j.id !== job.id));
+  await rm(dir, { recursive: true, force: true });
 }
 
 // Booths

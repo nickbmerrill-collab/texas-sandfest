@@ -103,3 +103,21 @@ CREATE TABLE IF NOT EXISTS peoples_choice_votes (
 );
 CREATE INDEX IF NOT EXISTS peoples_choice_entry_idx ON peoples_choice_votes (event_id, entry_id);
 CREATE INDEX IF NOT EXISTS peoples_choice_voted_idx ON peoples_choice_votes (voted_at DESC);
+
+-- Async job queue (SMS fan-out, QuickBooks sync, imports).
+CREATE TABLE IF NOT EXISTS platform_jobs (
+  id            TEXT PRIMARY KEY,
+  type          TEXT NOT NULL,
+  status        TEXT NOT NULL DEFAULT 'queued',
+  attempts      INTEGER NOT NULL DEFAULT 0,
+  max_attempts  INTEGER NOT NULL DEFAULT 5,
+  payload       JSONB NOT NULL DEFAULT '{}'::jsonb,
+  last_error    TEXT,
+  run_after     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS platform_jobs_claim_idx
+  ON platform_jobs (status, run_after, created_at)
+  WHERE status = 'queued';
+CREATE INDEX IF NOT EXISTS platform_jobs_type_idx ON platform_jobs (type, created_at DESC);

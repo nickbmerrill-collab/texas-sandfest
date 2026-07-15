@@ -16,6 +16,7 @@ data/processed/admin-audit/*.json
 data/processed/orders/pending/*.json
 data/processed/orders/payment-events/*.json
 data/processed/config-snapshots/*.json
+data/processed/job-queue/
 .secrets/
 *.secret
 *.pem

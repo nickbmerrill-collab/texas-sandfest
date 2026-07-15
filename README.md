@@ -22,6 +22,8 @@ Standalone prototype for turning Texas SandFest into a unified AI-powered visito
 - Full suite: `npm run test:platform` (libs) and `npm run test:platform:api` (live smoke).
 - Board deck: `docs/presentations/SandFest-Board-Platform-Briefing.pptx`.
 - Enterprise scale path: atomic/mutex JSON or Postgres (`lib/platform-data.mjs`), body size caps, public-write rate limits, HTML escaping, empty admin token field. See `docs/enterprise-scale.md`.
+- Shared rate limits via Redis/Upstash (`lib/rate-limit.mjs`), async SMS worker (`npm run worker`), ticket-linked voting, isolated ops console at `/admin.html`.
+- CI: `.github/workflows/ci.yml` (tests, API smoke, build, load-test, Swift parse).
 - Installable/offline-capable public web shell for spotty event-day connectivity.
 
 ## Commands
@@ -40,10 +42,14 @@ npm run api:dev
 npm run api:load-test
 npm run test:platform
 npm run test:platform:api
+npm run worker
+npm run worker:once
 npm run import:booths
 npm run import:volunteers
 npm run qb:status
 ```
+
+Enterprise ops console (separate bundle): open `/admin.html` after `npm run dev` or the built `dist/admin.html`.
 
 The app runs with Vite and serves from `src/main.js` and `src/styles.css`.
 

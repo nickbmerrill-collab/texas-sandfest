@@ -78,10 +78,20 @@ npm run test:platform:api
 npm run build
 ```
 
-## Still out of scope (next enterprise tranche)
+## Enterprise controls (this tranche)
 
-- Shared rate-limit store (Redis) across pods
-- Horizontal queue for SMS fan-out and QuickBooks sync
-- Full visitor/admin bundle split
-- Ticket-linked vote identity (anti multi-device stuffing)
-- Full XSS audit of every `innerHTML` call site
+| Control | How |
+|---------|-----|
+| Shared rate limits | `REDIS_URL` (ioredis) or Upstash REST; else memory |
+| Async SMS | Alert publish enqueues `sms.alert_fanout`; run `npm run worker` |
+| Ops bundle split | `/admin.html` → `src/admin.js` (not in visitor bundle) |
+| Ticket-linked votes | Optional `ticketRef`; enforce with `SANDFEST_REQUIRE_TICKET_VOTE=true` |
+| XSS | `escapeHtml` / `escapeAttr` on admin cards, votes, booths, fleet, sculptors |
+| CI | `.github/workflows/ci.yml` — tests, build, load-test, Swift parse |
+
+## Remaining (ops maturity)
+
+- Redis required in multi-pod prod (document in deploy runbook)
+- Full ticket registry validation against Eventeny/Stripe (needs logins)
+- Queue for QuickBooks write-behind beyond stub job type
+- CDN WAF in front of public write endpoints

@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "feature/**"]
+  pull_request:
+
+jobs:
+  platform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci
+      - name: Unit + pure suite
+        run: npm run test:platform
+      - name: API smoke suite
+        run: npm run test:platform:api
+      - name: Production build (visitor + admin)
+        run: npm run build
+      - name: Load test (public GETs)
+        run: |
+          SANDFEST_API_PORT=8791 SANDFEST_ADMIN_API_TOKEN=dev-admin-token-change-me npm run api:dev &
+          API_PID=$!
+          sleep 1
+          npm run api:load-test -- http://127.0.0.1:8791 200 20
+          kill $API_PID
+
+  ios-parse:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Swift parse all app sources
+        run: |
+          set -euo pipefail
+          cd ios/TexasSandFest
+          for f in *.swift; do
+            echo "parse $f"
+            swiftc -parse "$f"
+          done
+          plutil -lint ../TexasSandFest.xcodeproj/project.pbxproj

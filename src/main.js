@@ -782,6 +782,10 @@ app.innerHTML = `
             <span>votes</span>
           </div>
         </div>
+        <label class="checkout-contact" style="max-width:420px">
+          Ticket QR / order id (optional unless enforced)
+          <input id="voting-ticket-ref" type="text" placeholder="tsf:t:WB-29F4-7B0A" autocomplete="off" />
+        </label>
         <div class="voting-ballot" id="voting-ballot">
           <article class="empty-state"><span>Loading ballot…</span></article>
         </div>
@@ -1710,37 +1714,37 @@ async function saveAdminAlert(active) {
 
 function ticketAdminCard(product) {
   return `
-    <article class="admin-edit-card" data-admin-ticket="${product.id}">
+    <article class="admin-edit-card" data-admin-ticket="${escapeAttr(product.id)}">
       <div class="admin-edit-title">
-        <strong>${product.name}</strong>
+        <strong>${escapeHtml(product.name)}</strong>
         <span>${product.requiresReview ? "Review gated" : "Checkout enabled"}</span>
       </div>
       <div class="admin-form-grid">
         <label>
           <span>Price label</span>
-          <input name="priceLabel" value="${product.priceLabel ?? ""}" />
+          <input name="priceLabel" value="${escapeAttr(product.priceLabel ?? "")}" />
         </label>
         <label>
           <span>Amount</span>
-          <input name="unitAmount" inputmode="decimal" placeholder="0.00" value="${moneyInput(product.unitAmount)}" />
+          <input name="unitAmount" inputmode="decimal" placeholder="0.00" value="${escapeAttr(moneyInput(product.unitAmount))}" />
         </label>
         <label>
           <span>Stripe Price ID</span>
-          <input name="stripePriceId" value="${product.stripePriceId ?? ""}" />
+          <input name="stripePriceId" value="${escapeAttr(product.stripePriceId ?? "")}" />
         </label>
         <label>
           <span>Max qty</span>
-          <input name="quantityMax" inputmode="numeric" value="${product.quantity?.max ?? ""}" />
+          <input name="quantityMax" inputmode="numeric" value="${escapeAttr(product.quantity?.max ?? "")}" />
         </label>
       </div>
       <label class="admin-check">
         <input name="requiresReview" type="checkbox" ${product.requiresReview ? "checked" : ""} />
         <span>Require admin review before checkout</span>
       </label>
-      <p>${product.description}</p>
+      <p>${escapeHtml(product.description)}</p>
       <div class="admin-edit-actions">
-        <span>${adminMoney(product.unitAmount, product.priceLabel ?? "Set in Stripe")}</span>
-        <button class="button secondary" data-save-ticket="${product.id}" data-requires-permission="ticket:write" type="button">Save ticket</button>
+        <span>${escapeHtml(adminMoney(product.unitAmount, product.priceLabel ?? "Set in Stripe"))}</span>
+        <button class="button secondary" data-save-ticket="${escapeAttr(product.id)}" data-requires-permission="ticket:write" type="button">Save ticket</button>
       </div>
     </article>
   `;
@@ -1748,32 +1752,32 @@ function ticketAdminCard(product) {
 
 function sponsorAdminCard(sponsorPackage) {
   return `
-    <article class="admin-edit-card" data-admin-sponsor="${sponsorPackage.id}">
+    <article class="admin-edit-card" data-admin-sponsor="${escapeAttr(sponsorPackage.id)}">
       <div class="admin-edit-title">
-        <strong>${sponsorPackage.name}</strong>
+        <strong>${escapeHtml(sponsorPackage.name)}</strong>
         <span>${sponsorPackage.active ? "Active" : "Hidden"}</span>
       </div>
       <div class="admin-form-grid">
         <label>
           <span>Public label</span>
-          <input name="publicLabel" value="${sponsorPackage.publicLabel ?? ""}" />
+          <input name="publicLabel" value="${escapeAttr(sponsorPackage.publicLabel ?? "")}" />
         </label>
         <label>
           <span>Amount</span>
-          <input name="amount" inputmode="decimal" value="${moneyInput(sponsorPackage.amount)}" />
+          <input name="amount" inputmode="decimal" value="${escapeAttr(moneyInput(sponsorPackage.amount))}" />
         </label>
         <label>
           <span>Stripe ID</span>
-          <input name="stripePriceId" value="${sponsorPackage.stripePriceId ?? ""}" />
+          <input name="stripePriceId" value="${escapeAttr(sponsorPackage.stripePriceId ?? "")}" />
         </label>
         <label>
           <span>QBO item</span>
-          <input name="quickBooksItemId" value="${sponsorPackage.quickBooksItemId ?? ""}" />
+          <input name="quickBooksItemId" value="${escapeAttr(sponsorPackage.quickBooksItemId ?? "")}" />
         </label>
       </div>
       <label>
         <span>Benefits</span>
-        <textarea name="benefits" rows="3">${(sponsorPackage.benefits ?? []).join("\n")}</textarea>
+        <textarea name="benefits" rows="3">${escapeHtml((sponsorPackage.benefits ?? []).join("\n"))}</textarea>
       </label>
       <div class="admin-check-row">
         <label class="admin-check">
@@ -1786,8 +1790,8 @@ function sponsorAdminCard(sponsorPackage) {
         </label>
       </div>
       <div class="admin-edit-actions">
-        <span>${adminMoney(sponsorPackage.amount, sponsorPackage.publicLabel ?? "Not set")}</span>
-        <button class="button secondary" data-save-sponsor="${sponsorPackage.id}" data-requires-permission="sponsor:write" type="button">Save sponsor</button>
+        <span>${escapeHtml(adminMoney(sponsorPackage.amount, sponsorPackage.publicLabel ?? "Not set"))}</span>
+        <button class="button secondary" data-save-sponsor="${escapeAttr(sponsorPackage.id)}" data-requires-permission="sponsor:write" type="button">Save sponsor</button>
       </div>
     </article>
   `;
@@ -1808,11 +1812,11 @@ function orderRecordCard(item) {
   return `
     <article class="admin-record-card">
       <div>
-        <strong>${order.id ?? item.file}</strong>
-        <span>${order.status ?? "unknown"}</span>
+        <strong>${escapeHtml(order.id ?? item.file)}</strong>
+        <span>${escapeHtml(order.status ?? "unknown")}</span>
       </div>
-      <p>${lines}</p>
-      <code>${item.path}</code>
+      <p>${escapeHtml(lines)}</p>
+      <code>${escapeHtml(item.path)}</code>
     </article>
   `;
 }
@@ -1822,11 +1826,11 @@ function paymentEventCard(item) {
   return `
     <article class="admin-record-card">
       <div>
-        <strong>${event.type ?? event.id ?? item.file}</strong>
-        <span>${event.fulfillmentStatus ?? "not_required"}</span>
+        <strong>${escapeHtml(event.type ?? event.id ?? item.file)}</strong>
+        <span>${escapeHtml(event.fulfillmentStatus ?? "not_required")}</span>
       </div>
-      <p>${event.checkoutSessionId ?? event.objectId ?? "No checkout session attached"} · ${event.verificationReason ?? "signature not checked"}</p>
-      <code>${item.path}</code>
+      <p>${escapeHtml(event.checkoutSessionId ?? event.objectId ?? "No checkout session attached")} · ${escapeHtml(event.verificationReason ?? "signature not checked")}</p>
+      <code>${escapeHtml(item.path)}</code>
     </article>
   `;
 }
@@ -1834,20 +1838,20 @@ function paymentEventCard(item) {
 function fulfillmentCard(item) {
   const fulfillment = item.record;
   const statusOptions = ["queued", "needs_review", "ready", "issued", "checked_in", "refunded", "voided"]
-    .map(status => `<option value="${status}" ${status === fulfillment.status ? "selected" : ""}>${status.replace("_", " ")}</option>`)
+    .map(status => `<option value="${escapeAttr(status)}" ${status === fulfillment.status ? "selected" : ""}>${escapeHtml(status.replace("_", " "))}</option>`)
     .join("");
   return `
-    <article class="admin-record-card" data-fulfillment-id="${fulfillment.id}">
+    <article class="admin-record-card" data-fulfillment-id="${escapeAttr(fulfillment.id)}">
       <div>
-        <strong>${fulfillment.name ?? fulfillment.productId ?? item.file}</strong>
-        <span>${fulfillment.fulfillmentType ?? "manual_review"}</span>
+        <strong>${escapeHtml(fulfillment.name ?? fulfillment.productId ?? item.file)}</strong>
+        <span>${escapeHtml(fulfillment.fulfillmentType ?? "manual_review")}</span>
       </div>
-      <p>${fulfillment.orderId ?? "No order"} · ${fulfillment.holder?.email ?? "No holder email"}</p>
+      <p>${escapeHtml(fulfillment.orderId ?? "No order")} · ${escapeHtml(fulfillment.holder?.email ?? "No holder email")}</p>
       <div class="fulfillment-actions">
         <select aria-label="Fulfillment status">${statusOptions}</select>
-        <button class="button secondary" data-save-fulfillment="${fulfillment.id}" data-requires-permission="fulfillment:update" type="button">Update</button>
+        <button class="button secondary" data-save-fulfillment="${escapeAttr(fulfillment.id)}" data-requires-permission="fulfillment:update" type="button">Update</button>
       </div>
-      <code>${item.path}</code>
+      <code>${escapeHtml(item.path)}</code>
     </article>
   `;
 }
@@ -1861,11 +1865,11 @@ function auditCard(item) {
   return `
     <article class="admin-record-card">
       <div>
-        <strong>${audit.action ?? audit.id ?? item.file}</strong>
-        <span>${target}</span>
+        <strong>${escapeHtml(audit.action ?? audit.id ?? item.file)}</strong>
+        <span>${escapeHtml(target)}</span>
       </div>
-      <p>${fields} · ${audit.createdAt ?? "No timestamp"}</p>
-      <code>${item.path}</code>
+      <p>${escapeHtml(fields)} · ${escapeHtml(audit.createdAt ?? "No timestamp")}</p>
+      <code>${escapeHtml(item.path)}</code>
     </article>
   `;
 }
@@ -1874,16 +1878,16 @@ function snapshotCard(item) {
   const snapshot = item.record;
   const target = snapshot.target ? `${snapshot.target.type}:${snapshot.target.id}` : "unknown target";
   return `
-    <article class="admin-record-card" data-snapshot-file="${item.file}">
+    <article class="admin-record-card" data-snapshot-file="${escapeAttr(item.file)}">
       <div>
-        <strong>${snapshot.reason ?? snapshot.id ?? item.file}</strong>
-        <span>${target}</span>
+        <strong>${escapeHtml(snapshot.reason ?? snapshot.id ?? item.file)}</strong>
+        <span>${escapeHtml(target)}</span>
       </div>
-      <p>${snapshot.createdAt ?? "No timestamp"}</p>
+      <p>${escapeHtml(snapshot.createdAt ?? "No timestamp")}</p>
       <div class="snapshot-actions">
-        <button class="button secondary" data-restore-snapshot="${item.file}" data-requires-permission="config:rollback" type="button">Restore</button>
+        <button class="button secondary" data-restore-snapshot="${escapeAttr(item.file)}" data-requires-permission="config:rollback" type="button">Restore</button>
       </div>
-      <code>${item.path}</code>
+      <code>${escapeHtml(item.path)}</code>
     </article>
   `;
 }
@@ -1980,18 +1984,18 @@ function selectSculptor(id) {
   const entry = sculptor.entryId ? entriesById.get(sculptor.entryId) : null;
   const status = entry ? (statusLabels[entry.status] ?? entry.status) : null;
   detail.innerHTML = `
-    <div class="sculptor-detail-head" style="--pin:${pinColor(sculptor.division)}">
-      <span class="sculptor-detail-chip">${divisionLabel(sculptor.division)}</span>
+    <div class="sculptor-detail-head" style="--pin:${escapeAttr(pinColor(sculptor.division))}">
+      <span class="sculptor-detail-chip">${escapeHtml(divisionLabel(sculptor.division))}</span>
       ${entry && entry.status === "sculpting"
-        ? `<span class="sculptor-detail-live">&#9679; ${status}</span>`
-        : (status ? `<span class="sculptor-detail-status">${status}</span>` : "")}
+        ? `<span class="sculptor-detail-live">&#9679; ${escapeHtml(status)}</span>`
+        : (status ? `<span class="sculptor-detail-status">${escapeHtml(status)}</span>` : "")}
     </div>
-    <h3>${sculptor.name}</h3>
-    <p class="sculptor-detail-home">${sculptor.hometown ?? ""}${sculptor.returning ? " · Returning artist" : " · New this year"}</p>
-    ${entry ? `<p class="sculptor-detail-entry"><strong>&ldquo;${entry.title}&rdquo;</strong> — beach marker ${entry.beachMarker}</p>` : ""}
-    ${entry && entry.statement ? `<p class="sculptor-detail-statement">${entry.statement}</p>` : ""}
-    <p class="sculptor-detail-bio">${sculptor.bio ?? ""}</p>
-    ${sculptor.socials && sculptor.socials.instagram ? `<p class="sculptor-detail-social">${sculptor.socials.instagram}</p>` : ""}
+    <h3>${escapeHtml(sculptor.name)}</h3>
+    <p class="sculptor-detail-home">${escapeHtml(sculptor.hometown ?? "")}${sculptor.returning ? " · Returning artist" : " · New this year"}</p>
+    ${entry ? `<p class="sculptor-detail-entry"><strong>&ldquo;${escapeHtml(entry.title)}&rdquo;</strong> — beach marker ${escapeHtml(entry.beachMarker)}</p>` : ""}
+    ${entry && entry.statement ? `<p class="sculptor-detail-statement">${escapeHtml(entry.statement)}</p>` : ""}
+    <p class="sculptor-detail-bio">${escapeHtml(sculptor.bio ?? "")}</p>
+    ${sculptor.socials && sculptor.socials.instagram ? `<p class="sculptor-detail-social">${escapeHtml(sculptor.socials.instagram)}</p>` : ""}
   `;
   document.querySelectorAll(".corridor-pin").forEach(pin => {
     pin.classList.toggle("is-selected", pin.dataset.sculptor === id);
@@ -2140,12 +2144,12 @@ function renderPassport() {
     const sculptor = sculptorsById.get(entry.sculptorId);
     const done = collected.has(entry.id);
     return `
-      <button class="passport-stamp${done ? " is-collected" : ""}" type="button" data-collect="${entry.id}"
+      <button class="passport-stamp${done ? " is-collected" : ""}" type="button" data-collect="${escapeAttr(entry.id)}"
         aria-pressed="${done}" title="${done ? "Collected" : "Tap to collect (simulates the on-beach QR scan)"}">
-        <span class="passport-stamp-mark" style="--pin:${pinColor(entry.division)}">${done ? "&#10003;" : entry.beachMarker}</span>
-        <strong>${entry.title}</strong>
-        <span class="passport-stamp-artist">${sculptor ? sculptor.name : ""}</span>
-        <span class="passport-stamp-state">${done ? "Stamped" : "Scan at marker " + entry.beachMarker}</span>
+        <span class="passport-stamp-mark" style="--pin:${escapeAttr(pinColor(entry.division))}">${done ? "&#10003;" : escapeHtml(entry.beachMarker)}</span>
+        <strong>${escapeHtml(entry.title)}</strong>
+        <span class="passport-stamp-artist">${escapeHtml(sculptor ? sculptor.name : "")}</span>
+        <span class="passport-stamp-state">${done ? "Stamped" : `Scan at marker ${escapeHtml(entry.beachMarker)}`}</span>
       </button>`;
   }).join("");
 
@@ -2244,12 +2248,14 @@ async function castVote(entryId) {
   writeLocalVote(entryId);
   if (status) status.textContent = "Saving your vote…";
   try {
+    const ticketRef = document.querySelector("#voting-ticket-ref")?.value?.trim() || null;
     const response = await fetch(`${publicApiBase()}/api/public/voting`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         attendeeRef: passportAttendeeRef(),
         entryId,
+        ticketRef,
         channel: "web"
       })
     });
@@ -2417,27 +2423,28 @@ function renderAdminFleet(payload) {
       : fleetStatusLabel(asset.status);
     const loc = asset.lastLocation?.beachMarker
       || (asset.lastLocation?.lat != null ? `${asset.lastLocation.lat.toFixed(4)}, ${asset.lastLocation.lng.toFixed(4)}` : asset.homeZoneId || "—");
+    const statusClass = String(asset.status || "").replace(/[^a-z0-9_-]/gi, "");
     return `
-      <article data-fleet-asset="${asset.id}" class="fleet-asset-row status-${asset.status}">
+      <article data-fleet-asset="${escapeAttr(asset.id)}" class="fleet-asset-row status-${escapeAttr(statusClass)}">
         <div>
-          <strong>${asset.label}</strong>
-          <span>${asset.type.replace(/_/g, " ")} · ${asset.id}${asset.qrPayload ? ` · ${asset.qrPayload}` : ""}</span>
+          <strong>${escapeHtml(asset.label)}</strong>
+          <span>${escapeHtml(asset.type.replace(/_/g, " "))} · ${escapeHtml(asset.id)}${asset.qrPayload ? ` · ${escapeHtml(asset.qrPayload)}` : ""}</span>
         </div>
-        <b>${fleetStatusLabel(asset.status)}</b>
-        <em>${who}</em>
-        <i>${loc}</i>
+        <b>${escapeHtml(fleetStatusLabel(asset.status))}</b>
+        <em>${escapeHtml(who)}</em>
+        <i>${escapeHtml(loc)}</i>
       </article>`;
   }).join("") || '<article class="empty-state"><span>No assets.</span></article>';
 
   openEl.innerHTML = (payload.openCheckouts || []).map(co => `
     <article>
       <div>
-        <strong>${co.assetId}</strong>
-        <span>${co.checkedOutTo} · ${co.team || "unassigned"}</span>
+        <strong>${escapeHtml(co.assetId)}</strong>
+        <span>${escapeHtml(co.checkedOutTo)} · ${escapeHtml(co.team || "unassigned")}</span>
       </div>
-      <b>${co.startCondition || "—"}</b>
-      <em>${co.startChargePct != null ? `${co.startChargePct}%` : "—"}</em>
-      <i>${co.checkOutAt ? new Date(co.checkOutAt).toLocaleString() : ""}</i>
+      <b>${escapeHtml(co.startCondition || "—")}</b>
+      <em>${co.startChargePct != null ? `${Number(co.startChargePct)}%` : "—"}</em>
+      <i>${co.checkOutAt ? escapeHtml(new Date(co.checkOutAt).toLocaleString()) : ""}</i>
     </article>
   `).join("") || '<article class="empty-state"><span>No open checkouts.</span></article>';
 
