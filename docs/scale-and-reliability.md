@@ -2,6 +2,8 @@
 
 Texas SandFest needs to serve a crowd measured in tens of thousands on site and over 100,000 total visitors. The platform should be designed so public reads stay fast under crowd spikes while payment, fulfillment, and admin writes stay durable.
 
+> **2026-07 enterprise hardening:** see also [`docs/enterprise-scale.md`](enterprise-scale.md) for Postgres tables (`platform_documents`, `hunt_completions`, `peoples_choice_votes`), atomic file mutexes, body limits, and public-write rate limits.
+
 ## Traffic Assumptions
 
 - 100,000+ event visitors across the weekend.

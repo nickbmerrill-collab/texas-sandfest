@@ -21,6 +21,7 @@ Standalone prototype for turning Texas SandFest into a unified AI-powered visito
 - People's Choice voting (`lib/voting.mjs`) + public booth/vendor map (`lib/booths.mjs`, Eventeny CSV import).
 - Full suite: `npm run test:platform` (libs) and `npm run test:platform:api` (live smoke).
 - Board deck: `docs/presentations/SandFest-Board-Platform-Briefing.pptx`.
+- Enterprise scale path: atomic/mutex JSON or Postgres (`lib/platform-data.mjs`), body size caps, public-write rate limits, HTML escaping, empty admin token field. See `docs/enterprise-scale.md`.
 - Installable/offline-capable public web shell for spotty event-day connectivity.
 
 ## Commands

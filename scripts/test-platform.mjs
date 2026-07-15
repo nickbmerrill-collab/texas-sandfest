@@ -17,6 +17,10 @@ import { smsConfigFromEnv, sendSms } from "../lib/sms.mjs";
 import { applyStamp, parsePassportPayload, summarizePassport } from "../lib/passport.mjs";
 import { applyVote, tallyVotes, summarizeVoting } from "../lib/voting.mjs";
 import { publicBoothPins, summarizeBooths, parseBoothCsv } from "../lib/booths.mjs";
+import { escapeHtml } from "../lib/html-escape.mjs";
+import { updateJsonFile } from "../lib/safe-json-store.mjs";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const wantApi = process.argv.includes("--api");
@@ -125,6 +129,24 @@ console.log("\n=== Pure library suite ===\n");
   const sample = await readFile(path.join(ROOT, "data/raw/eventeny-booths-sample.csv"), "utf8");
   const parsed = parseBoothCsv(sample);
   ok("booth CSV parse", parsed.booths.length === 3 && parsed.vendors.length === 3);
+}
+
+// Enterprise hardening helpers
+{
+  ok("html escape", escapeHtml(`<img src=x onerror=alert(1)>`) === "&lt;img src=x onerror=alert(1)&gt;");
+  const dir = await mkdtemp(path.join(tmpdir(), "sandfest-lock-"));
+  const file = path.join(dir, "counter.json");
+  await Promise.all(
+    Array.from({ length: 20 }, () =>
+      updateJsonFile(file, cur => {
+        const n = (cur && cur.n) || 0;
+        return { n: n + 1 };
+      }, { fallback: { n: 0 } })
+    )
+  );
+  const final = JSON.parse(await readFile(file, "utf8"));
+  ok("atomic mutex counter", final.n === 20, `got ${final.n}`);
+  await rm(dir, { recursive: true, force: true });
 }
 
 console.log(`\nPure suite: ${passed} passed, ${failed} failed\n`);

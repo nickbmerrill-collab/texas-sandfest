@@ -1,3 +1,5 @@
+import { escapeHtml, escapeAttr } from "../lib/html-escape.mjs";
+
 const mediaManifest = await fetch("/assets/sandfest-media/media-manifest.json")
   .then(response => response.ok ? response.json() : null)
   .catch(() => null);
@@ -818,7 +820,7 @@ app.innerHTML = `
         </label>
         <label>
           <span>Admin token</span>
-          <input id="admin-api-token" type="password" value="dev-admin-token-change-me" autocomplete="off" />
+          <input id="admin-api-token" type="password" value="" placeholder="Admin token (never commit)" autocomplete="off" />
         </label>
         <button id="admin-load-config" class="button primary" type="button">Load config</button>
       </div>
@@ -2204,10 +2206,10 @@ function renderVotingBallot(payload) {
   ballot.innerHTML = board.map(entry => {
     const selected = myVote === entry.id;
     return `
-      <button type="button" class="voting-card${selected ? " is-selected" : ""}" data-vote-entry="${entry.id}" ${payload.votingOpen === false ? "disabled" : ""}>
-        <strong>${entry.title}</strong>
-        <span>${entry.sculptorName || ""} · marker ${entry.beachMarker || "—"}</span>
-        <b>${entry.votes || 0} votes · ${entry.sharePct || 0}%</b>
+      <button type="button" class="voting-card${selected ? " is-selected" : ""}" data-vote-entry="${escapeAttr(entry.id)}" ${payload.votingOpen === false ? "disabled" : ""}>
+        <strong>${escapeHtml(entry.title)}</strong>
+        <span>${escapeHtml(entry.sculptorName || "")} · marker ${escapeHtml(entry.beachMarker || "—")}</span>
+        <b>${Number(entry.votes) || 0} votes · ${Number(entry.sharePct) || 0}%</b>
         <em>${selected ? "Your pick" : "Tap to vote"}</em>
       </button>`;
   }).join("") || '<article class="empty-state"><span>No eligible entries.</span></article>';
@@ -2300,14 +2302,15 @@ function renderBoothMap(pins) {
       ${pins.map(p => {
         const x = ((p.illustratedMapXY?.x ?? 0.5) * 100).toFixed(1);
         const y = ((p.illustratedMapXY?.y ?? 0.5) * 100).toFixed(1);
-        return `<button type="button" class="booth-pin type-${p.type}" style="left:${x}%;top:${y}%" title="${p.label}" data-booth="${p.id}">${p.id}</button>`;
+        const type = escapeAttr(String(p.type || "vendor").replace(/[^a-z0-9_-]/gi, ""));
+        return `<button type="button" class="booth-pin type-${type}" style="left:${x}%;top:${y}%" title="${escapeAttr(p.label)}" data-booth="${escapeAttr(p.id)}">${escapeHtml(p.id)}</button>`;
       }).join("")}
     </div>`;
   list.innerHTML = pins.map(p => `
-    <article class="booth-card" id="booth-card-${p.id}">
-      <strong>${p.label}</strong>
-      <span>${p.category} · ${p.id}${p.beachMarker ? ` · marker ${p.beachMarker}` : ""}</span>
-      <p>${p.description || ""}</p>
+    <article class="booth-card" id="booth-card-${escapeAttr(p.id)}">
+      <strong>${escapeHtml(p.label)}</strong>
+      <span>${escapeHtml(p.category)} · ${escapeHtml(p.id)}${p.beachMarker ? ` · marker ${escapeHtml(p.beachMarker)}` : ""}</span>
+      <p>${escapeHtml(p.description || "")}</p>
     </article>
   `).join("") || '<article class="empty-state"><span>No public booths.</span></article>';
   corridor.querySelectorAll("[data-booth]").forEach(pin => {

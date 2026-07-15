@@ -10,6 +10,12 @@ data/incoming/quickbooks/*.token
 # The whole credentials drop folder is ignored except its README.
 data/incoming/credentials/*
 !data/incoming/credentials/README.md
+# Runtime write noise (keep README + intentional seeds only)
+data/processed/admin-audit/*.json
+!data/processed/admin-audit/README.md
+data/processed/orders/pending/*.json
+data/processed/orders/payment-events/*.json
+data/processed/config-snapshots/*.json
 .secrets/
 *.secret
 *.pem

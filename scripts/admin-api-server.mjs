@@ -1,12 +1,22 @@
 import { createServer } from "node:http";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadDotEnv } from "../lib/load-env.mjs";
 import { createStorage } from "../lib/storage.mjs";
 import { authMode, authModeIsJwt, resolveSession } from "../lib/auth.mjs";
 import { summarizeLedger } from "../lib/revenue.mjs";
+import {
+  appendPassportCompletion,
+  listPassportCompletions,
+  readPlatformDoc,
+  readVotingBallot,
+  updatePlatformDoc,
+  upsertVote,
+  writePlatformDoc
+} from "../lib/platform-data.mjs";
+import { createMemoryRateLimiter } from "../lib/safe-json-store.mjs";
 import {
   applyCheckin,
   applyCheckout,
@@ -66,8 +76,13 @@ const SANDFEST_ENV = process.env.SANDFEST_ENV || "development";
 const RATE_LIMIT_WINDOW_MS = Number(process.env.SANDFEST_RATE_LIMIT_WINDOW_MS || 60_000);
 const ADMIN_RATE_LIMIT = Number(process.env.SANDFEST_ADMIN_RATE_LIMIT || 120);
 const CHECKOUT_RATE_LIMIT = Number(process.env.SANDFEST_CHECKOUT_RATE_LIMIT || 30);
-const PUBLIC_RATE_LIMIT = Number(process.env.SANDFEST_PUBLIC_RATE_LIMIT || 600);
+const PUBLIC_RATE_LIMIT = Number(process.env.SANDFEST_PUBLIC_RATE_LIMIT || 1200);
+// Tighter bucket for unauthenticated public writes (stamps/votes) at festival scale.
+const PUBLIC_WRITE_RATE_LIMIT = Number(process.env.SANDFEST_PUBLIC_WRITE_RATE_LIMIT || 60);
+const MAX_BODY_BYTES = Number(process.env.SANDFEST_MAX_BODY_BYTES || 262_144); // 256 KiB
 const ADMIN_TOKEN = process.env.SANDFEST_ADMIN_API_TOKEN || "dev-admin-token-change-me";
+const rateLimiter = createMemoryRateLimiter({ windowMs: RATE_LIMIT_WINDOW_MS });
+setInterval(() => rateLimiter.prune(), RATE_LIMIT_WINDOW_MS).unref?.();
 const ADMIN_ACTOR_ID = process.env.SANDFEST_ADMIN_ACTOR_ID || "local-admin";
 const ADMIN_ROLE = process.env.SANDFEST_ADMIN_ROLE || "super_admin";
 const CONFIG_PATH_OVERRIDE = process.env.SANDFEST_ADMIN_CONFIG_PATH
@@ -94,7 +109,6 @@ const ALLOWED_ORIGINS = (process.env.SANDFEST_CORS_ORIGINS || [
   "https://www.texassandfest.org",
   "https://texassandfest.org"
 ].join(",")).split(",").map(origin => origin.trim()).filter(Boolean);
-const rateLimitBuckets = new Map();
 
 const patchableTicketFields = new Set([
   "name",
@@ -223,61 +237,57 @@ function checkStatus(ok, message, severity = "error") {
   };
 }
 
-// Phase 0 revenue ledger read. Reads the seeded JSON directly (backend-agnostic)
-// until live Stripe/Eventeny/Square feeds write entries. Returns a safe empty
-// ledger if the file is absent so the dashboard degrades gracefully.
-const REVENUE_LEDGER_PATH = path.join(ROOT, "data", "processed", "revenue-ledger.json");
+// Enterprise platform docs: atomic file store or Postgres (lib/platform-data.mjs).
 async function readRevenueLedger() {
-  try {
-    const ledger = JSON.parse(await readFile(REVENUE_LEDGER_PATH, "utf8"));
-    return {
-      lastUpdated: ledger.lastUpdated ?? null,
-      currency: ledger.currency ?? "usd",
-      expectedAttendance: ledger.expectedAttendance ?? null,
-      ticketCapacity: ledger.ticketCapacity ?? null,
-      entries: Array.isArray(ledger.entries) ? ledger.entries : []
-    };
-  } catch {
+  const ledger = await readPlatformDoc(ROOT, "revenue", null);
+  if (!ledger) {
     return { lastUpdated: null, currency: "usd", expectedAttendance: null, ticketCapacity: null, entries: [] };
   }
+  return {
+    lastUpdated: ledger.lastUpdated ?? null,
+    currency: ledger.currency ?? "usd",
+    expectedAttendance: ledger.expectedAttendance ?? null,
+    ticketCapacity: ledger.ticketCapacity ?? null,
+    entries: Array.isArray(ledger.entries) ? ledger.entries : []
+  };
 }
 
-// Phase 1 fleet ledger. Same file-backed pattern as revenue until Postgres
-// storage grows a dedicated fleet table. Check-out/in mutations rewrite the
-// whole document (small N for a 3-day rental pool).
-const FLEET_PATH = path.join(ROOT, "data", "processed", "fleet.json");
+function emptyFleetDoc() {
+  return {
+    lastUpdated: null,
+    eventId: "texas-sandfest-2026",
+    assets: [],
+    checkouts: [],
+    locations: []
+  };
+}
+
+function normalizeFleetDoc(ledger) {
+  if (!ledger || typeof ledger !== "object") return emptyFleetDoc();
+  return {
+    lastUpdated: ledger.lastUpdated ?? null,
+    eventId: ledger.eventId ?? "texas-sandfest-2026",
+    assets: Array.isArray(ledger.assets) ? ledger.assets.map(normalizeAsset) : [],
+    checkouts: Array.isArray(ledger.checkouts) ? ledger.checkouts.map(normalizeCheckout) : [],
+    locations: Array.isArray(ledger.locations) ? ledger.locations.map(normalizeLocation) : []
+  };
+}
+
 async function readFleetLedger() {
-  try {
-    const ledger = JSON.parse(await readFile(FLEET_PATH, "utf8"));
-    return {
-      lastUpdated: ledger.lastUpdated ?? null,
-      eventId: ledger.eventId ?? "texas-sandfest-2026",
-      assets: Array.isArray(ledger.assets) ? ledger.assets.map(normalizeAsset) : [],
-      checkouts: Array.isArray(ledger.checkouts) ? ledger.checkouts.map(normalizeCheckout) : [],
-      locations: Array.isArray(ledger.locations) ? ledger.locations.map(normalizeLocation) : []
-    };
-  } catch {
-    return {
-      lastUpdated: null,
-      eventId: "texas-sandfest-2026",
-      assets: [],
-      checkouts: [],
-      locations: []
-    };
-  }
+  return normalizeFleetDoc(await readPlatformDoc(ROOT, "fleet", null));
 }
 
 async function writeFleetLedger(ledger) {
-  await mkdir(path.dirname(FLEET_PATH), { recursive: true });
   const payload = {
-    _note: "Fleet/asset checkout ledger (lib/fleet.mjs). Mutated by admin check-out/in and location pings.",
+    _note: "Fleet/asset checkout ledger (lib/fleet.mjs). Atomic/Postgres via platform-data.",
     lastUpdated: new Date().toISOString(),
     eventId: ledger.eventId ?? "texas-sandfest-2026",
     assets: ledger.assets ?? [],
     checkouts: ledger.checkouts ?? [],
     locations: ledger.locations ?? []
   };
-  await writeFile(FLEET_PATH, `${JSON.stringify(payload, null, 2)}\n`);
+  // Mutex / row-lock path so concurrent checkouts cannot clobber each other.
+  await updatePlatformDoc(ROOT, "fleet", () => payload, { fallback: payload });
   return payload;
 }
 
@@ -301,22 +311,9 @@ function fleetDashboardPayload(ledger) {
   };
 }
 
-// Phase 1 volunteer mirror. VolunteerLocal owns signup; we mirror roster/shifts/
-// hours into ops coverage. Read-only until a live CSV/API sync lands.
-const VOLUNTEER_MIRROR_PATH = path.join(ROOT, "data", "processed", "volunteer-mirror.json");
 async function readVolunteerMirror() {
-  try {
-    const mirror = JSON.parse(await readFile(VOLUNTEER_MIRROR_PATH, "utf8"));
-    return {
-      lastUpdated: mirror.lastUpdated ?? null,
-      eventId: mirror.eventId ?? "texas-sandfest-2026",
-      source: mirror.source ?? "seed",
-      zoneLabels: mirror.zoneLabels ?? {},
-      volunteers: Array.isArray(mirror.volunteers) ? mirror.volunteers.map(normalizeVolunteer) : [],
-      shifts: Array.isArray(mirror.shifts) ? mirror.shifts.map(normalizeShift) : [],
-      hourLogs: Array.isArray(mirror.hourLogs) ? mirror.hourLogs.map(normalizeHourLog) : []
-    };
-  } catch {
+  const mirror = await readPlatformDoc(ROOT, "volunteers", null);
+  if (!mirror) {
     return {
       lastUpdated: null,
       eventId: "texas-sandfest-2026",
@@ -327,6 +324,15 @@ async function readVolunteerMirror() {
       hourLogs: []
     };
   }
+  return {
+    lastUpdated: mirror.lastUpdated ?? null,
+    eventId: mirror.eventId ?? "texas-sandfest-2026",
+    source: mirror.source ?? "seed",
+    zoneLabels: mirror.zoneLabels ?? {},
+    volunteers: Array.isArray(mirror.volunteers) ? mirror.volunteers.map(normalizeVolunteer) : [],
+    shifts: Array.isArray(mirror.shifts) ? mirror.shifts.map(normalizeShift) : [],
+    hourLogs: Array.isArray(mirror.hourLogs) ? mirror.hourLogs.map(normalizeHourLog) : []
+  };
 }
 
 function volunteerDashboardPayload(mirror) {
@@ -357,135 +363,105 @@ function volunteerDashboardPayload(mirror) {
   };
 }
 
-// Consent ledger: separate email marketing / SMS marketing / SMS safety opt-ins.
-const CONSENT_LEDGER_PATH = path.join(ROOT, "data", "processed", "consent-ledger.json");
 async function readConsentLedger() {
-  try {
-    const ledger = JSON.parse(await readFile(CONSENT_LEDGER_PATH, "utf8"));
-    return {
-      lastUpdated: ledger.lastUpdated ?? null,
-      eventId: ledger.eventId ?? "texas-sandfest-2026",
-      records: Array.isArray(ledger.records) ? ledger.records.map(r => normalizeConsent(r)) : []
-    };
-  } catch {
-    return { lastUpdated: null, eventId: "texas-sandfest-2026", records: [] };
-  }
-}
-
-async function writeConsentLedger(ledger) {
-  await mkdir(path.dirname(CONSENT_LEDGER_PATH), { recursive: true });
-  const payload = {
-    _note: "Consent ledger (lib/consent.mjs). Mutated by checkout opt-ins and imports.",
-    lastUpdated: new Date().toISOString(),
+  const ledger = await readPlatformDoc(ROOT, "consent", null);
+  if (!ledger) return { lastUpdated: null, eventId: "texas-sandfest-2026", records: [] };
+  return {
+    lastUpdated: ledger.lastUpdated ?? null,
     eventId: ledger.eventId ?? "texas-sandfest-2026",
-    records: ledger.records ?? []
+    records: Array.isArray(ledger.records) ? ledger.records.map(r => normalizeConsent(r)) : []
   };
-  await writeFile(CONSENT_LEDGER_PATH, `${JSON.stringify(payload, null, 2)}\n`);
-  return payload;
 }
 
 async function appendConsentRecord(record) {
-  const ledger = await readConsentLedger();
-  // Upsert by email+phone so repeat checkouts update flags rather than spam rows.
-  const idx = ledger.records.findIndex(r =>
-    (record.email && r.email === record.email) ||
-    (record.phone && r.phone === record.phone && record.phone)
+  const next = await updatePlatformDoc(
+    ROOT,
+    "consent",
+    doc => {
+      const ledger = doc && typeof doc === "object"
+        ? { eventId: doc.eventId ?? "texas-sandfest-2026", records: Array.isArray(doc.records) ? doc.records.slice() : [] }
+        : { eventId: "texas-sandfest-2026", records: [] };
+      const idx = ledger.records.findIndex(r =>
+        (record.email && r.email === record.email) ||
+        (record.phone && r.phone === record.phone && record.phone)
+      );
+      if (idx === -1) {
+        ledger.records.push(record);
+      } else {
+        const prev = ledger.records[idx];
+        ledger.records[idx] = normalizeConsent({
+          ...prev,
+          ...record,
+          id: prev.id,
+          email: record.email || prev.email,
+          phone: record.phone || prev.phone,
+          emailMarketing: record.emailMarketing?.optedIn ? record.emailMarketing : prev.emailMarketing,
+          smsMarketing: record.smsMarketing?.optedIn ? record.smsMarketing : prev.smsMarketing,
+          smsSafety: record.smsSafety?.optedIn ? record.smsSafety : prev.smsSafety,
+          createdAt: prev.createdAt,
+          updatedAt: record.updatedAt
+        });
+      }
+      return {
+        _note: "Consent ledger (lib/consent.mjs). Atomic/Postgres via platform-data.",
+        lastUpdated: new Date().toISOString(),
+        eventId: ledger.eventId,
+        records: ledger.records
+      };
+    },
+    { fallback: { eventId: "texas-sandfest-2026", records: [] } }
   );
-  if (idx === -1) {
-    ledger.records.push(record);
-  } else {
-    const prev = ledger.records[idx];
-    ledger.records[idx] = normalizeConsent({
-      ...prev,
-      ...record,
-      id: prev.id,
-      email: record.email || prev.email,
-      phone: record.phone || prev.phone,
-      emailMarketing: record.emailMarketing?.optedIn ? record.emailMarketing : prev.emailMarketing,
-      smsMarketing: record.smsMarketing?.optedIn ? record.smsMarketing : prev.smsMarketing,
-      smsSafety: record.smsSafety?.optedIn ? record.smsSafety : prev.smsSafety,
-      createdAt: prev.createdAt,
-      updatedAt: record.updatedAt
-    });
-  }
-  await writeConsentLedger(ledger);
-  return ledger.records[idx === -1 ? ledger.records.length - 1 : idx];
+  return record;
 }
 
-// Sculpture Passport: hunt definition + checkpoint list + completion ledger.
-const PASSPORT_HUNT_PATH = path.join(ROOT, "data", "processed", "sculpture-passport.json");
-const PASSPORT_COMPLETIONS_PATH = path.join(ROOT, "data", "processed", "passport-completions.json");
-
 async function readPassportHunt() {
-  try {
-    const doc = JSON.parse(await readFile(PASSPORT_HUNT_PATH, "utf8"));
-    return {
-      lastUpdated: doc.lastUpdated ?? null,
-      hunt: normalizeHunt(doc.hunt || {}),
-      checkpoints: Array.isArray(doc.checkpoints) ? doc.checkpoints.map(normalizeCheckpoint) : []
-    };
-  } catch {
+  const doc = await readPlatformDoc(ROOT, "passportHunt", null);
+  if (!doc) {
     return {
       lastUpdated: null,
       hunt: normalizeHunt({ active: false }),
       checkpoints: []
     };
   }
+  return {
+    lastUpdated: doc.lastUpdated ?? null,
+    hunt: normalizeHunt(doc.hunt || {}),
+    checkpoints: Array.isArray(doc.checkpoints) ? doc.checkpoints.map(normalizeCheckpoint) : []
+  };
 }
 
 async function readPassportCompletions() {
-  try {
-    const doc = JSON.parse(await readFile(PASSPORT_COMPLETIONS_PATH, "utf8"));
-    return {
-      lastUpdated: doc.lastUpdated ?? null,
-      completions: Array.isArray(doc.completions) ? doc.completions.map(normalizeCompletion) : []
-    };
-  } catch {
-    return { lastUpdated: null, completions: [] };
-  }
+  const completions = await listPassportCompletions(ROOT);
+  return {
+    lastUpdated: null,
+    completions: completions.map(normalizeCompletion)
+  };
 }
 
 async function writePassportCompletions(completions) {
-  await mkdir(path.dirname(PASSPORT_COMPLETIONS_PATH), { recursive: true });
-  const payload = {
-    _note: "Sculpture Passport completions (lib/passport.mjs). Mutated by public stamp API.",
+  // Prefer append path for new stamps; bulk write used only for legacy full replace.
+  await writePlatformDoc(ROOT, "passportCompletions", {
+    _note: "Sculpture Passport completions. Prefer hunt_completions table when Postgres is on.",
     lastUpdated: new Date().toISOString(),
     completions: completions ?? []
-  };
-  await writeFile(PASSPORT_COMPLETIONS_PATH, `${JSON.stringify(payload, null, 2)}\n`);
-  return payload;
+  });
+  return { lastUpdated: new Date().toISOString(), completions };
 }
 
-const PEOPLES_CHOICE_PATH = path.join(ROOT, "data", "processed", "peoples-choice.json");
-const BOOTH_MAP_PATH = path.join(ROOT, "data", "processed", "booth-map.json");
-
 async function readPeoplesChoice() {
-  try {
-    const doc = JSON.parse(await readFile(PEOPLES_CHOICE_PATH, "utf8"));
-    return {
-      lastUpdated: doc.lastUpdated ?? null,
-      eventId: doc.eventId ?? "texas-sandfest-2026",
-      votingOpen: doc.votingOpen !== false,
-      title: doc.title ?? "People's Choice",
-      description: doc.description ?? "",
-      entries: Array.isArray(doc.entries) ? doc.entries.map(normalizeBallotEntry) : [],
-      votes: Array.isArray(doc.votes) ? doc.votes.map(normalizeVote) : []
-    };
-  } catch {
-    return {
-      lastUpdated: null,
-      eventId: "texas-sandfest-2026",
-      votingOpen: false,
-      title: "People's Choice",
-      description: "",
-      entries: [],
-      votes: []
-    };
-  }
+  const doc = await readVotingBallot(ROOT);
+  return {
+    lastUpdated: doc.lastUpdated ?? null,
+    eventId: doc.eventId ?? "texas-sandfest-2026",
+    votingOpen: doc.votingOpen !== false,
+    title: doc.title ?? "People's Choice",
+    description: doc.description ?? "",
+    entries: Array.isArray(doc.entries) ? doc.entries.map(normalizeBallotEntry) : [],
+    votes: Array.isArray(doc.votes) ? doc.votes.map(normalizeVote) : []
+  };
 }
 
 async function writePeoplesChoice(doc) {
-  await mkdir(path.dirname(PEOPLES_CHOICE_PATH), { recursive: true });
   const payload = {
     _note: "People's Choice ballot + votes (lib/voting.mjs).",
     lastUpdated: new Date().toISOString(),
@@ -496,21 +472,13 @@ async function writePeoplesChoice(doc) {
     entries: doc.entries ?? [],
     votes: doc.votes ?? []
   };
-  await writeFile(PEOPLES_CHOICE_PATH, `${JSON.stringify(payload, null, 2)}\n`);
+  await writePlatformDoc(ROOT, "voting", payload);
   return payload;
 }
 
 async function readBoothMap() {
-  try {
-    const doc = JSON.parse(await readFile(BOOTH_MAP_PATH, "utf8"));
-    return {
-      lastUpdated: doc.lastUpdated ?? null,
-      eventId: doc.eventId ?? "texas-sandfest-2026",
-      source: doc.source ?? "seed",
-      booths: Array.isArray(doc.booths) ? doc.booths.map(normalizeBooth) : [],
-      vendors: Array.isArray(doc.vendors) ? doc.vendors.map(normalizeVendor) : []
-    };
-  } catch {
+  const doc = await readPlatformDoc(ROOT, "booths", null);
+  if (!doc) {
     return {
       lastUpdated: null,
       eventId: "texas-sandfest-2026",
@@ -519,6 +487,13 @@ async function readBoothMap() {
       vendors: []
     };
   }
+  return {
+    lastUpdated: doc.lastUpdated ?? null,
+    eventId: doc.eventId ?? "texas-sandfest-2026",
+    source: doc.source ?? "seed",
+    booths: Array.isArray(doc.booths) ? doc.booths.map(normalizeBooth) : [],
+    vendors: Array.isArray(doc.vendors) ? doc.vendors.map(normalizeVendor) : []
+  };
 }
 
 function deploymentProfile() {
@@ -662,6 +637,13 @@ function requestIp(request) {
 function rateLimitProfile(pathname, method) {
   if (method === "OPTIONS") return null;
   if (pathname === "/api/stripe/create-checkout-session") return { name: "checkout", limit: CHECKOUT_RATE_LIMIT };
+  // Unauthenticated write paths get a stricter bucket (festival abuse protection).
+  if (
+    method === "POST" &&
+    (pathname === "/api/public/passport/stamp" || pathname === "/api/public/voting")
+  ) {
+    return { name: "public-write", limit: PUBLIC_WRITE_RATE_LIMIT };
+  }
   if (pathname.startsWith("/api/admin")) return { name: "admin", limit: ADMIN_RATE_LIMIT };
   if (pathname.startsWith("/api/public")) return { name: "public", limit: PUBLIC_RATE_LIMIT };
   return null;
@@ -670,25 +652,17 @@ function rateLimitProfile(pathname, method) {
 function checkRateLimit(request, response, pathname, method) {
   const profile = rateLimitProfile(pathname, method);
   if (!profile) return true;
-  const now = Date.now();
   const key = `${profile.name}:${requestIp(request)}`;
-  const current = rateLimitBuckets.get(key);
-  const bucket = current && current.resetAt > now
-    ? current
-    : { count: 0, resetAt: now + RATE_LIMIT_WINDOW_MS };
-  bucket.count += 1;
-  rateLimitBuckets.set(key, bucket);
-  const remaining = Math.max(0, profile.limit - bucket.count);
+  const result = rateLimiter.check(key, profile.limit);
   response.setHeader("x-ratelimit-limit", String(profile.limit));
-  response.setHeader("x-ratelimit-remaining", String(remaining));
-  response.setHeader("x-ratelimit-reset", String(Math.ceil(bucket.resetAt / 1000)));
-  if (bucket.count <= profile.limit) return true;
-  const retryAfter = Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));
+  response.setHeader("x-ratelimit-remaining", String(result.remaining));
+  response.setHeader("x-ratelimit-reset", String(Math.ceil(result.resetAt / 1000)));
+  if (result.allowed) return true;
   sendJson(request, response, 429, {
     error: `Rate limit exceeded for ${profile.name} requests.`,
-    retryAfterSeconds: retryAfter
+    retryAfterSeconds: result.retryAfterSeconds
   }, {
-    "retry-after": String(retryAfter)
+    "retry-after": String(result.retryAfterSeconds)
   });
   return false;
 }
@@ -733,8 +707,24 @@ async function readBody(request) {
 }
 
 async function readRawBody(request) {
+  const declared = Number(request.headers["content-length"] || 0);
+  if (declared > MAX_BODY_BYTES) {
+    const err = new Error(`Request body exceeds ${MAX_BODY_BYTES} bytes.`);
+    err.statusCode = 413;
+    throw err;
+  }
   const chunks = [];
-  for await (const chunk of request) chunks.push(Buffer.from(chunk));
+  let size = 0;
+  for await (const chunk of request) {
+    const buf = Buffer.from(chunk);
+    size += buf.length;
+    if (size > MAX_BODY_BYTES) {
+      const err = new Error(`Request body exceeds ${MAX_BODY_BYTES} bytes.`);
+      err.statusCode = 413;
+      throw err;
+    }
+    chunks.push(buf);
+  }
   return Buffer.concat(chunks).toString("utf8");
 }
 
@@ -1391,14 +1381,22 @@ async function handleRequest(request, response) {
         return;
       }
       if (!result.alreadyStamped) {
-        await writePassportCompletions(result.completions);
+        // Append-only path: unique constraint safe under concurrency (Postgres).
+        await appendPassportCompletion(ROOT, result.completion);
       }
+      const completions = await listPassportCompletions(ROOT);
+      const progress = progressForAttendee(
+        huntDoc.checkpoints,
+        completions,
+        result.completion.attendeeRef,
+        huntDoc.hunt.id
+      );
       sendJson(request, response, result.alreadyStamped ? 200 : 201, {
         ok: true,
         alreadyStamped: result.alreadyStamped,
         completion: result.completion,
         checkpoint: result.checkpoint,
-        progress: result.progress
+        progress
       });
       return;
     }
@@ -1450,10 +1448,17 @@ async function handleRequest(request, response) {
         sendJson(request, response, 400, { error: result.error });
         return;
       }
+      let votes = result.votes;
       if (result.changed) {
-        await writePeoplesChoice({ ...doc, votes: result.votes });
+        votes = await upsertVote(ROOT, result.vote, {
+          eventId: doc.eventId,
+          votingOpen: doc.votingOpen,
+          title: doc.title,
+          description: doc.description,
+          entries: doc.entries
+        });
       }
-      const tally = tallyVotes(doc.entries, result.votes);
+      const tally = tallyVotes(doc.entries, votes);
       sendJson(request, response, result.changed ? 201 : 200, {
         ok: true,
         changed: result.changed,
@@ -1587,27 +1592,34 @@ async function handleRequest(request, response) {
       if (!(await requirePermission(request, response, "fleet:write"))) return;
       const body = await readBody(request);
       const assetId = body.assetId || parseAssetQrPayload(body.payload ?? body.qr);
-      const ledger = await readFleetLedger();
-      const before = ledger.assets.find(a => a.id === assetId) ?? null;
-      const result = applyCheckout(ledger, {
-        ...body,
-        assetId,
-        signatureBy: body.signatureBy ?? request.adminSession?.id ?? null,
-        method: body.method || "ios_scan"
-      }, {
-        idFactory: () => `co_${randomUUID()}`,
-        now: new Date().toISOString()
-      });
-      if (!result.ok) {
-        sendJson(request, response, 400, { error: result.error });
+      let before = null;
+      let result = null;
+      const next = await updatePlatformDoc(ROOT, "fleet", current => {
+        const ledger = normalizeFleetDoc(current);
+        before = ledger.assets.find(a => a.id === assetId) ?? null;
+        result = applyCheckout(ledger, {
+          ...body,
+          assetId,
+          signatureBy: body.signatureBy ?? request.adminSession?.id ?? null,
+          method: body.method || "ios_scan"
+        }, {
+          idFactory: () => `co_${randomUUID()}`,
+          now: new Date().toISOString()
+        });
+        if (!result.ok) return ledger;
+        return {
+          _note: "Fleet/asset checkout ledger (lib/fleet.mjs).",
+          lastUpdated: new Date().toISOString(),
+          eventId: ledger.eventId,
+          assets: result.assets,
+          checkouts: result.checkouts,
+          locations: ledger.locations
+        };
+      }, { fallback: emptyFleetDoc() });
+      if (!result?.ok) {
+        sendJson(request, response, 400, { error: result?.error || "Checkout failed." });
         return;
       }
-      const next = await writeFleetLedger({
-        eventId: ledger.eventId,
-        assets: result.assets,
-        checkouts: result.checkouts,
-        locations: ledger.locations
-      });
       await writeAuditRecord(request, "fleet.checkout", {
         type: "asset",
         id: result.asset.id
@@ -1617,7 +1629,7 @@ async function handleRequest(request, response) {
         team: result.checkout.team
       });
       sendJson(request, response, 200, {
-        asset: enrichAssets([result.asset], result.checkouts, ledger.locations)[0],
+        asset: enrichAssets([result.asset], result.checkouts, next.locations)[0],
         checkout: result.checkout,
         summary: summarizeFleet(next.assets, next.checkouts, next.locations, {
           eventId: next.eventId,
@@ -1631,26 +1643,33 @@ async function handleRequest(request, response) {
       if (!(await requirePermission(request, response, "fleet:write"))) return;
       const body = await readBody(request);
       const assetId = body.assetId || parseAssetQrPayload(body.payload ?? body.qr);
-      const ledger = await readFleetLedger();
-      const before = ledger.assets.find(a => a.id === (assetId || body.assetId)) ?? null;
-      const result = applyCheckin(ledger, {
-        ...body,
-        assetId,
-        signatureBy: body.signatureBy ?? request.adminSession?.id ?? null,
-        method: body.method || "ios_scan"
-      }, {
-        now: new Date().toISOString()
-      });
-      if (!result.ok) {
-        sendJson(request, response, 400, { error: result.error });
+      let before = null;
+      let result = null;
+      const next = await updatePlatformDoc(ROOT, "fleet", current => {
+        const ledger = normalizeFleetDoc(current);
+        before = ledger.assets.find(a => a.id === (assetId || body.assetId)) ?? null;
+        result = applyCheckin(ledger, {
+          ...body,
+          assetId,
+          signatureBy: body.signatureBy ?? request.adminSession?.id ?? null,
+          method: body.method || "ios_scan"
+        }, {
+          now: new Date().toISOString()
+        });
+        if (!result.ok) return ledger;
+        return {
+          _note: "Fleet/asset checkout ledger (lib/fleet.mjs).",
+          lastUpdated: new Date().toISOString(),
+          eventId: ledger.eventId,
+          assets: result.assets,
+          checkouts: result.checkouts,
+          locations: ledger.locations
+        };
+      }, { fallback: emptyFleetDoc() });
+      if (!result?.ok) {
+        sendJson(request, response, 400, { error: result?.error || "Check-in failed." });
         return;
       }
-      const next = await writeFleetLedger({
-        eventId: ledger.eventId,
-        assets: result.assets,
-        checkouts: result.checkouts,
-        locations: ledger.locations
-      });
       await writeAuditRecord(request, "fleet.checkin", {
         type: "asset",
         id: result.checkout.assetId
@@ -1661,7 +1680,7 @@ async function handleRequest(request, response) {
       });
       sendJson(request, response, 200, {
         asset: result.asset
-          ? enrichAssets([result.asset], result.checkouts, ledger.locations)[0]
+          ? enrichAssets([result.asset], result.checkouts, next.locations)[0]
           : null,
         checkout: result.checkout,
         summary: summarizeFleet(next.assets, next.checkouts, next.locations, {
@@ -1675,28 +1694,37 @@ async function handleRequest(request, response) {
     if (method === "POST" && pathname === "/api/admin/fleet/locations") {
       if (!(await requirePermission(request, response, "fleet:write"))) return;
       const body = await readBody(request);
-      const ledger = await readFleetLedger();
-      const assetId = String(body.assetId ?? "").trim();
-      if (assetId && !ledger.assets.some(a => a.id === assetId)) {
-        sendJson(request, response, 404, { error: `Asset not found: ${assetId}` });
+      let result = null;
+      let notFound = false;
+      const next = await updatePlatformDoc(ROOT, "fleet", current => {
+        const ledger = normalizeFleetDoc(current);
+        const assetId = String(body.assetId ?? "").trim();
+        if (assetId && !ledger.assets.some(a => a.id === assetId)) {
+          notFound = true;
+          return ledger;
+        }
+        result = appendLocation(ledger.locations, body, {
+          idFactory: () => `loc_${randomUUID()}`,
+          now: new Date().toISOString()
+        });
+        if (!result.ok) return ledger;
+        return {
+          _note: "Fleet/asset checkout ledger (lib/fleet.mjs).",
+          lastUpdated: new Date().toISOString(),
+          eventId: ledger.eventId,
+          assets: ledger.assets,
+          checkouts: ledger.checkouts,
+          locations: result.locations.slice(-500)
+        };
+      }, { fallback: emptyFleetDoc() });
+      if (notFound) {
+        sendJson(request, response, 404, { error: `Asset not found: ${String(body.assetId ?? "").trim()}` });
         return;
       }
-      const result = appendLocation(ledger.locations, body, {
-        idFactory: () => `loc_${randomUUID()}`,
-        now: new Date().toISOString()
-      });
-      if (!result.ok) {
-        sendJson(request, response, 400, { error: result.error });
+      if (!result?.ok) {
+        sendJson(request, response, 400, { error: result?.error || "Location update failed." });
         return;
       }
-      // Cap location history so the seed file stays small for a 3-day event.
-      const capped = result.locations.slice(-500);
-      const next = await writeFleetLedger({
-        eventId: ledger.eventId,
-        assets: ledger.assets,
-        checkouts: ledger.checkouts,
-        locations: capped
-      });
       sendJson(request, response, 200, {
         location: result.location,
         lastUpdated: next.lastUpdated
@@ -1923,14 +1951,21 @@ async function handleRequest(request, response) {
 
     sendJson(request, response, 404, { error: "Route not found." });
   } catch (error) {
-    sendJson(request, response, 500, { error: error.message });
+    const status = error.statusCode === 413 ? 413 : 500;
+    sendJson(request, response, status, { error: error.message });
   }
 }
 
 const server = createServer(handleRequest);
+// Festival-scale keep-alive / backlog (tune via env on large hosts).
+server.keepAliveTimeout = Number(process.env.SANDFEST_KEEPALIVE_MS || 65_000);
+server.headersTimeout = Number(process.env.SANDFEST_HEADERS_TIMEOUT_MS || 70_000);
+server.maxHeadersCount = 100;
 
-server.listen(PORT, "127.0.0.1", () => {
-  console.log(`SandFest admin API listening on http://127.0.0.1:${PORT} (storage: ${storage.kind}, auth: ${authMode()})`);
+const listenHost = process.env.SANDFEST_API_HOST || "127.0.0.1";
+server.listen(PORT, listenHost, () => {
+  const dataMode = process.env.SANDFEST_DATABASE_URL ? "postgres+platform" : "file-atomic";
+  console.log(`SandFest admin API listening on http://${listenHost}:${PORT} (storage: ${storage.kind}, data: ${dataMode}, auth: ${authMode()})`);
 });
 
 async function shutdown(signal) {

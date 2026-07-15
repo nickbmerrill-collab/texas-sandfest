@@ -66,3 +66,40 @@ CREATE TABLE IF NOT EXISTS config_snapshots (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS snapshots_target_idx ON config_snapshots (target_type, created_at DESC);
+
+-- Platform ledgers (fleet, revenue, booths, consent, volunteer mirror, hunt def).
+-- Multi-instance safe replacement for ad-hoc JSON files under data/processed/.
+CREATE TABLE IF NOT EXISTS platform_documents (
+  key        TEXT PRIMARY KEY,
+  data       JSONB NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Append-heavy scavenger hunt stamps (unique per attendee × checkpoint).
+CREATE TABLE IF NOT EXISTS hunt_completions (
+  id             TEXT PRIMARY KEY,
+  hunt_id        TEXT NOT NULL,
+  checkpoint_id  TEXT NOT NULL,
+  attendee_ref   TEXT NOT NULL,
+  method         TEXT,
+  points         INTEGER NOT NULL DEFAULT 0,
+  data           JSONB NOT NULL,
+  completed_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (hunt_id, checkpoint_id, attendee_ref)
+);
+CREATE INDEX IF NOT EXISTS hunt_completions_attendee_idx ON hunt_completions (attendee_ref);
+CREATE INDEX IF NOT EXISTS hunt_completions_hunt_idx ON hunt_completions (hunt_id, completed_at DESC);
+
+-- People's Choice: one active vote per attendee per event.
+CREATE TABLE IF NOT EXISTS peoples_choice_votes (
+  id            TEXT PRIMARY KEY,
+  event_id      TEXT NOT NULL,
+  entry_id      TEXT NOT NULL,
+  attendee_ref  TEXT NOT NULL,
+  channel       TEXT,
+  data          JSONB NOT NULL,
+  voted_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (event_id, attendee_ref)
+);
+CREATE INDEX IF NOT EXISTS peoples_choice_entry_idx ON peoples_choice_votes (event_id, entry_id);
+CREATE INDEX IF NOT EXISTS peoples_choice_voted_idx ON peoples_choice_votes (voted_at DESC);
