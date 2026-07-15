@@ -13,6 +13,7 @@ Standalone prototype for turning Texas SandFest into a unified AI-powered visito
 - Stripe-ready ticket ordering scaffold with Apple Pay, VIP, sponsor, and review-gated raffle planning.
 - Configurable admin API scaffold for Heyelab-hosted ticket and sponsorship settings.
 - Event-day emergency alert API and admin publishing controls.
+- Unified revenue ledger (`lib/revenue.mjs`) with a role-guarded `GET /api/admin/revenue` dashboard endpoint that normalizes Stripe/Eventeny/Square/manual revenue by category and source and tracks fees + bank reconciliation. Seeded from `data/processed/revenue-ledger.json` until live payment feeds are wired.
 - Installable/offline-capable public web shell for spotty event-day connectivity.
 
 ## Commands
@@ -40,6 +41,9 @@ Public crawl output lives in `data/processed/`, with raw evidence snapshots in `
 
 ## Planning docs
 
+- `docs/ultimate-festival-platform.md` — master blueprint: build-vs-buy per module, phased roadmap, budgets
+- `docs/research/` — eight cited research briefs (volunteer, sponsor/vendor+mapping, sculptor/wayfinding, fleet, RFID/cashless/ticketing, connectivity, gamification, marketing/comms)
+- `docs/incoming-access-intake.md` — runbook for incoming documents and logins/credentials
 - `docs/architecture.md`
 - `docs/ios-app-plan.md`
 - `docs/app-data-contract.md`
@@ -65,6 +69,7 @@ curl -I http://127.0.0.1:8788/api/public/alert
 curl http://127.0.0.1:8788/api/public/alert
 curl -H "Authorization: Bearer dev-admin-token-change-me" http://127.0.0.1:8788/api/admin/session
 curl -H "Authorization: Bearer dev-admin-token-change-me" http://127.0.0.1:8788/api/admin/deployment
+curl -H "Authorization: Bearer dev-admin-token-change-me" http://127.0.0.1:8788/api/admin/revenue
 curl -H "Authorization: Bearer dev-admin-token-change-me" http://127.0.0.1:8788/api/admin/config
 curl -H "Authorization: Bearer dev-admin-token-change-me" http://127.0.0.1:8788/api/admin/audit
 curl -H "Authorization: Bearer dev-admin-token-change-me" http://127.0.0.1:8788/api/admin/snapshots

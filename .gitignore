@@ -5,6 +5,16 @@ node_modules/
 dist/
 data/incoming/quickbooks/*.json
 data/incoming/quickbooks/*.token
+
+# Local-only credential/secret staging — never commit secrets.
+# The whole credentials drop folder is ignored except its README.
+data/incoming/credentials/*
+!data/incoming/credentials/README.md
+.secrets/
+*.secret
+*.pem
+*.key
+!lib/**/*.key
 *.xcuserdata/
 DerivedData/
 .DS_Store
