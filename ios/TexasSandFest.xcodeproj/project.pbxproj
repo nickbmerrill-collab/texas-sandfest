@@ -32,6 +32,7 @@
 		DDB466D90791E15F6AF8A42A /* TexasSandFestApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FE52C12D256F44D441A73E8 /* TexasSandFestApp.swift */; };
 		E7574A61C6B9AB35290D8C46 /* FavoritesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E93E5F8B3D5C0703A1883D4 /* FavoritesStore.swift */; };
 		5C012E0F1A2B3C4D5E6F7002 /* SculptorsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C012E0F1A2B3C4D5E6F7001 /* SculptorsView.swift */; };
+		5C012E0F1A2B3C4D5E6F7004 /* FleetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C012E0F1A2B3C4D5E6F7003 /* FleetView.swift */; };
 		F6D2E038A9356A9BCC926591 /* NowPlayingBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5ECB1545CEE34485C489CBAD /* NowPlayingBanner.swift */; };
 		FD939155C5210E2D22B680BB /* AdminSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35FA2B9DDE9ACE64C9208A4F /* AdminSettingsView.swift */; };
 /* End PBXBuildFile section */
@@ -55,6 +56,7 @@
 		7C1DC0766A4A90E00ACE8C0F /* UserTicketsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserTicketsStore.swift; sourceTree = "<group>"; };
 		7E93E5F8B3D5C0703A1883D4 /* FavoritesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesStore.swift; sourceTree = "<group>"; };
 		5C012E0F1A2B3C4D5E6F7001 /* SculptorsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SculptorsView.swift; sourceTree = "<group>"; };
+		5C012E0F1A2B3C4D5E6F7003 /* FleetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FleetView.swift; sourceTree = "<group>"; };
 		806C8EDE8EE727731CC8DF59 /* SandFestTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SandFestTheme.swift; sourceTree = "<group>"; };
 		88A2BE4EDB3F7DE07E019A64 /* AdminFinanceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminFinanceView.swift; sourceTree = "<group>"; };
 		8A17B986F097F115828A9018 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -106,6 +108,7 @@
 				4527D8728096BF89BE1EA3FD /* ConciergeView.swift */,
 				7E93E5F8B3D5C0703A1883D4 /* FavoritesStore.swift */,
 				5C012E0F1A2B3C4D5E6F7001 /* SculptorsView.swift */,
+				5C012E0F1A2B3C4D5E6F7003 /* FleetView.swift */,
 				250D6E54785B8CFE8754310F /* Info.plist */,
 				928D97886D4DD8F1C3C282D4 /* LineupView.swift */,
 				53F78C64F4BD9FA6190D18D5 /* LiveBeachView.swift */,
@@ -204,6 +207,7 @@
 				62ED55E5F91CFE6F6DB71E07 /* ConciergeView.swift in Sources */,
 				E7574A61C6B9AB35290D8C46 /* FavoritesStore.swift in Sources */,
 				5C012E0F1A2B3C4D5E6F7002 /* SculptorsView.swift in Sources */,
+				5C012E0F1A2B3C4D5E6F7004 /* FleetView.swift in Sources */,
 				9B9434A8D8CFD40925AA92C9 /* LineupView.swift in Sources */,
 				6B2A9DBB72133C30946A1850 /* LiveBeachView.swift in Sources */,
 				D860CF43C333122DC21735DF /* LiveTimeline.swift in Sources */,

@@ -892,6 +892,47 @@ app.innerHTML = `
           </div>
         </div>
       </div>
+      <div class="admin-fleet-panel">
+        <div class="editor-heading">
+          <p class="eyebrow">Fleet checkout</p>
+          <h3>Golf carts, UTVs, generators &amp; equipment</h3>
+        </div>
+        <div class="admin-fleet-actions">
+          <button id="admin-load-fleet" class="button secondary" data-requires-permission="fleet:read" type="button">Load fleet</button>
+        </div>
+        <p id="admin-fleet-updated" class="admin-revenue-updated">3-day checkout log for event vehicles and gear. QR payload is <code>tsf:asset:&lt;id&gt;</code>. Load config, or click Load fleet.</p>
+        <div id="admin-fleet-kpis" class="admin-revenue-kpis">
+          <article class="empty-state"><span>No fleet loaded.</span></article>
+        </div>
+        <div class="admin-fleet-breakdown">
+          <div>
+            <strong>Assets</strong>
+            <div id="admin-fleet-assets" class="admin-fleet-rows"></div>
+          </div>
+          <div>
+            <strong>Open checkouts</strong>
+            <div id="admin-fleet-open" class="admin-fleet-rows"></div>
+          </div>
+        </div>
+        <div class="admin-fleet-checkout-form" data-requires-permission="fleet:write">
+          <div class="editor-heading">
+            <p class="eyebrow">Quick action</p>
+            <h3>Check out / check in</h3>
+          </div>
+          <div class="admin-fleet-form-grid">
+            <label>Asset ID <input id="fleet-asset-id" type="text" placeholder="cart-02" autocomplete="off" /></label>
+            <label>Checked out to <input id="fleet-checked-out-to" type="text" placeholder="Name or radio callsign" autocomplete="off" /></label>
+            <label>Team <input id="fleet-team" type="text" placeholder="site-ops" autocomplete="off" /></label>
+            <label>Start charge % <input id="fleet-start-charge" type="number" min="0" max="100" placeholder="100" /></label>
+            <label>End charge % <input id="fleet-end-charge" type="number" min="0" max="100" placeholder="55" /></label>
+            <label>Damage notes <input id="fleet-damage" type="text" placeholder="Optional on check-in" autocomplete="off" /></label>
+          </div>
+          <div class="admin-fleet-form-actions">
+            <button id="admin-fleet-checkout" class="button primary" data-requires-permission="fleet:write" type="button">Check out</button>
+            <button id="admin-fleet-checkin" class="button secondary" data-requires-permission="fleet:write" type="button">Check in</button>
+          </div>
+        </div>
+      </div>
       <div class="admin-editor-layout">
         <div>
           <div class="editor-heading">
@@ -2003,6 +2044,146 @@ async function loadAdminRevenue({ quiet = false } = {}) {
   }
 }
 
+function fleetStatusLabel(status) {
+  return String(status || "unknown").replace(/_/g, " ");
+}
+
+function renderAdminFleet(payload) {
+  const s = payload.summary;
+  const kpis = document.querySelector("#admin-fleet-kpis");
+  const updated = document.querySelector("#admin-fleet-updated");
+  const assetsEl = document.querySelector("#admin-fleet-assets");
+  const openEl = document.querySelector("#admin-fleet-open");
+  if (!kpis || !s) return;
+  kpis.innerHTML = [
+    revenueKpiCard("Assets", `${s.totals.assets}`, `${s.totals.available} available`),
+    revenueKpiCard("Checked out", `${s.totals.openCheckouts}`, Object.entries(s.teams || {}).map(([t, n]) => `${t}: ${n}`).join(" · ") || "none open"),
+    revenueKpiCard("Maintenance", `${s.totals.maintenance}`, s.totals.damageReports ? `${s.totals.damageReports} damage reports` : "no damage"),
+    revenueKpiCard("Trackers", `${s.totals.withLiveLocation}/${s.totals.withTracker}`, "live / tagged"),
+    revenueKpiCard("Rental cost", adminMoney(s.totals.rentalCostCents), "seed pool")
+  ].join("");
+
+  assetsEl.innerHTML = (payload.assets || []).map(asset => {
+    const who = asset.activeCheckout
+      ? `${asset.activeCheckout.checkedOutTo} · ${asset.activeCheckout.team || "no team"}`
+      : fleetStatusLabel(asset.status);
+    const loc = asset.lastLocation?.beachMarker
+      || (asset.lastLocation?.lat != null ? `${asset.lastLocation.lat.toFixed(4)}, ${asset.lastLocation.lng.toFixed(4)}` : asset.homeZoneId || "—");
+    return `
+      <article data-fleet-asset="${asset.id}" class="fleet-asset-row status-${asset.status}">
+        <div>
+          <strong>${asset.label}</strong>
+          <span>${asset.type.replace(/_/g, " ")} · ${asset.id}${asset.qrPayload ? ` · ${asset.qrPayload}` : ""}</span>
+        </div>
+        <b>${fleetStatusLabel(asset.status)}</b>
+        <em>${who}</em>
+        <i>${loc}</i>
+      </article>`;
+  }).join("") || '<article class="empty-state"><span>No assets.</span></article>';
+
+  openEl.innerHTML = (payload.openCheckouts || []).map(co => `
+    <article>
+      <div>
+        <strong>${co.assetId}</strong>
+        <span>${co.checkedOutTo} · ${co.team || "unassigned"}</span>
+      </div>
+      <b>${co.startCondition || "—"}</b>
+      <em>${co.startChargePct != null ? `${co.startChargePct}%` : "—"}</em>
+      <i>${co.checkOutAt ? new Date(co.checkOutAt).toLocaleString() : ""}</i>
+    </article>
+  `).join("") || '<article class="empty-state"><span>No open checkouts.</span></article>';
+
+  // Clicking a row fills the quick-action form.
+  assetsEl.querySelectorAll("[data-fleet-asset]").forEach(row => {
+    row.addEventListener("click", () => {
+      const input = document.querySelector("#fleet-asset-id");
+      if (input) input.value = row.dataset.fleetAsset;
+    });
+  });
+
+  updated.textContent = payload.lastUpdated
+    ? `Fleet updated ${new Date(payload.lastUpdated).toLocaleString()} · ${payload.assets.length} assets · ${s.totals.openCheckouts} open.`
+    : "Fleet loaded.";
+}
+
+async function loadAdminFleet({ quiet = false } = {}) {
+  const button = document.querySelector("#admin-load-fleet");
+  if (button) button.disabled = true;
+  try {
+    const data = await adminFetch("/api/admin/fleet");
+    renderAdminFleet(data);
+    if (!quiet) setAdminStatus(`Loaded fleet: ${data.summary.totals.assets} assets, ${data.summary.totals.openCheckouts} checked out.`, "ok");
+    return data;
+  } catch (error) {
+    if (!quiet) setAdminStatus(`${error.message}. Fleet needs the fleet:read permission and a running backend.`, "error");
+    throw error;
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+function fleetFormValues() {
+  return {
+    assetId: document.querySelector("#fleet-asset-id")?.value?.trim() || "",
+    checkedOutTo: document.querySelector("#fleet-checked-out-to")?.value?.trim() || "",
+    team: document.querySelector("#fleet-team")?.value?.trim() || "",
+    startChargePct: document.querySelector("#fleet-start-charge")?.value,
+    endChargePct: document.querySelector("#fleet-end-charge")?.value,
+    damageReport: document.querySelector("#fleet-damage")?.value?.trim() || null
+  };
+}
+
+async function adminFleetCheckout() {
+  const button = document.querySelector("#admin-fleet-checkout");
+  if (button) button.disabled = true;
+  try {
+    const values = fleetFormValues();
+    if (!values.assetId) throw new Error("Asset ID is required.");
+    if (!values.checkedOutTo) throw new Error("Checked out to is required.");
+    const data = await adminFetch("/api/admin/fleet/checkout", {
+      method: "POST",
+      body: JSON.stringify({
+        assetId: values.assetId,
+        checkedOutTo: values.checkedOutTo,
+        team: values.team,
+        startChargePct: values.startChargePct === "" ? null : Number(values.startChargePct),
+        method: "manual"
+      })
+    });
+    await loadAdminFleet({ quiet: true });
+    setAdminStatus(`Checked out ${data.asset.label} to ${data.checkout.checkedOutTo}.`, "ok");
+  } catch (error) {
+    setAdminStatus(error.message, "error");
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+async function adminFleetCheckin() {
+  const button = document.querySelector("#admin-fleet-checkin");
+  if (button) button.disabled = true;
+  try {
+    const values = fleetFormValues();
+    if (!values.assetId) throw new Error("Asset ID is required.");
+    const data = await adminFetch("/api/admin/fleet/checkin", {
+      method: "POST",
+      body: JSON.stringify({
+        assetId: values.assetId,
+        endChargePct: values.endChargePct === "" ? null : Number(values.endChargePct),
+        damageReport: values.damageReport || null,
+        endCondition: values.damageReport ? "damaged" : "good",
+        method: "manual"
+      })
+    });
+    await loadAdminFleet({ quiet: true });
+    setAdminStatus(`Checked in ${data.checkout.assetId}${data.checkout.damageReport ? " (damage noted)" : ""}.`, "ok");
+  } catch (error) {
+    setAdminStatus(error.message, "error");
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
 async function loadAdminTransactions() {
   const button = document.querySelector("#admin-load-orders");
   const orderList = document.querySelector("#admin-order-list");
@@ -2174,6 +2355,9 @@ document.querySelector("#admin-load-config").addEventListener("click", async () 
     if (adminCan("revenue:read")) {
       await loadAdminRevenue({ quiet: true }).catch(() => {});
     }
+    if (adminCan("fleet:read")) {
+      await loadAdminFleet({ quiet: true }).catch(() => {});
+    }
     setAdminStatus(`Loaded ${adminConfigState.tickets.products.length} ticket products and ${adminConfigState.config.sponsorPackages.length} sponsor packages.`, "ok");
   } catch (error) {
     setAdminStatus(`${error.message}. Confirm npm run api:dev is running and the token matches SANDFEST_ADMIN_API_TOKEN.`, "error");
@@ -2210,6 +2394,9 @@ document.querySelector("#admin-clear-alert").addEventListener("click", async () 
 
 document.querySelector("#admin-load-orders").addEventListener("click", loadAdminTransactions);
 document.querySelector("#admin-load-revenue").addEventListener("click", () => loadAdminRevenue());
+document.querySelector("#admin-load-fleet")?.addEventListener("click", () => loadAdminFleet());
+document.querySelector("#admin-fleet-checkout")?.addEventListener("click", () => adminFleetCheckout());
+document.querySelector("#admin-fleet-checkin")?.addEventListener("click", () => adminFleetCheckin());
 
 initSiteMode();
 initSculptors();

@@ -2797,6 +2797,127 @@ time {
   }
 }
 
+/* Fleet dashboard (admin console) */
+.admin-fleet-panel {
+  margin-top: 28px;
+  display: grid;
+  gap: 16px;
+}
+.admin-fleet-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.admin-fleet-breakdown {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 18px;
+}
+.admin-fleet-breakdown > div > strong {
+  display: block;
+  margin-bottom: 8px;
+}
+.admin-fleet-rows {
+  display: grid;
+  gap: 8px;
+  max-height: 360px;
+  overflow: auto;
+}
+.admin-fleet-rows article {
+  display: grid;
+  grid-template-columns: 1.4fr auto auto auto;
+  gap: 10px;
+  align-items: center;
+  background: var(--foam);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.admin-fleet-rows article.fleet-asset-row {
+  cursor: pointer;
+}
+.admin-fleet-rows article.fleet-asset-row:hover {
+  border-color: var(--gulf);
+  background: var(--white);
+}
+.admin-fleet-rows article div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.admin-fleet-rows article strong {
+  color: var(--deep);
+}
+.admin-fleet-rows article span {
+  color: var(--muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-fleet-rows b {
+  text-transform: capitalize;
+  color: var(--gulf);
+  font-size: 13px;
+}
+.admin-fleet-rows em,
+.admin-fleet-rows i {
+  color: var(--muted);
+  font-style: normal;
+  font-size: 12px;
+}
+.admin-fleet-rows .status-checked_out b { color: var(--coral); }
+.admin-fleet-rows .status-maintenance b { color: #b45309; }
+.admin-fleet-rows .status-available b { color: var(--gulf); }
+.admin-fleet-checkout-form {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+.admin-fleet-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+.admin-fleet-form-grid label {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.admin-fleet-form-grid input {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+  color: var(--ink);
+  background: var(--foam);
+  text-transform: none;
+  letter-spacing: normal;
+}
+.admin-fleet-form-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+@media (max-width: 900px) {
+  .admin-fleet-breakdown {
+    grid-template-columns: 1fr;
+  }
+  .admin-fleet-rows article {
+    grid-template-columns: 1fr auto;
+  }
+  .admin-fleet-rows article em,
+  .admin-fleet-rows article i {
+    grid-column: 1 / -1;
+  }
+}
+
 /* Sculptors section + corridor map */
 .sculptors-section .sculptor-count {
   align-self: center;

@@ -88,6 +88,10 @@ struct AdminRootView: View {
                 .tabItem { Label("Command", systemImage: "rectangle.3.group") }
                 .tag(AdminTab.command)
 
+            FleetView()
+                .tabItem { Label("Fleet", systemImage: "car.side") }
+                .tag(AdminTab.fleet)
+
             OpsView()
                 .tabItem { Label("Incidents", systemImage: "radio") }
                 .tag(AdminTab.incidents)
@@ -133,6 +137,7 @@ enum CustomerTab {
 
 enum AdminTab {
     case command
+    case fleet
     case incidents
     case partners
     case finance

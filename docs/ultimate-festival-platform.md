@@ -113,4 +113,7 @@ Four features built and verified (DOM + `npm run build`):
 3. **Sculpture Passport** scavenger hunt — collect a stamp per sculpture, progress ring, prize-drawing finisher (web + localStorage now; native iOS QR-scan → backend is the follow-on).
 4. **Public/ops split** — a **Visitor / Operations** header toggle that keeps the visitor site clean and moves ops/admin/finance/build surfaces behind Operations mode (mirrors the iOS Customer/Admin switch; persisted).
 
-**Next up:** native iOS versions of the map (Mapbox/MapKit) + passport (QR scan → backend completion); consent-capture at checkout + Twilio SMS; fleet + volunteer-mirror modules; and swapping the revenue ledger's seed for live payment feeds once Stripe/Eventeny/QuickBooks logins arrive.
+**Also shipped this cycle:**
+5. **Fleet/asset checkout** — `lib/fleet.mjs` (normalize + check-out/in transitions) + seed `data/processed/fleet.json` + role-guarded admin API (`GET /api/admin/fleet`, resolve-qr, checkout, checkin, locations) with `fleet:read`/`fleet:write` + web ops panel + native iOS Admin → Fleet tab (QR via existing `QRScannerView`, offline-first local store). QR payload: `tsf:asset:<id>`.
+
+**Next up:** volunteer-coverage ops view; consent-capture at checkout + Twilio SMS scaffold; native Mapbox/MapKit map layer; passport QR → backend completion; swap revenue seed for live Stripe/Eventeny/QuickBooks feeds when logins arrive.

@@ -1,12 +1,23 @@
 import { createServer } from "node:http";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadDotEnv } from "../lib/load-env.mjs";
 import { createStorage } from "../lib/storage.mjs";
 import { authMode, authModeIsJwt, resolveSession } from "../lib/auth.mjs";
 import { summarizeLedger } from "../lib/revenue.mjs";
+import {
+  applyCheckin,
+  applyCheckout,
+  appendLocation,
+  enrichAssets,
+  normalizeAsset,
+  normalizeCheckout,
+  normalizeLocation,
+  parseAssetQrPayload,
+  summarizeFleet
+} from "../lib/fleet.mjs";
 
 await loadDotEnv();
 
@@ -98,6 +109,8 @@ const rolePermissions = {
     "orders:read",
     "payments:read",
     "revenue:read",
+    "fleet:read",
+    "fleet:write",
     "fulfillment:read",
     "fulfillment:update",
     "audit:read",
@@ -129,6 +142,7 @@ const rolePermissions = {
     "orders:read",
     "payments:read",
     "revenue:read",
+    "fleet:read",
     "fulfillment:read",
     "audit:read",
     "snapshot:read"
@@ -139,6 +153,7 @@ const rolePermissions = {
     "orders:read",
     "payments:read",
     "revenue:read",
+    "fleet:read",
     "fulfillment:read",
     "audit:read",
     "snapshot:read"
@@ -170,6 +185,65 @@ async function readRevenueLedger() {
   } catch {
     return { lastUpdated: null, currency: "usd", expectedAttendance: null, ticketCapacity: null, entries: [] };
   }
+}
+
+// Phase 1 fleet ledger. Same file-backed pattern as revenue until Postgres
+// storage grows a dedicated fleet table. Check-out/in mutations rewrite the
+// whole document (small N for a 3-day rental pool).
+const FLEET_PATH = path.join(ROOT, "data", "processed", "fleet.json");
+async function readFleetLedger() {
+  try {
+    const ledger = JSON.parse(await readFile(FLEET_PATH, "utf8"));
+    return {
+      lastUpdated: ledger.lastUpdated ?? null,
+      eventId: ledger.eventId ?? "texas-sandfest-2026",
+      assets: Array.isArray(ledger.assets) ? ledger.assets.map(normalizeAsset) : [],
+      checkouts: Array.isArray(ledger.checkouts) ? ledger.checkouts.map(normalizeCheckout) : [],
+      locations: Array.isArray(ledger.locations) ? ledger.locations.map(normalizeLocation) : []
+    };
+  } catch {
+    return {
+      lastUpdated: null,
+      eventId: "texas-sandfest-2026",
+      assets: [],
+      checkouts: [],
+      locations: []
+    };
+  }
+}
+
+async function writeFleetLedger(ledger) {
+  await mkdir(path.dirname(FLEET_PATH), { recursive: true });
+  const payload = {
+    _note: "Fleet/asset checkout ledger (lib/fleet.mjs). Mutated by admin check-out/in and location pings.",
+    lastUpdated: new Date().toISOString(),
+    eventId: ledger.eventId ?? "texas-sandfest-2026",
+    assets: ledger.assets ?? [],
+    checkouts: ledger.checkouts ?? [],
+    locations: ledger.locations ?? []
+  };
+  await writeFile(FLEET_PATH, `${JSON.stringify(payload, null, 2)}\n`);
+  return payload;
+}
+
+function fleetDashboardPayload(ledger) {
+  const summary = summarizeFleet(ledger.assets, ledger.checkouts, ledger.locations, {
+    eventId: ledger.eventId,
+    generatedAt: ledger.lastUpdated
+  });
+  const assets = enrichAssets(ledger.assets, ledger.checkouts, ledger.locations);
+  const openCheckouts = assets
+    .filter(a => a.activeCheckout)
+    .map(a => a.activeCheckout);
+  return {
+    lastUpdated: ledger.lastUpdated,
+    eventId: ledger.eventId,
+    summary,
+    assets,
+    openCheckouts,
+    checkouts: ledger.checkouts,
+    locations: ledger.locations.slice(-50)
+  };
 }
 
 function deploymentProfile() {
@@ -1008,6 +1082,176 @@ async function handleRequest(request, response) {
         lastUpdated: ledger.lastUpdated,
         summary,
         entries: ledger.entries
+      });
+      return;
+    }
+
+    // Fleet / equipment checkout (Phase 1). See docs/research/04-fleet-asset-tracking.md.
+    if (method === "GET" && pathname === "/api/admin/fleet") {
+      if (!(await requirePermission(request, response, "fleet:read"))) return;
+      const ledger = await readFleetLedger();
+      sendJson(request, response, 200, fleetDashboardPayload(ledger));
+      return;
+    }
+
+    const fleetAssetMatch = pathname.match(/^\/api\/admin\/fleet\/assets\/([^/]+)$/);
+    if (method === "GET" && fleetAssetMatch) {
+      if (!(await requirePermission(request, response, "fleet:read"))) return;
+      const assetId = decodeURIComponent(fleetAssetMatch[1]);
+      const ledger = await readFleetLedger();
+      const assets = enrichAssets(ledger.assets, ledger.checkouts, ledger.locations);
+      const asset = assets.find(a => a.id === assetId);
+      if (!asset) {
+        sendJson(request, response, 404, { error: `Asset not found: ${assetId}` });
+        return;
+      }
+      const history = ledger.checkouts
+        .filter(c => c.assetId === assetId)
+        .sort((a, b) => String(b.checkOutAt).localeCompare(String(a.checkOutAt)));
+      const locations = ledger.locations
+        .filter(l => l.assetId === assetId)
+        .sort((a, b) => String(b.at).localeCompare(String(a.at)))
+        .slice(0, 20);
+      sendJson(request, response, 200, { asset, history, locations });
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/admin/fleet/resolve-qr") {
+      if (!(await requirePermission(request, response, "fleet:read"))) return;
+      const body = await readBody(request);
+      const assetId = parseAssetQrPayload(body.payload ?? body.qr ?? body.code);
+      if (!assetId) {
+        sendJson(request, response, 400, { error: "Unrecognized asset QR payload. Expected tsf:asset:<id>." });
+        return;
+      }
+      const ledger = await readFleetLedger();
+      const assets = enrichAssets(ledger.assets, ledger.checkouts, ledger.locations);
+      const asset = assets.find(a => a.id === assetId);
+      if (!asset) {
+        sendJson(request, response, 404, { error: `Asset not found for QR: ${assetId}`, assetId });
+        return;
+      }
+      sendJson(request, response, 200, { assetId, asset });
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/admin/fleet/checkout") {
+      if (!(await requirePermission(request, response, "fleet:write"))) return;
+      const body = await readBody(request);
+      const assetId = body.assetId || parseAssetQrPayload(body.payload ?? body.qr);
+      const ledger = await readFleetLedger();
+      const before = ledger.assets.find(a => a.id === assetId) ?? null;
+      const result = applyCheckout(ledger, {
+        ...body,
+        assetId,
+        signatureBy: body.signatureBy ?? request.adminSession?.id ?? null,
+        method: body.method || "ios_scan"
+      }, {
+        idFactory: () => `co_${randomUUID()}`,
+        now: new Date().toISOString()
+      });
+      if (!result.ok) {
+        sendJson(request, response, 400, { error: result.error });
+        return;
+      }
+      const next = await writeFleetLedger({
+        eventId: ledger.eventId,
+        assets: result.assets,
+        checkouts: result.checkouts,
+        locations: ledger.locations
+      });
+      await writeAuditRecord(request, "fleet.checkout", {
+        type: "asset",
+        id: result.asset.id
+      }, before, result.asset, {
+        checkoutId: result.checkout.id,
+        checkedOutTo: result.checkout.checkedOutTo,
+        team: result.checkout.team
+      });
+      sendJson(request, response, 200, {
+        asset: enrichAssets([result.asset], result.checkouts, ledger.locations)[0],
+        checkout: result.checkout,
+        summary: summarizeFleet(next.assets, next.checkouts, next.locations, {
+          eventId: next.eventId,
+          generatedAt: next.lastUpdated
+        })
+      });
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/admin/fleet/checkin") {
+      if (!(await requirePermission(request, response, "fleet:write"))) return;
+      const body = await readBody(request);
+      const assetId = body.assetId || parseAssetQrPayload(body.payload ?? body.qr);
+      const ledger = await readFleetLedger();
+      const before = ledger.assets.find(a => a.id === (assetId || body.assetId)) ?? null;
+      const result = applyCheckin(ledger, {
+        ...body,
+        assetId,
+        signatureBy: body.signatureBy ?? request.adminSession?.id ?? null,
+        method: body.method || "ios_scan"
+      }, {
+        now: new Date().toISOString()
+      });
+      if (!result.ok) {
+        sendJson(request, response, 400, { error: result.error });
+        return;
+      }
+      const next = await writeFleetLedger({
+        eventId: ledger.eventId,
+        assets: result.assets,
+        checkouts: result.checkouts,
+        locations: ledger.locations
+      });
+      await writeAuditRecord(request, "fleet.checkin", {
+        type: "asset",
+        id: result.checkout.assetId
+      }, before, result.asset, {
+        checkoutId: result.checkout.id,
+        endCondition: result.checkout.endCondition,
+        damageReport: result.checkout.damageReport
+      });
+      sendJson(request, response, 200, {
+        asset: result.asset
+          ? enrichAssets([result.asset], result.checkouts, ledger.locations)[0]
+          : null,
+        checkout: result.checkout,
+        summary: summarizeFleet(next.assets, next.checkouts, next.locations, {
+          eventId: next.eventId,
+          generatedAt: next.lastUpdated
+        })
+      });
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/admin/fleet/locations") {
+      if (!(await requirePermission(request, response, "fleet:write"))) return;
+      const body = await readBody(request);
+      const ledger = await readFleetLedger();
+      const assetId = String(body.assetId ?? "").trim();
+      if (assetId && !ledger.assets.some(a => a.id === assetId)) {
+        sendJson(request, response, 404, { error: `Asset not found: ${assetId}` });
+        return;
+      }
+      const result = appendLocation(ledger.locations, body, {
+        idFactory: () => `loc_${randomUUID()}`,
+        now: new Date().toISOString()
+      });
+      if (!result.ok) {
+        sendJson(request, response, 400, { error: result.error });
+        return;
+      }
+      // Cap location history so the seed file stays small for a 3-day event.
+      const capped = result.locations.slice(-500);
+      const next = await writeFleetLedger({
+        eventId: ledger.eventId,
+        assets: ledger.assets,
+        checkouts: ledger.checkouts,
+        locations: capped
+      });
+      sendJson(request, response, 200, {
+        location: result.location,
+        lastUpdated: next.lastUpdated
       });
       return;
     }
