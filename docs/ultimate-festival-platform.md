@@ -115,5 +115,6 @@ Four features built and verified (DOM + `npm run build`):
 
 **Also shipped this cycle:**
 5. **Fleet/asset checkout** — `lib/fleet.mjs` (normalize + check-out/in transitions) + seed `data/processed/fleet.json` + role-guarded admin API (`GET /api/admin/fleet`, resolve-qr, checkout, checkin, locations) with `fleet:read`/`fleet:write` + web ops panel + native iOS Admin → Fleet tab (QR via existing `QRScannerView`, offline-first local store). QR payload: `tsf:asset:<id>`.
+6. **Volunteer coverage mirror** — `lib/volunteers.mjs` + seed `data/processed/volunteer-mirror.json` + `GET /api/admin/volunteers` / `.../coverage` (`volunteers:read`) + web ops panel (zone fill, understaffed shifts, hours). Buy VolunteerLocal; mirror only.
 
-**Next up:** volunteer-coverage ops view; consent-capture at checkout + Twilio SMS scaffold; native Mapbox/MapKit map layer; passport QR → backend completion; swap revenue seed for live Stripe/Eventeny/QuickBooks feeds when logins arrive.
+**Next up:** consent-capture at checkout + Twilio SMS scaffold; native Mapbox/MapKit map layer; passport QR → backend completion; swap revenue/volunteer seeds for live feeds when logins arrive.

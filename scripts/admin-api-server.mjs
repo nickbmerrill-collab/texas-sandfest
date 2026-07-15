@@ -18,6 +18,13 @@ import {
   parseAssetQrPayload,
   summarizeFleet
 } from "../lib/fleet.mjs";
+import {
+  enrichShifts,
+  normalizeHourLog,
+  normalizeShift,
+  normalizeVolunteer,
+  summarizeVolunteers
+} from "../lib/volunteers.mjs";
 
 await loadDotEnv();
 
@@ -111,6 +118,7 @@ const rolePermissions = {
     "revenue:read",
     "fleet:read",
     "fleet:write",
+    "volunteers:read",
     "fulfillment:read",
     "fulfillment:update",
     "audit:read",
@@ -143,6 +151,7 @@ const rolePermissions = {
     "payments:read",
     "revenue:read",
     "fleet:read",
+    "volunteers:read",
     "fulfillment:read",
     "audit:read",
     "snapshot:read"
@@ -154,6 +163,7 @@ const rolePermissions = {
     "payments:read",
     "revenue:read",
     "fleet:read",
+    "volunteers:read",
     "fulfillment:read",
     "audit:read",
     "snapshot:read"
@@ -243,6 +253,62 @@ function fleetDashboardPayload(ledger) {
     openCheckouts,
     checkouts: ledger.checkouts,
     locations: ledger.locations.slice(-50)
+  };
+}
+
+// Phase 1 volunteer mirror. VolunteerLocal owns signup; we mirror roster/shifts/
+// hours into ops coverage. Read-only until a live CSV/API sync lands.
+const VOLUNTEER_MIRROR_PATH = path.join(ROOT, "data", "processed", "volunteer-mirror.json");
+async function readVolunteerMirror() {
+  try {
+    const mirror = JSON.parse(await readFile(VOLUNTEER_MIRROR_PATH, "utf8"));
+    return {
+      lastUpdated: mirror.lastUpdated ?? null,
+      eventId: mirror.eventId ?? "texas-sandfest-2026",
+      source: mirror.source ?? "seed",
+      zoneLabels: mirror.zoneLabels ?? {},
+      volunteers: Array.isArray(mirror.volunteers) ? mirror.volunteers.map(normalizeVolunteer) : [],
+      shifts: Array.isArray(mirror.shifts) ? mirror.shifts.map(normalizeShift) : [],
+      hourLogs: Array.isArray(mirror.hourLogs) ? mirror.hourLogs.map(normalizeHourLog) : []
+    };
+  } catch {
+    return {
+      lastUpdated: null,
+      eventId: "texas-sandfest-2026",
+      source: "empty",
+      zoneLabels: {},
+      volunteers: [],
+      shifts: [],
+      hourLogs: []
+    };
+  }
+}
+
+function volunteerDashboardPayload(mirror) {
+  const summary = summarizeVolunteers(mirror.volunteers, mirror.shifts, mirror.hourLogs, {
+    eventId: mirror.eventId,
+    source: mirror.source,
+    generatedAt: mirror.lastUpdated,
+    zoneLabels: mirror.zoneLabels
+  });
+  return {
+    lastUpdated: mirror.lastUpdated,
+    eventId: mirror.eventId,
+    source: mirror.source,
+    summary,
+    // Flat coverage rows for iOS VolunteerCoverage tiles (id/zone/filled/needed).
+    coverage: summary.zones.map(z => ({
+      id: z.id,
+      zone: z.zone,
+      filled: z.filled,
+      needed: z.needed,
+      fillPct: z.fillPct,
+      status: z.status,
+      openGaps: z.openGaps
+    })),
+    shifts: enrichShifts(mirror.shifts),
+    volunteers: mirror.volunteers,
+    hourLogs: mirror.hourLogs
   };
 }
 
@@ -1252,6 +1318,28 @@ async function handleRequest(request, response) {
       sendJson(request, response, 200, {
         location: result.location,
         lastUpdated: next.lastUpdated
+      });
+      return;
+    }
+
+    // Volunteer mirror / coverage (Phase 1). Buy VolunteerLocal; mirror into ops.
+    if (method === "GET" && pathname === "/api/admin/volunteers") {
+      if (!(await requirePermission(request, response, "volunteers:read"))) return;
+      const mirror = await readVolunteerMirror();
+      sendJson(request, response, 200, volunteerDashboardPayload(mirror));
+      return;
+    }
+
+    if (method === "GET" && pathname === "/api/admin/volunteers/coverage") {
+      if (!(await requirePermission(request, response, "volunteers:read"))) return;
+      const mirror = await readVolunteerMirror();
+      const payload = volunteerDashboardPayload(mirror);
+      sendJson(request, response, 200, {
+        lastUpdated: payload.lastUpdated,
+        source: payload.source,
+        summary: payload.summary,
+        coverage: payload.coverage,
+        understaffed: payload.summary.understaffed
       });
       return;
     }

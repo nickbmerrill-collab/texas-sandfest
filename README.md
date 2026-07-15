@@ -15,6 +15,7 @@ Standalone prototype for turning Texas SandFest into a unified AI-powered visito
 - Event-day emergency alert API and admin publishing controls.
 - Unified revenue ledger (`lib/revenue.mjs`) with a role-guarded `GET /api/admin/revenue` dashboard endpoint that normalizes Stripe/Eventeny/Square/manual revenue by category and source and tracks fees + bank reconciliation. Seeded from `data/processed/revenue-ledger.json` until live payment feeds are wired.
 - Fleet/asset checkout (`lib/fleet.mjs`) for golf carts, UTVs, generators, and equipment: role-guarded admin API (`fleet:read` / `fleet:write`), web ops panel, and iOS Admin → Fleet tab with QR check-out/in (`tsf:asset:<id>`). Seeded from `data/processed/fleet.json`.
+- Volunteer coverage mirror (`lib/volunteers.mjs`): VolunteerLocal-shaped roster/shifts/hours → ops fill-vs-needed by zone, understaffed shift list, hour totals. `GET /api/admin/volunteers` (`volunteers:read`). Seeded from `data/processed/volunteer-mirror.json`.
 - Installable/offline-capable public web shell for spotty event-day connectivity.
 
 ## Commands
@@ -73,6 +74,8 @@ curl -H "Authorization: Bearer dev-admin-token-change-me" http://127.0.0.1:8788/
 curl -H "Authorization: Bearer dev-admin-token-change-me" http://127.0.0.1:8788/api/admin/revenue
 curl -H "Authorization: Bearer dev-admin-token-change-me" http://127.0.0.1:8788/api/admin/fleet
 curl -X POST -H "Authorization: Bearer dev-admin-token-change-me" -H "content-type: application/json" --data '{"payload":"tsf:asset:cart-02"}' http://127.0.0.1:8788/api/admin/fleet/resolve-qr
+curl -H "Authorization: Bearer dev-admin-token-change-me" http://127.0.0.1:8788/api/admin/volunteers
+curl -H "Authorization: Bearer dev-admin-token-change-me" http://127.0.0.1:8788/api/admin/volunteers/coverage
 curl -H "Authorization: Bearer dev-admin-token-change-me" http://127.0.0.1:8788/api/admin/config
 curl -H "Authorization: Bearer dev-admin-token-change-me" http://127.0.0.1:8788/api/admin/audit
 curl -H "Authorization: Bearer dev-admin-token-change-me" http://127.0.0.1:8788/api/admin/snapshots

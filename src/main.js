@@ -933,6 +933,27 @@ app.innerHTML = `
           </div>
         </div>
       </div>
+      <div class="admin-volunteers-panel">
+        <div class="editor-heading">
+          <p class="eyebrow">Volunteer coverage</p>
+          <h3>Shift fill vs needed by zone</h3>
+        </div>
+        <button id="admin-load-volunteers" class="button secondary" data-requires-permission="volunteers:read" type="button">Load coverage</button>
+        <p id="admin-volunteers-updated" class="admin-revenue-updated">Mirrors VolunteerLocal roster/shifts/hours into ops. Seeded until live export is wired.</p>
+        <div id="admin-volunteers-kpis" class="admin-revenue-kpis">
+          <article class="empty-state"><span>No volunteer coverage loaded.</span></article>
+        </div>
+        <div class="admin-volunteers-breakdown">
+          <div>
+            <strong>By zone</strong>
+            <div id="admin-volunteers-zones" class="admin-volunteers-rows"></div>
+          </div>
+          <div>
+            <strong>Understaffed shifts</strong>
+            <div id="admin-volunteers-gaps" class="admin-volunteers-rows"></div>
+          </div>
+        </div>
+      </div>
       <div class="admin-editor-layout">
         <div>
           <div class="editor-heading">
@@ -2184,6 +2205,66 @@ async function adminFleetCheckin() {
   }
 }
 
+function renderAdminVolunteers(payload) {
+  const s = payload.summary;
+  const kpis = document.querySelector("#admin-volunteers-kpis");
+  const updated = document.querySelector("#admin-volunteers-updated");
+  const zonesEl = document.querySelector("#admin-volunteers-zones");
+  const gapsEl = document.querySelector("#admin-volunteers-gaps");
+  if (!kpis || !s) return;
+  kpis.innerHTML = [
+    revenueKpiCard("Volunteers", `${s.totals.volunteers}`, `${s.totals.confirmed} confirmed · ${s.totals.checkedIn} in`),
+    revenueKpiCard("Shift fill", `${s.totals.fillPct}%`, `${s.totals.slotsFilled}/${s.totals.slotsNeeded} slots`),
+    revenueKpiCard("Open gaps", `${s.totals.openGaps}`, `${s.understaffed?.length || 0} understaffed shifts`),
+    revenueKpiCard("Hours logged", `${s.totals.totalHours}`, `${s.totals.openHourLogs} still on shift`),
+    revenueKpiCard("Waivers", `${s.totals.waiverSigned}`, `${s.totals.smsConsent} SMS opt-in`)
+  ].join("");
+
+  zonesEl.innerHTML = (s.zones || []).map(z => `
+    <article class="vol-zone status-${z.status}">
+      <div>
+        <strong>${z.zone}</strong>
+        <span>${z.shifts} shifts · ${z.roles.map(r => r.replace(/-/g, " ")).join(", ")}</span>
+      </div>
+      <b>${z.filled}/${z.needed}</b>
+      <em>${z.fillPct}%</em>
+      <i>${z.openGaps ? `${z.openGaps} short` : "full"}</i>
+    </article>
+  `).join("") || '<article class="empty-state"><span>No zones.</span></article>';
+
+  gapsEl.innerHTML = (s.understaffed || []).map(g => `
+    <article class="vol-gap status-${g.status}">
+      <div>
+        <strong>${g.zoneLabel}</strong>
+        <span>${g.day || ""} · ${g.roleId.replace(/-/g, " ")} · ${g.startsAt ? new Date(g.startsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : ""}</span>
+      </div>
+      <b>−${g.gap}</b>
+      <em>${g.filled}/${g.needed}</em>
+      <i>${g.fillPct}%</i>
+    </article>
+  `).join("") || '<article class="empty-state"><span>All shifts filled.</span></article>';
+
+  updated.textContent = payload.lastUpdated
+    ? `Mirror updated ${new Date(payload.lastUpdated).toLocaleString()} · source ${payload.source || "seed"} · ${s.totals.shifts} shifts.`
+    : "Volunteer coverage loaded.";
+}
+
+async function loadAdminVolunteers({ quiet = false } = {}) {
+  const button = document.querySelector("#admin-load-volunteers");
+  if (button) button.disabled = true;
+  try {
+    const data = await adminFetch("/api/admin/volunteers");
+    renderAdminVolunteers(data);
+    if (!quiet) setAdminStatus(`Loaded volunteer coverage: ${data.summary.totals.fillPct}% fill, ${data.summary.totals.openGaps} open gaps.`, "ok");
+    return data;
+  } catch (error) {
+    if (!quiet) setAdminStatus(`${error.message}. Coverage needs the volunteers:read permission and a running backend.`, "error");
+    throw error;
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
 async function loadAdminTransactions() {
   const button = document.querySelector("#admin-load-orders");
   const orderList = document.querySelector("#admin-order-list");
@@ -2358,6 +2439,9 @@ document.querySelector("#admin-load-config").addEventListener("click", async () 
     if (adminCan("fleet:read")) {
       await loadAdminFleet({ quiet: true }).catch(() => {});
     }
+    if (adminCan("volunteers:read")) {
+      await loadAdminVolunteers({ quiet: true }).catch(() => {});
+    }
     setAdminStatus(`Loaded ${adminConfigState.tickets.products.length} ticket products and ${adminConfigState.config.sponsorPackages.length} sponsor packages.`, "ok");
   } catch (error) {
     setAdminStatus(`${error.message}. Confirm npm run api:dev is running and the token matches SANDFEST_ADMIN_API_TOKEN.`, "error");
@@ -2397,6 +2481,7 @@ document.querySelector("#admin-load-revenue").addEventListener("click", () => lo
 document.querySelector("#admin-load-fleet")?.addEventListener("click", () => loadAdminFleet());
 document.querySelector("#admin-fleet-checkout")?.addEventListener("click", () => adminFleetCheckout());
 document.querySelector("#admin-fleet-checkin")?.addEventListener("click", () => adminFleetCheckin());
+document.querySelector("#admin-load-volunteers")?.addEventListener("click", () => loadAdminVolunteers());
 
 initSiteMode();
 initSculptors();
