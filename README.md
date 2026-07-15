@@ -99,7 +99,9 @@ xcodegen generate
 xcodebuild -project TexasSandFest.xcodeproj -scheme TexasSandFest -configuration Debug -destination 'generic/platform=iOS Simulator' build
 ```
 
-The initial native SwiftUI scaffold lives under `ios/TexasSandFest/`. It now has a Customer/Admin mode switch. Customer mode covers Today, Schedule, Map, Ask Sandy, and Tickets. Admin mode covers Command, Incidents, Partners, Finance, and Setup.
+The initial native SwiftUI scaffold lives under `ios/TexasSandFest/`. It now has a Customer/Admin mode switch. Customer mode covers Today, Schedule, Beach, Sculptors, Ask Sandy, and Tickets. Admin mode covers Command, Incidents, Partners, Finance, and Setup.
+
+The **Sculptors** tab (`SculptorsView.swift`) mirrors the web build: an artist roster with division filters and detail sheets, a compact corridor map with tappable pins, and the **Sculpture Passport** — collect a stamp per sculpture (tap, or scan the on-beach QR via the existing `QRScannerView`), tracked per-user in `PassportStore` (UserDefaults, mirrors `FavoritesStore`). New Swift files are picked up by `xcodegen generate`; the file is also wired into the committed `project.pbxproj` so it builds without regenerating.
 
 The native app reads from `ios/TexasSandFest/Resources/sandfest-seed.json` through `AppDataStore`, so incoming data can be normalized once and shared by customer and admin screens. Update `data/processed/app-bootstrap.json`, then run `npm run ios:seed`.
 

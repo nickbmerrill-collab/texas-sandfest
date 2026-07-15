@@ -63,6 +63,10 @@ struct CustomerRootView: View {
                 .tabItem { Label("Beach", systemImage: "sparkles.tv") }
                 .tag(CustomerTab.map)
 
+            SculptorsView()
+                .tabItem { Label("Sculptors", systemImage: "photo.artframe") }
+                .tag(CustomerTab.sculptors)
+
             ConciergeView()
                 .tabItem { Label("Sandy", systemImage: "sparkles") }
                 .tag(CustomerTab.concierge)
@@ -122,6 +126,7 @@ enum CustomerTab {
     case today
     case schedule
     case map
+    case sculptors
     case concierge
     case tickets
 }
