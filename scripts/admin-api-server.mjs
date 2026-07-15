@@ -1,10 +1,12 @@
 import { createServer } from "node:http";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadDotEnv } from "../lib/load-env.mjs";
 import { createStorage } from "../lib/storage.mjs";
 import { authMode, authModeIsJwt, resolveSession } from "../lib/auth.mjs";
+import { summarizeLedger } from "../lib/revenue.mjs";
 
 await loadDotEnv();
 
@@ -95,6 +97,7 @@ const rolePermissions = {
     "alert:write",
     "orders:read",
     "payments:read",
+    "revenue:read",
     "fulfillment:read",
     "fulfillment:update",
     "audit:read",
@@ -106,6 +109,7 @@ const rolePermissions = {
     "ticket:write",
     "orders:read",
     "payments:read",
+    "revenue:read",
     "fulfillment:read",
     "audit:read",
     "snapshot:read"
@@ -124,6 +128,7 @@ const rolePermissions = {
     "alert:read",
     "orders:read",
     "payments:read",
+    "revenue:read",
     "fulfillment:read",
     "audit:read",
     "snapshot:read"
@@ -133,6 +138,7 @@ const rolePermissions = {
     "alert:read",
     "orders:read",
     "payments:read",
+    "revenue:read",
     "fulfillment:read",
     "audit:read",
     "snapshot:read"
@@ -145,6 +151,25 @@ function checkStatus(ok, message, severity = "error") {
     severity: ok ? "ok" : severity,
     message
   };
+}
+
+// Phase 0 revenue ledger read. Reads the seeded JSON directly (backend-agnostic)
+// until live Stripe/Eventeny/Square feeds write entries. Returns a safe empty
+// ledger if the file is absent so the dashboard degrades gracefully.
+const REVENUE_LEDGER_PATH = path.join(ROOT, "data", "processed", "revenue-ledger.json");
+async function readRevenueLedger() {
+  try {
+    const ledger = JSON.parse(await readFile(REVENUE_LEDGER_PATH, "utf8"));
+    return {
+      lastUpdated: ledger.lastUpdated ?? null,
+      currency: ledger.currency ?? "usd",
+      expectedAttendance: ledger.expectedAttendance ?? null,
+      ticketCapacity: ledger.ticketCapacity ?? null,
+      entries: Array.isArray(ledger.entries) ? ledger.entries : []
+    };
+  } catch {
+    return { lastUpdated: null, currency: "usd", expectedAttendance: null, ticketCapacity: null, entries: [] };
+  }
 }
 
 function deploymentProfile() {
@@ -967,6 +992,23 @@ async function handleRequest(request, response) {
     if (method === "GET" && pathname === "/api/admin/alert") {
       if (!(await requirePermission(request, response, "alert:read"))) return;
       sendJson(request, response, 200, { alert: await storage.config.read("emergency-alert") });
+      return;
+    }
+
+    if (method === "GET" && pathname === "/api/admin/revenue") {
+      if (!(await requirePermission(request, response, "revenue:read"))) return;
+      const ledger = await readRevenueLedger();
+      const summary = summarizeLedger(ledger.entries, {
+        currency: ledger.currency,
+        expectedAttendance: ledger.expectedAttendance,
+        ticketCapacity: ledger.ticketCapacity,
+        generatedAt: ledger.lastUpdated
+      });
+      sendJson(request, response, 200, {
+        lastUpdated: ledger.lastUpdated,
+        summary,
+        entries: ledger.entries
+      });
       return;
     }
 
