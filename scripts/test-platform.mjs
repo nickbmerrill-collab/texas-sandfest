@@ -728,6 +728,15 @@ console.log("\n=== Pure library suite ===\n");
   const samplePublic = publicSculptorRosterPublication(sample);
   const sampleLocal = publicSculptorRosterPublication(sample, { allowSample: true });
   const validPublished = publicSculptorRosterPublication(published);
+  const validIsoVariants = publicSculptorRosterPublication({
+    ...published,
+    meta: {
+      ...published.meta,
+      sourceCheckedAt: "2026-07-17T12:00:00Z",
+      reviewedAt: "2026-07-17T07:05:00-05:00",
+      publishedAt: "2026-07-17T12:10:00.12Z"
+    }
+  });
   const weakPublished = publicSculptorRosterPublication({
     ...published,
     meta: { ...published.meta, source: "placeholder", reviewedAt: null }
@@ -739,7 +748,7 @@ console.log("\n=== Pure library suite ===\n");
 
   ok("unpublished sculptor roster fails closed", !unpublished.visible && unpublished.mode === "unpublished" && unpublished.counts.sculptors === 0);
   ok("fictional sculptor roster is local-demo only", !samplePublic.visible && sampleLocal.visible && sampleLocal.mode === "demo");
-  ok("published sculptor roster requires reviewed source authority", validPublished.visible && validPublished.mode === "published" && !weakPublished.visible && weakPublished.issues.length === 2);
+  ok("published sculptor roster requires reviewed source authority", validPublished.visible && validIsoVariants.visible && validPublished.mode === "published" && !weakPublished.visible && weakPublished.issues.length === 2);
   ok("published sculptor roster validates record references", !brokenReference.visible && brokenReference.issues.some(issue => issue.includes("missing sculptor")));
 }
 
