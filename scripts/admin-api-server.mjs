@@ -560,6 +560,66 @@ function checkStatus(ok, message, severity = "error") {
   };
 }
 
+const DEPLOYMENT_CHECK_PRESENTATION = Object.freeze({
+  environment: ["Runtime environment", "Platform"],
+  capabilityPolicy: ["Required capabilities", "Platform"],
+  dataPlane: ["Durable data plane", "Platform"],
+  backupRecovery: ["Backup and recovery", "Platform"],
+  authMode: ["Authentication mode", "Access"],
+  authJwks: ["JWKS endpoint", "Access"],
+  authIssuer: ["Token issuer", "Access"],
+  adminToken: ["Admin credential", "Access"],
+  adminRole: ["Admin role", "Access"],
+  adminActor: ["Audit actor", "Access"],
+  cors: ["Allowed web origins", "Access"],
+  publicApiBase: ["Public API address", "Access"],
+  adminBase: ["Admin app address", "Access"],
+  eventGuide: ["Published event guide", "Program data"],
+  currentEvent: ["Current event context", "Program data"],
+  staffDirectory: ["Staff directory and routing", "Program data"],
+  vendorOfferings: ["Vendor offering catalog", "Program data"],
+  rateLimits: ["Request limits", "Platform"],
+  rateLimitBackend: ["Shared rate limiter", "Platform"],
+  partnerIntakeBotProtection: ["Partner intake protection", "Partners"],
+  partnerPortal: ["Private partner portal", "Partners"],
+  outreachPreferences: ["Outreach preferences", "Partners"],
+  outreachDiscovery: ["Regional business discovery", "Partners"],
+  sponsorInvitations: ["Sponsor invitations", "Partners"],
+  partnerAssetStorage: ["Partner asset storage", "Partners"],
+  documentIngestion: ["Private document intake", "Partners"],
+  stripeSecret: ["Stripe API credential", "Revenue"],
+  stripeWebhook: ["Stripe webhook", "Revenue"],
+  stripeUrls: ["Stripe return addresses", "Revenue"],
+  stripeApiOrigin: ["Stripe API origin", "Revenue"],
+  stripeTicketing: ["Ticket checkout", "Revenue"],
+  stripePartnerPayments: ["Partner invoice payments", "Revenue"],
+  quickBooksInvoices: ["QuickBooks invoices", "Revenue"],
+  sms: ["Safety SMS", "Communications"],
+  transactionalEmail: ["Transactional email", "Communications"],
+  cameraIngest: ["Camera metric fleet", "Field operations"],
+  cameraModelApproval: ["Camera detector approval", "Field operations"]
+});
+
+function presentDeploymentChecks(checks) {
+  return Object.fromEntries(Object.entries(checks).map(([id, check]) => {
+    const [label, group] = DEPLOYMENT_CHECK_PRESENTATION[id] || [id, "Other"];
+    return [id, { id, label, group, ...check }];
+  }));
+}
+
+function summarizeDeploymentGroups(checks) {
+  const groups = new Map();
+  Object.values(checks).forEach(check => {
+    const summary = groups.get(check.group) || { group: check.group, total: 0, passing: 0, warnings: 0, errors: 0 };
+    summary.total += 1;
+    if (check.ok) summary.passing += 1;
+    else if (check.severity === "warning") summary.warnings += 1;
+    else summary.errors += 1;
+    groups.set(check.group, summary);
+  });
+  return [...groups.values()];
+}
+
 const KNOWN_REQUIRED_CAPABILITIES = new Set([
   "stripe_ticketing",
   "stripe_partner_payments",
@@ -1532,6 +1592,7 @@ async function deploymentProfile() {
   const values = Object.values(checks);
   const errors = values.filter(check => !check.ok && check.severity === "error");
   const warnings = values.filter(check => !check.ok && check.severity === "warning");
+  const presentedChecks = presentDeploymentChecks(checks);
   return {
     environment: SANDFEST_ENV,
     production,
@@ -1539,7 +1600,8 @@ async function deploymentProfile() {
     ok: errors.length === 0,
     errors: errors.length,
     warnings: warnings.length,
-    checks
+    checks: presentedChecks,
+    groups: summarizeDeploymentGroups(presentedChecks)
   };
 }
 
