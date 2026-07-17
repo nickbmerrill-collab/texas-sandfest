@@ -475,7 +475,7 @@ async function scheduleAutomatedFollowups(candidates, recipientContext = {}) {
         outcome = released.ok ? "released" : "rejected";
         return released.ok ? released.doc : doc;
       }, { fallback: emptyPartnerOperations(CURRENT_EVENT_ID) });
-      if (result && !result.ok) throw new Error(result.error || "Automated follow-up could not be queued.");
+      if (result && !result.ok && !released?.ok) throw new Error(result.error || "Automated follow-up could not be queued.");
       if (["queued", "already_queued"].includes(outcome)) queued += 1;
     } catch (error) {
       failed += 1;
