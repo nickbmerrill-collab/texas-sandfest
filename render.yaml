@@ -17,6 +17,7 @@ services:
   - type: web
     name: sandfest-admin
     runtime: static
+    repo: https://github.com/nickbmerrill-collab/texas-sandfest
     branch: main
     buildCommand: npm ci && npm run build:admin
     staticPublishPath: ./dist-admin
@@ -70,6 +71,7 @@ services:
   - type: web
     name: sandfest-api
     runtime: docker
+    repo: https://github.com/nickbmerrill-collab/texas-sandfest
     branch: main
     plan: starter
     healthCheckPath: /ready
@@ -277,6 +279,7 @@ services:
   - type: worker
     name: sandfest-worker
     runtime: docker
+    repo: https://github.com/nickbmerrill-collab/texas-sandfest
     branch: main
     plan: starter
     autoDeployTrigger: checksPass

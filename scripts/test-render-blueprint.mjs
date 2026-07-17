@@ -35,6 +35,7 @@ const rateLimit = serviceByName.get("sandfest-rate-limit");
 const database = databaseByName.get("sandfest-db");
 const apiEnv = envMap(api);
 const workerEnv = envMap(worker);
+const productionRepo = "https://github.com/nickbmerrill-collab/texas-sandfest";
 
 const requiredCapabilities = [
   "camera_ingest",
@@ -81,6 +82,7 @@ console.log("\n=== Render Blueprint production contract ===\n");
 
 check("service names are unique", serviceByName.size === services.length);
 check("database names are unique", databaseByName.size === databases.length);
+check("Git-backed services declare the production repository", [admin, api, worker].every(service => service?.repo === productionRepo));
 check("admin is an isolated static service", admin?.type === "web" && admin?.runtime === "static" && admin?.staticPublishPath === "./dist-admin");
 check("admin publishes only after checks pass", admin?.branch === "main" && admin?.autoDeployTrigger === "checksPass" && admin?.autoDeploy === undefined);
 check("admin owns the canonical operations domain", admin?.domains?.includes("sandfest-admin.heyelab.com"));
