@@ -2394,9 +2394,10 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   const failedCampaignDoc = {
     ...appliedAutomatedCampaign.doc,
     followups: appliedAutomatedCampaign.doc.followups.map(item => item.id === appliedAutomatedCampaign.approved[0].id
-      ? { ...item, status: "failed", lastError: "Provider rejected delivery." }
+      ? { ...item, status: "failed", lastAttemptAt: now, lastError: "Provider rejected delivery." }
       : item)
   };
+  const failedCampaignReadiness = outreachCampaignAutomationReadiness(failedCampaignDoc, automatedCampaign.campaign.id, { now, providerReady: true });
   const pausedFailedCampaign = updateOutreachCampaignStatus(failedCampaignDoc, automatedCampaign.campaign.id, "pause", { actorId: "sponsor_1", idFactory, now });
   const resumedFailedCampaign = updateOutreachCampaignStatus(pausedFailedCampaign.doc, automatedCampaign.campaign.id, "activate", { actorId: "sponsor_1", idFactory, now, providerReady: true });
   const reappliedFailedCampaign = applyOutreachCampaignAutomation(resumedFailedCampaign.doc, { idFactory, now, providerReady: true });
@@ -2405,7 +2406,7 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   ok("campaign automation fails closed and carries queued capacity", providerBlockedCampaignCandidates.length === 0 && carriedQueueReadiness.queuedPending === 1 && carriedQueueReadiness.remainingToday === 0);
   ok("campaign daily cap includes manual delivery", manuallyQueuedCampaign.ok && !manuallyQueuedOverflow.ok && manuallyQueuedOverflow.dailyLimitReached === true && outreachCampaignAutomationReadiness(manuallyQueuedCampaign.doc, automatedCampaign.campaign.id, { now, providerReady: true }).remainingToday === 0);
   ok("campaign pause returns unsent automation to review", pausedAutomatedCampaign.ok && pausedAutomatedCampaign.returnedToReview === 1 && pausedAutomatedCampaign.doc.followups.find(item => item.id === appliedAutomatedCampaign.approved[0].id)?.status === "draft_ready" && automatedFollowupQueueCandidates(pausedAutomatedCampaign.doc, { now }).length === 0);
-  ok("campaign pause holds failed delivery for manual retry", pausedFailedCampaign.failedHeldForRetry === 1 && pausedFailedCampaign.doc.followups.find(item => item.id === appliedAutomatedCampaign.approved[0].id)?.status === "failed" && resumedFailedCampaign.ok && reappliedFailedCampaign.approved.length === 0);
+  ok("campaign pause holds failed delivery for manual retry", failedCampaignReadiness.failedToday === 1 && failedCampaignReadiness.remainingToday === 0 && pausedFailedCampaign.failedHeldForRetry === 1 && pausedFailedCampaign.doc.followups.find(item => item.id === appliedAutomatedCampaign.approved[0].id)?.status === "failed" && resumedFailedCampaign.ok && reappliedFailedCampaign.approved.length === 0);
   const movedOutsideCampaign = updateOutreachProspect(campaignDraft.doc, prospect.prospect.id, {
     city: "Austin",
     postalCode: "78701",
