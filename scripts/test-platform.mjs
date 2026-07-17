@@ -2034,6 +2034,18 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   const duplicateProfileChanges = reviewVendorProfile(profileChanges.doc, vendorCreated.application.id, { action: "request_changes", reviewNotes: "Clarify the refrigerated trailer footprint." }, { actorId: "vendor_admin_1", idFactory, portalUrl: vendorPortalUrl, now });
   ok("vendor profile change draft", profileChanges.ok && profileChanges.followupChanged && profileChanges.followup.status === "draft_ready" && profileChanges.followup.kind === "vendor_profile_changes" && profileChanges.followup.body.includes(vendorPortalUrl));
   ok("vendor profile draft idempotency", duplicateProfileChanges.ok && !duplicateProfileChanges.followupChanged && duplicateProfileChanges.doc.followups.filter(item => item.kind === "vendor_profile_changes").length === 1);
+  const approvedProfileChanges = reviewFollowup(profileChanges.doc, profileChanges.followup.id, "approve", { actorId: "vendor_admin_1", now });
+  const queuedProfileChanges = queueFollowupDelivery(approvedProfileChanges.doc, profileChanges.followup.id, { now });
+  const claimedProfileChanges = claimFollowupDelivery(queuedProfileChanges.doc, profileChanges.followup.id, { deliveryClaimId: "job_vendor_workflow", now });
+  const replacedBeforeVendorHandoff = reviewVendorProfile(claimedProfileChanges.doc, vendorCreated.application.id, { action: "request_changes", reviewNotes: "Confirm the trailer tongue is included in the footprint." }, { actorId: "vendor_admin_1", idFactory, portalUrl: vendorPortalUrl, now });
+  const begunProfileChanges = beginFollowupProviderSubmission(claimedProfileChanges.doc, profileChanges.followup.id, { deliveryClaimId: "job_vendor_workflow", now });
+  const replacedAfterVendorHandoff = reviewVendorProfile(begunProfileChanges.doc, vendorCreated.application.id, { action: "request_changes", reviewNotes: "Confirm the trailer tongue and service clearance." }, { actorId: "vendor_admin_1", idFactory, portalUrl: vendorPortalUrl, now });
+  const completedVendorHandoff = recordFollowupDelivery(replacedAfterVendorHandoff.doc, profileChanges.followup.id, { sent: true, provider: "brevo", providerMessageId: "msg_vendor_workflow" }, { deliveryClaimId: "job_vendor_workflow", now });
+  const preHandoffReplacement = replacedBeforeVendorHandoff.doc.followups.find(item => item.workflowKey === profileChanges.followup.workflowKey && item.id !== profileChanges.followup.id);
+  const blockedVendorReplacement = replacedAfterVendorHandoff.doc.followups.find(item => item.workflowKey === profileChanges.followup.workflowKey && item.id !== profileChanges.followup.id);
+  const releasedVendorReplacement = completedVendorHandoff.doc.followups.find(item => item.id === blockedVendorReplacement?.id);
+  ok("vendor workflow change cancels an unstarted handoff", replacedBeforeVendorHandoff.followupChanged && replacedBeforeVendorHandoff.doc.followups.find(item => item.id === profileChanges.followup.id)?.status === "dismissed" && preHandoffReplacement?.status === "draft_ready");
+  ok("vendor workflow serializes replacement behind provider handoff", replacedAfterVendorHandoff.followupChanged && replacedAfterVendorHandoff.doc.followups.find(item => item.id === profileChanges.followup.id)?.status === "sending" && blockedVendorReplacement?.status === "pending" && blockedVendorReplacement?.blockedByFollowupId === profileChanges.followup.id && completedVendorHandoff.ok && releasedVendorReplacement?.status === "draft_ready" && releasedVendorReplacement?.blockedByFollowupId === null);
   const revisedVendorProfile = updateVendorProfile(profileChanges.doc, vendorCreated.application.id, { ...vendorProfileInput, operationalNotes: "One refrigerated trailer with a 24-foot total footprint." }, { actorId: `partner:${vendorCreated.application.id}`, idFactory, now });
   ok("vendor profile submission dismisses stale draft", revisedVendorProfile.dismissedFollowups === 1 && revisedVendorProfile.doc.followups.find(item => item.kind === "vendor_profile_changes").status === "dismissed");
   const approvedVendorProfile = reviewVendorProfile(revisedVendorProfile.doc, vendorCreated.application.id, { action: "approve" }, { actorId: "vendor_admin_1", idFactory, portalUrl: vendorPortalUrl, now });
@@ -2372,6 +2384,13 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   const automatedReadiness = outreachCampaignAutomationReadiness(appliedAutomatedCampaign.doc, activatedAutomatedCampaign.campaign, { now, providerReady: true });
   const campaignQueueCandidates = automatedFollowupQueueCandidates(appliedAutomatedCampaign.doc, { maxBatch: 10, now, providerReady: true });
   const providerBlockedCampaignCandidates = automatedFollowupQueueCandidates(appliedAutomatedCampaign.doc, { maxBatch: 10, now, providerReady: false });
+  const reservedManualId = `${appliedAutomatedCampaign.approved[0].id}_reserved_manual`;
+  const reservedManualDoc = {
+    ...appliedAutomatedCampaign.doc,
+    followups: [...appliedAutomatedCampaign.doc.followups, { ...appliedAutomatedCampaign.approved[0], id: reservedManualId, approvedBy: "sponsor_1", automationPolicy: null, automationCampaignApprovedAt: null }]
+  };
+  const blockedByAutomatedReservation = queueFollowupDelivery(reservedManualDoc, reservedManualId, { now });
+  const queuedAutomatedReservation = queueFollowupDelivery(appliedAutomatedCampaign.doc, appliedAutomatedCampaign.approved[0].id, { now, automationJobId: "job_reserved_campaign" });
   const manualCampaignDoc = {
     ...appliedAutomatedCampaign.doc,
     followups: appliedAutomatedCampaign.doc.followups.map(item => item.id === appliedAutomatedCampaign.approved[0].id
@@ -2419,6 +2438,7 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   ok("campaign automation requires delivery readiness", !blockedAutomatedActivation.ok && blockedAutomatedActivation.providerNotReady === true && activatedAutomatedCampaign.ok);
   ok("campaign approval automates one bounded message", generatedAutomatedCampaign.generated.length === 1 && appliedAutomatedCampaign.approved.length === 1 && appliedAutomatedCampaign.approved[0].automationPolicy === OUTREACH_CAMPAIGN_AUTOMATION_POLICY && automatedReadiness.dailySendLimit === 1 && automatedReadiness.remainingToday === 0 && campaignQueueCandidates.length === 1);
   ok("campaign automation fails closed and carries queued capacity", providerBlockedCampaignCandidates.length === 0 && carriedQueueReadiness.queuedPending === 1 && carriedQueueReadiness.remainingToday === 0);
+  ok("campaign auto-approval reserves daily queue capacity", !blockedByAutomatedReservation.ok && blockedByAutomatedReservation.dailyLimitReached === true && queuedAutomatedReservation.ok && queuedAutomatedReservation.followup.status === "queued");
   ok("campaign daily cap includes manual delivery", manuallyQueuedCampaign.ok && !manuallyQueuedOverflow.ok && manuallyQueuedOverflow.dailyLimitReached === true && outreachCampaignAutomationReadiness(manuallyQueuedCampaign.doc, automatedCampaign.campaign.id, { now, providerReady: true }).remainingToday === 0);
   ok("campaign pause and send use an atomic provider handoff", claimedCampaignDelivery.ok && begunCampaignDelivery.ok && begunCampaignDelivery.followup.providerSubmissionStartedAt === now && pausedAfterProviderStart.inFlightFollowups === 1 && pausedAfterProviderStart.doc.followups.find(item => item.id === claimedCampaignDelivery.followup.id)?.status === "sending" && recordedClaimedDelivery.ok && recordedClaimedDelivery.followup.status === "sent" && failedClaimedDelivery.ok && failedClaimedDelivery.followup.status === "failed" && canceledProviderStart.ok && canceledProviderStart.canceled === true && canceledProviderStart.followup.status === "draft_ready" && !blockedDeliveryClaim.ok && blockedDeliveryClaim.canceled === true);
   ok("outreach suppression revokes an in-flight claim", suppressedClaimedDelivery.ok && suppressedClaimedDelivery.doc.followups.find(item => item.id === claimedCampaignDelivery.followup.id)?.status === "dismissed" && !lateSuppressedDelivery.ok);
