@@ -167,7 +167,7 @@ assert(publicTicketCatalog.products?.length > 0 && publicTicketCatalog.products.
 const serializedPublicRoster = JSON.stringify(publicSculptorRoster);
 assert(publicSculptorRoster.meta?.eventId === "texas-sandfest-2027" && publicSculptorRoster.meta?.publicationStatus === "unpublished", "Static sculptor roster is not current-event and publication-gated.");
 assert(publicSculptorRoster.sculptors?.length === 0 && publicSculptorRoster.entries?.length === 0 && publicSculptorRoster.pois?.length === 0, "Static sculptor roster exposes records before publication.");
-assert(!(await exists(path.join(publicDir, "data", "sculptors-demo.json"))) && !(await exists(path.join(publicDir, "data", "live-beach-demo.json"))), "Production artifact contains local board-demonstration data files.");
+assert(!(await exists(path.join(publicDir, "board-demo"))) && !(await exists(path.join(publicDir, "data", "sculptors-demo.json"))) && !(await exists(path.join(publicDir, "data", "live-beach-demo.json"))), "Production artifact contains local board-demonstration data files.");
 for (const marker of fictionalPublicContentMarkers) {
   assert(!serializedPublicRoster.includes(marker), `Public sculptor roster contains fictional marker ${marker}.`);
   assert(!publicJavaScript.includes(marker), `Public production JavaScript contains fictional marker ${marker}.`);

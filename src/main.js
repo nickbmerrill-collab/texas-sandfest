@@ -119,10 +119,10 @@ const loadPublicJson = path => ADMIN_ENTRY
 
 const localBoardContentEnabled = !ADMIN_ENTRY && import.meta.env.DEV;
 const sculptorDataPromise = localBoardContentEnabled
-  ? import("./data/sculptors-demo.json").then(module => module.default)
+  ? import("./board-demo/sculptors-demo.json").then(module => module.default)
   : loadPublicJson("data/sculptors.json");
 const liveBeachDemoPromise = localBoardContentEnabled
-  ? import("./data/live-beach-demo.json").then(module => module.default)
+  ? import("./board-demo/live-beach-demo.json").then(module => module.default)
   : Promise.resolve(null);
 
 const [
