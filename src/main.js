@@ -4544,13 +4544,18 @@ function renderIslandConditions(payload) {
   const weather = payload.weather || {};
   const ferry = payload.ferry || {};
   const ferryDirections = Array.isArray(ferry.directions) ? ferry.directions : [];
-  const ferryHasInterruption = ferry.status === "service_interruption" || ferryDirections.some(direction => direction.status === "service_interruption");
-  const ferryPrimary = ferryHasInterruption
+  const ferryLive = ferry.freshness?.state === "live";
+  const ferryHasInterruption = ferryLive && (ferry.status === "service_interruption" || ferryDirections.some(direction => direction.status === "service_interruption"));
+  const ferryPrimary = !ferryLive
+    ? "Awaiting update"
+    : ferryHasInterruption
     ? "Service alert"
     : ferry.estimatedWaitMinutes != null
       ? `${ferry.estimatedWaitMinutes} min max`
       : "Awaiting update";
-  const ferryDirectionSummary = ferryDirections.length
+  const ferryDirectionSummary = !ferryLive
+    ? "Current directional waits unavailable"
+    : ferryDirections.length
     ? ferryDirections.map(direction => `${direction.label}: ${direction.estimatedWaitMinutes != null ? `${direction.estimatedWaitMinutes} min` : direction.status === "service_interruption" ? "service interruption" : "unavailable"}`).join(" · ")
     : ferry.operatingFerries != null ? `${ferry.operatingFerries} ferries operating` : "Port Aransas route";
   const ferrySource = ferry.sourceUrl
