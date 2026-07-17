@@ -19,6 +19,7 @@ The command rebuilds `.sandfest-runtime/board-2027` from governed source data. I
 - key dates, review-first acknowledgments, and governed volunteer/staff/team tasks that exercise private assignment notification;
 - geofenced sponsor outreach with an accountable owner, next action, due timestamp, and urgency-sorted follow-up queue;
 - staff-issued sponsor invitations that convert a qualified prospect into the real public sponsor application, brand center, fulfillment plan, key dates, task, finance record, and private portal only after recipient consent;
+- three private source documents in received, review, and approved states, with staff-only text previews and checksum-verified downloads;
 - volunteer coverage, fleet checkout, voting, and Sculpture Passport activity;
 - eight synthetic camera metric lanes, with NWS weather and TxDOT ferry refreshes kept separate. Optional signed playback continuously exercises source activation, heartbeat, anonymous metric ingestion, freshness, and public/admin condition rendering through the real API contract.
 
@@ -65,6 +66,7 @@ audience even if the same browser previously viewed Operations mode.
 - Sponsor and vendor signup: `http://127.0.0.1:5175/?apiBase=http://127.0.0.1:8806&mode=visitor#sponsors`
 - Island Conditions: `http://127.0.0.1:5175/?apiBase=http://127.0.0.1:8806&mode=visitor#island-conditions`
 - Operations: `http://127.0.0.1:5175/admin.html?apiBase=http://127.0.0.1:8806`
+- Document intake: `http://127.0.0.1:5175/admin.html?apiBase=http://127.0.0.1:8806#admin-documents`
 - Partner operations: `http://127.0.0.1:5175/admin.html?apiBase=http://127.0.0.1:8806#admin-partners`
 
 The operations console uses the local-only token `board-demo-local-admin-token-change-me`. This fixed credential is scoped to the development command above, auto-loads the synthetic workspace, is rejected by production readiness, and must never be used in a deployed environment.

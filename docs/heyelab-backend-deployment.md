@@ -65,6 +65,10 @@ Routes:
 | `PATCH` | `/api/admin/tickets/:id` | Bearer token | Update ticket pricing, Stripe IDs, review gates, and limits |
 | `PATCH` | `/api/admin/sponsor-packages/:id` | Bearer token | Update sponsor pricing, benefits, Stripe IDs, and QuickBooks mapping |
 | `GET` | `/api/admin/partners` | Bearer token | Applications, invoices, payments, dates, follow-ups, tasks, vendor readiness, and provider readiness |
+| `GET` | `/api/admin/documents` | `documents:read` | List the annual private document review queue and integrity summary |
+| `POST` | `/api/admin/documents/upload` | `documents:write` | Validate and store one private operational source file with checksum deduplication |
+| `GET` | `/api/admin/documents/:id/content` | `documents:read` | Download one checksum-verified private document |
+| `PATCH` | `/api/admin/documents/:id` | `documents:write` | Assign ownership and advance the review lifecycle |
 | `PATCH` | `/api/admin/partners/applications/:id` | Bearer token | Assign and advance an application |
 | `POST` | `/api/admin/partners/applications/:id/portal-access` | `partners:write` | Rotate access and return a replacement private portal link |
 | `POST` | `/api/admin/partners/applications/:id/payments` | `finance:write` | Record and reconcile a partner payment |
@@ -171,6 +175,8 @@ The admin backend owns mutable configuration. In file-storage mode (default for 
 - `data/processed/orders/fulfillment/*.json`
 - `data/processed/admin-audit/*.json`
 - `data/processed/config-snapshots/*.json`
+- `data/processed/incoming-documents.json` (metadata only)
+- `SANDFEST_INCOMING_DOCUMENT_DIR` (private document bytes)
 
 In Postgres mode (production), the same records live in tables defined by `lib/db/schema.sql`:
 
@@ -181,7 +187,7 @@ In Postgres mode (production), the same records live in tables defined by `lib/d
 - `admin_audit_events` — append-only mutation log
 - `config_snapshots` — pre-mutation snapshots for rollback
 
-Partner invoice state and QuickBooks sync proof live in the `partner-operations` platform document, which uses row locking in Postgres mode. Queue attempts live in `platform_jobs`; admin approvals and queue actions live in `admin_audit_events`.
+Partner invoice state and QuickBooks sync proof live in the `partner-operations` platform document, which uses row locking in Postgres mode. Private document metadata lives in the `incoming-documents` platform document; the database never contains the file bytes. Queue attempts live in `platform_jobs`; admin approvals and queue actions live in `admin_audit_events`.
 
 ## Postgres Bring-up
 
@@ -211,7 +217,7 @@ If an expired claim used the final attempt, the job enters the failed queue. The
 
 ### Backup and restore readiness
 
-Production requires recoverable Postgres and private sponsor/vendor assets, plus recent proof that both can be restored. The Render Blueprint uses paid Postgres, whose managed PITR window is at least three days, and an encrypted persistent disk with daily snapshots retained for at least seven days. The application does not infer provider state from a successful database connection. Instead, `/ready` requires explicit recovery policy plus two successful drill timestamps no older than 90 days:
+Production requires recoverable Postgres and every private sponsor, vendor, and incoming-document upload, plus recent proof that both the database and upload disk can be restored. The Render Blueprint uses paid Postgres, whose managed PITR window is at least three days, and an encrypted persistent disk with daily snapshots retained for at least seven days. The application does not infer provider state from a successful database connection. Instead, `/ready` requires explicit recovery policy plus two successful drill timestamps no older than 90 days:
 
 ```bash
 SANDFEST_BACKUP_PROVIDER=render-managed
@@ -228,7 +234,7 @@ Restore Postgres into an isolated database, never the active source, then run:
 SANDFEST_RECOVERY_DATABASE_URL='postgresql://...' npm run recovery:verify
 ```
 
-The database verifier opens a read-only transaction, checks all required tables and seeded config documents, and reports row counts without returning records or credentials. Restore the partner-asset snapshot at a different path in disposable staging, then prove every Postgres-referenced upload:
+The database verifier opens a read-only transaction, checks all required tables and seeded config documents, and reports row counts without returning records or credentials. Restore the private upload-disk snapshot at a different path in disposable staging, then prove every Postgres-referenced upload:
 
 ```bash
 SANDFEST_RECOVERY_DATABASE_URL='postgresql://...' \
@@ -237,7 +243,7 @@ SANDFEST_RECOVERY_ASSET_MIN_FILES=1 \
 npm run recovery:verify:assets
 ```
 
-The asset verifier refuses the active database and `SANDFEST_PARTNER_ASSET_DIR`, rejects symlinks and paths outside the restored root, and checks every uploaded sponsor logo and vendor document against its recorded byte count and SHA-256. Its aggregate JSON includes category counts, verified bytes, and a deterministic manifest checksum without returning partner contacts or file contents. Record `SANDFEST_ASSET_RESTORE_DRILL_AT` only after `referenced` equals `verified`. See Render's [Postgres recovery](https://render.com/docs/postgresql-backups) and [persistent disk snapshot](https://render.com/docs/disks) documentation.
+The asset verifier refuses the active database and `SANDFEST_PARTNER_ASSET_DIR`, rejects symlinks and paths outside the restored root, and checks every uploaded sponsor logo, vendor document, and incoming source file against its recorded byte count and SHA-256. Its aggregate JSON includes category counts, verified bytes, and a deterministic manifest checksum without returning partner contacts or file contents. Record `SANDFEST_ASSET_RESTORE_DRILL_AT` only after `referenced` equals `verified`. See Render's [Postgres recovery](https://render.com/docs/postgresql-backups) and [persistent disk snapshot](https://render.com/docs/disks) documentation.
 
 Without `SANDFEST_DATABASE_URL`, the API runs in file-storage mode and writes under `data/` exactly as before.
 
@@ -356,6 +362,21 @@ The Render blueprint attaches that directory to a 10 GB persistent disk. Because
 
 Staff track benefit owner, due date, lifecycle, proof URL or note, and partner review. A benefit cannot move to `published` or `complete` without proof. Any proof revision increments its version and automatically resets prior partner approval to pending, preventing stale sign-off from being treated as current.
 
+## Private Document Intake Safety
+
+The operations workspace accepts staff-only board packets, provider exports, finance files, runbooks, and communications. Content is validated independently of the filename, size is capped at 20 MB by default, filenames are sanitized, and bytes are written with private permissions. Each annual metadata record stores a SHA-256 checksum, byte count, domain, owner team, review status, and bounded notes. Re-uploading identical bytes returns the original record instead of creating another copy.
+
+`documents:write` is limited to operations and super administrators. Finance administrators receive read access for controlled review and download. API responses never expose storage keys, downloads use `no-store` and `nosniff`, and every upload, review, integrity failure, and download is audited without retaining file content or text previews.
+
+Production fails closed unless the intake directory is an explicit private persistent path beneath the shared upload disk:
+
+```bash
+SANDFEST_INCOMING_DOCUMENT_DIR=/var/data/sandfest-partner-assets/incoming-documents
+SANDFEST_INCOMING_DOCUMENT_MAX_BYTES=20971520
+```
+
+The `incoming-documents` platform record rolls over with the annual event namespace. A new season resets the queue; the archived prior-season digest remains part of rollover evidence.
+
 ## QuickBooks Invoice Safety
 
 Only `finance_admin` and `super_admin` can create, approve, void, or queue partner invoices, refresh a synced QuickBooks invoice, or record and reverse partner payments. Draft amounts come from the approved application, and sponsor amounts originate from the active server-side tier. Payment references are idempotent per application and method, successful payments allocate atomically to the active invoice, and reversals require a reason and audit entry. Creating an invoice synchronizes its due date into the application's finance-owned `Payment due` milestone. Reaching the approved amount completes that milestone and dismisses active unsent reminders; a refund or reversal that restores a balance reopens only an automation-completed milestone and increments its schedule version. Staff-completed and cancelled milestones remain untouched. A recorded refund documents an action completed at the payment provider; it does not itself move money. The receivables board keeps SandFest's local balance separate from the last reported QuickBooks balance and surfaces aging, unapplied credit, overdue invoices, sync failures, stale refreshes, and amount or balance mismatches. QuickBooks refresh is read-only: it records provider truth and never creates a local payment, so finance must match the real external transaction before the ledgers can agree.
@@ -394,6 +415,7 @@ Set `SANDFEST_ENV=production` when deploying to Heyelab. In production, these ch
 - `SANDFEST_API_PUBLIC_BASE_URL` and `SANDFEST_ADMIN_BASE_URL` must be HTTPS.
 - `SANDFEST_PARTNER_PORTAL_SECRET` must be at least 32 characters and `SANDFEST_PUBLIC_SITE_URL` must be HTTPS.
 - `SANDFEST_PARTNER_ASSET_DIR` must point to persistent private storage for sponsor assets and vendor compliance documents.
+- `SANDFEST_INCOMING_DOCUMENT_DIR` must point to persistent private storage for staff-only operational source files.
 - Recovery policy must confirm at least three days of database PITR and seven days of asset snapshots; isolated database and exhaustive asset verification drills must both be no older than `SANDFEST_RESTORE_DRILL_MAX_AGE_DAYS`.
 - CORS must include the Texas SandFest origins and admin base URL.
 - If Stripe ticketing is enabled, Stripe secret, webhook secret, success URL, and cancel URL must be production-safe.
@@ -444,6 +466,7 @@ In production, pair these app-level limits with Vercel Firewall or the chosen AP
 10. Verify public reads: `/api/public/tickets`, `/api/public/sponsors`.
 11. Sign in through `sandfest-admin.heyelab.com`, confirm `/api/admin/session`, and load the operations workspace.
 12. Patch one sandbox ticket price and confirm the public endpoint reflects the change.
+13. Upload, review, and checksum-download one disposable private document; confirm it is included in the isolated asset-recovery manifest.
 
 ## Future Production Stack
 

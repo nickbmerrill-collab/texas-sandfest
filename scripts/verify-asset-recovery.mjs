@@ -4,8 +4,8 @@ import { lstat, readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import pg from "pg";
 import {
-  isPartnerAssetStorageKey,
-  partnerAssetRecoveryReferences,
+  isPlatformAssetRecoveryStorageKey,
+  platformAssetRecoveryReferences,
   verifyPartnerAssetRecovery
 } from "../lib/asset-recovery.mjs";
 import { loadDotEnv } from "../lib/load-env.mjs";
@@ -68,7 +68,7 @@ if (sourceDirectory) {
 }
 
 async function readRestoredAsset(storageKey) {
-  if (!isPartnerAssetStorageKey(storageKey)) return { ok: false, reason: "unreadable" };
+  if (!isPlatformAssetRecoveryStorageKey(storageKey)) return { ok: false, reason: "unreadable" };
   const requestedPath = path.resolve(recoveryRoot, storageKey);
   if (!isWithin(recoveryRoot, requestedPath)) return { ok: false, reason: "unreadable" };
   let fileInfo;
@@ -91,10 +91,12 @@ const client = new Client({ connectionString: recoveryUrl, ssl: sslConfig() });
 try {
   await client.connect();
   await client.query("BEGIN READ ONLY");
-  const result = await client.query("SELECT data FROM platform_documents WHERE key = $1", ["partner-operations"]);
-  if (result.rows.length !== 1) throw new Error("Recovery database is missing the partner-operations platform document.");
+  const result = await client.query("SELECT key, data FROM platform_documents WHERE key = ANY($1::text[])", [["partner-operations", "incoming-documents"]]);
+  const documents = new Map(result.rows.map(row => [row.key, row.data]));
+  if (!documents.has("partner-operations")) throw new Error("Recovery database is missing the partner-operations platform document.");
+  if (!documents.has("incoming-documents")) throw new Error("Recovery database is missing the incoming-documents platform document.");
 
-  const extraction = partnerAssetRecoveryReferences(result.rows[0].data);
+  const extraction = platformAssetRecoveryReferences(documents.get("partner-operations"), documents.get("incoming-documents"));
   const verification = await verifyPartnerAssetRecovery(extraction, readRestoredAsset, { minimumFiles });
   await client.query("ROLLBACK");
   if (!verification.ok) {
@@ -118,6 +120,7 @@ try {
       uploadRecords: verification.counts.uploadRecords,
       brandAssets: verification.counts.brandAssets,
       vendorDocuments: verification.counts.vendorDocuments,
+      incomingDocuments: verification.counts.incomingDocuments,
       externalReferences: verification.counts.externalReferences,
       bytes: verification.counts.bytes,
       minimumFiles: verification.minimumFiles,

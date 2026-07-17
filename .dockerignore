@@ -18,6 +18,7 @@ src
 data/incoming
 data/raw
 data/processed/documents
+data/processed/incoming-documents
 data/processed/images.json
 data/processed/media-assets.json
 data/processed/incoming-inventory.json
