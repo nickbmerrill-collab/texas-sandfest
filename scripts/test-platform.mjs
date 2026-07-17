@@ -13,6 +13,8 @@ import { createServer } from "node:net";
 import twilio from "twilio";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { boardDemoAccessConfig } from "../lib/board-demo-access.mjs";
+import { boardDemoAccessPlugin } from "../vite.config.js";
 import { buildRevenueLedgerView, partnerRevenueEntries, summarizeLedger } from "../lib/revenue.mjs";
 import {
   applyRevenueImport,
@@ -475,6 +477,29 @@ console.log("\n=== Pure library suite ===\n");
   ok("site mode URL overrides saved demo state", resolveInitialSiteMode({ opsDemoEnabled: true, queryMode: "visitor", hash: "#operations", savedMode: "ops" }) === "public");
   ok("site mode deep link overrides saved demo state", resolveInitialSiteMode({ opsDemoEnabled: true, hash: "#sponsors", savedMode: "ops" }) === "public" && resolveInitialSiteMode({ opsDemoEnabled: true, hash: "#finance", savedMode: "public" }) === "ops");
   ok("production visitor and admin modes fail closed", resolveInitialSiteMode({ opsDemoEnabled: false, queryMode: "ops", savedMode: "ops" }) === "public" && resolveInitialSiteMode({ adminEntry: true, opsDemoEnabled: true, queryMode: "visitor" }) === "ops");
+  const boardDemoAccess = boardDemoAccessConfig({
+    development: true,
+    authMode: "token",
+    apiBase: "http://127.0.0.1:8806",
+    token: "board-demo-local-admin-token-change-me"
+  });
+  ok("board demo access requires development loopback", boardDemoAccess.enabled
+    && !boardDemoAccessConfig({ development: false, authMode: "token", apiBase: "http://127.0.0.1:8806", token: boardDemoAccess.token }).enabled
+    && !boardDemoAccessConfig({ development: true, authMode: "oidc", apiBase: "http://127.0.0.1:8806", token: boardDemoAccess.token }).enabled
+    && !boardDemoAccessConfig({ development: true, authMode: "token", apiBase: "https://api.heyelab.com/sandfest", token: boardDemoAccess.token }).enabled
+    && !boardDemoAccessConfig({ development: true, authMode: "token", apiBase: "http://127.0.0.1.evil.example:8806", token: boardDemoAccess.token }).enabled);
+  const boardDemoPlugin = boardDemoAccessPlugin({ SANDFEST_BOARD_DEMO_ADMIN_TOKEN: boardDemoAccess.token });
+  const injectedBoardDemoHtml = boardDemoPlugin.transformIndexHtml();
+  let remoteBindRejected = false;
+  try {
+    boardDemoPlugin.configureServer({ config: { server: { host: "0.0.0.0" } } });
+  } catch {
+    remoteBindRejected = true;
+  }
+  ok("board demo web injection is serve-only and loopback-bound", boardDemoPlugin.apply === "serve"
+    && injectedBoardDemoHtml[0]?.children.includes(boardDemoAccess.token)
+    && remoteBindRejected
+    && boardDemoAccessPlugin({}) === null);
 }
 
 // Private portal capabilities leave the URL before network work begins. A

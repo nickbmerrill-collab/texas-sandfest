@@ -41,8 +41,14 @@ The SMS service is a loopback-only Twilio-compatible sandbox. It accepts only th
 Start the site on a separate terminal:
 
 ```bash
-npm run dev -- --port 5175
+npm run board:web -- --port 5175
 ```
+
+The dedicated board web command injects the fixed synthetic credential only
+into the Vite development process and only accepts an exact loopback API host.
+Opening the admin entry or switching the combined site to **Operations** loads
+the workspace automatically. Ordinary `npm run dev` sessions keep manual token
+entry, and production builds compile the board credential path out entirely.
 
 Start eight-camera metric playback in another terminal:
 
@@ -61,7 +67,7 @@ audience even if the same browser previously viewed Operations mode.
 - Operations: `http://127.0.0.1:5175/admin.html?apiBase=http://127.0.0.1:8806`
 - Partner operations: `http://127.0.0.1:5175/admin.html?apiBase=http://127.0.0.1:8806#admin-partners`
 
-The operations console uses the local-only token `board-demo-local-admin-token-change-me`. This fixed credential is scoped to the development command above, is rejected by production readiness, and must never be used in a deployed environment.
+The operations console uses the local-only token `board-demo-local-admin-token-change-me`. This fixed credential is scoped to the development command above, auto-loads the synthetic workspace, is rejected by production readiness, and must never be used in a deployed environment.
 
 After loading the partner workspace, use the export menu beside the workspace controls to download the synthetic partner directory, receivables, payment ledger, delegated tasks, outreach pipeline, or key-date calendar. The task export includes notification status and timing without volunteer or staff email addresses. The workspace shows all seven synthetic team routes as ready, but the `board_demo` directory source is deliberately ineligible for production. The outreach export includes owner, next action, and next-action due timestamp. CSV files are neutralized against spreadsheet formulas, calendar files are importable by Outlook and Google Calendar, and every download is recorded in the admin audit log.
 

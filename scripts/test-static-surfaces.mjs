@@ -41,6 +41,10 @@ const vercelConfig = JSON.parse(await readFile(path.join(root, "vercel.json"), "
 const mediaDerivatives = JSON.parse(await readFile(path.join(publicDir, "assets", "sandfest-media", "media-derivatives.json"), "utf8"));
 const robots = await readFile(path.join(publicDir, "robots.txt"), "utf8");
 const publicWorker = await readFile(path.join(publicDir, "sw.js"), "utf8");
+const boardDemoCredentialMarkers = [
+  "board-demo-production-leak-sentinel",
+  "board-demo-local-admin-token-change-me"
+];
 
 assert(!(await exists(path.join(publicDir, "admin.html"))), "Public artifact must not contain admin.html.");
 assert(!(await exists(path.join(adminDir, "admin.html"))), "Admin artifact must promote admin.html to the root entry.");
@@ -110,6 +114,12 @@ assert(publicAssets.some(file => /^main-[^.]+\.js$/.test(file)), "Public artifac
 assert(!publicAssets.some(file => /^admin-[^.]+\.js$/.test(file)), "Public artifact contains an admin JavaScript bundle.");
 assert(adminAssets.some(file => /^admin-[^.]+\.js$/.test(file)), "Admin artifact is missing its operations JavaScript bundle.");
 assert(!adminAssets.some(file => /^main-[^.]+\.js$/.test(file)), "Admin artifact contains a visitor JavaScript bundle.");
+for (const marker of boardDemoCredentialMarkers) {
+  assert(!publicHtml.includes(marker), `Public production HTML contains the board demo credential marker ${marker}.`);
+  assert(!adminHtml.includes(marker), `Admin production HTML contains the board demo credential marker ${marker}.`);
+  assert(!publicJavaScript.includes(marker), `Public production artifact contains the board demo credential marker ${marker}.`);
+  assert(!adminJavaScript.includes(marker), `Admin production artifact contains the board demo credential marker ${marker}.`);
+}
 for (const marker of ["admin-partner-kpis", "admin-receivables-aging", "admin-outreach-prospects", "admin-condition-cameras"]) {
   assert(adminJavaScript.includes(marker), `Admin artifact is missing the full operations marker ${marker}.`);
 }
