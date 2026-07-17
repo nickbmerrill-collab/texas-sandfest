@@ -1112,8 +1112,10 @@ function adminPartnerApplicationView(application) {
 }
 
 function adminPartnerFollowupView(followup) {
-  if (!followup?.taskId) return followup;
-  const { recipient, ...safe } = followup;
+  if (!followup) return followup;
+  const { deliveryClaimId, deliveryIdempotencyKey, ...deliverySafe } = followup;
+  if (!followup.taskId) return deliverySafe;
+  const { recipient, ...safe } = deliverySafe;
   return {
     ...safe,
     recipientAvailable: Boolean(recipient),
@@ -5305,13 +5307,15 @@ async function handleRequest(request, response) {
       await writeAuditRecord(request, `outreach.campaign.${action}`, { type: "campaign", id: campaignId }, before, result.campaign, {
         returnedToReview: result.returnedToReview,
         dismissedFollowups: result.dismissedFollowups,
-        failedHeldForRetry: result.failedHeldForRetry
+        failedHeldForRetry: result.failedHeldForRetry,
+        inFlightFollowups: result.inFlightFollowups
       });
       sendJson(request, response, 200, {
         campaign: result.campaign,
         returnedToReview: result.returnedToReview,
         dismissedFollowups: result.dismissedFollowups,
         failedHeldForRetry: result.failedHeldForRetry,
+        inFlightFollowups: result.inFlightFollowups,
         automation: outreachCampaignAutomationReadiness(result.doc, result.campaign, { providerReady: outreachAutomationProviderReady })
       });
       return;

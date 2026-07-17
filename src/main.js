@@ -6379,7 +6379,7 @@ function renderAdminPartners(payload, outreach) {
     if (action === "activate" && button.dataset.campaignDeliveryMode === "approved_sequence" && !window.confirm("Approve this campaign's current targeting, templates, and sequence for automatic delivery up to its daily limit?")) return;
     button.disabled = true;
     try {
-      await adminFetch(`/api/admin/outreach/campaigns/${encodeURIComponent(button.dataset.campaignId)}/${action}`, { method: "POST" });
+      const lifecycle = await adminFetch(`/api/admin/outreach/campaigns/${encodeURIComponent(button.dataset.campaignId)}/${action}`, { method: "POST" });
       let generated = 0;
       if (action === "activate") {
         const result = await adminFetch(`/api/admin/outreach/campaigns/${encodeURIComponent(button.dataset.campaignId)}/generate`, { method: "POST" });
@@ -6387,7 +6387,8 @@ function renderAdminPartners(payload, outreach) {
       }
       await loadAdminPartners({ quiet: true });
       const automated = button.dataset.campaignDeliveryMode === "approved_sequence";
-      setAdminStatus(action === "activate" ? `Campaign activated with ${generated} due message${generated === 1 ? "" : "s"}${automated ? " eligible for bounded automation" : " ready for review"}.` : `Campaign ${action}d.`, "ok");
+      const inFlightCopy = lifecycle.inFlightFollowups ? ` ${lifecycle.inFlightFollowups} already claimed delivery${lifecycle.inFlightFollowups === 1 ? " is" : "ies are"} still in flight.` : "";
+      setAdminStatus(action === "activate" ? `Campaign activated with ${generated} due message${generated === 1 ? "" : "s"}${automated ? " eligible for bounded automation" : " ready for review"}.` : `Campaign ${action}d.${inFlightCopy}`, "ok");
     } catch (error) { setAdminStatus(error.message, "error"); } finally { button.disabled = false; }
   }));
   campaigns?.querySelectorAll("[data-campaign-generate]").forEach(button => button.addEventListener("click", async () => {

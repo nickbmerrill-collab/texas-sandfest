@@ -99,6 +99,7 @@ import {
   applyOutreachCampaignAutomation,
   applyTransactionalFollowupAutomation,
   automatedFollowupQueueCandidates,
+  claimFollowupDelivery,
   createPartnerBrandAsset,
   createPartnerDeliverable,
   createOutreachCampaign,
@@ -2377,6 +2378,12 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
       : item)
   };
   const manuallyQueuedCampaign = queueFollowupDelivery(manualCampaignDoc, appliedAutomatedCampaign.approved[0].id, { now });
+  const claimedCampaignDelivery = claimFollowupDelivery(manuallyQueuedCampaign.doc, appliedAutomatedCampaign.approved[0].id, { deliveryClaimId: "job_campaign_claim", now });
+  const pausedAfterDeliveryClaim = updateOutreachCampaignStatus(claimedCampaignDelivery.doc, automatedCampaign.campaign.id, "pause", { actorId: "sponsor_1", idFactory, now });
+  const recordedClaimedDelivery = recordFollowupDelivery(pausedAfterDeliveryClaim.doc, appliedAutomatedCampaign.approved[0].id, { sent: true, provider: "brevo", providerMessageId: "msg_claimed_campaign" }, { deliveryClaimId: "job_campaign_claim", now });
+  const failedClaimedDelivery = recordFollowupDelivery(pausedAfterDeliveryClaim.doc, appliedAutomatedCampaign.approved[0].id, { sent: false, provider: "brevo", error: "Provider unavailable." }, { deliveryClaimId: "job_campaign_claim", now });
+  const pausedBeforeDeliveryClaim = updateOutreachCampaignStatus(manuallyQueuedCampaign.doc, automatedCampaign.campaign.id, "pause", { actorId: "sponsor_1", idFactory, now });
+  const blockedDeliveryClaim = claimFollowupDelivery(pausedBeforeDeliveryClaim.doc, appliedAutomatedCampaign.approved[0].id, { deliveryClaimId: "job_campaign_stale", now });
   const manualOverflowId = `${appliedAutomatedCampaign.approved[0].id}_overflow`;
   const manualOverflowDoc = {
     ...manuallyQueuedCampaign.doc,
@@ -2405,6 +2412,7 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   ok("campaign approval automates one bounded message", generatedAutomatedCampaign.generated.length === 1 && appliedAutomatedCampaign.approved.length === 1 && appliedAutomatedCampaign.approved[0].automationPolicy === OUTREACH_CAMPAIGN_AUTOMATION_POLICY && automatedReadiness.dailySendLimit === 1 && automatedReadiness.remainingToday === 0 && campaignQueueCandidates.length === 1);
   ok("campaign automation fails closed and carries queued capacity", providerBlockedCampaignCandidates.length === 0 && carriedQueueReadiness.queuedPending === 1 && carriedQueueReadiness.remainingToday === 0);
   ok("campaign daily cap includes manual delivery", manuallyQueuedCampaign.ok && !manuallyQueuedOverflow.ok && manuallyQueuedOverflow.dailyLimitReached === true && outreachCampaignAutomationReadiness(manuallyQueuedCampaign.doc, automatedCampaign.campaign.id, { now, providerReady: true }).remainingToday === 0);
+  ok("campaign pause and send use an atomic delivery claim", claimedCampaignDelivery.ok && pausedAfterDeliveryClaim.inFlightFollowups === 1 && pausedAfterDeliveryClaim.doc.followups.find(item => item.id === claimedCampaignDelivery.followup.id)?.status === "sending" && recordedClaimedDelivery.ok && recordedClaimedDelivery.followup.status === "sent" && failedClaimedDelivery.ok && failedClaimedDelivery.followup.status === "failed" && !blockedDeliveryClaim.ok && blockedDeliveryClaim.canceled === true);
   ok("campaign pause returns unsent automation to review", pausedAutomatedCampaign.ok && pausedAutomatedCampaign.returnedToReview === 1 && pausedAutomatedCampaign.doc.followups.find(item => item.id === appliedAutomatedCampaign.approved[0].id)?.status === "draft_ready" && automatedFollowupQueueCandidates(pausedAutomatedCampaign.doc, { now }).length === 0);
   ok("campaign pause holds failed delivery for manual retry", failedCampaignReadiness.failedToday === 1 && failedCampaignReadiness.remainingToday === 0 && pausedFailedCampaign.failedHeldForRetry === 1 && pausedFailedCampaign.doc.followups.find(item => item.id === appliedAutomatedCampaign.approved[0].id)?.status === "failed" && resumedFailedCampaign.ok && reappliedFailedCampaign.approved.length === 0);
   const movedOutsideCampaign = updateOutreachProspect(campaignDraft.doc, prospect.prospect.id, {
@@ -2675,6 +2683,7 @@ Research First,construction,Corpus Christi,,78401,,,,Find decision maker,`;
     toName: "Vendor Contact",
     subject: "Application received",
     textContent: "Thank you for applying.",
+    idempotencyKey: "123e4567-e89b-42d3-a456-426614174000",
     listUnsubscribeUrl: "https://www.texassandfest.org/#outreach-preferences?prospect=p_1&token=tsfu_test"
   }, {
     config,
@@ -2684,10 +2693,21 @@ Research First,construction,Corpus Christi,,78401,,,,Find decision maker,`;
     }
   });
   const body = JSON.parse(request.options.body);
+  const duplicate = await sendTransactionalEmail({
+    toEmail: "vendor@example.com",
+    subject: "Application received",
+    textContent: "Thank you for applying.",
+    idempotencyKey: "123e4567-e89b-42d3-a456-426614174000"
+  }, {
+    config,
+    fetchImpl: async () => new Response(JSON.stringify({ code: "duplicate_parameter", message: "Idempotency key already used" }), { status: 400, headers: { "content-type": "application/json" } })
+  });
   ok("Brevo delivery contract", result.sent && result.providerMessageId === "brevo_msg_1" && request.url.endsWith("/v3/smtp/email"));
   ok("Brevo sender and recipient", body.sender.email === "partners@texassandfest.org" && body.to[0].email === "vendor@example.com");
   ok("Brevo API key header", request.options.headers["api-key"] === "test-secret");
   ok("Brevo list unsubscribe header", body.headers?.["List-Unsubscribe"] === "<https://www.texassandfest.org/#outreach-preferences?prospect=p_1&token=tsfu_test>");
+  ok("Brevo idempotency header", body.headers?.["Idempotency-Key"] === "123e4567-e89b-42d3-a456-426614174000");
+  ok("Brevo duplicate idempotency response fails closed", !duplicate.sent && duplicate.duplicate === true && duplicate.providerCode === "duplicate_parameter");
 }
 
 // Loopback-only board email sandbox
