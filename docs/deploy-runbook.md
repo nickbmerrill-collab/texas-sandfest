@@ -34,6 +34,12 @@ The next successful `CI` run for a direct `main` push publishes to:
 https://nickbmerrill-collab.github.io/texas-sandfest/
 ```
 
+Pull requests also receive a Vercel preview of the isolated public artifact.
+`vercel.json` owns that preview build so stale dashboard framework settings
+cannot make this Vite repository run a Next.js build. A preview is review
+evidence only: it does not replace the gated Pages release or prove that the
+production API and provider capabilities are live.
+
 That is the expected demo URL after a successful workflow and Pages enablement. Verify it directly before sharing it. To swap in `sandfest.heyelab.com`:
 
 1. In the repo's Pages settings, set the custom domain to `sandfest.heyelab.com`.

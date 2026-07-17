@@ -37,12 +37,16 @@ const adminJavaScript = (await Promise.all(
 )).join("\n");
 const publicBootstrap = JSON.parse(await readFile(path.join(publicDir, "data", "app-bootstrap.json"), "utf8"));
 const publicTicketCatalog = JSON.parse(await readFile(path.join(publicDir, "data", "ticket-products.json"), "utf8"));
+const vercelConfig = JSON.parse(await readFile(path.join(root, "vercel.json"), "utf8"));
 const mediaDerivatives = JSON.parse(await readFile(path.join(publicDir, "assets", "sandfest-media", "media-derivatives.json"), "utf8"));
 const robots = await readFile(path.join(publicDir, "robots.txt"), "utf8");
 const publicWorker = await readFile(path.join(publicDir, "sw.js"), "utf8");
 
 assert(!(await exists(path.join(publicDir, "admin.html"))), "Public artifact must not contain admin.html.");
 assert(!(await exists(path.join(adminDir, "admin.html"))), "Admin artifact must promote admin.html to the root entry.");
+assert(vercelConfig.framework === "vite", "Vercel PR previews must use the Vite framework preset.");
+assert(vercelConfig.buildCommand === "npm run build:public", "Vercel PR previews must build only the public surface.");
+assert(vercelConfig.outputDirectory === "dist-public", "Vercel PR previews must publish only the isolated public artifact.");
 assert(publicHtml.includes("Texas SandFest | Port Aransas"), "Public artifact does not contain the visitor entry.");
 assert(!publicHtml.includes("SandFest Ops Console"), "Public artifact contains the admin entry.");
 assert(adminHtml.includes("SandFest Ops Console"), "Admin artifact does not contain the ops entry.");

@@ -39,3 +39,4 @@ camera_agent/*.onnx
 camera_agent/*.pt
 __pycache__/
 *.py[cod]
+.vercel
