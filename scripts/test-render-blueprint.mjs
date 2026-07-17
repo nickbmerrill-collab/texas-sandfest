@@ -87,7 +87,7 @@ check("admin is an isolated static service", admin?.type === "web" && admin?.run
 check("admin publishes only after checks pass", admin?.branch === "main" && admin?.autoDeployTrigger === "checksPass" && admin?.autoDeploy === undefined);
 check("admin owns the canonical operations domain", admin?.domains?.includes("sandfest-admin.heyelab.com"));
 check("API is a checks-gated Docker service", api?.type === "web" && api?.runtime === "docker" && api?.branch === "main" && api?.autoDeployTrigger === "checksPass");
-check("API health probe is configured", api?.healthCheckPath === "/ready");
+check("API health probe verifies the process and data plane", api?.healthCheckPath === "/health");
 check("API uses the canonical production prefix", apiEnv.get("SANDFEST_ENV")?.value === "production" && apiEnv.get("SANDFEST_API_PREFIX")?.value === "/sandfest");
 check("API uses private managed Postgres", apiEnv.get("SANDFEST_DATABASE_URL")?.fromDatabase?.name === "sandfest-db" && apiEnv.get("SANDFEST_DATABASE_URL")?.fromDatabase?.property === "connectionString");
 check("API uses private managed rate limiting", apiEnv.get("REDIS_URL")?.fromService?.type === "keyvalue" && apiEnv.get("REDIS_URL")?.fromService?.name === "sandfest-rate-limit" && apiEnv.get("REDIS_URL")?.fromService?.property === "connectionString");

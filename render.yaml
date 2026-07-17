@@ -74,7 +74,7 @@ services:
     repo: https://github.com/nickbmerrill-collab/texas-sandfest
     branch: main
     plan: starter
-    healthCheckPath: /ready
+    healthCheckPath: /health
     autoDeployTrigger: checksPass
     disk:
       name: sandfest-partner-assets
