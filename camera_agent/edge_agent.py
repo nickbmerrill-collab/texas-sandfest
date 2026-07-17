@@ -34,6 +34,9 @@ TRACKED_CLASS_IDS = {PERSON_CLASS_ID, *VEHICLE_CLASS_IDS}
 SUPPORTED_CAMERA_KINDS = {"traffic", "queue", "crowd", "line"}
 ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$")
 ENV_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]{1,127}$")
+PLACEHOLDER_PATTERN = re.compile(
+    r"^(?:pending|unknown|unreviewed|none|n/a|replace(?:-with)?|todo)", re.I
+)
 DEFAULT_ROI = ((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0))
 LOG = logging.getLogger("sandfest-camera-agent")
 
@@ -313,6 +316,7 @@ def build_observation(
     model_name: str,
     model_version: str,
     interval_seconds: int,
+    model_sha256: str = "",
 ) -> dict[str, Any]:
     camera_id = str(camera["cameraId"])
     return {
@@ -322,6 +326,7 @@ def build_observation(
         **metrics,
         "modelName": model_name[:100],
         "modelVersion": model_version[:100],
+        "modelSha256": model_sha256[:64],
     }
 
 
@@ -338,6 +343,7 @@ def build_heartbeat(
     model_name: str,
     model_version: str,
     heartbeat_interval_seconds: int,
+    model_sha256: str = "",
     last_error: str | None = None,
 ) -> dict[str, Any]:
     payload = {
@@ -360,6 +366,7 @@ def build_heartbeat(
         "agentVersion": AGENT_VERSION,
         "modelName": model_name[:100],
         "modelVersion": model_version[:100],
+        "modelSha256": model_sha256[:64],
     }
     if last_error:
         payload["lastError"] = str(last_error)[:500]
@@ -504,10 +511,56 @@ def _normalized_line(value: Any, label: str) -> list[list[float]]:
     return output
 
 
+def validate_model_approval(
+    model_config: Mapping[str, Any],
+    *,
+    required: bool = False,
+    now_epoch: float | None = None,
+) -> dict[str, str]:
+    approval = model_config.get("approval") or {}
+    if not isinstance(approval, Mapping):
+        raise AgentConfigurationError("Camera model approval must be an object.")
+    status = str(approval.get("status") or "pending").strip().lower()
+    if not required and status != "approved":
+        return {"status": status}
+    errors: list[str] = []
+    if status != "approved":
+        errors.append("status must be approved")
+    values = {
+        "licenseReference": str(approval.get("licenseReference") or "").strip(),
+        "approvedBy": str(approval.get("approvedBy") or "").strip(),
+        "approvedAt": str(approval.get("approvedAt") or "").strip(),
+        "decisionReference": str(approval.get("decisionReference") or "").strip(),
+    }
+    for key in ("licenseReference", "approvedBy", "decisionReference"):
+        if not values[key] or PLACEHOLDER_PATTERN.match(values[key]):
+            errors.append(f"{key} must contain the reviewed production value")
+    approved_at: datetime | None = None
+    try:
+        approved_at = datetime.fromisoformat(values["approvedAt"].replace("Z", "+00:00"))
+        if approved_at.tzinfo is None:
+            raise ValueError("timezone missing")
+    except ValueError:
+        errors.append("approvedAt must be an ISO-8601 timestamp with a timezone")
+    if approved_at is not None:
+        reference_now = now_epoch if now_epoch is not None else time.time()
+        if approved_at.timestamp() > reference_now + 300:
+            errors.append("approvedAt cannot be in the future")
+    model_sha256 = str(model_config.get("sha256") or "").strip().lower()
+    if not re.fullmatch(r"[a-f0-9]{64}", model_sha256):
+        errors.append("the approved model requires a 64-character sha256")
+    if errors:
+        raise AgentConfigurationError(
+            "Camera model production approval is incomplete: " + "; ".join(errors) + "."
+        )
+    return {"status": status, **values}
+
+
 def validate_config(
     config: Mapping[str, Any],
     *,
     require_runtime: bool = False,
+    require_production_approval: bool = False,
     runtime_camera_id: str | None = None,
     env: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
@@ -525,6 +578,9 @@ def validate_config(
         raise AgentConfigurationError(
             "Camera model sha256 must be 64 lowercase hexadecimal characters."
         )
+    validate_model_approval(
+        model_config, required=require_production_approval
+    )
     cameras = config.get("cameras")
     if not isinstance(cameras, list) or not cameras:
         raise AgentConfigurationError(
@@ -684,6 +740,7 @@ def load_config(
     path_value: str | Path,
     *,
     require_runtime: bool = False,
+    require_production_approval: bool = False,
     runtime_camera_id: str | None = None,
     env: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
@@ -699,6 +756,7 @@ def load_config(
     return validate_config(
         config,
         require_runtime=require_runtime,
+        require_production_approval=require_production_approval,
         runtime_camera_id=runtime_camera_id,
         env=env,
     )
@@ -836,6 +894,7 @@ def simulate(
         model_name=model_name,
         model_version=model_version,
         interval_seconds=interval,
+        model_sha256=str(model.get("sha256") or "").lower(),
     )
 
 
@@ -952,6 +1011,7 @@ class CameraRunner:
             model_name=self.model_name,
             model_version=self.model_version,
             heartbeat_interval_seconds=self.heartbeat_interval,
+            model_sha256=self.model_sha256,
             last_error=self.last_error,
         )
         self.client.post(str(self.camera["cameraId"]), "heartbeat", payload)
@@ -1089,6 +1149,7 @@ class CameraRunner:
                             model_name=self.model_name,
                             model_version=self.model_version,
                             interval_seconds=self.observation_interval,
+                            model_sha256=self.model_sha256,
                         )
                         try:
                             response = self.client.post(
@@ -1115,6 +1176,8 @@ class CameraRunner:
 
 def config_summary(config: Mapping[str, Any]) -> dict[str, Any]:
     cameras = config["cameras"]
+    model = config.get("model") or {}
+    approval = model.get("approval") or {}
     return {
         "ok": True,
         "agentVersion": AGENT_VERSION,
@@ -1127,6 +1190,7 @@ def config_summary(config: Mapping[str, Any]) -> dict[str, Any]:
             camera.get("streamEnv") for camera in cameras if camera.get("streamEnv")
         ],
         "secretEnvironmentVariables": [camera["secretEnv"] for camera in cameras],
+        "modelApprovalStatus": str(approval.get("status") or "pending"),
         "privacyMode": "metrics_only",
     }
 
@@ -1146,6 +1210,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--validate-runtime",
         action="store_true",
         help="Validate required environment variables for all enabled cameras or --camera",
+    )
+    parser.add_argument(
+        "--validate-production",
+        action="store_true",
+        help="Require reviewed model license and artifact approval metadata",
     )
     parser.add_argument(
         "--verify-model",
@@ -1180,15 +1249,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         format="%(asctime)s %(levelname)s %(message)s",
     )
     try:
+        production_mode = (
+            args.validate_production
+            or os.environ.get("SANDFEST_CAMERA_ENV", "").strip().lower() == "production"
+        )
         config = load_config(
             args.config,
             require_runtime=args.validate_runtime,
+            require_production_approval=production_mode,
             runtime_camera_id=args.camera if args.validate_runtime else None,
         )
         if args.verify_model:
             print(json.dumps(verify_model_file(config.get("model") or {}, args.model_dir), indent=2))
             return 0
-        if args.validate or args.validate_runtime:
+        if args.validate or args.validate_runtime or args.validate_production:
             summary = config_summary(config)
             if args.validate_runtime:
                 summary["runtimeValidatedCameraIds"] = (
@@ -1200,6 +1274,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                         if camera.get("enabled", True)
                     ]
                 )
+            summary["productionApprovalValidated"] = production_mode
             print(json.dumps(summary, indent=2))
             return 0
         if not args.camera:

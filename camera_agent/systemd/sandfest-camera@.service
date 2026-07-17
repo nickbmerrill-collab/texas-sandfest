@@ -10,8 +10,9 @@ Group=sandfest-camera
 WorkingDirectory=/var/lib/sandfest-camera
 Environment=PYTHONUNBUFFERED=1
 Environment=PYTHONPATH=/opt/sandfest
+Environment=SANDFEST_CAMERA_ENV=production
 EnvironmentFile=/etc/sandfest/camera-%i.env
-ExecStartPre=/opt/sandfest/camera_agent/.venv/bin/python -m camera_agent.edge_agent --config /etc/sandfest/camera-agent.json --camera %i --validate-runtime
+ExecStartPre=/opt/sandfest/camera_agent/.venv/bin/python -m camera_agent.edge_agent --config /etc/sandfest/camera-agent.json --camera %i --validate-runtime --validate-production
 ExecStartPre=/opt/sandfest/camera_agent/.venv/bin/python -m camera_agent.edge_agent --config /etc/sandfest/camera-agent.json --verify-model --model-dir /var/lib/sandfest-camera
 ExecStart=/opt/sandfest/camera_agent/.venv/bin/python -m camera_agent.edge_agent --config /etc/sandfest/camera-agent.json --camera %i
 Restart=always

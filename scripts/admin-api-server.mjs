@@ -250,6 +250,10 @@ import {
   verifyCameraIngestSignature
 } from "../lib/camera-ingest.mjs";
 import {
+  cameraModelApproval,
+  verifyCameraModelPayload
+} from "../lib/camera-model-approval.mjs";
+import {
   createStripePartnerCheckoutSession,
   publicStripePartnerPaymentsReadiness,
   stripePartnerEventContext,
@@ -1473,6 +1477,21 @@ async function deploymentProfile() {
         ingest.ready ? "Signed camera metric ingestion is ready." : required ? `Required camera metric ingestion is not ready. ${ingest.reason}` : ingest.reason,
         required || ingest.enabled ? "error" : "warning"
       );
+    })(),
+    cameraModelApproval: (() => {
+      const ingest = cameraIngestConfig();
+      const required = capabilityPolicy.required.has("camera_ingest");
+      const approval = cameraModelApproval();
+      const applicable = production && (required || ingest.enabled);
+      return checkStatus(
+        !applicable || approval.ready,
+        approval.ready
+          ? `Camera detector ${approval.modelName} ${approval.modelVersion} is approval-bound to ${approval.sha256.slice(0, 12)}... under ${approval.licenseReference}.`
+          : applicable
+            ? approval.reason
+            : "Camera model approval is enforced when camera ingestion is deployed in production.",
+        applicable ? "error" : "warning"
+      );
     })()
   };
   const values = Object.values(checks);
@@ -1813,7 +1832,19 @@ async function readSignedCameraPayload(request, response, label, cameraId) {
     return null;
   }
   try {
-    return { body: JSON.parse(rawBody), verification };
+    const body = JSON.parse(rawBody);
+    if (SANDFEST_ENV === "production") {
+      const modelVerification = verifyCameraModelPayload(body, cameraModelApproval());
+      if (!modelVerification.verified) {
+        sendJson(request, response, 409, {
+          error: "Camera model is not approved for production ingestion.",
+          reason: modelVerification.reason
+        });
+        return null;
+      }
+      return { body, verification, modelVerification };
+    }
+    return { body, verification, modelVerification: null };
   } catch {
     sendJson(request, response, 400, { error: `Camera ${label} body must be valid JSON.` });
     return null;

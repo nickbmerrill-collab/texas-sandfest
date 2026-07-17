@@ -364,7 +364,7 @@ QuickBooks writes are disabled unless `QB_INVOICE_SYNC_ENABLED=true` and OAuth/r
 
 ## Camera Metric Safety
 
-Camera hosts retain stream credentials, frames, and inference locally. The API accepts only HMAC-signed metric JSON when `CAMERA_INGEST_ENABLED=true`. Production requires camera-bound credentials in `CAMERA_INGEST_KEYS`; each key can submit only for its assigned camera, and overlapping keys support rotation. The shared `CAMERA_INGEST_SECRET` fallback is development-only. The API checks clock skew, configured source identity, event IDs, metric ranges, and observation age. Duplicate event IDs return the original observation, stale sources publish `unknown`, and the public payload omits source IDs, model details, notes, and internal processing metadata. See `docs/camera-metric-ingestion.md`.
+Camera hosts retain stream credentials, frames, and inference locally. The API accepts only HMAC-signed metric JSON when `CAMERA_INGEST_ENABLED=true`. Production requires camera-bound credentials in `CAMERA_INGEST_KEYS`; each key can submit only for its assigned camera, and overlapping keys support rotation. The shared `CAMERA_INGEST_SECRET` fallback is development-only. A separate `CAMERA_MODEL_*` attestation binds the reviewed detector name, version, license decision, approver, decision record, and timestamp to the exact SHA-256 deployed on each host. Production readiness fails until both ingestion and model approval are ready, and signed metrics are rejected when their model identity does not match that approval. The API also checks clock skew, configured source identity, event IDs, metric ranges, and observation age. Duplicate event IDs return the original observation, stale sources publish `unknown`, and the public payload omits source IDs, model details, notes, and internal processing metadata. See `docs/camera-metric-ingestion.md` and `docs/camera-edge-agent.md`.
 
 ## Scale Profile
 
@@ -398,6 +398,7 @@ Set `SANDFEST_ENV=production` when deploying to Heyelab. In production, these ch
 - CORS must include the Texas SandFest origins and admin base URL.
 - If Stripe ticketing is enabled, Stripe secret, webhook secret, success URL, and cancel URL must be production-safe.
 - If Stripe partner payments are enabled, the shared Stripe secret and webhook secret, partner success/cancel HTTPS URLs, and official Stripe API origin must all pass readiness. Partner webhooks also enforce the configured timestamp tolerance.
+- Required camera ingestion must have all eight camera-bound keys plus a reviewed `CAMERA_MODEL_*` approval bound to the deployed model SHA-256.
 
 Rate-limit knobs:
 

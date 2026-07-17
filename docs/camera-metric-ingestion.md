@@ -35,6 +35,14 @@ Configure one or more 32+ character credentials per camera on the API. The key I
 CAMERA_INGEST_ENABLED=true
 CAMERA_INGEST_KEYS={"north-gate-v1":{"cameraId":"north-gate","secret":"replace-with-32-or-more-characters"},"north-gate-v2":{"cameraId":"north-gate","secret":"second-rotation-secret-32-characters"}}
 CAMERA_INGEST_REQUIRED_CAMERA_IDS=ferry-loading,ferry-stacking,harbor-island-entrance,harbor-island-stacking,north-gate,south-gate,food-court,competition-corridor
+CAMERA_MODEL_APPROVAL_STATUS=approved
+CAMERA_MODEL_NAME=reviewed-detector.onnx
+CAMERA_MODEL_VERSION=detector-coco-2026.07
+CAMERA_MODEL_SHA256=<64-character-approved-model-sha256>
+CAMERA_MODEL_LICENSE_REFERENCE=<reviewed-license-or-contract-record>
+CAMERA_MODEL_APPROVED_BY=<responsible-reviewer-or-committee>
+CAMERA_MODEL_APPROVED_AT=<iso-8601-review-timestamp>
+CAMERA_MODEL_DECISION_REFERENCE=<durable-decision-record>
 ```
 
 When production ingest is enabled, readiness stays red until every required camera ID has at least one active credential. The eight-source fleet above is the production default; update the explicit list only after the approved camera plan changes.
@@ -67,12 +75,13 @@ Example payload:
   "queueLength": 24,
   "estimatedWaitMinutes": 11,
   "confidence": 0.93,
-  "modelName": "local-crowd-counter",
-  "modelVersion": "2026.07"
+  "modelName": "reviewed-detector.onnx",
+  "modelVersion": "detector-coco-2026.07",
+  "modelSha256": "<64-character-approved-model-sha256>"
 }
 ```
 
-The API rejects unsigned requests, signatures outside the configured clock-skew window, unconfigured or mismatched sources, future/old observations, and out-of-range metrics. Reusing the same `eventId` for a retry returns the original observation instead of duplicating it.
+The API rejects unsigned requests, signatures outside the configured clock-skew window, unconfigured or mismatched sources, future/old observations, and out-of-range metrics. In production it also requires the signed model name, version, and SHA-256 to match the deployment approval exactly. Reusing the same `eventId` for a retry returns the original observation instead of duplicating it.
 
 Monitoring must be armed per source before signed heartbeats or observations are accepted. This separates configured-but-not-yet-installed cameras from pipelines expected to be live during operations.
 
@@ -90,8 +99,9 @@ Each armed pipeline also posts a heartbeat to `/api/ingest/cameras/<camera-id>/h
   "droppedFramePct": 0.7,
   "uptimeSeconds": 7200,
   "agentVersion": "2026.07",
-  "modelName": "local-crowd-counter",
-  "modelVersion": "2026.07"
+  "modelName": "reviewed-detector.onnx",
+  "modelVersion": "detector-coco-2026.07",
+  "modelSha256": "<64-character-approved-model-sha256>"
 }
 ```
 

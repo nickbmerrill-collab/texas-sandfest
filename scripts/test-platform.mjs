@@ -2835,7 +2835,7 @@ Research First,construction,Corpus Christi,,78401,,,,Find decision maker,`;
   ok("camera degraded and offline states", degradedConditions.cameras.find(camera => camera.id === "north-gate")?.operationalStatus === "degraded" && degradedConditions.summary.degradedPipelines === 1 && offlineConditions.cameras.find(camera => camera.id === "north-gate")?.operationalStatus === "offline" && offlineConditions.summary.offlinePipelines === 1);
   const publicConditions = publicIslandConditions(healthyObservation.doc, "2026-07-16T12:00:00.000Z");
   const publicNorth = publicConditions.cameras.find(camera => camera.id === "north-gate");
-  ok("camera public privacy contract", !("sourceId" in publicNorth) && !("health" in publicNorth) && !("monitoringEnabled" in publicNorth) && !("modelName" in publicNorth.observation) && publicNorth.observation.peopleCount === 120);
+  ok("camera public privacy contract", !("sourceId" in publicNorth) && !("health" in publicNorth) && !("monitoringEnabled" in publicNorth) && !("modelName" in publicNorth.observation) && !("modelSha256" in publicNorth.observation) && publicNorth.observation.peopleCount === 120);
   const ferryFallbackSeed = {
     ...seed,
     ferry: {
@@ -3399,6 +3399,9 @@ try {
     await writeFile(malformedProductionConfig, "{not-valid-json", "utf8");
     let productionProbeChild = null;
     try {
+      const productionCameraSecret = "production-probe-camera-secret-at-least-32-characters";
+      const productionCameraKeyId = "north-gate-production-probe";
+      const productionModelSha256 = "a".repeat(64);
       productionProbeChild = spawn("node", ["scripts/admin-api-server.mjs"], {
         cwd: ROOT,
         env: {
@@ -3416,7 +3419,22 @@ try {
           SANDFEST_ADMIN_CONFIG_PATH: malformedProductionConfig,
           SANDFEST_REQUIRED_CAPABILITIES: "transactional_email,camera_ingest,outreach_discovery",
           TRANSACTIONAL_EMAIL_ENABLED: "false",
-          CAMERA_INGEST_ENABLED: "false",
+          CAMERA_INGEST_ENABLED: "true",
+          CAMERA_INGEST_KEYS: JSON.stringify({
+            [productionCameraKeyId]: {
+              cameraId: "north-gate",
+              secret: productionCameraSecret
+            }
+          }),
+          CAMERA_INGEST_REQUIRED_CAMERA_IDS: "north-gate",
+          CAMERA_MODEL_APPROVAL_STATUS: "approved",
+          CAMERA_MODEL_NAME: "production-probe-model.onnx",
+          CAMERA_MODEL_VERSION: "production-probe-2026.07",
+          CAMERA_MODEL_SHA256: productionModelSha256,
+          CAMERA_MODEL_LICENSE_REFERENCE: "CAMERA-LICENSE-REVIEW-2026-001",
+          CAMERA_MODEL_APPROVED_BY: "SandFest test technology committee",
+          CAMERA_MODEL_APPROVED_AT: new Date(Date.now() - 60_000).toISOString(),
+          CAMERA_MODEL_DECISION_REFERENCE: "CAMERA-MODEL-DECISION-2026-001",
           OUTREACH_DISCOVERY_ENABLED: "false"
         },
         stdio: ["ignore", "pipe", "pipe"]
@@ -3444,8 +3462,39 @@ try {
         headers: { "x-request-id": "production-error-probe" }
       });
       const productionError = await productionErrorResponse.json();
+      const mismatchedModelBody = JSON.stringify({
+        heartbeatId: "production-model-mismatch-heartbeat",
+        sourceId: "production-probe-source",
+        observedAt: new Date().toISOString(),
+        status: "healthy",
+        modelName: "production-probe-model.onnx",
+        modelVersion: "production-probe-2026.07",
+        modelSha256: "b".repeat(64)
+      });
+      const mismatchedModelTimestamp = String(Math.floor(Date.now() / 1000));
+      const mismatchedModelResponse = await fetch(
+        `http://127.0.0.1:${productionProbePort}/api/ingest/cameras/north-gate/heartbeat`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-sandfest-timestamp": mismatchedModelTimestamp,
+            "x-sandfest-camera-key-id": productionCameraKeyId,
+            "x-sandfest-signature": `sha256=${signCameraPayload(
+              mismatchedModelBody,
+              mismatchedModelTimestamp,
+              productionCameraSecret,
+              { keyId: productionCameraKeyId }
+            )}`
+          },
+          body: mismatchedModelBody
+        }
+      );
+      const mismatchedModel = await mismatchedModelResponse.json();
       ok("production rejects file data plane", response.status === 200 && data.deployment?.checks?.dataPlane?.ok === false && data.deployment?.checks?.dataPlane?.severity === "error" && data.deployment?.ok === false);
-      ok("production rejects disabled required capabilities", data.deployment?.checks?.transactionalEmail?.ok === false && data.deployment?.checks?.cameraIngest?.ok === false && data.deployment?.checks?.outreachDiscovery?.ok === false && data.deployment?.checks?.outreachDiscovery?.severity === "error" && data.deployment?.requiredCapabilities?.length === 3);
+      ok("production rejects disabled required capabilities", data.deployment?.checks?.transactionalEmail?.ok === false && data.deployment?.checks?.cameraIngest?.ok === true && data.deployment?.checks?.outreachDiscovery?.ok === false && data.deployment?.checks?.outreachDiscovery?.severity === "error" && data.deployment?.requiredCapabilities?.length === 3);
+      ok("production requires artifact-bound camera model approval", data.deployment?.checks?.cameraModelApproval?.ok === true && data.deployment?.checks?.cameraModelApproval?.message.includes(productionModelSha256.slice(0, 12)));
+      ok("production ingest rejects detector bytes outside the approval", mismatchedModelResponse.status === 409 && mismatchedModel.reason === "camera_model_checksum_mismatch");
       ok("production requires partner intake bot verification", data.deployment?.checks?.partnerIntakeBotProtection?.ok === false && data.deployment?.checks?.partnerIntakeBotProtection?.severity === "error");
       ok("production requires current recovery evidence", data.deployment?.checks?.backupRecovery?.ok === false && data.deployment?.checks?.backupRecovery?.severity === "error");
       ok("production requires a shared rate-limit backend", data.deployment?.checks?.rateLimitBackend?.ok === false && data.deployment?.checks?.rateLimitBackend?.severity === "error" && data.deployment?.checks?.rateLimitBackend?.message.includes("memory"));
@@ -3926,7 +3975,7 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     ok("signed camera heartbeat replay", firstHeartbeat.status === 201 && replayedHeartbeat.status === 200 && replayedHeartbeat.data.duplicate === true);
     ok("signed camera metric after heartbeat", metric.status === 201 && adminNorth?.operationalStatus === "live" && adminNorth?.health?.agentId === "api-beach-agent");
     ok("camera rotation readiness is admin-visible and secret-free", adminCameraState.data.ingest?.credentialCount === 3 && adminCameraState.data.ingest?.rotatingCameraIds?.includes("north-gate") && !JSON.stringify(adminCameraState.data.ingest).includes(SMOKE_CAMERA_SECRET));
-    ok("camera agent internals remain private", publicNorth?.operationalStatus === "live" && publicNorth?.observation?.peopleCount === 84 && !("health" in (publicNorth || {})) && !("modelName" in (publicNorth?.observation || {})));
+    ok("camera agent internals remain private", publicNorth?.operationalStatus === "live" && publicNorth?.observation?.peopleCount === 84 && !("health" in (publicNorth || {})) && !("modelName" in (publicNorth?.observation || {})) && !("modelSha256" in (publicNorth?.observation || {})));
 
     async function postSignedMetric(eventId, metrics) {
       const raw = JSON.stringify({ eventId, sourceId: "api-north-gate-1", observedAt: new Date().toISOString(), ...metrics });

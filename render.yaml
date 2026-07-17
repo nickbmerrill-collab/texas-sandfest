@@ -226,6 +226,24 @@ services:
         value: "300"
       - key: CAMERA_INGEST_RATE_LIMIT
         value: "600"
+      # Launch remains blocked until the exact edge detector artifact has a
+      # reviewed license decision and the API attestation matches each host.
+      - key: CAMERA_MODEL_APPROVAL_STATUS
+        sync: false
+      - key: CAMERA_MODEL_NAME
+        sync: false
+      - key: CAMERA_MODEL_VERSION
+        sync: false
+      - key: CAMERA_MODEL_SHA256
+        sync: false
+      - key: CAMERA_MODEL_LICENSE_REFERENCE
+        sync: false
+      - key: CAMERA_MODEL_APPROVED_BY
+        sync: false
+      - key: CAMERA_MODEL_APPROVED_AT
+        sync: false
+      - key: CAMERA_MODEL_DECISION_REFERENCE
+        sync: false
       # Stripe pre-wired in test mode; flip to true + add live keys later.
       - key: STRIPE_TICKETING_ENABLED
         value: "false"

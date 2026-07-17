@@ -22,7 +22,7 @@ Required host conditions:
 
 YOLO11n uses the general COCO object classes. It is a practical starting detector, not a calibrated high-density crowd model. Heavy occlusion, unusual camera angles, glare, night lighting, tents, and tightly packed lines can reduce accuracy. Do not publish or operationalize estimates until each view has been field-calibrated against manual counts.
 
-The resolved Ultralytics package and model declare AGPL-3.0. Before production, SandFest must document approved AGPL compliance, obtain appropriate commercial terms, or replace the detector with a reviewed compatible implementation and model. This repository does not treat a successful technical test as license approval.
+The resolved Ultralytics package and model declare AGPL-3.0. Ultralytics' own licensing guidance says projects that cannot meet the AGPL source requirements need an Enterprise license. Before production, SandFest must document approved AGPL compliance, obtain appropriate commercial terms, or replace the detector with a reviewed compatible implementation and model. This repository does not treat a successful technical test as license approval. See [Ultralytics' licensing guidance](https://docs.ultralytics.com/help/contributing/#open-sourcing-your-yolo-project-under-agpl-30). A permissively licensed implementation is only a candidate: its exact model weights, training data terms, dependencies, and deployment use still require review.
 
 ## Install
 
@@ -47,9 +47,11 @@ After prefetching, prove the exact cached bytes without loading the inference st
 SANDFEST_CAMERA_MODEL_DIR=/var/lib/sandfest-camera npm run camera:model:verify
 ```
 
-The production systemd unit runs this checksum preflight and a camera-scoped environment preflight before every process start. A missing stream, short secret, absent model, or checksum mismatch therefore fails before the decoder opens.
+The production systemd unit runs the model-approval gate, checksum preflight, and camera-scoped environment preflight before every process start. A pending license decision, missing stream, short secret, absent model, or checksum mismatch therefore fails before the decoder opens.
 
 Copy `camera_agent/config.example.json` to `/etc/sandfest/camera-agent.json`, owned by root and readable by the service account. Keep the eight production camera IDs and source IDs aligned with the admin configuration. Tune model, rate, capacity, regions, and counting lines in this deployed copy.
+
+The example intentionally sets `model.approval.status` to `pending`. After review, set it to `approved` and record `licenseReference`, `approvedBy`, an ISO-8601 `approvedAt`, and `decisionReference`. The existing `model.name`, `model.version`, and `model.sha256` bind that decision to exact bytes. Copy those same values into the API's `CAMERA_MODEL_*` environment variables. Signed observations and heartbeats include this model identity; production ingestion rejects missing or mismatched names, versions, or checksums before metrics reach Island Conditions. Production `/ready` and every edge service also fail closed if the attestation is absent. This records and enforces the decision but does not replace counsel or the underlying license terms.
 
 ## Secrets And Streams
 
@@ -85,6 +87,7 @@ Validate the file without opening streams or reading secrets:
 ```bash
 npm run camera:agent:validate
 npm run test:camera-agent
+npm run test:camera-model-approval
 SANDFEST_CAMERA_MODEL_DIR=/var/lib/sandfest-camera npm run test:camera-agent:runtime
 SANDFEST_CAMERA_MODEL_DIR=/var/lib/sandfest-camera npm run test:camera-agent:fleet-runtime
 SANDFEST_CAMERA_MODEL_DIR=/var/lib/sandfest-camera npm run camera:model:verify
@@ -92,11 +95,12 @@ SANDFEST_CAMERA_MODEL_DIR=/var/lib/sandfest-camera npm run camera:model:verify
 
 The single-camera runtime test loads the real model, tracker, OpenCV, and PyTorch stack against generated pixels. The fleet runtime test keeps eight independent model instances resident and times a complete eight-source inference cycle against the configured sample-rate budget. These tests write no frame or crop and do not need camera access. They prove local model compatibility and aggregate inference headroom, not RTSP decoder throughput, network behavior, camera placement, or field accuracy; those still require all eight physical feeds under event-like load.
 
-`--validate-runtime` checks environment variables for every enabled camera and is useful on a host carrying the complete fleet environment:
+`--validate-runtime` checks environment variables for every enabled camera. Combine it with `--validate-production` to require the reviewed model attestation; the systemd service does this automatically:
 
 ```bash
 camera_agent/.venv/bin/python -m camera_agent.edge_agent \
-  --validate-runtime --config /etc/sandfest/camera-agent.json
+  --validate-runtime --validate-production \
+  --config /etc/sandfest/camera-agent.json
 ```
 
 Add `--camera north-gate` to validate only the environment file used by one systemd service. The service template performs that scoped check automatically before launch.
