@@ -31,6 +31,8 @@ jobs:
         run: npm run test:platform
       - name: Deployment acceptance gate contracts
         run: npm run test:deployment-verifier
+      - name: Production container contract
+        run: npm run test:container-contract
       - name: Render Blueprint production contract
         run: npm run test:render-blueprint
       - name: Vercel project isolation contract
