@@ -1,7 +1,7 @@
 {
   "_note": "Phase 1 volunteer mirror seed (lib/volunteers.mjs). Stand-in for VolunteerLocal CSV/API export: roster, shifts, hour logs. Ops coverage = filled vs needed by zone/role. Replace with live VolunteerLocal sync when credentials arrive (docs/incoming-access-intake.md).",
   "lastUpdated": "2026-07-15T12:00:00Z",
-  "eventId": "texas-sandfest-2026",
+  "eventId": "texas-sandfest-2027",
   "source": "seed",
   "zoneLabels": {
     "north-gate": "North Gate",
@@ -15,7 +15,7 @@
   "volunteers": [
     {
       "id": "vol_001",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "name": "Alex Rivera",
       "email": "alex@example.com",
       "phone": "+15125550101",
@@ -30,7 +30,7 @@
     },
     {
       "id": "vol_002",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "name": "Blake Chen",
       "email": "blake@example.com",
       "phone": "+15125550102",
@@ -45,7 +45,7 @@
     },
     {
       "id": "vol_003",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "name": "Casey Morgan",
       "email": "casey@example.com",
       "phone": "+15125550103",
@@ -60,7 +60,7 @@
     },
     {
       "id": "vol_004",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "name": "Dana Okonkwo",
       "email": "dana@example.com",
       "phone": "+15125550104",
@@ -75,7 +75,7 @@
     },
     {
       "id": "vol_005",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "name": "Evan Brooks",
       "email": "evan@example.com",
       "phone": "+15125550105",
@@ -90,7 +90,7 @@
     },
     {
       "id": "vol_006",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "name": "Fran Delgado",
       "email": "fran@example.com",
       "phone": "+15125550106",
@@ -105,7 +105,7 @@
     },
     {
       "id": "vol_007",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "name": "Gray Patel",
       "email": "gray@example.com",
       "phone": "+15125550107",
@@ -120,7 +120,7 @@
     },
     {
       "id": "vol_008",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "name": "Harper Quinn",
       "email": "harper@example.com",
       "phone": "+15125550108",
@@ -135,7 +135,7 @@
     },
     {
       "id": "vol_009",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "name": "Ira Santos",
       "email": "ira@example.com",
       "phone": "+15125550109",
@@ -150,7 +150,7 @@
     },
     {
       "id": "vol_010",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "name": "Jules Nguyen",
       "email": "jules@example.com",
       "phone": "+15125550110",
@@ -165,7 +165,7 @@
     },
     {
       "id": "vol_011",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "name": "Kai Thompson",
       "email": "kai@example.com",
       "phone": "+15125550111",
@@ -180,7 +180,7 @@
     },
     {
       "id": "vol_012",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "name": "Lane Ortiz",
       "email": "lane@example.com",
       "phone": "+15125550112",
@@ -195,7 +195,7 @@
     },
     {
       "id": "vol_cap_gate",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "name": "Morgan Captain",
       "email": "morgan@example.com",
       "phone": "+15125550190",
@@ -210,7 +210,7 @@
     },
     {
       "id": "vol_cap_kids",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "name": "Nina Captain",
       "email": "nina@example.com",
       "phone": "+15125550191",
@@ -225,7 +225,7 @@
     },
     {
       "id": "vol_cap_ops",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "name": "Owen Captain",
       "email": "owen@example.com",
       "phone": "+15125550192",
@@ -242,7 +242,7 @@
   "shifts": [
     {
       "id": "shift_fri_north_am",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "roleId": "gate",
       "zoneId": "north-gate",
       "zoneLabel": "North Gate",
@@ -255,7 +255,7 @@
     },
     {
       "id": "shift_fri_north_pm",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "roleId": "gate",
       "zoneId": "north-gate",
       "zoneLabel": "North Gate",
@@ -268,7 +268,7 @@
     },
     {
       "id": "shift_sat_north_am",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "roleId": "gate",
       "zoneId": "north-gate",
       "zoneLabel": "North Gate",
@@ -281,7 +281,7 @@
     },
     {
       "id": "shift_sat_south_am",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "roleId": "gate",
       "zoneId": "south-entrance",
       "zoneLabel": "South Entrance",
@@ -294,7 +294,7 @@
     },
     {
       "id": "shift_sat_kids_am",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "roleId": "kids-corner",
       "zoneId": "kids-corner",
       "zoneLabel": "Kids Corner",
@@ -307,7 +307,7 @@
     },
     {
       "id": "shift_sat_kids_pm",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "roleId": "kids-corner",
       "zoneId": "kids-corner",
       "zoneLabel": "Kids Corner",
@@ -320,7 +320,7 @@
     },
     {
       "id": "shift_sat_command",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "roleId": "site-ops",
       "zoneId": "command",
       "zoneLabel": "Command",
@@ -333,7 +333,7 @@
     },
     {
       "id": "shift_sat_vendor",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "roleId": "vendor-row",
       "zoneId": "vendor-row",
       "zoneLabel": "Vendor Row",
@@ -346,7 +346,7 @@
     },
     {
       "id": "shift_sat_ada",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "roleId": "ada",
       "zoneId": "ada-staging",
       "zoneLabel": "ADA Staging",
@@ -359,7 +359,7 @@
     },
     {
       "id": "shift_sat_stage",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "roleId": "production",
       "zoneId": "main-stage",
       "zoneLabel": "Main Stage",
@@ -372,7 +372,7 @@
     },
     {
       "id": "shift_sun_north_am",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "roleId": "gate",
       "zoneId": "north-gate",
       "zoneLabel": "North Gate",
@@ -385,7 +385,7 @@
     },
     {
       "id": "shift_sun_command",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "roleId": "site-ops",
       "zoneId": "command",
       "zoneLabel": "Command",
@@ -400,7 +400,7 @@
   "hourLogs": [
     {
       "id": "hl_001",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "volunteerId": "vol_001",
       "shiftId": "shift_fri_north_am",
       "checkInAt": "2026-04-17T07:55:00-05:00",
@@ -412,7 +412,7 @@
     },
     {
       "id": "hl_002",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "volunteerId": "vol_002",
       "shiftId": "shift_fri_north_am",
       "checkInAt": "2026-04-17T07:58:00-05:00",
@@ -424,7 +424,7 @@
     },
     {
       "id": "hl_003",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "volunteerId": "vol_004",
       "shiftId": "shift_sat_kids_am",
       "checkInAt": "2026-04-18T08:50:00-05:00",
@@ -436,7 +436,7 @@
     },
     {
       "id": "hl_004",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "volunteerId": "vol_011",
       "shiftId": "shift_sat_command",
       "checkInAt": "2026-04-18T06:55:00-05:00",
@@ -448,7 +448,7 @@
     },
     {
       "id": "hl_005",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "volunteerId": "vol_cap_gate",
       "shiftId": "shift_fri_north_am",
       "checkInAt": "2026-04-17T07:30:00-05:00",
@@ -460,7 +460,7 @@
     },
     {
       "id": "hl_006",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "volunteerId": "vol_005",
       "shiftId": "shift_sat_command",
       "checkInAt": "2026-04-18T07:00:00-05:00",

@@ -1,11 +1,11 @@
 {
   "_note": "Phase 1 seed for the fleet/asset checkout module (lib/fleet.mjs). Sample golf carts, UTVs, generators, and equipment for a 3-day beach event. QR payload per asset is tsf:asset:<id>. Replace rental vendors/costs and wire LoRaWAN pings into locations when trackers arrive.",
   "lastUpdated": "2026-07-15T12:00:00Z",
-  "eventId": "texas-sandfest-2026",
+  "eventId": "texas-sandfest-2027",
   "assets": [
     {
       "id": "cart-01",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "type": "golf_cart",
       "label": "Cart 01",
       "identifier": "IC-GC-101",
@@ -22,7 +22,7 @@
     },
     {
       "id": "cart-02",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "type": "golf_cart",
       "label": "Cart 02",
       "identifier": "IC-GC-102",
@@ -39,7 +39,7 @@
     },
     {
       "id": "cart-03",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "type": "golf_cart",
       "label": "Cart 03",
       "identifier": "IC-GC-103",
@@ -56,7 +56,7 @@
     },
     {
       "id": "cart-04",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "type": "golf_cart",
       "label": "Cart 04 \u00b7 ADA",
       "identifier": "IC-GC-104",
@@ -73,7 +73,7 @@
     },
     {
       "id": "cart-05",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "type": "golf_cart",
       "label": "Cart 05",
       "identifier": "IC-GC-105",
@@ -90,7 +90,7 @@
     },
     {
       "id": "utv-01",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "type": "utv",
       "label": "Gator 01",
       "identifier": "JD-GATOR-01",
@@ -107,7 +107,7 @@
     },
     {
       "id": "utv-02",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "type": "utv",
       "label": "Gator 02",
       "identifier": "JD-GATOR-02",
@@ -124,7 +124,7 @@
     },
     {
       "id": "gen-01",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "type": "generator",
       "label": "Generator \u00b7 Stage",
       "identifier": "GEN-20KW-01",
@@ -141,7 +141,7 @@
     },
     {
       "id": "gen-02",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "type": "generator",
       "label": "Generator \u00b7 Vendor Row",
       "identifier": "GEN-10KW-02",
@@ -158,7 +158,7 @@
     },
     {
       "id": "radio-case-01",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "type": "equipment",
       "label": "Radio case A (12 units)",
       "identifier": "RADIO-CASE-A",
@@ -175,7 +175,7 @@
     },
     {
       "id": "truck-01",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "type": "truck",
       "label": "Load-in truck",
       "identifier": "TX-F250-LOAN",
@@ -192,7 +192,7 @@
     },
     {
       "id": "cart-06",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "type": "golf_cart",
       "label": "Cart 06",
       "identifier": "IC-GC-106",
@@ -212,7 +212,7 @@
     {
       "id": "co_seed_001",
       "assetId": "cart-01",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "checkedOutTo": "Maya R.",
       "team": "site-ops",
       "checkOutAt": "2026-04-18T07:15:00-05:00",
@@ -228,7 +228,7 @@
     {
       "id": "co_seed_002",
       "assetId": "cart-04",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "checkedOutTo": "Jordan L.",
       "team": "ada",
       "checkOutAt": "2026-04-18T07:40:00-05:00",
@@ -244,7 +244,7 @@
     {
       "id": "co_seed_003",
       "assetId": "utv-01",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "checkedOutTo": "Chris P.",
       "team": "site-ops",
       "checkOutAt": "2026-04-18T06:50:00-05:00",
@@ -260,7 +260,7 @@
     {
       "id": "co_seed_004",
       "assetId": "gen-01",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "checkedOutTo": "Stage crew",
       "team": "production",
       "checkOutAt": "2026-04-17T14:00:00-05:00",
@@ -276,7 +276,7 @@
     {
       "id": "co_seed_005",
       "assetId": "radio-case-01",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "checkedOutTo": "Comms desk",
       "team": "command",
       "checkOutAt": "2026-04-17T08:00:00-05:00",
@@ -292,7 +292,7 @@
     {
       "id": "co_seed_006",
       "assetId": "cart-06",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "checkedOutTo": "Sam K.",
       "team": "vendor-row",
       "checkOutAt": "2026-04-17T09:00:00-05:00",
@@ -308,7 +308,7 @@
     {
       "id": "co_seed_007",
       "assetId": "cart-02",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "checkedOutTo": "Alex M.",
       "team": "medical",
       "checkOutAt": "2026-04-17T08:30:00-05:00",

@@ -2,8 +2,8 @@
   "_note": "Sculpture Passport hunt definition + checkpoints (lib/passport.mjs). Checkpoints mirror public/data/sculptors.json entries. QR payload per stamp: tsf:cp:<checkpointId> (also accepts tsf:entry:<entryId> and bare codes). Completions live in passport-completions.json.",
   "lastUpdated": "2026-07-15T18:00:00Z",
   "hunt": {
-    "id": "sculpture-passport-2026",
-    "eventId": "texas-sandfest-2026",
+    "id": "sculpture-passport-2027",
+    "eventId": "texas-sandfest-2027",
     "name": "Sculpture Passport",
     "type": "passport",
     "description": "Scan a code at each sculpture to unlock the artist's story and collect a stamp. Finish to enter the prize drawing.",
@@ -16,7 +16,7 @@
   "checkpoints": [
     {
       "id": "cp_ent_tidal_guardian",
-      "huntId": "sculpture-passport-2026",
+      "huntId": "sculpture-passport-2027",
       "label": "Tidal Guardian",
       "kind": "sculpture",
       "linkedRecord": { "type": "sculptureEntry", "id": "ent_tidal_guardian" },
@@ -32,7 +32,7 @@
     },
     {
       "id": "cp_ent_coral_cathedral",
-      "huntId": "sculpture-passport-2026",
+      "huntId": "sculpture-passport-2027",
       "label": "Coral Cathedral",
       "kind": "sculpture",
       "linkedRecord": { "type": "sculptureEntry", "id": "ent_coral_cathedral" },
@@ -48,7 +48,7 @@
     },
     {
       "id": "cp_ent_current_song",
-      "huntId": "sculpture-passport-2026",
+      "huntId": "sculpture-passport-2027",
       "label": "Current Song",
       "kind": "sculpture",
       "linkedRecord": { "type": "sculptureEntry", "id": "ent_current_song" },
@@ -64,7 +64,7 @@
     },
     {
       "id": "cp_ent_dune_dragon",
-      "huntId": "sculpture-passport-2026",
+      "huntId": "sculpture-passport-2027",
       "label": "Dune Dragon",
       "kind": "sculpture",
       "linkedRecord": { "type": "sculptureEntry", "id": "ent_dune_dragon" },
@@ -80,7 +80,7 @@
     },
     {
       "id": "cp_ent_lace_tide",
-      "huntId": "sculpture-passport-2026",
+      "huntId": "sculpture-passport-2027",
       "label": "Lace Tide",
       "kind": "sculpture",
       "linkedRecord": { "type": "sculptureEntry", "id": "ent_lace_tide" },
@@ -96,7 +96,7 @@
     },
     {
       "id": "cp_ent_castle_row",
-      "huntId": "sculpture-passport-2026",
+      "huntId": "sculpture-passport-2027",
       "label": "Castle Row",
       "kind": "sculpture",
       "linkedRecord": { "type": "sculptureEntry", "id": "ent_castle_row" },

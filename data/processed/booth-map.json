@@ -1,12 +1,12 @@
 {
   "_note": "Public booth/vendor map seed (lib/booths.mjs). Stand-in for Eventeny booth CSV export. Replace via npm run import:booths -- path/to/export.csv when Eventeny login arrives.",
   "lastUpdated": "2026-07-15T18:30:00Z",
-  "eventId": "texas-sandfest-2026",
+  "eventId": "texas-sandfest-2027",
   "source": "seed",
   "booths": [
     {
       "id": "V-01",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "zoneId": "vendor-row",
       "type": "food",
       "label": "V-01",
@@ -21,7 +21,7 @@
     },
     {
       "id": "V-02",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "zoneId": "vendor-row",
       "type": "food",
       "label": "V-02",
@@ -36,7 +36,7 @@
     },
     {
       "id": "V-03",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "zoneId": "vendor-row",
       "type": "vendor",
       "label": "V-03",
@@ -51,7 +51,7 @@
     },
     {
       "id": "V-04",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "zoneId": "vendor-row",
       "type": "vendor",
       "label": "V-04",
@@ -66,7 +66,7 @@
     },
     {
       "id": "V-05",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "zoneId": "vendor-row",
       "type": "food",
       "label": "V-05",
@@ -81,7 +81,7 @@
     },
     {
       "id": "S-01",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "zoneId": "sponsor-row",
       "type": "sponsor",
       "label": "S-01",
@@ -96,7 +96,7 @@
     },
     {
       "id": "S-02",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "zoneId": "sponsor-row",
       "type": "sponsor",
       "label": "S-02",
@@ -111,7 +111,7 @@
     },
     {
       "id": "V-06",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "zoneId": "vendor-row",
       "type": "vendor",
       "label": "V-06",
@@ -126,7 +126,7 @@
     },
     {
       "id": "A-01",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "zoneId": "kids-corner",
       "type": "activity",
       "label": "Lesson Mountain",

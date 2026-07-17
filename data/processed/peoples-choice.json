@@ -1,7 +1,7 @@
 {
   "_note": "People's Choice ballot + votes (lib/voting.mjs).",
   "lastUpdated": "2026-07-15T21:32:17.279Z",
-  "eventId": "texas-sandfest-2026",
+  "eventId": "texas-sandfest-2027",
   "votingOpen": true,
   "title": "People's Choice",
   "description": "Vote for your favorite sculpture. One vote per device \u2014 you can change it until Sunday evening.",
@@ -58,7 +58,7 @@
   "votes": [
     {
       "id": "vote_seed_001",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "entryId": "ent_tidal_guardian",
       "attendeeRef": "device_demo_visitor_a",
       "at": "2026-04-18T15:00:00-05:00",
@@ -66,7 +66,7 @@
     },
     {
       "id": "vote_seed_002",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "entryId": "ent_coral_cathedral",
       "attendeeRef": "device_demo_visitor_b",
       "at": "2026-04-18T15:10:00-05:00",
@@ -74,7 +74,7 @@
     },
     {
       "id": "vote_seed_003",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "entryId": "ent_tidal_guardian",
       "attendeeRef": "device_demo_visitor_c",
       "at": "2026-04-18T16:00:00-05:00",
@@ -82,7 +82,7 @@
     },
     {
       "id": "vote_seed_004",
-      "eventId": "texas-sandfest-2026",
+      "eventId": "texas-sandfest-2027",
       "entryId": "ent_dune_dragon",
       "attendeeRef": "device_demo_visitor_d",
       "at": "2026-04-18T16:30:00-05:00",

@@ -1094,16 +1094,16 @@ HOURS-100,${DEFAULT_EVENT_ID},VL-100,SHIFT-100,2027-04-09T08:00:00-05:00,2027-04
 // Staff and team notification routing
 {
   const input = await readJson("data/processed/staff-directory.json");
-  const directory = normalizeStaffDirectory(input, { eventId: "texas-sandfest-2026" });
-  const recipients = staffTaskRecipients(directory, { eventId: "texas-sandfest-2026" });
-  const publicDirectory = publicStaffAssignmentDirectory(directory, { eventId: "texas-sandfest-2026" });
-  const development = staffDirectoryReadiness(directory, { eventId: "texas-sandfest-2026", production: false });
-  const production = staffDirectoryReadiness(directory, { eventId: "texas-sandfest-2026", production: true });
-  const verifiedProduction = staffDirectoryReadiness({ ...directory, source: "manual_verified", verifiedAt: "2026-07-17T00:00:00.000Z" }, { eventId: "texas-sandfest-2026", production: true, now: "2026-07-18T00:00:00.000Z" });
+  const directory = normalizeStaffDirectory(input, { eventId: DEFAULT_EVENT_ID });
+  const recipients = staffTaskRecipients(directory, { eventId: DEFAULT_EVENT_ID });
+  const publicDirectory = publicStaffAssignmentDirectory(directory, { eventId: DEFAULT_EVENT_ID });
+  const development = staffDirectoryReadiness(directory, { eventId: DEFAULT_EVENT_ID, production: false });
+  const production = staffDirectoryReadiness(directory, { eventId: DEFAULT_EVENT_ID, production: true });
+  const verifiedProduction = staffDirectoryReadiness({ ...directory, source: "manual_verified", verifiedAt: "2026-07-17T00:00:00.000Z" }, { eventId: DEFAULT_EVENT_ID, production: true, now: "2026-07-18T00:00:00.000Z" });
   const mismatchedStaffEvent = staffDirectoryReadiness({
     ...directory,
     staff: directory.staff.map((item, index) => index === 0 ? { ...item, eventId: "texas-sandfest-2025" } : item)
-  }, { eventId: "texas-sandfest-2026", production: false });
+  }, { eventId: DEFAULT_EVENT_ID, production: false });
   ok("staff directory routes every operating team", development.ready && development.activeStaff === 7 && development.routedTeams === development.totalTeams && recipients.some(item => item.assigneeType === "team" && item.id === "operations"));
   ok("staff assignment directory is privacy minimized", publicDirectory.staff.length === 7 && publicDirectory.staff.every(item => !Object.hasOwn(item, "email")) && publicDirectory.teams.every(item => item.notificationReady));
   ok("seed staff directory cannot satisfy production", !production.ready && production.errors.some(item => item.includes("not production verified")));

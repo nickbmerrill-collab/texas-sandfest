@@ -49,7 +49,7 @@ jobs:
         run: |
           SANDFEST_API_PORT=8791 SANDFEST_ADMIN_API_TOKEN=dev-admin-token-change-me npm run api:dev &
           API_PID=$!
-          sleep 1
+          curl --fail --silent --show-error --retry 30 --retry-delay 1 --retry-connrefused http://127.0.0.1:8791/health > /dev/null
           npm run api:load-test -- http://127.0.0.1:8791 200 20
           kill $API_PID
       - name: Production dependency audit
