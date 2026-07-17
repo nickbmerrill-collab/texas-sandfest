@@ -1413,6 +1413,31 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
     status: "contact_ready"
   }, { auth: true });
   const automationOutreachGeneration = await request(base, "POST", `/api/admin/outreach/campaigns/${campaignId}/generate`, {}, { auth: true });
+  const manualOutreachWorkspace = await request(base, "GET", "/api/admin/outreach", undefined, { auth: true });
+  const manualOutreachDraft = manualOutreachWorkspace.data.followups?.find(item => item.prospectId === automationProspect.data.prospect?.id && item.campaignId === campaignId && item.kind === "sponsor_outreach");
+  const manualOutreachApproval = await request(base, "POST", `/api/admin/partners/followups/${manualOutreachDraft?.id}/review`, { action: "approve" }, { auth: true });
+  const manualOutreachQueue = await request(base, "POST", `/api/admin/partners/followups/${manualOutreachDraft?.id}/send`, {}, { auth: true });
+  const pausedManualOutreach = await request(base, "POST", `/api/admin/outreach/campaigns/${campaignId}/pause`, {}, { auth: true });
+  const approvedSequenceCampaign = await request(base, "POST", "/api/admin/outreach/campaigns", {
+    name: "Postgres approved sponsor sequence",
+    objective: "Prove bounded campaign-approved delivery",
+    deliveryMode: "approved_sequence",
+    dailySendLimit: 1,
+    targeting: {
+      industries: ["hospitality"],
+      cities: ["Port Aransas"],
+      states: ["TX"],
+      postalCodes: ["78373"],
+      minFitScore: 60
+    },
+    sequence: [{
+      delayDays: 0,
+      subjectTemplate: "Approved SandFest outreach for {{organization}}",
+      bodyTemplate: "Hello {{contactName}}, may we share the approved Texas SandFest sponsor program?"
+    }]
+  }, { auth: true });
+  const approvedSequenceCampaignId = approvedSequenceCampaign.data.campaign?.id;
+  const approvedSequenceActivation = await request(base, "POST", `/api/admin/outreach/campaigns/${approvedSequenceCampaignId}/activate`, {}, { auth: true });
   const automationMode = await request(base, "PATCH", "/api/admin/partners/automation", { mode: "transactional_auto" }, { auth: true });
   const automaticIntake = await request(base, "POST", "/api/public/sponsor-inquiries", {
     organizationName: "Postgres Automatic Sponsor",
@@ -1424,8 +1449,8 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
   }, { headers: { "idempotency-key": "postgres-automatic-sponsor-intake-0001" } });
   check(
     "transactional automation enables only with provider ready",
-    automationProspect.status === 201 && automationOutreachGeneration.data.generated === 1 && automationMode.status === 200 && automationMode.data.automation?.active === true && automaticIntake.status === 201,
-    `prospect=${automationProspect.status} generated=${automationOutreachGeneration.data.generated ?? "missing"} mode=${automationMode.status}:${automationMode.data.error || automationMode.data.automation?.mode || "missing"} intake=${automaticIntake.status}`
+    automationProspect.status === 201 && automationOutreachGeneration.data.generated === 1 && manualOutreachApproval.status === 200 && manualOutreachQueue.status === 202 && pausedManualOutreach.status === 200 && approvedSequenceCampaign.status === 201 && approvedSequenceActivation.status === 200 && approvedSequenceActivation.data.automation?.active === true && automationMode.status === 200 && automationMode.data.automation?.active === true && automaticIntake.status === 201,
+    `prospect=${automationProspect.status} generated=${automationOutreachGeneration.data.generated ?? "missing"} manual=${manualOutreachApproval.status}:${manualOutreachQueue.status}:${pausedManualOutreach.status} campaign=${approvedSequenceCampaign.status}:${approvedSequenceActivation.status} mode=${automationMode.status}:${automationMode.data.error || automationMode.data.automation?.mode || "missing"} intake=${automaticIntake.status}`
   );
   await runChild(["scripts/worker.mjs"], {
     ...commonEnv,
@@ -1444,22 +1469,84 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
   }, "Postgres automation replay worker");
   const automatedPartnerDoc = await readPlatformDoc(ROOT, "partnerOps", null);
   const automatedAcknowledgment = automatedPartnerDoc?.followups?.find(item => item.applicationId === automaticIntake.data.application?.id && item.kind === "application_received");
-  const reviewGatedOutreach = automatedPartnerDoc?.followups?.find(item => item.prospectId === automationProspect.data.prospect?.id && item.kind === "sponsor_outreach");
+  const reviewGatedOutreach = automatedPartnerDoc?.followups?.find(item => item.prospectId === automationProspect.data.prospect?.id && item.campaignId === campaignId && item.kind === "sponsor_outreach");
+  const automatedOutreach = automatedPartnerDoc?.followups?.find(item => item.prospectId === automationProspect.data.prospect?.id && item.campaignId === approvedSequenceCampaignId && item.kind === "sponsor_outreach");
   const automatedTaskNotice = automatedPartnerDoc?.followups?.find(item => item.id === volunteerTaskNotice?.id);
   const taskNoticeDeliveries = emailMock.deliveries.filter(item => item.body.tags?.includes(followupProviderTag(automatedTaskNotice?.id)));
   const automaticDeliveries = emailMock.deliveries.filter(item => item.body.tags?.includes(followupProviderTag(automatedAcknowledgment?.id)));
+  const automatedOutreachDeliveries = emailMock.deliveries.filter(item => item.body.tags?.includes(followupProviderTag(automatedOutreach?.id)));
   const automaticallySentFollowups = automatedPartnerDoc?.followups?.filter(item => item.status === "sent" && item.automationPolicy === "partner_transactional_v1") || [];
   const automationPool = await getPool();
   const automationJobRows = await automationPool.query("SELECT id, status FROM platform_jobs WHERE id = $1", [automatedAcknowledgment?.automationJobId]);
+  const manualOutreachJobRows = await automationPool.query("SELECT id, status, attempts FROM platform_jobs WHERE id = $1", [manualOutreachQueue.data.job?.id]);
   check(
     "worker auto-delivers known-partner transaction once",
     automatedAcknowledgment?.status === "sent" && automatedAcknowledgment?.approvedBy === "automation:partner_transactional_v1" && automatedAcknowledgment?.automationPolicy === "partner_transactional_v1" && automaticDeliveries.length === 1 && automationJobRows.rowCount === 1 && automationJobRows.rows[0]?.status === "done",
     `followup=${automatedAcknowledgment?.status || "missing"} approved=${automatedAcknowledgment?.approvedBy || "missing"} policy=${automatedAcknowledgment?.automationPolicy || "missing"} job=${automatedAcknowledgment?.automationJobId || "missing"}:${automationJobRows.rows[0]?.status || "missing"} deliveries=${automaticDeliveries.length} error=${automatedAcknowledgment?.lastError || "none"}`
   );
-  check("worker keeps sponsor outreach review gated", reviewGatedOutreach?.status === "draft_ready" && !reviewGatedOutreach?.approvedAt && !emailMock.deliveries.some(item => item.body.to?.[0]?.email === "outreach-review@postgres-auto.example"));
+  check("worker keeps default sponsor outreach review gated", reviewGatedOutreach?.status === "draft_ready" && !reviewGatedOutreach?.approvedAt && !emailMock.deliveries.some(item => item.body.tags?.includes(followupProviderTag(reviewGatedOutreach?.id))));
+  check("worker cancels a withdrawn manual send without retry", manualOutreachJobRows.rowCount === 1 && manualOutreachJobRows.rows[0]?.status === "done" && Number(manualOutreachJobRows.rows[0]?.attempts) === 1 && !emailMock.deliveries.some(item => item.body.tags?.includes(followupProviderTag(manualOutreachDraft?.id))));
+  check("worker delivers one campaign-approved sponsor message", automatedOutreach?.status === "sent" && automatedOutreach?.approvedBy === "automation:outreach_campaign_v1" && automatedOutreach?.automationPolicy === "outreach_campaign_v1" && automatedOutreachDeliveries.length === 1 && automatedOutreachDeliveries[0]?.body.to?.[0]?.email === "outreach-review@postgres-auto.example");
   check("worker auto-delivers volunteer task assignment once", automatedTaskNotice?.status === "sent" && automatedTaskNotice?.deliveryStatus === "accepted" && automatedTaskNotice?.approvedBy === "automation:partner_transactional_v1" && taskNoticeDeliveries.length === 1 && taskNoticeDeliveries[0]?.body.to?.[0]?.email === "alex@example.com");
   check("every automated follow-up has one provider call", automaticallySentFollowups.length > 0 && automaticallySentFollowups.every(followup => emailMock.deliveries.filter(item => item.body.tags?.includes(followupProviderTag(followup.id))).length === 1));
   check("transactional automation records activity proof", automatedPartnerDoc?.activity?.some(item => item.type === "automation.mode_changed" && item.actorId === "postgres-test-admin") && automatedPartnerDoc?.activity?.some(item => item.type === "followup.auto_approved" && item.entityId === automatedAcknowledgment?.id));
+  const capacityRaceFollowupId = "followup_postgres_capacity_race";
+  const capacityRaceApprovedAt = new Date().toISOString();
+  await updatePlatformDoc(ROOT, "partnerOps", current => {
+    const campaign = current.campaigns.find(item => item.id === approvedSequenceCampaignId);
+    const source = current.followups.find(item => item.id === automatedOutreach?.id);
+    return {
+      ...current,
+      lastUpdated: capacityRaceApprovedAt,
+      followups: [...current.followups, {
+        ...source,
+        id: capacityRaceFollowupId,
+        status: "approved",
+        approvedBy: "automation:outreach_campaign_v1",
+        approvedAt: capacityRaceApprovedAt,
+        automationPolicy: "outreach_campaign_v1",
+        automationDecision: "campaign_approved",
+        automationApprovedAt: capacityRaceApprovedAt,
+        automationCampaignApprovedAt: campaign?.approvedAt,
+        automationJobId: null,
+        automationQueuedAt: null,
+        queuedAt: null,
+        deliveryClaimId: null,
+        deliveryClaimedAt: null,
+        providerSubmissionStartedAt: null,
+        deliveryIdempotencyKey: null,
+        sentAt: null,
+        provider: null,
+        providerMessageId: null,
+        deliveryStatus: null,
+        deliveryAttempts: 0,
+        deliveryEvents: [],
+        lastAttemptAt: null,
+        lastError: null,
+        createdAt: capacityRaceApprovedAt,
+        updatedAt: capacityRaceApprovedAt
+      }]
+    };
+  }, { fallback: emptyPartnerOperations() });
+  const capacityRaceJob = await enqueueJob(ROOT, {
+    type: "partner.followup.send",
+    payload: {
+      followupId: capacityRaceFollowupId,
+      automated: true,
+      automationPolicy: "outreach_campaign_v1"
+    },
+    maxAttempts: 5,
+    idempotencyKey: `outreach_campaign_v1:${capacityRaceFollowupId}:${capacityRaceApprovedAt}`
+  });
+  await runChild(["scripts/worker.mjs"], {
+    ...commonEnv,
+    SANDFEST_WORKER_ONCE: "true",
+    SANDFEST_WORKER_BATCH: "50"
+  }, "Postgres campaign capacity race worker");
+  const capacityRaceDoc = await readPlatformDoc(ROOT, "partnerOps", null);
+  const releasedCapacityRace = capacityRaceDoc?.followups?.find(item => item.id === capacityRaceFollowupId);
+  const capacityRaceJobState = (await listJobs(ROOT, { limit: 1000 })).find(item => item.id === capacityRaceJob.id);
+  check("campaign capacity race releases approval without provider delivery", releasedCapacityRace?.status === "draft_ready" && releasedCapacityRace?.approvedBy === null && releasedCapacityRace?.automationPolicy === null && releasedCapacityRace?.automationDecision === "daily_capacity_released" && capacityRaceJobState?.status === "done" && Number(capacityRaceJobState?.attempts) === 1 && !emailMock.deliveries.some(item => item.body.tags?.includes(followupProviderTag(capacityRaceFollowupId))));
   const reviewFirstMode = await request(base, "PATCH", "/api/admin/partners/automation", { mode: "review_first" }, { auth: true });
   check("transactional automation can be returned to review-first", reviewFirstMode.status === 200 && reviewFirstMode.data.automation?.mode === "review_first" && reviewFirstMode.data.automation?.active === false);
 

@@ -1642,6 +1642,8 @@ app.innerHTML = `
               <label><span>Center longitude</span><input name="centerLongitude" type="number" min="-180" max="180" step="any" placeholder="-97.0611" /></label>
               <label><span>Radius miles</span><input name="radiusMiles" type="number" min="0.1" max="500" step="0.1" placeholder="25" /></label>
               <label><span>Minimum fit</span><input name="minFitScore" type="number" min="0" max="100" value="60" /></label>
+              <label><span>Delivery</span><select name="deliveryMode"><option value="review_first">Review every message</option><option value="approved_sequence">Automate approved sequence</option></select></label>
+              <label><span>Daily send limit</span><input name="dailySendLimit" type="number" min="1" max="100" value="25" /></label>
               <label class="admin-campaign-wide"><span>Opening subject</span><input name="subject1" required maxlength="180" value="A Texas SandFest partnership for {{organization}}" /></label>
               <label class="admin-campaign-wide"><span>Opening message</span><textarea name="body1" required rows="5" maxlength="5000">Hello {{contactName}},\n\nTexas SandFest brings artists, visitors, and Coastal Bend businesses together for one of the region's signature events. We would love to explore how {{organization}} could be represented as a 2027 sponsor.\n\nMay we send the current partnership opportunities?</textarea></label>
               <label><span>Follow-up delay</span><input name="delay2" type="number" min="1" max="90" value="7" /></label>
@@ -6080,7 +6082,7 @@ function renderAdminPartners(payload, outreach) {
     const deliveryAt = item.clickedAt || item.openedAt || item.deliveredAt || item.failedAt || item.acceptedAt || item.sentAt;
     return `<article data-followup="${escapeAttr(item.id)}" ${deliveryStatus ? `data-delivery-status="${escapeAttr(deliveryStatus)}"` : ""}>
       <header><strong>${escapeHtml(item.subject || conditionLabel(item.kind))}</strong><b>${escapeHtml(conditionLabel(deliveryStatus || item.status))}</b></header>
-      <p>${escapeHtml(item.recipientLabel || item.recipient || (item.recipientAvailable ? "Recipient on file" : "Recipient unavailable"))}${item.campaignId ? ` · outreach sequence ${escapeHtml(item.sequenceStepId || "")}` : ""}${item.taskId ? " · delegated task" : ""}${item.automationPolicy ? " · transactional automation" : ""}</p>
+      <p>${escapeHtml(item.recipientLabel || item.recipient || (item.recipientAvailable ? "Recipient on file" : "Recipient unavailable"))}${item.campaignId ? ` · outreach sequence ${escapeHtml(item.sequenceStepId || "")}` : ""}${item.taskId ? " · delegated task" : ""}${item.automationPolicy === "outreach_campaign_v1" ? " · campaign-approved automation" : item.automationPolicy ? " · transactional automation" : ""}</p>
       ${item.body ? `<blockquote>${escapeHtml(item.body)}</blockquote>` : '<span>Draft worker pending</span>'}
       ${item.lastError ? `<span class="admin-delivery-error">${escapeHtml(item.lastError)}</span>` : ""}
       ${item.sentAt ? `<span>Provider accepted ${escapeHtml(new Date(item.sentAt).toLocaleString())}${item.providerMessageId ? ` · ${escapeHtml(item.providerMessageId)}` : ""}</span>` : ""}
@@ -6185,12 +6187,15 @@ function renderAdminPartners(payload, outreach) {
       geofence ? `${geofence.radiusMiles} mi around ${Number(geofence.latitude).toFixed(4)}, ${Number(geofence.longitude).toFixed(4)}` : ""
     ].filter(Boolean).join(" · ") || "All qualified prospects";
     const metrics = campaign.metrics || {};
+    const automation = campaign.automation || {};
+    const automatedSequence = campaign.deliveryMode === "approved_sequence";
     return `<article data-outreach-campaign="${escapeAttr(campaign.id)}">
       <header><div><strong>${escapeHtml(campaign.name)}</strong><span>${escapeHtml(scope)}</span></div><b>${escapeHtml(conditionLabel(campaign.status))}</b></header>
-      <p>${campaign.sequence?.length || 0} messages · fit ${target.minFitScore || 0}+ · ${metrics.matched || 0} matched</p>
-      <div class="admin-campaign-metrics"><span>${metrics.drafts || 0} drafts</span><span>${metrics.approved || 0} approved</span><span>${metrics.sent || 0} sent</span><span>${metrics.failed || 0} failed</span></div>
+      <p>${campaign.sequence?.length || 0} messages · fit ${target.minFitScore || 0}+ · ${metrics.matched || 0} matched · ${automatedSequence ? `campaign-approved, ${campaign.dailySendLimit || 25}/day` : "review every message"}</p>
+      ${automatedSequence ? `<div class="admin-campaign-automation" data-state="${automation.active ? "active" : automation.blockedReason ? "blocked" : "ready"}"><strong>${automation.active ? "Automation active" : "Automation gated"}</strong><span>${automation.active ? `${automation.remainingToday ?? campaign.dailySendLimit ?? 25} approvals available today` : escapeHtml(automation.blockedReason || "Ready after activation")}</span></div>` : ""}
+      <div class="admin-campaign-metrics"><span>${metrics.drafts || 0} drafts</span><span>${metrics.approved || 0} approved</span><span>${metrics.sent || 0} sent</span><span>${metrics.automated || 0} automated</span><span>${metrics.failed || 0} failed</span></div>
       <div class="admin-followup-actions">
-        ${["draft", "paused"].includes(campaign.status) ? `<button type="button" class="button primary" data-campaign-action="activate" data-campaign-id="${escapeAttr(campaign.id)}">Activate</button>` : ""}
+        ${["draft", "paused"].includes(campaign.status) ? `<button type="button" class="button primary" data-campaign-action="activate" data-campaign-id="${escapeAttr(campaign.id)}" data-campaign-delivery-mode="${escapeAttr(campaign.deliveryMode || "review_first")}">${automatedSequence ? "Approve and activate" : "Activate"}</button>` : ""}
         ${campaign.status === "active" ? `<button type="button" class="button secondary" data-campaign-generate="${escapeAttr(campaign.id)}">Generate due drafts</button><button type="button" class="button secondary" data-campaign-action="pause" data-campaign-id="${escapeAttr(campaign.id)}">Pause</button><button type="button" class="button secondary" data-campaign-action="complete" data-campaign-id="${escapeAttr(campaign.id)}">Complete</button>` : ""}
         ${["draft", "paused", "complete"].includes(campaign.status) ? `<button type="button" class="button secondary" data-campaign-action="archive" data-campaign-id="${escapeAttr(campaign.id)}">Archive</button>` : ""}
       </div>
@@ -6370,17 +6375,20 @@ function renderAdminPartners(payload, outreach) {
     } catch (error) { setAdminStatus(error.message, "error"); } finally { button.disabled = false; }
   }));
   campaigns?.querySelectorAll("[data-campaign-action]").forEach(button => button.addEventListener("click", async () => {
+    const action = button.dataset.campaignAction;
+    if (action === "activate" && button.dataset.campaignDeliveryMode === "approved_sequence" && !window.confirm("Approve this campaign's current targeting, templates, and sequence for automatic delivery up to its daily limit?")) return;
     button.disabled = true;
     try {
-      const action = button.dataset.campaignAction;
-      await adminFetch(`/api/admin/outreach/campaigns/${encodeURIComponent(button.dataset.campaignId)}/${action}`, { method: "POST" });
+      const lifecycle = await adminFetch(`/api/admin/outreach/campaigns/${encodeURIComponent(button.dataset.campaignId)}/${action}`, { method: "POST" });
       let generated = 0;
       if (action === "activate") {
         const result = await adminFetch(`/api/admin/outreach/campaigns/${encodeURIComponent(button.dataset.campaignId)}/generate`, { method: "POST" });
         generated = result.generated;
       }
       await loadAdminPartners({ quiet: true });
-      setAdminStatus(action === "activate" ? `Campaign activated with ${generated} draft${generated === 1 ? "" : "s"} ready for review.` : `Campaign ${action}d.`, "ok");
+      const automated = button.dataset.campaignDeliveryMode === "approved_sequence";
+      const inFlightCopy = lifecycle.inFlightFollowups ? ` ${lifecycle.inFlightFollowups} already claimed delivery${lifecycle.inFlightFollowups === 1 ? " is" : "ies are"} still in flight.` : "";
+      setAdminStatus(action === "activate" ? `Campaign activated with ${generated} due message${generated === 1 ? "" : "s"}${automated ? " eligible for bounded automation" : " ready for review"}.` : `Campaign ${action}d.${inFlightCopy}`, "ok");
     } catch (error) { setAdminStatus(error.message, "error"); } finally { button.disabled = false; }
   }));
   campaigns?.querySelectorAll("[data-campaign-generate]").forEach(button => button.addEventListener("click", async () => {
@@ -7563,6 +7571,8 @@ document.querySelector("#admin-create-campaign")?.addEventListener("submit", asy
       body: JSON.stringify({
         name: values.name,
         objective: values.objective,
+        deliveryMode: values.deliveryMode,
+        dailySendLimit: Number(values.dailySendLimit),
         targeting: {
           industries: splitTargets(values.industries),
           cities: splitTargets(values.cities),

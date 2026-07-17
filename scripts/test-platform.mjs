@@ -93,10 +93,14 @@ import {
   verifyOutreachDiscoveryPreview
 } from "../lib/outreach-discovery.mjs";
 import {
+  OUTREACH_CAMPAIGN_AUTOMATION_POLICY,
   PARTNER_TRANSACTIONAL_AUTOMATION_POLICY,
   PARTNER_TRANSACTIONAL_FOLLOWUP_KINDS,
+  applyOutreachCampaignAutomation,
   applyTransactionalFollowupAutomation,
   automatedFollowupQueueCandidates,
+  beginFollowupProviderSubmission,
+  claimFollowupDelivery,
   createPartnerBrandAsset,
   createPartnerDeliverable,
   createOutreachCampaign,
@@ -117,6 +121,7 @@ import {
   generateDueTaskFollowups,
   matchOutreachProspects,
   outreachDistanceMiles,
+  outreachCampaignAutomationReadiness,
   partnerAutomationReadiness,
   prepareFollowupDraft,
   queueFollowupDelivery,
@@ -124,6 +129,7 @@ import {
   queuePartnerInvoiceSync,
   reconcilePartnerStripePayment,
   reconcilePartnerStripeRefund,
+  releaseAutomatedFollowupApproval,
   recordFollowupDelivery,
   recordPartnerInvoiceReconciliation,
   recordPartnerInvoiceSync,
@@ -1489,12 +1495,24 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   ok("scheduled milestone idempotency", !scheduledAgain.changed && scheduledAgain.generated.length === 0);
   const milestoneApproved = reviewFollowup(scheduled.doc, scheduled.generated[0].id, "approve", { actorId: "admin_1", now });
   const milestoneQueued = queueFollowupDelivery(milestoneApproved.doc, scheduled.generated[0].id, { now });
+  const claimedMilestoneReminder = claimFollowupDelivery(milestoneQueued.doc, scheduled.generated[0].id, { deliveryClaimId: "job_milestone_reminder", now });
+  const rescheduledBeforeMilestoneHandoff = updatePartnerMilestone(claimedMilestoneReminder.doc, scheduled.generated[0].milestoneId, { dueAt: "2026-08-02T12:00:00.000Z" }, { idFactory, actorId: "admin_1", now });
+  const begunMilestoneReminder = beginFollowupProviderSubmission(claimedMilestoneReminder.doc, scheduled.generated[0].id, { deliveryClaimId: "job_milestone_reminder", now });
+  const completedAfterMilestoneHandoff = updatePartnerMilestone(begunMilestoneReminder.doc, scheduled.generated[0].milestoneId, { status: "completed" }, { idFactory, actorId: "admin_1", now });
   const milestoneSent = recordFollowupDelivery(milestoneQueued.doc, scheduled.generated[0].id, { sent: true, provider: "brevo", providerMessageId: "msg_milestone_1" }, { now });
   const overdueMilestone = generateDuePartnerFollowups(milestoneSent.doc, { idFactory, now: "2026-07-23T12:00:00.000Z", portalUrlForApplication: () => portalUrl });
   const overdueReminder = overdueMilestone.generated.find(item => item.milestoneId === scheduled.generated[0].milestoneId);
   const overdueMilestoneAgain = generateDuePartnerFollowups(overdueMilestone.doc, { idFactory, now: "2026-07-30T12:00:00.000Z" });
+  const inFlightMilestoneDoc = {
+    ...overdueMilestone.doc,
+    followups: overdueMilestone.doc.followups.map(item => item.id === overdueReminder?.id
+      ? { ...item, status: "sending", deliveryClaimId: "job_milestone_overdue", deliveryClaimedAt: now }
+      : item)
+  };
+  const inFlightMilestoneAgain = generateDuePartnerFollowups(inFlightMilestoneDoc, { idFactory, now: "2026-07-30T12:00:00.000Z" });
   ok("milestone overdue escalation", overdueReminder?.reminderPhase === "overdue_week_1" && overdueReminder?.daysOverdue === 5);
-  ok("milestone escalation does not pile up", overdueMilestoneAgain.generated.length === 0);
+  ok("milestone escalation does not pile up", overdueMilestoneAgain.generated.length === 0 && inFlightMilestoneAgain.generated.length === 0);
+  ok("milestone changes cancel only an unstarted notification handoff", rescheduledBeforeMilestoneHandoff.ok && rescheduledBeforeMilestoneHandoff.dismissedFollowups === 1 && rescheduledBeforeMilestoneHandoff.doc.followups.find(item => item.id === scheduled.generated[0].id)?.status === "dismissed" && rescheduledBeforeMilestoneHandoff.doc.followups.find(item => item.id === scheduled.generated[0].id)?.deliveryClaimId === null && completedAfterMilestoneHandoff.ok && completedAfterMilestoneHandoff.dismissedFollowups === 0 && completedAfterMilestoneHandoff.doc.followups.find(item => item.id === scheduled.generated[0].id)?.status === "sending");
   const completedMilestone = updatePartnerMilestone(overdueMilestone.doc, scheduled.generated[0].milestoneId, { status: "completed" }, { idFactory, actorId: "admin_1", now: "2026-07-23T13:00:00.000Z" });
   ok("milestone completion dismisses reminder", completedMilestone.ok && completedMilestone.milestone.completedBy === "admin_1" && completedMilestone.dismissedFollowups === 1 && completedMilestone.doc.followups.find(item => item.id === overdueReminder.id).status === "dismissed");
   const rescheduledMilestone = updatePartnerMilestone(scheduled.doc, scheduled.generated[0].milestoneId, { dueAt: "2026-08-01T12:00:00.000Z" }, { idFactory, actorId: "admin_1", now });
@@ -2029,6 +2047,18 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   const duplicateProfileChanges = reviewVendorProfile(profileChanges.doc, vendorCreated.application.id, { action: "request_changes", reviewNotes: "Clarify the refrigerated trailer footprint." }, { actorId: "vendor_admin_1", idFactory, portalUrl: vendorPortalUrl, now });
   ok("vendor profile change draft", profileChanges.ok && profileChanges.followupChanged && profileChanges.followup.status === "draft_ready" && profileChanges.followup.kind === "vendor_profile_changes" && profileChanges.followup.body.includes(vendorPortalUrl));
   ok("vendor profile draft idempotency", duplicateProfileChanges.ok && !duplicateProfileChanges.followupChanged && duplicateProfileChanges.doc.followups.filter(item => item.kind === "vendor_profile_changes").length === 1);
+  const approvedProfileChanges = reviewFollowup(profileChanges.doc, profileChanges.followup.id, "approve", { actorId: "vendor_admin_1", now });
+  const queuedProfileChanges = queueFollowupDelivery(approvedProfileChanges.doc, profileChanges.followup.id, { now });
+  const claimedProfileChanges = claimFollowupDelivery(queuedProfileChanges.doc, profileChanges.followup.id, { deliveryClaimId: "job_vendor_workflow", now });
+  const replacedBeforeVendorHandoff = reviewVendorProfile(claimedProfileChanges.doc, vendorCreated.application.id, { action: "request_changes", reviewNotes: "Confirm the trailer tongue is included in the footprint." }, { actorId: "vendor_admin_1", idFactory, portalUrl: vendorPortalUrl, now });
+  const begunProfileChanges = beginFollowupProviderSubmission(claimedProfileChanges.doc, profileChanges.followup.id, { deliveryClaimId: "job_vendor_workflow", now });
+  const replacedAfterVendorHandoff = reviewVendorProfile(begunProfileChanges.doc, vendorCreated.application.id, { action: "request_changes", reviewNotes: "Confirm the trailer tongue and service clearance." }, { actorId: "vendor_admin_1", idFactory, portalUrl: vendorPortalUrl, now });
+  const completedVendorHandoff = recordFollowupDelivery(replacedAfterVendorHandoff.doc, profileChanges.followup.id, { sent: true, provider: "brevo", providerMessageId: "msg_vendor_workflow" }, { deliveryClaimId: "job_vendor_workflow", now });
+  const preHandoffReplacement = replacedBeforeVendorHandoff.doc.followups.find(item => item.workflowKey === profileChanges.followup.workflowKey && item.id !== profileChanges.followup.id);
+  const blockedVendorReplacement = replacedAfterVendorHandoff.doc.followups.find(item => item.workflowKey === profileChanges.followup.workflowKey && item.id !== profileChanges.followup.id);
+  const releasedVendorReplacement = completedVendorHandoff.doc.followups.find(item => item.id === blockedVendorReplacement?.id);
+  ok("vendor workflow change cancels an unstarted handoff", replacedBeforeVendorHandoff.followupChanged && replacedBeforeVendorHandoff.doc.followups.find(item => item.id === profileChanges.followup.id)?.status === "dismissed" && preHandoffReplacement?.status === "draft_ready");
+  ok("vendor workflow serializes replacement behind provider handoff", replacedAfterVendorHandoff.followupChanged && replacedAfterVendorHandoff.doc.followups.find(item => item.id === profileChanges.followup.id)?.status === "sending" && blockedVendorReplacement?.status === "pending" && blockedVendorReplacement?.blockedByFollowupId === profileChanges.followup.id && completedVendorHandoff.ok && releasedVendorReplacement?.status === "draft_ready" && releasedVendorReplacement?.blockedByFollowupId === null);
   const revisedVendorProfile = updateVendorProfile(profileChanges.doc, vendorCreated.application.id, { ...vendorProfileInput, operationalNotes: "One refrigerated trailer with a 24-foot total footprint." }, { actorId: `partner:${vendorCreated.application.id}`, idFactory, now });
   ok("vendor profile submission dismisses stale draft", revisedVendorProfile.dismissedFollowups === 1 && revisedVendorProfile.doc.followups.find(item => item.kind === "vendor_profile_changes").status === "dismissed");
   const approvedVendorProfile = reviewVendorProfile(revisedVendorProfile.doc, vendorCreated.application.id, { action: "approve" }, { actorId: "vendor_admin_1", idFactory, portalUrl: vendorPortalUrl, now });
@@ -2110,7 +2140,15 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   ok("volunteer notification revalidates directory email", !staleAssignmentReview.ok && staleAssignmentReview.error.includes("email changed") && approvedAssignmentNotice.ok && sentAssignmentNotice.followup.status === "sent");
   const overdueTaskNotice = generateDueTaskFollowups(sentAssignmentNotice.doc, { idFactory, volunteers: taskVolunteers, now });
   const overdueTaskNoticeAgain = generateDueTaskFollowups(overdueTaskNotice.doc, { idFactory, volunteers: taskVolunteers, now: "2026-07-23T12:00:00.000Z" });
+  const inFlightOverdueTaskDoc = {
+    ...overdueTaskNotice.doc,
+    followups: overdueTaskNotice.doc.followups.map(item => item.kind === "task_overdue"
+      ? { ...item, status: "sending", deliveryClaimId: "job_task_overdue", deliveryClaimedAt: now }
+      : item)
+  };
+  const inFlightOverdueTaskAgain = generateDueTaskFollowups(inFlightOverdueTaskDoc, { idFactory, volunteers: taskVolunteers, now: "2026-07-23T12:00:00.000Z" });
   ok("overdue volunteer task escalates once per active notice", overdueTaskNotice.generated.length === 1 && overdueTaskNotice.generated[0].kind === "task_overdue" && overdueTaskNotice.generated[0].reminderPhase === "overdue_week_1" && overdueTaskNoticeAgain.generated.length === 0);
+  ok("in-flight overdue task notice blocks overlapping escalation", inFlightOverdueTaskAgain.generated.length === 0);
   const blockedTask = updatePartnerTask(overdueTaskNotice.doc, task.task.id, {
     status: "blocked",
     assigneeType: "team",
@@ -2126,7 +2164,18 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   const teamAssignmentNotice = generateDueTaskFollowups(blockedTask.doc, { idFactory, taskRecipients: staffTaskRecipients, now });
   const generatedTeamAssignment = teamAssignmentNotice.generated.find(item => item.taskId === task.task.id && item.kind === "task_assignment");
   const teamAssignmentApproved = reviewFollowup(teamAssignmentNotice.doc, generatedTeamAssignment?.id, "approve", { actorId: "ops_1", taskRecipients: staffTaskRecipients, now });
+  const queuedTeamAssignment = queueFollowupDelivery(teamAssignmentApproved.doc, generatedTeamAssignment?.id, { taskRecipients: staffTaskRecipients, now });
+  const claimedTeamAssignment = claimFollowupDelivery(queuedTeamAssignment.doc, generatedTeamAssignment?.id, { deliveryClaimId: "job_task_assignment", taskRecipients: staffTaskRecipients, now });
+  const reassignedBeforeTaskHandoff = updatePartnerTask(claimedTeamAssignment.doc, task.task.id, {
+    assigneeType: "staff",
+    assigneeId: "staff_operations",
+    assigneeName: "Jamie Torres"
+  }, { actorId: "ops_1", idFactory, now });
+  const begunTeamAssignment = beginFollowupProviderSubmission(claimedTeamAssignment.doc, generatedTeamAssignment?.id, { deliveryClaimId: "job_task_assignment", taskRecipients: staffTaskRecipients, now });
+  const completedAfterTaskHandoff = updatePartnerTask(begunTeamAssignment.doc, task.task.id, { status: "done" }, { actorId: "ops_1", idFactory, now });
   ok("team task notification resolves accountable owner", generatedTeamAssignment?.recipient === "morgan.ellis@example.com" && teamAssignmentApproved.ok);
+  ok("task reassignment cancels an unstarted notification handoff", reassignedBeforeTaskHandoff.ok && reassignedBeforeTaskHandoff.dismissedFollowups === 1 && reassignedBeforeTaskHandoff.doc.followups.find(item => item.id === generatedTeamAssignment?.id)?.status === "dismissed" && reassignedBeforeTaskHandoff.doc.followups.find(item => item.id === generatedTeamAssignment?.id)?.deliveryClaimId === null);
+  ok("task completion preserves a started notification handoff", completedAfterTaskHandoff.ok && completedAfterTaskHandoff.dismissedFollowups === 0 && completedAfterTaskHandoff.doc.followups.find(item => item.id === generatedTeamAssignment?.id)?.status === "sending" && completedAfterTaskHandoff.doc.followups.find(item => item.id === generatedTeamAssignment?.id)?.providerSubmissionStartedAt === now);
   const staffTask = createPartnerTask(paid.doc, {
     title: "Confirm staff briefing",
     assigneeType: "staff",
@@ -2250,6 +2299,37 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
     idFactory,
     now
   });
+  const conversionClaimDoc = {
+    ...issuedInvitation.doc,
+    followups: [{
+      ...approvedInvitationDraftDoc.followups[0],
+      recipient: prospect.prospect.contactEmail,
+      subject: "Texas SandFest sponsor invitation",
+      status: "sending",
+      deliveryClaimId: "job_conversion_outreach",
+      deliveryClaimedAt: now,
+      providerSubmissionStartedAt: null,
+      automationJobId: "job_conversion_outreach"
+    }]
+  };
+  const convertedBeforeOutreachHandoff = createSponsorApplicationFromOutreachInvitation(conversionClaimDoc, prospect.prospect.id, invitedApplicationInput, {
+    packageId: sponsorPackage.id,
+    invitationVersion: issuedInvitation.invitation.version,
+    portalAccessIdFactory: () => "portal_conversion_before_handoff",
+    idFactory,
+    now
+  });
+  const conversionStartedDoc = {
+    ...conversionClaimDoc,
+    followups: conversionClaimDoc.followups.map(item => ({ ...item, providerSubmissionStartedAt: now }))
+  };
+  const convertedAfterOutreachHandoff = createSponsorApplicationFromOutreachInvitation(conversionStartedDoc, prospect.prospect.id, invitedApplicationInput, {
+    packageId: sponsorPackage.id,
+    invitationVersion: issuedInvitation.invitation.version,
+    portalAccessIdFactory: () => "portal_conversion_after_handoff",
+    idFactory,
+    now
+  });
   const convertedInvitation = createSponsorApplicationFromOutreachInvitation(issuedInvitation.doc, prospect.prospect.id, invitedApplicationInput, {
     packageId: sponsorPackage.id,
     invitationVersion: issuedInvitation.invitation.version,
@@ -2265,6 +2345,7 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   });
   const convertedAccess = verifySponsorInvitationToken(convertedInvitation.doc, invitationToken, { config: sponsorInviteConfig, now: new Date(now).getTime() });
   ok("sponsor invitation identity gate", !mismatchedInvitation.ok && mismatchedInvitation.error.includes("business email"));
+  ok("sponsor conversion cancels only an unstarted outreach handoff", convertedBeforeOutreachHandoff.ok && convertedBeforeOutreachHandoff.doc.followups.find(item => item.id === approvedInvitationDraftDoc.followups[0].id)?.status === "dismissed" && convertedBeforeOutreachHandoff.doc.followups.find(item => item.id === approvedInvitationDraftDoc.followups[0].id)?.deliveryClaimId === null && convertedAfterOutreachHandoff.ok && convertedAfterOutreachHandoff.doc.followups.find(item => item.id === approvedInvitationDraftDoc.followups[0].id)?.status === "sending" && convertedAfterOutreachHandoff.doc.followups.find(item => item.id === approvedInvitationDraftDoc.followups[0].id)?.providerSubmissionStartedAt === now);
   ok("sponsor invitation conversion seeds operations", convertedInvitation.ok && convertedInvitation.application.outreachProspectId === prospect.prospect.id && convertedInvitation.prospect.status === "won" && convertedInvitation.prospect.convertedApplicationId === convertedInvitation.application.id && convertedInvitation.doc.applications.length === issuedInvitation.doc.applications.length + 1 && convertedInvitation.doc.brandProfiles.length === issuedInvitation.doc.brandProfiles.length + 1 && convertedInvitation.doc.deliverables.length === issuedInvitation.doc.deliverables.length + sponsorPackage.benefits.length && convertedInvitation.doc.milestones.length === issuedInvitation.doc.milestones.length + 4 && convertedInvitation.doc.tasks.length === issuedInvitation.doc.tasks.length + 1 && convertedInvitation.doc.followups.some(item => item.applicationId === convertedInvitation.application.id && item.kind === "application_received"));
   ok("sponsor invitation conversion is replay safe", replayedInvitation.ok && replayedInvitation.duplicate && replayedInvitation.application.id === convertedInvitation.application.id && replayedInvitation.doc.applications.length === convertedInvitation.doc.applications.length);
   ok("converted sponsor invitation recovers portal handoff", convertedAccess.ok && convertedAccess.converted && convertedAccess.prospect.convertedApplicationId === convertedInvitation.application.id);
@@ -2320,7 +2401,7 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
     postalCode: "bad-zip",
     latitude: 27.8
   }, { idFactory, now });
-  ok("outreach campaign targeting", campaign.ok && campaign.campaign.targeting.postalCodes[0] === "78373" && matchOutreachProspects(campaign.doc, campaign.campaign).length === 1);
+  ok("outreach campaign targeting", campaign.ok && campaign.campaign.targeting.postalCodes[0] === "78373" && campaign.campaign.deliveryMode === "review_first" && campaign.campaign.dailySendLimit === 25 && matchOutreachProspects(campaign.doc, campaign.campaign).length === 1);
   ok("outreach radius targeting", radiusCampaign.ok && matchOutreachProspects(radiusCampaign.doc, radiusCampaign.campaign).map(item => item.id).join() === prospect.prospect.id && outreachDistanceMiles(27.8339, -97.0611, 30.2672, -97.7431) > 150);
   ok("outreach geofence validation", !invalidGeofence.ok && invalidGeofence.error.includes("requires center"));
   ok("outreach location correction", correctedProspectLocation.ok && correctedProspectLocation.prospect.fitScore === 100 && correctedProspectLocation.prospect.fitReasons.length === 3 && !invalidProspectLocation.ok);
@@ -2340,6 +2421,123 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   const campaignDraftAgain = generateDueOutreachFollowups(campaignDraft.doc, { idFactory, now });
   ok("outreach personalized draft", campaignDraft.generated.length === 1 && campaignDraft.generated[0].subject.includes("Island Hotel") && campaignDraft.generated[0].status === "draft_ready" && campaignDraft.generated[0].body.includes(preferenceUrl) && campaignDraft.generated[0].body.includes(issuedInvitation.invitationUrl));
   ok("outreach draft idempotency", campaignDraftAgain.generated.length === 0);
+  const automatedProspect = createOutreachProspect(campaignDraft.doc, {
+    organizationName: "Harbor Lodging Group",
+    contactName: "Taylor Morgan",
+    contactEmail: "partnerships@harbor-lodging.example",
+    contactBasis: "business_relevance",
+    status: "contact_ready",
+    industry: "lodging",
+    city: "Port Aransas",
+    state: "TX",
+    postalCode: "78373",
+    latitude: 27.834,
+    longitude: -97.061
+  }, { idFactory, now });
+  const automatedCampaign = createOutreachCampaign(automatedProspect.doc, {
+    name: "Approved lodging sequence",
+    deliveryMode: "approved_sequence",
+    dailySendLimit: 1,
+    targeting: { industries: ["lodging"], cities: ["Port Aransas"], states: ["TX"] },
+    sequence: [{ delayDays: 0, subjectTemplate: "SandFest and {{organization}}", bodyTemplate: "Hello {{contactName}}, may we share our sponsor program?" }]
+  }, { actorId: "sponsor_1", idFactory, now });
+  const blockedAutomatedActivation = updateOutreachCampaignStatus(automatedCampaign.doc, automatedCampaign.campaign.id, "activate", { actorId: "sponsor_1", idFactory, now });
+  const activatedAutomatedCampaign = updateOutreachCampaignStatus(automatedCampaign.doc, automatedCampaign.campaign.id, "activate", { actorId: "sponsor_1", idFactory, now, providerReady: true });
+  const generatedAutomatedCampaign = generateDueOutreachFollowups(activatedAutomatedCampaign.doc, { idFactory, now });
+  const appliedAutomatedCampaign = applyOutreachCampaignAutomation(generatedAutomatedCampaign.doc, { idFactory, now, providerReady: true });
+  const automatedReadiness = outreachCampaignAutomationReadiness(appliedAutomatedCampaign.doc, activatedAutomatedCampaign.campaign, { now, providerReady: true });
+  const campaignQueueCandidates = automatedFollowupQueueCandidates(appliedAutomatedCampaign.doc, { maxBatch: 10, now, providerReady: true });
+  const providerBlockedCampaignCandidates = automatedFollowupQueueCandidates(appliedAutomatedCampaign.doc, { maxBatch: 10, now, providerReady: false });
+  const reservedManualId = `${appliedAutomatedCampaign.approved[0].id}_reserved_manual`;
+  const reservedManualDoc = {
+    ...appliedAutomatedCampaign.doc,
+    followups: [...appliedAutomatedCampaign.doc.followups, { ...appliedAutomatedCampaign.approved[0], id: reservedManualId, approvedBy: "sponsor_1", automationPolicy: null, automationCampaignApprovedAt: null }]
+  };
+  const blockedByAutomatedReservation = queueFollowupDelivery(reservedManualDoc, reservedManualId, { now });
+  const queuedAutomatedReservation = queueFollowupDelivery(appliedAutomatedCampaign.doc, appliedAutomatedCampaign.approved[0].id, { now, automationJobId: "job_reserved_campaign" });
+  const capacityRaceManualId = `${appliedAutomatedCampaign.approved[0].id}_capacity_race`;
+  const capacityRaceDoc = {
+    ...appliedAutomatedCampaign.doc,
+    followups: [...appliedAutomatedCampaign.doc.followups, {
+      ...appliedAutomatedCampaign.approved[0],
+      id: capacityRaceManualId,
+      status: "queued",
+      approvedBy: "sponsor_1",
+      automationPolicy: null,
+      automationCampaignApprovedAt: null,
+      queuedAt: now
+    }]
+  };
+  const rejectedCapacityRace = queueFollowupDelivery(capacityRaceDoc, appliedAutomatedCampaign.approved[0].id, { now, automationJobId: "job_capacity_race" });
+  const releasedCapacityRace = releaseAutomatedFollowupApproval(capacityRaceDoc, appliedAutomatedCampaign.approved[0].id, rejectedCapacityRace.error, {
+    actorId: "worker",
+    automationPolicy: OUTREACH_CAMPAIGN_AUTOMATION_POLICY,
+    decision: "daily_capacity_released",
+    idFactory,
+    now
+  });
+  const manualCampaignDoc = {
+    ...appliedAutomatedCampaign.doc,
+    followups: appliedAutomatedCampaign.doc.followups.map(item => item.id === appliedAutomatedCampaign.approved[0].id
+      ? { ...item, approvedBy: "sponsor_1", automationPolicy: null, automationCampaignApprovedAt: null }
+      : item)
+  };
+  const manuallyQueuedCampaign = queueFollowupDelivery(manualCampaignDoc, appliedAutomatedCampaign.approved[0].id, { now });
+  const claimedCampaignDelivery = claimFollowupDelivery(manuallyQueuedCampaign.doc, appliedAutomatedCampaign.approved[0].id, { deliveryClaimId: "job_campaign_claim", now });
+  const begunCampaignDelivery = beginFollowupProviderSubmission(claimedCampaignDelivery.doc, appliedAutomatedCampaign.approved[0].id, { deliveryClaimId: "job_campaign_claim", now });
+  const terminalClaimRecovery = recordFollowupDelivery(claimedCampaignDelivery.doc, appliedAutomatedCampaign.approved[0].id, { sent: false, provider: "worker", error: "Delivery job expired before provider handoff." }, { deliveryClaimId: "job_campaign_claim", terminal: true, now });
+  const pausedAfterProviderStart = updateOutreachCampaignStatus(begunCampaignDelivery.doc, automatedCampaign.campaign.id, "pause", { actorId: "sponsor_1", idFactory, now });
+  const recordedClaimedDelivery = recordFollowupDelivery(pausedAfterProviderStart.doc, appliedAutomatedCampaign.approved[0].id, { sent: true, provider: "brevo", providerMessageId: "msg_claimed_campaign" }, { deliveryClaimId: "job_campaign_claim", now });
+  const failedClaimedDelivery = recordFollowupDelivery(pausedAfterProviderStart.doc, appliedAutomatedCampaign.approved[0].id, { sent: false, provider: "brevo", error: "Provider unavailable." }, { deliveryClaimId: "job_campaign_claim", now });
+  const suppressedClaimedDelivery = updateOutreachProspect(claimedCampaignDelivery.doc, claimedCampaignDelivery.followup.prospectId, { status: "do_not_contact", suppressed: true, suppressionReason: "Recipient unsubscribed" }, { actorId: "sponsor_1", idFactory, now });
+  const lateSuppressedDelivery = recordFollowupDelivery(suppressedClaimedDelivery.doc, appliedAutomatedCampaign.approved[0].id, { sent: true, provider: "brevo", providerMessageId: "msg_too_late" }, { deliveryClaimId: "job_campaign_claim", now });
+  const suppressedAfterProviderStart = updateOutreachProspect(begunCampaignDelivery.doc, begunCampaignDelivery.followup.prospectId, { status: "do_not_contact", suppressed: true, suppressionReason: "Recipient unsubscribed after provider handoff" }, { actorId: "sponsor_1", idFactory, now });
+  const recordedAfterProviderStart = recordFollowupDelivery(suppressedAfterProviderStart.doc, appliedAutomatedCampaign.approved[0].id, { sent: true, provider: "brevo", providerMessageId: "msg_handoff_started" }, { deliveryClaimId: "job_campaign_claim", now });
+  const pausedBeforeProviderStart = updateOutreachCampaignStatus(claimedCampaignDelivery.doc, automatedCampaign.campaign.id, "pause", { actorId: "sponsor_1", idFactory, now });
+  const canceledProviderStart = beginFollowupProviderSubmission(pausedBeforeProviderStart.doc, appliedAutomatedCampaign.approved[0].id, { deliveryClaimId: "job_campaign_claim", now });
+  const completedBeforeProviderStart = updateOutreachCampaignStatus(claimedCampaignDelivery.doc, automatedCampaign.campaign.id, "complete", { actorId: "sponsor_1", idFactory, now });
+  const canceledCompletedProviderStart = beginFollowupProviderSubmission(completedBeforeProviderStart.doc, appliedAutomatedCampaign.approved[0].id, { deliveryClaimId: "job_campaign_claim", now });
+  const archivedBeforeProviderStart = updateOutreachCampaignStatus(pausedBeforeProviderStart.doc, automatedCampaign.campaign.id, "archive", { actorId: "sponsor_1", idFactory, now });
+  const canceledArchivedProviderStart = beginFollowupProviderSubmission(archivedBeforeProviderStart.doc, appliedAutomatedCampaign.approved[0].id, { deliveryClaimId: "job_campaign_claim", now });
+  const pausedBeforeDeliveryClaim = updateOutreachCampaignStatus(manuallyQueuedCampaign.doc, automatedCampaign.campaign.id, "pause", { actorId: "sponsor_1", idFactory, now });
+  const blockedDeliveryClaim = claimFollowupDelivery(pausedBeforeDeliveryClaim.doc, appliedAutomatedCampaign.approved[0].id, { deliveryClaimId: "job_campaign_stale", now });
+  const manualOverflowId = `${appliedAutomatedCampaign.approved[0].id}_overflow`;
+  const manualOverflowDoc = {
+    ...manuallyQueuedCampaign.doc,
+    followups: [...manuallyQueuedCampaign.doc.followups, { ...appliedAutomatedCampaign.approved[0], id: manualOverflowId, approvedBy: "sponsor_1", automationPolicy: null, automationCampaignApprovedAt: null }]
+  };
+  const manuallyQueuedOverflow = queueFollowupDelivery(manualOverflowDoc, manualOverflowId, { now });
+  const carriedQueueDoc = {
+    ...appliedAutomatedCampaign.doc,
+    followups: appliedAutomatedCampaign.doc.followups.map(item => item.id === appliedAutomatedCampaign.approved[0].id
+      ? { ...item, status: "queued", queuedAt: "2026-05-14T23:59:00.000Z" }
+      : item)
+  };
+  const carriedQueueReadiness = outreachCampaignAutomationReadiness(carriedQueueDoc, automatedCampaign.campaign.id, { now: "2026-05-15T01:00:00.000Z", providerReady: true });
+  const pausedAutomatedCampaign = updateOutreachCampaignStatus(appliedAutomatedCampaign.doc, automatedCampaign.campaign.id, "pause", { actorId: "sponsor_1", idFactory, now });
+  const failedCampaignDoc = {
+    ...appliedAutomatedCampaign.doc,
+    followups: appliedAutomatedCampaign.doc.followups.map(item => item.id === appliedAutomatedCampaign.approved[0].id
+      ? { ...item, status: "failed", lastAttemptAt: now, lastError: "Provider rejected delivery." }
+      : item)
+  };
+  const failedCampaignReadiness = outreachCampaignAutomationReadiness(failedCampaignDoc, automatedCampaign.campaign.id, { now, providerReady: true });
+  const pausedFailedCampaign = updateOutreachCampaignStatus(failedCampaignDoc, automatedCampaign.campaign.id, "pause", { actorId: "sponsor_1", idFactory, now });
+  const resumedFailedCampaign = updateOutreachCampaignStatus(pausedFailedCampaign.doc, automatedCampaign.campaign.id, "activate", { actorId: "sponsor_1", idFactory, now, providerReady: true });
+  const reappliedFailedCampaign = applyOutreachCampaignAutomation(resumedFailedCampaign.doc, { idFactory, now, providerReady: true });
+  ok("campaign automation requires delivery readiness", !blockedAutomatedActivation.ok && blockedAutomatedActivation.providerNotReady === true && activatedAutomatedCampaign.ok);
+  ok("campaign approval automates one bounded message", generatedAutomatedCampaign.generated.length === 1 && appliedAutomatedCampaign.approved.length === 1 && appliedAutomatedCampaign.approved[0].automationPolicy === OUTREACH_CAMPAIGN_AUTOMATION_POLICY && automatedReadiness.dailySendLimit === 1 && automatedReadiness.remainingToday === 0 && campaignQueueCandidates.length === 1);
+  ok("campaign automation fails closed and carries queued capacity", providerBlockedCampaignCandidates.length === 0 && carriedQueueReadiness.queuedPending === 1 && carriedQueueReadiness.remainingToday === 0);
+  ok("campaign auto-approval reserves daily queue capacity", !blockedByAutomatedReservation.ok && blockedByAutomatedReservation.dailyLimitReached === true && queuedAutomatedReservation.ok && queuedAutomatedReservation.followup.status === "queued");
+  ok("campaign capacity race releases the automated approval", !rejectedCapacityRace.ok && rejectedCapacityRace.dailyLimitReached === true && releasedCapacityRace.ok && releasedCapacityRace.followup.status === "draft_ready" && releasedCapacityRace.followup.approvedBy === null && releasedCapacityRace.followup.automationPolicy === null && releasedCapacityRace.followup.automationDecision === "daily_capacity_released" && releasedCapacityRace.doc.activity.at(-1)?.type === "followup.automation_released");
+  ok("campaign daily cap includes manual delivery", manuallyQueuedCampaign.ok && !manuallyQueuedOverflow.ok && manuallyQueuedOverflow.dailyLimitReached === true && outreachCampaignAutomationReadiness(manuallyQueuedCampaign.doc, automatedCampaign.campaign.id, { now, providerReady: true }).remainingToday === 0);
+  ok("campaign pause and send use an atomic provider handoff", claimedCampaignDelivery.ok && begunCampaignDelivery.ok && begunCampaignDelivery.followup.providerSubmissionStartedAt === now && pausedAfterProviderStart.inFlightFollowups === 1 && pausedAfterProviderStart.doc.followups.find(item => item.id === claimedCampaignDelivery.followup.id)?.status === "sending" && recordedClaimedDelivery.ok && recordedClaimedDelivery.followup.status === "sent" && failedClaimedDelivery.ok && failedClaimedDelivery.followup.status === "failed" && canceledProviderStart.ok && canceledProviderStart.canceled === true && canceledProviderStart.followup.status === "draft_ready" && !blockedDeliveryClaim.ok && blockedDeliveryClaim.canceled === true);
+  ok("campaign terminal states dismiss an unstarted handoff", canceledCompletedProviderStart.ok && canceledCompletedProviderStart.canceled === true && canceledCompletedProviderStart.followup.status === "dismissed" && canceledArchivedProviderStart.ok && canceledArchivedProviderStart.canceled === true && canceledArchivedProviderStart.followup.status === "dismissed");
+  ok("terminal recovery clears a pre-handoff delivery claim", terminalClaimRecovery.ok && terminalClaimRecovery.followup.status === "failed" && terminalClaimRecovery.followup.deliveryClaimId === null && terminalClaimRecovery.followup.providerSubmissionStartedAt === null);
+  ok("outreach suppression revokes an in-flight claim", suppressedClaimedDelivery.ok && suppressedClaimedDelivery.doc.followups.find(item => item.id === claimedCampaignDelivery.followup.id)?.status === "dismissed" && !lateSuppressedDelivery.ok);
+  ok("outreach suppression preserves a started provider handoff", suppressedAfterProviderStart.ok && suppressedAfterProviderStart.prospect.status === "do_not_contact" && suppressedAfterProviderStart.doc.followups.find(item => item.id === begunCampaignDelivery.followup.id)?.status === "sending" && recordedAfterProviderStart.ok && recordedAfterProviderStart.followup.status === "sent");
+  ok("campaign pause returns unsent automation to review", pausedAutomatedCampaign.ok && pausedAutomatedCampaign.returnedToReview === 1 && pausedAutomatedCampaign.doc.followups.find(item => item.id === appliedAutomatedCampaign.approved[0].id)?.status === "draft_ready" && automatedFollowupQueueCandidates(pausedAutomatedCampaign.doc, { now }).length === 0);
+  ok("campaign pause holds failed delivery for manual retry", failedCampaignReadiness.failedToday === 1 && failedCampaignReadiness.remainingToday === 0 && pausedFailedCampaign.failedHeldForRetry === 1 && pausedFailedCampaign.doc.followups.find(item => item.id === appliedAutomatedCampaign.approved[0].id)?.status === "failed" && resumedFailedCampaign.ok && reappliedFailedCampaign.approved.length === 0);
   const movedOutsideCampaign = updateOutreachProspect(campaignDraft.doc, prospect.prospect.id, {
     city: "Austin",
     postalCode: "78701",
@@ -2608,6 +2806,7 @@ Research First,construction,Corpus Christi,,78401,,,,Find decision maker,`;
     toName: "Vendor Contact",
     subject: "Application received",
     textContent: "Thank you for applying.",
+    idempotencyKey: "123e4567-e89b-42d3-a456-426614174000",
     listUnsubscribeUrl: "https://www.texassandfest.org/#outreach-preferences?prospect=p_1&token=tsfu_test"
   }, {
     config,
@@ -2617,10 +2816,21 @@ Research First,construction,Corpus Christi,,78401,,,,Find decision maker,`;
     }
   });
   const body = JSON.parse(request.options.body);
+  const duplicate = await sendTransactionalEmail({
+    toEmail: "vendor@example.com",
+    subject: "Application received",
+    textContent: "Thank you for applying.",
+    idempotencyKey: "123e4567-e89b-42d3-a456-426614174000"
+  }, {
+    config,
+    fetchImpl: async () => new Response(JSON.stringify({ code: "duplicate_parameter", message: "Idempotency key already used" }), { status: 400, headers: { "content-type": "application/json" } })
+  });
   ok("Brevo delivery contract", result.sent && result.providerMessageId === "brevo_msg_1" && request.url.endsWith("/v3/smtp/email"));
   ok("Brevo sender and recipient", body.sender.email === "partners@texassandfest.org" && body.to[0].email === "vendor@example.com");
   ok("Brevo API key header", request.options.headers["api-key"] === "test-secret");
   ok("Brevo list unsubscribe header", body.headers?.["List-Unsubscribe"] === "<https://www.texassandfest.org/#outreach-preferences?prospect=p_1&token=tsfu_test>");
+  ok("Brevo idempotency header", body.headers?.["Idempotency-Key"] === "123e4567-e89b-42d3-a456-426614174000");
+  ok("Brevo duplicate idempotency response fails closed", !duplicate.sent && duplicate.duplicate === true && duplicate.providerCode === "duplicate_parameter");
 }
 
 // Loopback-only board email sandbox

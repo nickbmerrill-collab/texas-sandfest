@@ -22,9 +22,13 @@ import {
 } from "../lib/sms-operations.mjs";
 import { readPlatformDoc, updatePlatformDoc, writePlatformDoc } from "../lib/platform-data.mjs";
 import {
+  OUTREACH_CAMPAIGN_AUTOMATION_POLICY,
   PARTNER_TRANSACTIONAL_AUTOMATION_POLICY,
+  applyOutreachCampaignAutomation,
   applyTransactionalFollowupAutomation,
   automatedFollowupQueueCandidates,
+  beginFollowupProviderSubmission,
+  claimFollowupDelivery,
   emptyPartnerOperations,
   generateDueOutreachFollowups,
   generateDuePartnerFollowups,
@@ -32,10 +36,10 @@ import {
   normalizePartnerOperations,
   prepareFollowupDraft,
   queueFollowupDelivery,
+  releaseAutomatedFollowupApproval,
   recordFollowupDelivery,
   recordPartnerInvoiceReconciliation,
-  recordPartnerInvoiceSync,
-  resolveFollowupRecipient
+  recordPartnerInvoiceSync
 } from "../lib/partner-ops.mjs";
 import { emailConfigFromEnv, sendTransactionalEmail } from "../lib/email.mjs";
 import { applyBrevoDeliveryEvents, brevoWebhookConfig } from "../lib/brevo-webhook.mjs";
@@ -242,56 +246,139 @@ async function handleJob(job) {
     let followup = doc.followups.find(item => item.id === job.payload.followupId);
     if (!followup) throw new Error("Follow-up not found.");
     if (followup.status === "sent") return { ok: true, alreadySent: true, followupId: followup.id };
+    if (followup.status === "sending") {
+      if (followup.deliveryClaimId !== job.id) {
+        return { ok: true, canceled: true, followupId: followup.id, status: followup.status };
+      }
+      if (followup.providerSubmissionStartedAt) {
+        let unknown = null;
+        await updatePlatformDoc(ROOT, "partnerOps", current => {
+          unknown = recordFollowupDelivery(current, followup.id, {
+            sent: false,
+            provider: "worker",
+            error: "A previous worker stopped after starting provider submission; verify the provider before a manual retry."
+          }, { terminal: true, unknownOutcome: true, deliveryClaimId: job.id });
+          return unknown.ok ? unknown.doc : normalizePartnerOperations(current);
+        }, { fallback: doc });
+        if (!unknown?.ok) throw new Error(unknown?.error || "Unknown email outcome could not be recorded.");
+        return { ok: true, deliveryUnknown: true, followupId: followup.id, status: unknown.followup.status };
+      }
+    }
     const recipientContext = await readRecipientContext();
     if (job.payload.automated === true && followup.status === "approved") {
-      if (followup.approvedBy !== `automation:${PARTNER_TRANSACTIONAL_AUTOMATION_POLICY}`) {
+      const automationPolicy = String(followup.automationPolicy || "");
+      if (![PARTNER_TRANSACTIONAL_AUTOMATION_POLICY, OUTREACH_CAMPAIGN_AUTOMATION_POLICY].includes(automationPolicy)
+        || job.payload.automationPolicy !== automationPolicy
+        || followup.approvedBy !== `automation:${automationPolicy}`) {
         throw new Error("Automated send job does not match an automation-approved follow-up.");
       }
       let queued = null;
+      let released = null;
       await updatePlatformDoc(ROOT, "partnerOps", current => {
         const currentDoc = currentPartnerOperations(current);
         const currentFollowup = currentDoc.followups.find(item => item.id === job.payload.followupId);
         if (currentFollowup?.status !== "approved") return currentDoc;
+        const now = new Date().toISOString();
         queued = queueFollowupDelivery(currentDoc, currentFollowup.id, {
-          now: new Date().toISOString(),
+          now,
           automationJobId: job.id,
           ...recipientContext
         });
-        return queued.ok ? queued.doc : currentDoc;
+        if (queued.ok) return queued.doc;
+        released = releaseAutomatedFollowupApproval(currentDoc, currentFollowup.id, queued.error, {
+          now,
+          actorId: "worker",
+          automationPolicy,
+          decision: queued.dailyLimitReached ? "daily_capacity_released" : "queue_rejected"
+        });
+        return released.ok ? released.doc : currentDoc;
       }, { fallback: doc });
-      if (queued && !queued.ok) throw new Error(queued.error || "Automated follow-up could not be queued.");
+      if (queued && !queued.ok && !released?.ok) throw new Error(queued.error || "Automated follow-up could not be queued.");
       doc = normalizePartnerOperations(await readPlatformDoc(ROOT, "partnerOps", emptyPartnerOperations()));
       followup = doc.followups.find(item => item.id === job.payload.followupId);
     }
-    if (job.payload.automated === true && ["draft_ready", "dismissed"].includes(followup?.status)) {
+    if (["draft_ready", "dismissed", "failed"].includes(followup?.status)) {
       return { ok: true, canceled: true, followupId: followup.id, status: followup.status };
     }
-    if (followup.status !== "queued") throw new Error(`Follow-up is ${followup.status}, not queued.`);
-    const resolved = resolveFollowupRecipient(doc, followup.id, recipientContext);
-    if (!resolved.ok) throw new Error(resolved.error);
-    const preferenceUrl = followup.prospectId ? outreachPreferencesUrl(resolved.recipient) : null;
+    if (!["queued", "sending"].includes(followup.status)) throw new Error(`Follow-up is ${followup.status}, not queued or sending.`);
+    if (followup.status === "queued") {
+      let claimed = null;
+      await updatePlatformDoc(ROOT, "partnerOps", current => {
+        claimed = claimFollowupDelivery(current, followup.id, {
+          ...recipientContext,
+          deliveryClaimId: job.id,
+          now: new Date().toISOString()
+        });
+        return claimed.ok ? claimed.doc : normalizePartnerOperations(current);
+      }, { fallback: doc });
+      if (!claimed?.ok) {
+        if (claimed?.canceled || claimed?.status === "sent") {
+          return { ok: true, canceled: claimed.status !== "sent", alreadySent: claimed.status === "sent", followupId: followup.id, status: claimed.status };
+        }
+        throw new Error(claimed?.error || "Follow-up delivery could not be claimed.");
+      }
+      doc = claimed.doc;
+      followup = claimed.followup;
+    }
+    let begun = null;
+    await updatePlatformDoc(ROOT, "partnerOps", current => {
+      begun = beginFollowupProviderSubmission(current, followup.id, {
+        ...recipientContext,
+        deliveryClaimId: job.id,
+        actorId: "worker",
+        now: new Date().toISOString()
+      });
+      return begun.ok ? begun.doc : normalizePartnerOperations(current);
+    }, { fallback: doc });
+    if (!begun?.ok) {
+      if (begun?.canceled || begun?.status === "sent") {
+        return { ok: true, canceled: begun.status !== "sent", alreadySent: begun.status === "sent", followupId: followup.id, status: begun.status };
+      }
+      throw new Error(begun?.error || "Provider submission could not be started.");
+    }
+    if (begun.canceled) return { ok: true, canceled: true, followupId: followup.id, status: begun.status };
+    followup = begun.followup;
+    const preferenceUrl = followup.prospectId ? outreachPreferencesUrl(begun.recipient) : null;
     const delivery = await sendTransactionalEmail({
       toEmail: followup.recipient,
-      toName: resolved.toName,
+      toName: begun.toName,
       subject: followup.subject,
       textContent: preferenceUrl ? appendOutreachPreferenceFooter(followup.body, preferenceUrl) : followup.body,
       listUnsubscribeUrl: preferenceUrl,
+      idempotencyKey: followup.deliveryIdempotencyKey,
       tags: ["sandfest-partner", `followup-${followup.id}`]
     }, { config: emailConfigFromEnv() });
-    if (!delivery.sent) {
+    if (!delivery.sent && !delivery.duplicate) {
       const error = new Error(delivery.error || delivery.reason || "Transactional email was not sent.");
       error.delivery = delivery;
       throw error;
     }
     let recorded = null;
-    await updatePlatformDoc(ROOT, "partnerOps", current => {
-      recorded = recordFollowupDelivery(current, followup.id, delivery);
-      if (!recorded.ok) return normalizePartnerOperations(current);
-      const reconciled = applyBrevoDeliveryEvents(recorded.doc, []);
-      recorded = { ...recorded, doc: reconciled.doc, followup: reconciled.doc.followups.find(item => item.id === followup.id) };
-      return reconciled.doc;
-    }, { fallback: doc });
-    if (!recorded?.ok) throw new Error(recorded?.error || "Email sent but delivery state could not be recorded.");
+    try {
+      await updatePlatformDoc(ROOT, "partnerOps", current => {
+        recorded = recordFollowupDelivery(current, followup.id, delivery.duplicate ? {
+          ...delivery,
+          error: "Brevo already accepted this idempotency key; verify provider delivery before a manual retry."
+        } : delivery, {
+          terminal: delivery.duplicate === true,
+          unknownOutcome: delivery.duplicate === true,
+          deliveryClaimId: job.id
+        });
+        if (!recorded.ok) return normalizePartnerOperations(current);
+        const reconciled = applyBrevoDeliveryEvents(recorded.doc, []);
+        recorded = { ...recorded, doc: reconciled.doc, followup: reconciled.doc.followups.find(item => item.id === followup.id) };
+        return reconciled.doc;
+      }, { fallback: doc });
+    } catch (error) {
+      error.delivery = delivery;
+      throw error;
+    }
+    if (!recorded?.ok) {
+      const error = new Error(recorded?.error || "Email outcome could not be recorded.");
+      error.delivery = delivery;
+      throw error;
+    }
+    if (delivery.duplicate) return { ok: true, deliveryUnknown: true, followupId: followup.id, status: recorded.followup.status };
     console.log(`[worker] partner.followup.send job=${job.id} followup=${followup.id} provider=${delivery.provider} message=${delivery.providerMessageId || "accepted"}`);
     return { ok: true, followupId: followup.id, provider: delivery.provider, providerMessageId: delivery.providerMessageId };
   }
@@ -338,20 +425,25 @@ async function scheduleAutomatedFollowups(candidates, recipientContext = {}) {
   let failed = 0;
   for (const candidate of candidates.slice(0, BATCH)) {
     try {
+      const automationPolicy = candidate.automationPolicy;
+      if (![PARTNER_TRANSACTIONAL_AUTOMATION_POLICY, OUTREACH_CAMPAIGN_AUTOMATION_POLICY].includes(automationPolicy)) {
+        throw new Error("Follow-up does not carry a supported automation policy.");
+      }
       const job = await enqueueJob(ROOT, {
         type: "partner.followup.send",
         payload: {
           followupId: candidate.id,
           automated: true,
-          automationPolicy: PARTNER_TRANSACTIONAL_AUTOMATION_POLICY
+          automationPolicy
         },
         maxAttempts: 5,
-        idempotencyKey: `${PARTNER_TRANSACTIONAL_AUTOMATION_POLICY}:${candidate.id}:${candidate.approvedAt}`
+        idempotencyKey: `${automationPolicy}:${candidate.id}:${candidate.approvedAt}`
       });
       if (!["queued", "running"].includes(job.status)) {
         throw new Error(`Automation job ${job.id} is ${job.status}; a fresh approval is required before retrying.`);
       }
       let result = null;
+      let released = null;
       let outcome = "stale";
       await updatePlatformDoc(ROOT, "partnerOps", current => {
         const doc = currentPartnerOperations(current);
@@ -364,15 +456,26 @@ async function scheduleAutomatedFollowups(candidates, recipientContext = {}) {
           outcome = followup?.status || "missing";
           return doc;
         }
+        const now = new Date().toISOString();
         result = queueFollowupDelivery(doc, candidate.id, {
-          now: new Date().toISOString(),
+          now,
           automationJobId: job.id,
           ...recipientContext
         });
-        outcome = result.ok ? "queued" : "rejected";
-        return result.ok ? result.doc : doc;
+        if (result.ok) {
+          outcome = "queued";
+          return result.doc;
+        }
+        released = releaseAutomatedFollowupApproval(doc, candidate.id, result.error, {
+          now,
+          actorId: "worker",
+          automationPolicy,
+          decision: result.dailyLimitReached ? "daily_capacity_released" : "queue_rejected"
+        });
+        outcome = released.ok ? "released" : "rejected";
+        return released.ok ? released.doc : doc;
       }, { fallback: emptyPartnerOperations(CURRENT_EVENT_ID) });
-      if (result && !result.ok) throw new Error(result.error || "Automated follow-up could not be queued.");
+      if (result && !result.ok && !released?.ok) throw new Error(result.error || "Automated follow-up could not be queued.");
       if (["queued", "already_queued"].includes(outcome)) queued += 1;
     } catch (error) {
       failed += 1;
@@ -410,12 +513,26 @@ async function reconcileTerminalQueueFailures() {
       let reconciled = false;
       await updatePlatformDoc(ROOT, "partnerOps", current => {
         const doc = normalizePartnerOperations(current);
-        if (doc.followups.find(item => item.id === job.payload.followupId)?.status !== "queued") return doc;
-        const result = recordFollowupDelivery(doc, job.payload.followupId, {
-          sent: false,
-          provider: "worker",
-          error: job.lastError
-        }, { terminal: true });
+        const followup = doc.followups.find(item => item.id === job.payload.followupId);
+        if (!followup) return doc;
+        const result = followup.status === "approved" && job.payload.automated === true
+          ? releaseAutomatedFollowupApproval(doc, job.payload.followupId, job.lastError, {
+            actorId: "worker",
+            automationPolicy: job.payload.automationPolicy,
+            decision: "terminal_job_released"
+          })
+          : ["queued", "sending"].includes(followup.status)
+            ? recordFollowupDelivery(doc, job.payload.followupId, {
+              sent: false,
+              provider: "worker",
+              error: job.lastError
+            }, {
+              terminal: true,
+              unknownOutcome: followup.status === "sending",
+              deliveryClaimId: followup.status === "sending" ? job.id : undefined
+            })
+            : null;
+        if (!result) return doc;
         reconciled = result.ok;
         return result.ok ? result.doc : doc;
       }, { fallback: emptyPartnerOperations() });
@@ -501,7 +618,13 @@ async function tick() {
       preferenceUrlForProspect: outreachPreferencesUrl,
       sponsorInvitationUrlForProspect: sponsorInviteUrl
     });
-    const automated = applyTransactionalFollowupAutomation(outreach.doc, {
+    const outreachAutomated = applyOutreachCampaignAutomation(outreach.doc, {
+      providerReady: automationProviderReady,
+      maxBatch: BATCH,
+      idFactory: prefix => `${prefix}_${randomUUID()}`,
+      ...recipientContext
+    });
+    const automated = applyTransactionalFollowupAutomation(outreachAutomated.doc, {
       providerReady: automationProviderReady,
       maxBatch: BATCH,
       idFactory: prefix => `${prefix}_${randomUUID()}`,
@@ -511,17 +634,28 @@ async function tick() {
     generatedMilestoneDrafts = milestones.generated.length;
     generatedOutreachDrafts = outreach.generated.length;
     generatedDrafts = generatedTaskDrafts + generatedMilestoneDrafts + generatedOutreachDrafts;
-    autoApproved = automated.approved.length;
-    autoSkipped = automated.skipped.length;
-    automationCandidates = automatedFollowupQueueCandidates(automated.doc);
+    autoApproved = outreachAutomated.approved.length + automated.approved.length;
+    autoSkipped = outreachAutomated.skipped.length + automated.skipped.length;
+    automationCandidates = automatedFollowupQueueCandidates(automated.doc, {
+      maxBatch: BATCH,
+      providerReady: automationProviderReady
+    });
     return automated.doc;
   }, { fallback: partnerSeed });
   if (generatedTaskDrafts) console.log(`[worker] generated ${generatedTaskDrafts} task notification draft(s)`);
   if (generatedMilestoneDrafts) console.log(`[worker] generated ${generatedMilestoneDrafts} milestone follow-up draft(s)`);
   if (generatedOutreachDrafts) console.log(`[worker] generated ${generatedOutreachDrafts} outreach draft(s)`);
+  const campaignAutomationCandidates = automationCandidates.filter(item => item.automationPolicy === OUTREACH_CAMPAIGN_AUTOMATION_POLICY).length;
+  const transactionalAutomationCandidates = automationCandidates.filter(item => item.automationPolicy === PARTNER_TRANSACTIONAL_AUTOMATION_POLICY).length;
   const automated = await scheduleAutomatedFollowups(automationCandidates, recipientContext);
   if (autoApproved || automated.queued || automated.failed) {
-    console.log(`[worker] transactional automation approved=${autoApproved} queued=${automated.queued} skipped=${autoSkipped} failed=${automated.failed}`);
+    if (campaignAutomationCandidates) {
+      console.log(`[worker] outreach campaign automation policy=${OUTREACH_CAMPAIGN_AUTOMATION_POLICY} candidates=${campaignAutomationCandidates}`);
+    }
+    if (transactionalAutomationCandidates) {
+      console.log(`[worker] transactional automation policy=${PARTNER_TRANSACTIONAL_AUTOMATION_POLICY} candidates=${transactionalAutomationCandidates}`);
+    }
+    console.log(`[worker] message automation approved=${autoApproved} queued=${automated.queued} skipped=${autoSkipped} failed=${automated.failed}`);
   }
   const jobs = await claimNextJobs(ROOT, { limit: BATCH, workerId: QUEUE.workerId, leaseMs: QUEUE.leaseMs });
   await reconcileTerminalQueueFailures();
@@ -532,6 +666,7 @@ async function tick() {
       if (!completion.ok) console.warn(`[worker] job ${job.id} completion ignored: ${completion.reason}`);
     } catch (error) {
       console.error(`[worker] job ${job.id} error:`, error.message);
+      let terminalHandled = true;
       if (job.type === "sms.alert.send" && job.payload?.messageId) {
         await updatePlatformDoc(ROOT, "smsOperations", current => {
           const doc = normalizeSmsOperations(current, { eventId: CURRENT_EVENT_ID });
@@ -548,14 +683,30 @@ async function tick() {
         }, { fallback: emptySmsOperations(CURRENT_EVENT_ID) });
       }
       if (job.type === "partner.followup.send" && job.payload?.followupId) {
+        let partnerFailureHandled = false;
         await updatePlatformDoc(ROOT, "partnerOps", current => {
-          const result = recordFollowupDelivery(current, job.payload.followupId, error.delivery || {
-            sent: false,
-            provider: "brevo",
-            error: error.message
-          }, { terminal: job.attempts >= job.maxAttempts });
+          const doc = normalizePartnerOperations(current);
+          const followup = doc.followups.find(item => item.id === job.payload.followupId);
+          if (!followup || ["draft_ready", "dismissed", "failed", "sent"].includes(followup.status)) {
+            partnerFailureHandled = true;
+            return doc;
+          }
+          const terminal = job.attempts >= job.maxAttempts;
+          const result = terminal && followup.status === "approved" && job.payload.automated === true
+            ? releaseAutomatedFollowupApproval(doc, job.payload.followupId, error.message, {
+              actorId: "worker",
+              automationPolicy: job.payload.automationPolicy,
+              decision: "terminal_job_released"
+            })
+            : recordFollowupDelivery(doc, job.payload.followupId, error.delivery || {
+              sent: false,
+              provider: "brevo",
+              error: error.message
+            }, { terminal, deliveryClaimId: job.id });
+          partnerFailureHandled = result.ok;
           return result.ok ? result.doc : normalizePartnerOperations(current);
         }, { fallback: emptyPartnerOperations() });
+        terminalHandled = partnerFailureHandled;
       }
       if (job.type === "incident.dispatch.send" && job.payload?.dispatchId) {
         await updatePlatformDoc(ROOT, "islandConditions", current => {
@@ -588,7 +739,7 @@ async function tick() {
           return result.ok ? result.doc : doc;
         }, { fallback: emptyPartnerOperations() });
       }
-      const completion = await completeJob(ROOT, job, { error: error.message, terminalHandled: true });
+      const completion = await completeJob(ROOT, job, { error: error.message, terminalHandled });
       if (!completion.ok) console.warn(`[worker] job ${job.id} failure update ignored: ${completion.reason}`);
     }
   }
