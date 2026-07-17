@@ -607,6 +607,19 @@ function presentDeploymentChecks(checks) {
   }));
 }
 
+function summarizeDeploymentGroups(checks) {
+  const groups = new Map();
+  Object.values(checks).forEach(check => {
+    const summary = groups.get(check.group) || { group: check.group, total: 0, passing: 0, warnings: 0, errors: 0 };
+    summary.total += 1;
+    if (check.ok) summary.passing += 1;
+    else if (check.severity === "warning") summary.warnings += 1;
+    else summary.errors += 1;
+    groups.set(check.group, summary);
+  });
+  return [...groups.values()];
+}
+
 const KNOWN_REQUIRED_CAPABILITIES = new Set([
   "stripe_ticketing",
   "stripe_partner_payments",
@@ -1579,6 +1592,7 @@ async function deploymentProfile() {
   const values = Object.values(checks);
   const errors = values.filter(check => !check.ok && check.severity === "error");
   const warnings = values.filter(check => !check.ok && check.severity === "warning");
+  const presentedChecks = presentDeploymentChecks(checks);
   return {
     environment: SANDFEST_ENV,
     production,
@@ -1586,7 +1600,8 @@ async function deploymentProfile() {
     ok: errors.length === 0,
     errors: errors.length,
     warnings: warnings.length,
-    checks: presentDeploymentChecks(checks)
+    checks: presentedChecks,
+    groups: summarizeDeploymentGroups(presentedChecks)
   };
 }
 

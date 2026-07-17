@@ -166,6 +166,7 @@ assert(visitorSource.includes('id="checkout-status" class="checkout-status" role
 assert(visitorSource.includes('id="admin-api-status" class="checkout-status" role="status" aria-live="polite"'), "Admin operations are missing their live status region.");
 assert(visitorSource.includes('id="admin-deployment-checks" class="admin-deployment-checks" aria-live="polite"'), "Deployment readiness checks are missing their live status region.");
 assert(visitorSource.includes('data-deployment-filter="attention" aria-pressed="true"') && visitorSource.includes('data-deployment-filter="all" aria-pressed="false"'), "Deployment readiness filters are missing pressed-state semantics.");
+assert(visitorSource.includes("const groupSummary = groupSummaries.get(group);") && visitorSource.includes("${passing}/${total} passing"), "Filtered deployment views do not preserve full-group readiness totals.");
 assert(visitorSource.includes('id="island-condition-updated" role="status" aria-live="polite"'), "Island Conditions is missing its live refresh status.");
 assert(visitorSource.includes('id="admin-volunteer-import-result" class="admin-import-result admin-import-wide" aria-live="polite"'), "VolunteerLocal reconciliation is missing its live preview status.");
 assert(visitorSource.includes('id="admin-booth-import-result" class="admin-import-result admin-import-wide" aria-live="polite"'), "Eventeny booth reconciliation is missing its live preview status.");

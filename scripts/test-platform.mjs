@@ -3723,9 +3723,12 @@ try {
   ok("GET /ready queue health", readiness.status === 200 && readiness.data.checks?.queue === true && readiness.data.checks?.queueStatus?.staleRunning === 0);
   ok("deployment exposes data plane gate", deployment.status === 200 && deployment.data.deployment?.checks?.dataPlane?.ok === true);
   const deploymentChecks = Object.values(deployment.data.deployment?.checks || {});
+  const deploymentGroups = deployment.data.deployment?.groups || [];
   ok("deployment exposes labeled and grouped launch checks", deploymentChecks.length >= 35
     && deploymentChecks.every(check => check.id && check.label && check.label !== check.id && check.group && check.group !== "Other" && check.message && ["ok", "warning", "error"].includes(check.severity))
-    && new Set(deploymentChecks.map(check => check.group)).size >= 6);
+    && new Set(deploymentChecks.map(check => check.group)).size >= 6
+    && deploymentGroups.reduce((total, group) => total + group.total, 0) === deploymentChecks.length
+    && deploymentGroups.every(group => group.group && group.passing + group.warnings + group.errors === group.total));
   ok("deployment exposes configured outreach discovery gate", deployment.data.deployment?.checks?.outreachDiscovery?.ok === true && deployment.data.deployment?.checks?.outreachDiscovery?.message.includes("fixture"));
   ok("admin queue health summary", queueStatus.status === 200 && queueStatus.data.summary?.operational === true && Array.isArray(queueStatus.data.jobs));
   ok("deployment exposes current event guide gate", health.data.eventGuideReady === true && deployment.data.deployment?.checks?.eventGuide?.ok === true);

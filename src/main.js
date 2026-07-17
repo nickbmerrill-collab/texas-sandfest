@@ -2453,15 +2453,18 @@ function renderAdminDeployment(deployment) {
   }
 
   const groups = new Map();
+  const groupSummaries = new Map((deployment.groups || []).map(group => [group.group, group]));
   visible.forEach(check => {
     const group = check.group || "Other";
     if (!groups.has(group)) groups.set(group, []);
     groups.get(group).push(check);
   });
   target.innerHTML = [...groups.entries()].map(([group, items]) => {
-    const passing = items.filter(item => item.ok).length;
+    const groupSummary = groupSummaries.get(group);
+    const passing = groupSummary?.passing ?? items.filter(item => item.ok).length;
+    const total = groupSummary?.total ?? items.length;
     return `<section class="admin-deployment-group">
-      <header><strong>${escapeHtml(group)}</strong><span>${passing}/${items.length} passing</span></header>
+      <header><strong>${escapeHtml(group)}</strong><span>${passing}/${total} passing</span></header>
       <div>${items.map(check => {
         const tone = check.ok ? "ok" : check.severity === "warning" ? "warning" : "error";
         const status = check.ok ? "Passing" : check.severity === "warning" ? "Review" : "Blocked";
