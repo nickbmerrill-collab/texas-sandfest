@@ -65,7 +65,7 @@ Changing a prospect's location, qualification, contact basis, or email dismisses
 5. In review-first mode, review each `draft_ready` message and approve or dismiss it. In approved-sequence mode, the worker approves only the current campaign's eligible drafts within its daily limit.
 6. Queue approved messages for Brevo delivery. The daily limit counts every queued or delivered campaign message, including messages a staff member queues manually. Retry-safe job keys bind the campaign policy, message, and approval timestamp.
 7. After delivery is proven, the next sequence step becomes eligible when its delay expires.
-8. Pause, complete, or archive the campaign when appropriate. Pausing returns unsent automated messages to review and clears their jobs; completing or archiving dismisses all unsent campaign messages.
+8. Pause, complete, or archive the campaign when appropriate. Pausing returns approved or queued automated messages to review and clears their jobs. Failed deliveries remain failed, lose their automation approval, and require an explicit staff retry after reactivation. Completing or archiving dismisses all unsent campaign messages.
 
 Generation is idempotent by campaign, prospect, and sequence step. Repeated worker ticks or API calls cannot create a duplicate step. Before every automated approval and provider call, current campaign status, targeting, contact basis, recipient identity, suppression, invitation version, and preference capability are revalidated.
 

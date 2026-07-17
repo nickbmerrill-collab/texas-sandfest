@@ -5304,12 +5304,14 @@ async function handleRequest(request, response) {
       }
       await writeAuditRecord(request, `outreach.campaign.${action}`, { type: "campaign", id: campaignId }, before, result.campaign, {
         returnedToReview: result.returnedToReview,
-        dismissedFollowups: result.dismissedFollowups
+        dismissedFollowups: result.dismissedFollowups,
+        failedHeldForRetry: result.failedHeldForRetry
       });
       sendJson(request, response, 200, {
         campaign: result.campaign,
         returnedToReview: result.returnedToReview,
         dismissedFollowups: result.dismissedFollowups,
+        failedHeldForRetry: result.failedHeldForRetry,
         automation: outreachCampaignAutomationReadiness(result.doc, result.campaign, { providerReady: outreachAutomationProviderReady })
       });
       return;
