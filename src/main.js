@@ -211,6 +211,8 @@ function divisionLabel(key) {
 }
 let adminConfigState = null;
 let adminSessionState = null;
+let adminDeploymentState = null;
+let adminDeploymentFilter = "attention";
 let adminPartnerState = null;
 let adminConditionsState = null;
 let adminDocumentState = null;
@@ -1130,6 +1132,22 @@ app.innerHTML = `
           <strong>Background work</strong>
           <span id="admin-job-summary">Not checked</span>
         </article>
+      </div>
+      <div class="admin-launch-readiness" id="admin-launch-readiness">
+        <div class="admin-launch-readiness-heading">
+          <div>
+            <p class="eyebrow">Launch control</p>
+            <h2>Production readiness</h2>
+            <p id="admin-deployment-check-count" class="admin-launch-readiness-count">Load the operations workspace to evaluate launch gates.</p>
+          </div>
+          <div class="admin-readiness-filter" role="group" aria-label="Deployment checks">
+            <button type="button" data-deployment-filter="attention" aria-pressed="true">Needs action <span id="admin-deployment-attention-count">0</span></button>
+            <button type="button" data-deployment-filter="all" aria-pressed="false">All checks <span id="admin-deployment-total-count">0</span></button>
+          </div>
+        </div>
+        <div id="admin-deployment-checks" class="admin-deployment-checks" aria-live="polite">
+          <div class="admin-deployment-empty"><strong>Readiness not checked</strong><span>Connect the API to load the current environment.</span></div>
+        </div>
       </div>
       <div class="admin-event-guide-panel">
         <div class="editor-heading">
@@ -2407,10 +2425,53 @@ async function loadAdminSession() {
 
 function renderAdminDeployment(deployment) {
   const summary = document.querySelector("#admin-deployment-summary");
-  if (!summary) return;
+  const target = document.querySelector("#admin-deployment-checks");
+  if (!summary || !target) return;
+  adminDeploymentState = deployment;
   const state = deployment.ok ? "ready" : "blocked";
   summary.textContent = `${deployment.environment} · ${state} · ${deployment.warnings} warnings · ${deployment.errors} errors`;
-  summary.dataset.state = deployment.ok ? "ok" : "error";
+  summary.dataset.state = deployment.errors ? "error" : deployment.warnings ? "warning" : "ok";
+
+  const checks = Object.values(deployment.checks || {});
+  const attention = checks.filter(check => !check.ok);
+  const visible = adminDeploymentFilter === "attention" ? attention : checks;
+  const checkCount = document.querySelector("#admin-deployment-check-count");
+  const attentionCount = document.querySelector("#admin-deployment-attention-count");
+  const totalCount = document.querySelector("#admin-deployment-total-count");
+  if (checkCount) {
+    checkCount.textContent = `${checks.length - attention.length} passing · ${deployment.warnings} review · ${deployment.errors} blocked`;
+  }
+  if (attentionCount) attentionCount.textContent = String(attention.length);
+  if (totalCount) totalCount.textContent = String(checks.length);
+  document.querySelectorAll("[data-deployment-filter]").forEach(button => {
+    button.setAttribute("aria-pressed", String(button.dataset.deploymentFilter === adminDeploymentFilter));
+  });
+
+  if (!visible.length) {
+    target.innerHTML = `<div class="admin-deployment-empty" data-state="ok"><strong>No launch gates need action</strong><span>All ${checks.length} checks are passing for ${escapeHtml(deployment.environment)}.</span></div>`;
+    return;
+  }
+
+  const groups = new Map();
+  visible.forEach(check => {
+    const group = check.group || "Other";
+    if (!groups.has(group)) groups.set(group, []);
+    groups.get(group).push(check);
+  });
+  target.innerHTML = [...groups.entries()].map(([group, items]) => {
+    const passing = items.filter(item => item.ok).length;
+    return `<section class="admin-deployment-group">
+      <header><strong>${escapeHtml(group)}</strong><span>${passing}/${items.length} passing</span></header>
+      <div>${items.map(check => {
+        const tone = check.ok ? "ok" : check.severity === "warning" ? "warning" : "error";
+        const status = check.ok ? "Passing" : check.severity === "warning" ? "Review" : "Blocked";
+        return `<article class="admin-deployment-check" data-state="${tone}">
+          <span class="admin-deployment-status">${status}</span>
+          <div><strong>${escapeHtml(check.label || check.id || "Deployment check")}</strong><p>${escapeHtml(check.message || "No status detail provided.")}</p></div>
+        </article>`;
+      }).join("")}</div>
+    </section>`;
+  }).join("");
 }
 
 async function loadAdminDeployment() {
@@ -7005,6 +7066,12 @@ async function loadBoardDemoWorkspace() {
 
 document.querySelector("#admin-load-config").addEventListener("click", loadAdminWorkspace);
 document.querySelector("#admin-load-documents")?.addEventListener("click", () => loadAdminDocuments());
+document.querySelector("#admin-launch-readiness")?.addEventListener("click", event => {
+  const button = event.target.closest("[data-deployment-filter]");
+  if (!button || !adminDeploymentState) return;
+  adminDeploymentFilter = button.dataset.deploymentFilter === "all" ? "all" : "attention";
+  renderAdminDeployment(adminDeploymentState);
+});
 
 document.querySelector('#admin-document-upload [name="file"]')?.addEventListener("change", event => {
   const file = event.currentTarget.files?.[0];
