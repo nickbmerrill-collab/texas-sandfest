@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
-  "buildCommand": "npm run build:public",
+  "buildCommand": "node scripts/verify-vercel-project.mjs && SANDFEST_DEPLOYMENT_ENV=$VERCEL_ENV npm run build:public",
   "outputDirectory": "dist-public"
 }

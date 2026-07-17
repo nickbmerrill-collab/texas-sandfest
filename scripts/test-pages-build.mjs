@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import vm from "node:vm";
 
@@ -17,6 +17,7 @@ const [html, manifestText, worker] = await Promise.all([
   readFile(path.join(outDir, "sw.js"), "utf8")
 ]);
 const manifest = JSON.parse(manifestText);
+const publishedMediaEntries = await readdir(path.join(outDir, "assets", "sandfest-media"), { withFileTypes: true });
 const localReferences = [...html.matchAll(/(?:href|src|content)="(\/[^"\s]+)"/g)].map(match => match[1]);
 
 assert(localReferences.length >= 6, "Pages artifact did not expose the expected local HTML resources.");
@@ -26,6 +27,10 @@ assert(html.includes(`href="${normalizedBase}assets/main-`), "Pages artifact sty
 assert(html.includes(`href="${normalizedBase}manifest.webmanifest"`), "Pages artifact manifest does not use the repository base path.");
 assert(manifest.start_url === "./" && manifest.scope === "./", "Pages manifest must remain relative to its deployment directory.");
 assert(manifest.icons?.every(icon => !String(icon.src).startsWith("/")), "Pages manifest contains a root-relative icon.");
+assert(
+  publishedMediaEntries.filter(entry => entry.isDirectory()).every(entry => entry.name === "optimized"),
+  "Pages artifact contains original media instead of only deployment-optimized derivatives."
+);
 assert(/const CACHE_VERSION = "sandfest-public-[a-f0-9]{12}";/.test(worker), "Pages service worker is not build-versioned.");
 assert(!worker.includes("__BUILD_ID__") && !worker.includes("__BUILD_ASSETS__"), "Pages service worker contains unresolved build placeholders.");
 assert(!worker.includes("__MEDIA_ASSETS__"), "Pages service worker contains an unresolved media placeholder.");

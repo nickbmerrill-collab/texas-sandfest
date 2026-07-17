@@ -45,7 +45,7 @@ const publicWorker = await readFile(path.join(publicDir, "sw.js"), "utf8");
 assert(!(await exists(path.join(publicDir, "admin.html"))), "Public artifact must not contain admin.html.");
 assert(!(await exists(path.join(adminDir, "admin.html"))), "Admin artifact must promote admin.html to the root entry.");
 assert(vercelConfig.framework === "vite", "Vercel PR previews must use the Vite framework preset.");
-assert(vercelConfig.buildCommand === "npm run build:public", "Vercel PR previews must build only the public surface.");
+assert(vercelConfig.buildCommand === "node scripts/verify-vercel-project.mjs && SANDFEST_DEPLOYMENT_ENV=$VERCEL_ENV npm run build:public", "Vercel builds must verify project isolation, inherit the deployment environment, and build only the public surface.");
 assert(vercelConfig.outputDirectory === "dist-public", "Vercel PR previews must publish only the isolated public artifact.");
 assert(publicHtml.includes("Texas SandFest | Port Aransas"), "Public artifact does not contain the visitor entry.");
 assert(!publicHtml.includes("SandFest Ops Console"), "Public artifact contains the admin entry.");
