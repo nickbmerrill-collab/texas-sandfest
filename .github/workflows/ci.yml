@@ -37,6 +37,8 @@ jobs:
         run: npm run test:vercel-project-guard
       - name: Camera edge-agent contract
         run: npm run test:camera-agent
+      - name: Camera model approval contract
+        run: npm run test:camera-model-approval
       - name: API smoke suite
         run: npm run test:platform:api
       - name: Isolated board runtime

@@ -48,6 +48,17 @@ const requiredCapabilities = [
   "transactional_email"
 ];
 
+const cameraModelApprovalKeys = [
+  "CAMERA_MODEL_APPROVAL_STATUS",
+  "CAMERA_MODEL_NAME",
+  "CAMERA_MODEL_VERSION",
+  "CAMERA_MODEL_SHA256",
+  "CAMERA_MODEL_LICENSE_REFERENCE",
+  "CAMERA_MODEL_APPROVED_BY",
+  "CAMERA_MODEL_APPROVED_AT",
+  "CAMERA_MODEL_DECISION_REFERENCE"
+];
+
 const workerSharedKeys = [
   "SANDFEST_PARTNER_PORTAL_SECRET",
   "SANDFEST_OUTREACH_PREFERENCES_SECRET",
@@ -93,6 +104,7 @@ check("API uses private managed Postgres", apiEnv.get("SANDFEST_DATABASE_URL")?.
 check("API uses private managed rate limiting", apiEnv.get("REDIS_URL")?.fromService?.type === "keyvalue" && apiEnv.get("REDIS_URL")?.fromService?.name === "sandfest-rate-limit" && apiEnv.get("REDIS_URL")?.fromService?.property === "connectionString");
 check("API portal capabilities are generated", apiEnv.get("SANDFEST_PARTNER_PORTAL_SECRET")?.generateValue === true && apiEnv.get("SANDFEST_OUTREACH_PREFERENCES_SECRET")?.generateValue === true);
 check("launch capability gates are complete", String(apiEnv.get("SANDFEST_REQUIRED_CAPABILITIES")?.value || "").split(",").sort().join(",") === requiredCapabilities.sort().join(","));
+check("camera model launch approval is explicit and operator supplied", cameraModelApprovalKeys.every(key => apiEnv.get(key)?.sync === false));
 check("worker is a checks-gated Docker service", worker?.type === "worker" && worker?.runtime === "docker" && worker?.branch === "main" && worker?.autoDeployTrigger === "checksPass");
 check("worker shares the production database", workerEnv.get("SANDFEST_DATABASE_URL")?.fromDatabase?.name === "sandfest-db" && workerEnv.get("SANDFEST_DATABASE_URL")?.fromDatabase?.property === "connectionString");
 check("worker event matches API event", workerEnv.get("SANDFEST_EVENT_ID")?.value === apiEnv.get("SANDFEST_EVENT_ID")?.value);

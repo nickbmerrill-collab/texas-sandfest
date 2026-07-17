@@ -35,6 +35,7 @@ from camera_agent.edge_agent import (  # noqa: E402
     simulate,
     stable_window_id,
     validate_config,
+    validate_model_approval,
     verify_model_file,
 )
 
@@ -157,6 +158,44 @@ class CameraEdgeAgentTests(unittest.TestCase):
         ):
             validate_config(malformed)
 
+    def test_production_requires_reviewed_model_approval(self) -> None:
+        with self.assertRaisesRegex(
+            AgentConfigurationError, "production approval is incomplete"
+        ):
+            validate_config(self.config, require_production_approval=True)
+
+        approved = json.loads(CONFIG_PATH.read_text())
+        approved["model"]["approval"] = {
+            "status": "approved",
+            "licenseReference": "reviewed-license-record-2026-07",
+            "approvedBy": "SandFest technology committee",
+            "approvedAt": "2026-07-17T12:00:00Z",
+            "decisionReference": "CAMERA-MODEL-2026-001",
+        }
+        validated = validate_config(
+            approved,
+            require_production_approval=True,
+        )
+        self.assertEqual(validated["model"]["approval"]["status"], "approved")
+
+    def test_model_approval_rejects_future_or_placeholder_attestations(self) -> None:
+        model = json.loads(CONFIG_PATH.read_text())["model"]
+        model["approval"] = {
+            "status": "approved",
+            "licenseReference": "pending",
+            "approvedBy": "SandFest technology committee",
+            "approvedAt": "2026-07-18T12:00:00Z",
+            "decisionReference": "CAMERA-MODEL-2026-001",
+        }
+        with self.assertRaisesRegex(
+            AgentConfigurationError, "licenseReference must contain"
+        ):
+            validate_model_approval(
+                model,
+                required=True,
+                now_epoch=1784290000,
+            )
+
     def test_point_in_polygon(self) -> None:
         polygon = [[0.1, 0.1], [0.9, 0.1], [0.9, 0.9], [0.1, 0.9]]
         self.assertTrue(point_in_polygon((0.5, 0.5), polygon))
@@ -235,6 +274,7 @@ class CameraEdgeAgentTests(unittest.TestCase):
         self.assertEqual(first, second)
         self.assertEqual(first["flowPerMinute"], 1.0)
         self.assertEqual(first["sourceId"], "local-north-gate-1")
+        self.assertEqual(first["modelSha256"], self.config["model"]["sha256"])
         self.assertLessEqual(len(first["eventId"]), 100)
         self.assertNotIn("detections", first)
         self.assertNotIn("frames", first)
@@ -303,8 +343,10 @@ class CameraEdgeAgentTests(unittest.TestCase):
             model_name="yolo11n.pt",
             model_version="yolo11n-coco",
             heartbeat_interval_seconds=30,
+            model_sha256=self.config["model"]["sha256"],
         )
         self.assertEqual(heartbeat["status"], "healthy")
+        self.assertEqual(heartbeat["modelSha256"], self.config["model"]["sha256"])
         self.assertNotIn("frame", heartbeat)
         self.assertNotIn("stream", heartbeat)
 
@@ -437,7 +479,8 @@ class CameraEdgeAgentTests(unittest.TestCase):
 
     def test_systemd_service_fails_before_start_without_runtime_or_model(self) -> None:
         unit = (ROOT / "camera_agent" / "systemd" / "sandfest-camera@.service").read_text()
-        self.assertIn("--camera %i --validate-runtime", unit)
+        self.assertIn("SANDFEST_CAMERA_ENV=production", unit)
+        self.assertIn("--camera %i --validate-runtime --validate-production", unit)
         self.assertIn("--verify-model --model-dir /var/lib/sandfest-camera", unit)
         self.assertLess(unit.index("ExecStartPre="), unit.index("\nExecStart="))
 
