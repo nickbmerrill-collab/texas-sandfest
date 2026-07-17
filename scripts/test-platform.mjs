@@ -1495,12 +1495,24 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   ok("scheduled milestone idempotency", !scheduledAgain.changed && scheduledAgain.generated.length === 0);
   const milestoneApproved = reviewFollowup(scheduled.doc, scheduled.generated[0].id, "approve", { actorId: "admin_1", now });
   const milestoneQueued = queueFollowupDelivery(milestoneApproved.doc, scheduled.generated[0].id, { now });
+  const claimedMilestoneReminder = claimFollowupDelivery(milestoneQueued.doc, scheduled.generated[0].id, { deliveryClaimId: "job_milestone_reminder", now });
+  const rescheduledBeforeMilestoneHandoff = updatePartnerMilestone(claimedMilestoneReminder.doc, scheduled.generated[0].milestoneId, { dueAt: "2026-08-02T12:00:00.000Z" }, { idFactory, actorId: "admin_1", now });
+  const begunMilestoneReminder = beginFollowupProviderSubmission(claimedMilestoneReminder.doc, scheduled.generated[0].id, { deliveryClaimId: "job_milestone_reminder", now });
+  const completedAfterMilestoneHandoff = updatePartnerMilestone(begunMilestoneReminder.doc, scheduled.generated[0].milestoneId, { status: "completed" }, { idFactory, actorId: "admin_1", now });
   const milestoneSent = recordFollowupDelivery(milestoneQueued.doc, scheduled.generated[0].id, { sent: true, provider: "brevo", providerMessageId: "msg_milestone_1" }, { now });
   const overdueMilestone = generateDuePartnerFollowups(milestoneSent.doc, { idFactory, now: "2026-07-23T12:00:00.000Z", portalUrlForApplication: () => portalUrl });
   const overdueReminder = overdueMilestone.generated.find(item => item.milestoneId === scheduled.generated[0].milestoneId);
   const overdueMilestoneAgain = generateDuePartnerFollowups(overdueMilestone.doc, { idFactory, now: "2026-07-30T12:00:00.000Z" });
+  const inFlightMilestoneDoc = {
+    ...overdueMilestone.doc,
+    followups: overdueMilestone.doc.followups.map(item => item.id === overdueReminder?.id
+      ? { ...item, status: "sending", deliveryClaimId: "job_milestone_overdue", deliveryClaimedAt: now }
+      : item)
+  };
+  const inFlightMilestoneAgain = generateDuePartnerFollowups(inFlightMilestoneDoc, { idFactory, now: "2026-07-30T12:00:00.000Z" });
   ok("milestone overdue escalation", overdueReminder?.reminderPhase === "overdue_week_1" && overdueReminder?.daysOverdue === 5);
-  ok("milestone escalation does not pile up", overdueMilestoneAgain.generated.length === 0);
+  ok("milestone escalation does not pile up", overdueMilestoneAgain.generated.length === 0 && inFlightMilestoneAgain.generated.length === 0);
+  ok("milestone changes cancel only an unstarted notification handoff", rescheduledBeforeMilestoneHandoff.ok && rescheduledBeforeMilestoneHandoff.dismissedFollowups === 1 && rescheduledBeforeMilestoneHandoff.doc.followups.find(item => item.id === scheduled.generated[0].id)?.status === "dismissed" && rescheduledBeforeMilestoneHandoff.doc.followups.find(item => item.id === scheduled.generated[0].id)?.deliveryClaimId === null && completedAfterMilestoneHandoff.ok && completedAfterMilestoneHandoff.dismissedFollowups === 0 && completedAfterMilestoneHandoff.doc.followups.find(item => item.id === scheduled.generated[0].id)?.status === "sending");
   const completedMilestone = updatePartnerMilestone(overdueMilestone.doc, scheduled.generated[0].milestoneId, { status: "completed" }, { idFactory, actorId: "admin_1", now: "2026-07-23T13:00:00.000Z" });
   ok("milestone completion dismisses reminder", completedMilestone.ok && completedMilestone.milestone.completedBy === "admin_1" && completedMilestone.dismissedFollowups === 1 && completedMilestone.doc.followups.find(item => item.id === overdueReminder.id).status === "dismissed");
   const rescheduledMilestone = updatePartnerMilestone(scheduled.doc, scheduled.generated[0].milestoneId, { dueAt: "2026-08-01T12:00:00.000Z" }, { idFactory, actorId: "admin_1", now });
@@ -2128,7 +2140,15 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   ok("volunteer notification revalidates directory email", !staleAssignmentReview.ok && staleAssignmentReview.error.includes("email changed") && approvedAssignmentNotice.ok && sentAssignmentNotice.followup.status === "sent");
   const overdueTaskNotice = generateDueTaskFollowups(sentAssignmentNotice.doc, { idFactory, volunteers: taskVolunteers, now });
   const overdueTaskNoticeAgain = generateDueTaskFollowups(overdueTaskNotice.doc, { idFactory, volunteers: taskVolunteers, now: "2026-07-23T12:00:00.000Z" });
+  const inFlightOverdueTaskDoc = {
+    ...overdueTaskNotice.doc,
+    followups: overdueTaskNotice.doc.followups.map(item => item.kind === "task_overdue"
+      ? { ...item, status: "sending", deliveryClaimId: "job_task_overdue", deliveryClaimedAt: now }
+      : item)
+  };
+  const inFlightOverdueTaskAgain = generateDueTaskFollowups(inFlightOverdueTaskDoc, { idFactory, volunteers: taskVolunteers, now: "2026-07-23T12:00:00.000Z" });
   ok("overdue volunteer task escalates once per active notice", overdueTaskNotice.generated.length === 1 && overdueTaskNotice.generated[0].kind === "task_overdue" && overdueTaskNotice.generated[0].reminderPhase === "overdue_week_1" && overdueTaskNoticeAgain.generated.length === 0);
+  ok("in-flight overdue task notice blocks overlapping escalation", inFlightOverdueTaskAgain.generated.length === 0);
   const blockedTask = updatePartnerTask(overdueTaskNotice.doc, task.task.id, {
     status: "blocked",
     assigneeType: "team",
@@ -2279,6 +2299,37 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
     idFactory,
     now
   });
+  const conversionClaimDoc = {
+    ...issuedInvitation.doc,
+    followups: [{
+      ...approvedInvitationDraftDoc.followups[0],
+      recipient: prospect.prospect.contactEmail,
+      subject: "Texas SandFest sponsor invitation",
+      status: "sending",
+      deliveryClaimId: "job_conversion_outreach",
+      deliveryClaimedAt: now,
+      providerSubmissionStartedAt: null,
+      automationJobId: "job_conversion_outreach"
+    }]
+  };
+  const convertedBeforeOutreachHandoff = createSponsorApplicationFromOutreachInvitation(conversionClaimDoc, prospect.prospect.id, invitedApplicationInput, {
+    packageId: sponsorPackage.id,
+    invitationVersion: issuedInvitation.invitation.version,
+    portalAccessIdFactory: () => "portal_conversion_before_handoff",
+    idFactory,
+    now
+  });
+  const conversionStartedDoc = {
+    ...conversionClaimDoc,
+    followups: conversionClaimDoc.followups.map(item => ({ ...item, providerSubmissionStartedAt: now }))
+  };
+  const convertedAfterOutreachHandoff = createSponsorApplicationFromOutreachInvitation(conversionStartedDoc, prospect.prospect.id, invitedApplicationInput, {
+    packageId: sponsorPackage.id,
+    invitationVersion: issuedInvitation.invitation.version,
+    portalAccessIdFactory: () => "portal_conversion_after_handoff",
+    idFactory,
+    now
+  });
   const convertedInvitation = createSponsorApplicationFromOutreachInvitation(issuedInvitation.doc, prospect.prospect.id, invitedApplicationInput, {
     packageId: sponsorPackage.id,
     invitationVersion: issuedInvitation.invitation.version,
@@ -2294,6 +2345,7 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   });
   const convertedAccess = verifySponsorInvitationToken(convertedInvitation.doc, invitationToken, { config: sponsorInviteConfig, now: new Date(now).getTime() });
   ok("sponsor invitation identity gate", !mismatchedInvitation.ok && mismatchedInvitation.error.includes("business email"));
+  ok("sponsor conversion cancels only an unstarted outreach handoff", convertedBeforeOutreachHandoff.ok && convertedBeforeOutreachHandoff.doc.followups.find(item => item.id === approvedInvitationDraftDoc.followups[0].id)?.status === "dismissed" && convertedBeforeOutreachHandoff.doc.followups.find(item => item.id === approvedInvitationDraftDoc.followups[0].id)?.deliveryClaimId === null && convertedAfterOutreachHandoff.ok && convertedAfterOutreachHandoff.doc.followups.find(item => item.id === approvedInvitationDraftDoc.followups[0].id)?.status === "sending" && convertedAfterOutreachHandoff.doc.followups.find(item => item.id === approvedInvitationDraftDoc.followups[0].id)?.providerSubmissionStartedAt === now);
   ok("sponsor invitation conversion seeds operations", convertedInvitation.ok && convertedInvitation.application.outreachProspectId === prospect.prospect.id && convertedInvitation.prospect.status === "won" && convertedInvitation.prospect.convertedApplicationId === convertedInvitation.application.id && convertedInvitation.doc.applications.length === issuedInvitation.doc.applications.length + 1 && convertedInvitation.doc.brandProfiles.length === issuedInvitation.doc.brandProfiles.length + 1 && convertedInvitation.doc.deliverables.length === issuedInvitation.doc.deliverables.length + sponsorPackage.benefits.length && convertedInvitation.doc.milestones.length === issuedInvitation.doc.milestones.length + 4 && convertedInvitation.doc.tasks.length === issuedInvitation.doc.tasks.length + 1 && convertedInvitation.doc.followups.some(item => item.applicationId === convertedInvitation.application.id && item.kind === "application_received"));
   ok("sponsor invitation conversion is replay safe", replayedInvitation.ok && replayedInvitation.duplicate && replayedInvitation.application.id === convertedInvitation.application.id && replayedInvitation.doc.applications.length === convertedInvitation.doc.applications.length);
   ok("converted sponsor invitation recovers portal handoff", convertedAccess.ok && convertedAccess.converted && convertedAccess.prospect.convertedApplicationId === convertedInvitation.application.id);
