@@ -308,6 +308,7 @@ import {
 import { TURNSTILE_SITEVERIFY_URL, turnstileConfig, verifyTurnstileToken } from "../lib/turnstile.mjs";
 import { eventGuideReadiness, normalizeEventGuide, publicEventGuide, publishEventGuide } from "../lib/event-guide.mjs";
 import { DEFAULT_EVENT_ID, eventContextConfig, eventContextReadiness } from "../lib/event-context.mjs";
+import { publicSculptorRosterPublication } from "../lib/public-roster.mjs";
 import { eventArchiveDigest, planEventRollover, ROLLOVER_DOCUMENT_KEYS } from "../lib/event-rollover.mjs";
 import {
   cleanAuthCallbackUrl,
@@ -688,6 +689,58 @@ console.log("\n=== Pure library suite ===\n");
   ok("Turnstile rejects wrong-action and expired challenges", !wrongAction.ok && wrongAction.errorCodes.includes("action-mismatch") && !failedChallenge.ok && failedChallenge.errorCodes.includes("timeout-or-duplicate"));
   ok("Turnstile fails closed when Siteverify is unavailable", !unavailable.ok && unavailable.unavailable === true);
   ok("production public build requires a real Turnstile site key", missingPublicKeyRejected && testPublicKeyRejected);
+}
+
+// Public sculptor roster publication authority
+{
+  const records = {
+    sculptors: [{ id: "sculptor-1", name: "Reviewed Artist", entryId: "entry-1" }],
+    entries: [{ id: "entry-1", sculptorId: "sculptor-1", title: "Reviewed Entry" }],
+    pois: [{ id: "poi-1", entryId: "entry-1", type: "sculpture" }]
+  };
+  const sample = {
+    meta: {
+      eventId: DEFAULT_EVENT_ID,
+      publicationStatus: "sample",
+      source: "fictional_board_demo"
+    },
+    ...records
+  };
+  const published = {
+    meta: {
+      eventId: DEFAULT_EVENT_ID,
+      publicationStatus: "published",
+      source: "official_website",
+      sourceUrl: "https://www.texassandfest.org/sculptors",
+      sourceCheckedAt: "2026-07-17T12:00:00.000Z",
+      reviewedAt: "2026-07-17T12:05:00.000Z",
+      reviewedBy: "content-team",
+      publishedAt: "2026-07-17T12:10:00.000Z"
+    },
+    ...records
+  };
+  const unpublished = publicSculptorRosterPublication({
+    meta: { eventId: DEFAULT_EVENT_ID, publicationStatus: "unpublished" },
+    sculptors: [],
+    entries: [],
+    pois: []
+  });
+  const samplePublic = publicSculptorRosterPublication(sample);
+  const sampleLocal = publicSculptorRosterPublication(sample, { allowSample: true });
+  const validPublished = publicSculptorRosterPublication(published);
+  const weakPublished = publicSculptorRosterPublication({
+    ...published,
+    meta: { ...published.meta, source: "placeholder", reviewedAt: null }
+  });
+  const brokenReference = publicSculptorRosterPublication({
+    ...published,
+    entries: [{ ...published.entries[0], sculptorId: "missing-sculptor" }]
+  });
+
+  ok("unpublished sculptor roster fails closed", !unpublished.visible && unpublished.mode === "unpublished" && unpublished.counts.sculptors === 0);
+  ok("fictional sculptor roster is local-demo only", !samplePublic.visible && sampleLocal.visible && sampleLocal.mode === "demo");
+  ok("published sculptor roster requires reviewed source authority", validPublished.visible && validPublished.mode === "published" && !weakPublished.visible && weakPublished.issues.length === 2);
+  ok("published sculptor roster validates record references", !brokenReference.visible && brokenReference.issues.some(issue => issue.includes("missing sculptor")));
 }
 
 // Governed public event guide

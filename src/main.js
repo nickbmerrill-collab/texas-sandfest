@@ -23,6 +23,8 @@ import {
   publicVendorOffering
 } from "../lib/vendor-offerings.mjs";
 import { publicIslandConditionsRefreshDelay } from "../lib/island-conditions.mjs";
+import { DEFAULT_EVENT_ID } from "../lib/event-context.mjs";
+import { publicSculptorRosterPublication } from "../lib/public-roster.mjs";
 
 const siteBase = import.meta.env.BASE_URL || "/";
 const sitePath = value => {
@@ -115,6 +117,14 @@ const loadPublicJson = path => ADMIN_ENTRY
   .then(response => response.ok ? response.json() : null)
   .catch(() => null);
 
+const localBoardContentEnabled = !ADMIN_ENTRY && import.meta.env.DEV;
+const sculptorDataPromise = localBoardContentEnabled
+  ? import("./data/sculptors-demo.json").then(module => module.default)
+  : loadPublicJson("data/sculptors.json");
+const liveBeachDemoPromise = localBoardContentEnabled
+  ? import("./data/live-beach-demo.json").then(module => module.default)
+  : Promise.resolve(null);
+
 const [
   mediaManifest,
   mediaDerivatives,
@@ -122,15 +132,17 @@ const [
   incomingInventory,
   ticketCatalog,
   sculptorData,
-  appBootstrap
+  appBootstrap,
+  liveBeachDemo
 ] = await Promise.all([
   loadPublicJson("assets/sandfest-media/media-manifest.json"),
   loadPublicJson("assets/sandfest-media/media-derivatives.json"),
   loadPublicJson("data/crawl-summary.json"),
   loadPublicJson("data/incoming-inventory.json"),
   loadPublicJson("data/ticket-products.json"),
-  loadPublicJson("data/sculptors.json"),
-  loadPublicJson("data/app-bootstrap.json")
+  sculptorDataPromise,
+  loadPublicJson("data/app-bootstrap.json"),
+  liveBeachDemoPromise
 ]);
 let runtimeDataMode = null;
 
@@ -186,10 +198,19 @@ const ticketCart = new Map();
 let ticketCheckoutRetryKey = null;
 let ticketCheckoutRequestFingerprint = null;
 
-const sculptors = sculptorData?.sculptors ?? [];
-const sculptureEntries = sculptorData?.entries ?? [];
-const sculpturePois = sculptorData?.pois ?? [];
-const sculptorLegend = sculptorData?.legend ?? [];
+const sculptorPublication = publicSculptorRosterPublication(sculptorData, {
+  eventId: DEFAULT_EVENT_ID,
+  allowSample: localBoardContentEnabled
+});
+const sculptorRosterPublished = sculptorPublication.mode === "published";
+const sculptorRosterDemo = sculptorPublication.mode === "demo";
+const sculptorRosterVisible = sculptorPublication.visible;
+const visibleSculptorData = sculptorRosterVisible ? sculptorData : null;
+const sculptors = visibleSculptorData?.sculptors ?? [];
+const sculptureEntries = visibleSculptorData?.entries ?? [];
+const sculpturePois = visibleSculptorData?.pois ?? [];
+const sculptorLegend = visibleSculptorData?.legend ?? [];
+const LIVE_BEACH_DEMO_ENABLED = sculptorRosterDemo && Boolean(liveBeachDemo);
 const sculptorsById = new Map(sculptors.map(s => [s.id, s]));
 const entriesById = new Map(sculptureEntries.map(e => [e.id, e]));
 const divisionLabels = {
@@ -276,67 +297,14 @@ const zones = [
   { name: "Command", detail: "Weather, incidents, volunteer dispatch", load: 37 }
 ];
 
-// Live Beach — visitor-facing surface that fuses the ops crowd-zone data,
-// the run-of-show, the sculpture map, and the Ask Sandy concierge into a
-// single "you have a superpower" moment.
-const sculptures = [
-  { id: 1,  x: 0.06, y: 0.42, sculptor: "Diego Aponte",   country: "🇺🇸", title: "Gulf Saint",              crowd: "moderate", state: "carving" },
-  { id: 2,  x: 0.12, y: 0.55, sculptor: "Inés Roca",      country: "🇦🇷", title: "Río de Memoria",          crowd: "packed",   state: "judging" },
-  { id: 3,  x: 0.18, y: 0.40, sculptor: "Mira Patel",     country: "🇬🇧", title: "Lullaby of the Bell Tower", crowd: "packed",   state: "carving" },
-  { id: 4,  x: 0.24, y: 0.58, sculptor: "Hugo Brandt",    country: "🇳🇱", title: "Long Shadow Lighthouse",  crowd: "moderate", state: "carving" },
-  { id: 5,  x: 0.30, y: 0.43, sculptor: "Pablo Vera",     country: "🇪🇸", title: "Madrugada",               crowd: "moderate", state: "carving" },
-  { id: 6,  x: 0.36, y: 0.56, sculptor: "Sasha Volkov",   country: "🇱🇻", title: "Snowbird Returning",      crowd: "light",    state: "carving" },
-  { id: 7,  x: 0.42, y: 0.41, sculptor: "Olamide Diop",   country: "🇸🇳", title: "Dunes of the Drum",       crowd: "moderate", state: "talk" },
-  { id: 8,  x: 0.48, y: 0.57, sculptor: "Theo Larsson",   country: "🇸🇪", title: "The Sleeping Captain",    crowd: "light",    state: "carving" },
-  { id: 9,  x: 0.54, y: 0.44, sculptor: "Halima Asad",    country: "🇲🇦", title: "Caravan of Salt",         crowd: "light",    state: "carving" },
-  { id: 10, x: 0.60, y: 0.55, sculptor: "Kalani Ho",      country: "🇺🇸", title: "Wave's Last Stand",       crowd: "moderate", state: "carving" },
-  { id: 11, x: 0.66, y: 0.40, sculptor: "Esra Demir",     country: "🇹🇷", title: "Bridge of Wings",         crowd: "light",    state: "carving" },
-  { id: 12, x: 0.72, y: 0.58, sculptor: "Lin Yuwei",      country: "🇹🇼", title: "Paper Boats",             crowd: "moderate", state: "carving" },
-  { id: 13, x: 0.78, y: 0.42, sculptor: "Ada Reyes",      country: "🇵🇭", title: "Mother Reef",             crowd: "moderate", state: "carving" },
-  { id: 14, x: 0.83, y: 0.56, sculptor: "Niño Suárez",    country: "🇲🇽", title: "The Whale's Lullaby",     crowd: "light",    state: "talk" },
-  { id: 15, x: 0.89, y: 0.43, sculptor: "Kojiro Tan",     country: "🇯🇵", title: "Cloud Ferryman",          crowd: "light",    state: "carving" },
-  { id: 16, x: 0.94, y: 0.55, sculptor: "Jelena Marek",   country: "🇭🇷", title: "Tidal Court",             crowd: "moderate", state: "carving" }
-];
-
-const liveBeachContext = {
-  // The visitor's current pin on the beach. Origin of the suggested route.
-  visitor: { x: 0.20, y: 0.62 },
-  // Pulled from ops dashboard — coral blooms over packed clusters, mint over open sand.
-  heatBlooms: [
-    { x: 0.14, y: 0.50, intensity: 0.95, hue: "coral" },  // South plaza is busy
-    { x: 0.34, y: 0.46, intensity: 0.55, hue: "mixed" },
-    { x: 0.58, y: 0.50, intensity: 0.30, hue: "mint" },
-    { x: 0.84, y: 0.50, intensity: 0.40, hue: "mint" }
-  ],
-  // The Ask Sandy recommendation right now — would normally come from a routing call
-  // against the current crowd-zone density and run-of-show.
-  suggestion: {
-    targetId: 14,
-    walkMinutes: 4,
-    reason: "Skip the south plaza (busy). Niño Suárez is doing a live carving talk in 6 minutes, and the crowd is light.",
-    eventStartsInMin: 6
-  },
-  nowOnBeach: [
-    { kind: "Top sculpture",   title: "Mother Reef",        meta: "Ada Reyes · 🇵🇭", caption: "Time-lapse · 2h compressed → 18s",     pinId: 13 },
-    { kind: "Main stage",      title: "Coastal Roots Trio", meta: "Live · Stage A",   caption: "Set ends in 14 min — encore likely",   pinId: null },
-    { kind: "Shortest line",   title: "El Tiburón Tacos",   meta: "Food Court",       caption: "≈ 3 min wait · cash + Apple Pay",      pinId: null }
-  ],
-  // 24-frame timelapse from gates open → final sweep. Each entry is a relative density preset.
-  timeline: [
-    { hour: "9 AM",  label: "Gates open",       preset: "early"   },
-    { hour: "10 AM", label: "First carve",      preset: "early"   },
-    { hour: "11 AM", label: "Family band",      preset: "rising"  },
-    { hour: "12 PM", label: "Lunch surge",      preset: "peak"    },
-    { hour: "1 PM",  label: "Heat watch",       preset: "peak"    },
-    { hour: "2 PM",  label: "Youth build",      preset: "rising"  },
-    { hour: "3 PM",  label: "Sponsor hour",     preset: "balanced"},
-    { hour: "4 PM",  label: "Master demos",     preset: "rising"  },
-    { hour: "5 PM",  label: "Golden hour",      preset: "balanced"},
-    { hour: "6 PM",  label: "Stage set #2",     preset: "peak"    },
-    { hour: "7 PM",  label: "Sunset photos",    preset: "evening" },
-    { hour: "8 PM",  label: "Final sweep",      preset: "evening" }
-  ]
-};
+// The rich Live Beach scene is board-demo content until verified event-day
+// camera, schedule, and roster feeds can drive it without synthetic claims.
+const sculptures = LIVE_BEACH_DEMO_ENABLED ? liveBeachDemo.sculptures ?? [] : [];
+const liveBeachContext = LIVE_BEACH_DEMO_ENABLED ? liveBeachDemo.context ?? {} : {};
+const liveBeachSuggestion = liveBeachContext.suggestion ?? {};
+const liveBeachSuggestedSculpture = sculptures.find(item => item.id === liveBeachSuggestion.targetId) ?? {};
+const liveBeachStats = liveBeachContext.stats ?? {};
+const liveBeachInitialTimeline = liveBeachContext.timeline?.[3] ?? {};
 
 const workflows = [
   {
@@ -662,7 +630,7 @@ app.innerHTML = `
           <button data-site-mode="ops" type="button" role="tab">Operations</button>
         </div>
       ` : ""}
-      <span id="network-status" class="network-status" data-state="online">Live</span>
+      <span id="network-status" class="network-status" data-state="online">Online</span>
       <button id="install-app-btn" class="install-app-btn" type="button" hidden>Install</button>
     </div>
     <a class="nav-cta" href="https://www.texassandfest.org/" target="_blank" rel="noreferrer">${ADMIN_ENTRY ? "Visitor site" : "Official site"}</a>
@@ -699,11 +667,11 @@ app.innerHTML = `
           <span class="pulse-dot"></span>
           <strong>Motion OS</strong>
         </div>
-        <p id="motion-status-copy">Live tide, crowd, and heat signals animate the beach layer.</p>
+        <p id="motion-status-copy">${LIVE_BEACH_DEMO_ENABLED ? "Demonstration tide, crowd, and heat signals animate the beach layer." : "Verified event-day crowd signals will appear here after operations activate the feeds."}</p>
         <div class="motion-metrics">
-          <span><b>82%</b> North Gate</span>
-          <span><b>68%</b> Vendor Row</span>
-          <span><b id="motion-tide-state">Live</b> Tide Flow</span>
+          <span><b>${LIVE_BEACH_DEMO_ENABLED ? "82%" : "-"}</b> North Gate</span>
+          <span><b>${LIVE_BEACH_DEMO_ENABLED ? "68%" : "-"}</b> Vendor Row</span>
+          <span><b id="motion-tide-state">${LIVE_BEACH_DEMO_ENABLED ? "Demo" : "Standby"}</b> Tide Flow</span>
         </div>
         <button id="motion-toggle" class="motion-toggle" type="button" aria-pressed="true">Pause motion</button>
       </aside>
@@ -718,13 +686,14 @@ app.innerHTML = `
     <section class="live-beach" id="live-beach" aria-label="Live Beach">
       <div class="lb-header">
         <div class="lb-eyebrow-row">
-          <span class="lb-live-pill"><span class="lb-live-dot"></span>LIVE on the beach</span>
-          <span class="lb-eyebrow">Live Beach · Mustang Island</span>
+          <span class="lb-live-pill"><span class="lb-live-dot"></span>${LIVE_BEACH_DEMO_ENABLED ? "BOARD DEMONSTRATION" : "MONITORING STANDBY"}</span>
+          <span class="lb-eyebrow">${LIVE_BEACH_DEMO_ENABLED ? "Synthetic Live Beach scene" : "Live Beach · Mustang Island"}</span>
         </div>
         <h2 class="lb-headline">Walk the festival like you have a <em>superpower.</em></h2>
-        <p class="lb-sub">One screen fuses live crowd density, the run of show, the sculpture map, and Sandy's routing. Hover a pin to learn the artist. Drag the timeline to see the day breathe.</p>
+        <p class="lb-sub">${LIVE_BEACH_DEMO_ENABLED ? "This clearly labeled simulation shows the planned event-day experience without claiming fictional people or signals are live." : "Live routing remains unavailable until verified camera metrics, the approved run of show, and the published sculptor roster are active."}</p>
       </div>
 
+      ${LIVE_BEACH_DEMO_ENABLED ? `
       <div class="lb-stage" data-preset="balanced">
         <aside class="lb-rail lb-rail-left" aria-label="Sandy suggests">
           <header class="lb-rail-head">
@@ -736,25 +705,25 @@ app.innerHTML = `
           </header>
           <article class="lb-suggest">
             <p class="lb-suggest-target">
-              Sculpture <strong id="lb-suggest-num">#14</strong>
-              <span class="lb-suggest-flag" id="lb-suggest-flag">🇲🇽</span>
+              Sculpture <strong id="lb-suggest-num">#${escapeHtml(liveBeachSuggestedSculpture.id ?? "-")}</strong>
+              <span class="lb-suggest-flag" id="lb-suggest-flag">${escapeHtml(liveBeachSuggestedSculpture.country ?? "")}</span>
             </p>
             <p class="lb-suggest-name">
-              <em id="lb-suggest-title">The Whale's Lullaby</em>
-              <span id="lb-suggest-sculptor">Niño Suárez</span>
+              <em id="lb-suggest-title">${escapeHtml(liveBeachSuggestedSculpture.title ?? "Demonstration route")}</em>
+              <span id="lb-suggest-sculptor">${escapeHtml(liveBeachSuggestedSculpture.sculptor ?? "Sample artist")}</span>
             </p>
-            <p class="lb-suggest-reason" id="lb-suggest-reason">Skip the south plaza (busy). Niño Suárez is doing a live carving talk in 6 minutes, and the crowd is light.</p>
+            <p class="lb-suggest-reason" id="lb-suggest-reason">${escapeHtml(liveBeachSuggestion.reason ?? "Synthetic routing demonstration")}</p>
             <div class="lb-suggest-chips">
-              <span class="lb-chip lb-chip-walk"><span>↗</span> <strong id="lb-suggest-walk">4</strong> min walk</span>
-              <span class="lb-chip lb-chip-soon"><span class="lb-pulse-dot"></span> Talk in <strong id="lb-suggest-min">6</strong> min</span>
+              <span class="lb-chip lb-chip-walk"><span>↗</span> <strong id="lb-suggest-walk">${escapeHtml(liveBeachSuggestion.walkMinutes ?? "-")}</strong> min walk</span>
+              <span class="lb-chip lb-chip-soon"><span class="lb-pulse-dot"></span> Talk in <strong id="lb-suggest-min">${escapeHtml(liveBeachSuggestion.eventStartsInMin ?? "-")}</strong> min</span>
             </div>
             <button id="lb-walk-btn" class="lb-walk-btn" type="button">Start walking →</button>
           </article>
           <dl class="lb-stat-grid">
-            <div><dt>Tide</dt><dd>+2.4 ft <span class="lb-trend-up">↑</span></dd></div>
-            <div><dt>Sunset</dt><dd id="lb-sunset">2h 47m</dd></div>
-            <div><dt>Stage A next</dt><dd>Coastal Roots</dd></div>
-            <div><dt>Air</dt><dd>78°F · NE 9</dd></div>
+            <div><dt>Tide</dt><dd>${escapeHtml(liveBeachStats.tide ?? "-")} <span class="lb-trend-up">↑</span></dd></div>
+            <div><dt>Sunset</dt><dd id="lb-sunset">${escapeHtml(liveBeachStats.sunset ?? "-")}</dd></div>
+            <div><dt>Stage A next</dt><dd>${escapeHtml(liveBeachStats.nextStage ?? "-")}</dd></div>
+            <div><dt>Air</dt><dd>${escapeHtml(liveBeachStats.air ?? "-")}</dd></div>
           </dl>
         </aside>
 
@@ -869,7 +838,7 @@ app.innerHTML = `
       <div class="lb-scrub" aria-label="Day timeline scrubber">
         <div class="lb-scrub-head">
           <span class="lb-scrub-eyebrow">Festival timeline</span>
-          <span class="lb-scrub-readout" id="lb-scrub-readout">12 PM · Lunch surge</span>
+          <span class="lb-scrub-readout" id="lb-scrub-readout">${escapeHtml(liveBeachInitialTimeline.hour ?? "-")} · ${escapeHtml(liveBeachInitialTimeline.label ?? "Demonstration")}</span>
         </div>
         <input id="lb-scrub-input" class="lb-scrub-input" type="range" min="0" max="11" value="3" step="1" aria-label="Drag to rewind or fast-forward the day"/>
         <div class="lb-scrub-track">
@@ -878,9 +847,17 @@ app.innerHTML = `
         </div>
       </div>
 
+      ` : `
+      <div class="lb-standby" role="status">
+        <strong>Event-day monitoring is not active.</strong>
+        <span>Use Island Conditions below for current weather, ferry, traffic, crowd, and line readings that have passed freshness checks.</span>
+        <a class="button secondary" href="#island-conditions">Open Island Conditions</a>
+      </div>
+      `}
+
       <p class="lb-foot">
-        Live Beach is a public-facing surface that fuses the ops crowd-zone API, run-of-show, sculpture map, and Ask Sandy concierge.
-        <a href="#admin">A teaser of the operator view →</a>
+        ${LIVE_BEACH_DEMO_ENABLED ? "Board demonstration data is synthetic and remains local to this development build." : "Live Beach activates only from reviewed event content and current, privacy-safe operational metrics."}
+        ${OPS_DEMO_ENABLED ? `<a href="#admin">Open the operator view →</a>` : ""}
       </p>
     </section>
 
@@ -970,23 +947,24 @@ app.innerHTML = `
     <section class="section sculptors-section" id="sculptors-showcase">
       <div class="section-heading">
         <div>
-          <p class="eyebrow">The sculptors</p>
-          <h2>Meet the artists &mdash; and find them on the beach.</h2>
-          <p class="section-copy">Browse the roster, filter by division, and tap a sculpture on the corridor map to see who's carving it and where, by beach marker.</p>
+          <p class="eyebrow">${sculptorRosterDemo ? "Board demonstration roster" : "The sculptors"}</p>
+          <h2>${sculptorRosterVisible ? "Meet the artists &mdash; and find them on the beach." : "The 2027 sculptor roster is awaiting publication."}</h2>
+          <p class="section-copy">${sculptorRosterDemo ? "These fictional artists demonstrate roster, map, passport, and voting workflows without being presented as official participants." : sculptorRosterPublished ? "Browse the reviewed roster, filter by division, and locate each published entry by beach marker." : "Official artist profiles and beach-marker assignments will appear after the current roster completes source and publication review."}</p>
         </div>
-        <span class="sculptor-count">${sculptors.length} sculptors</span>
+        <span class="sculptor-count">${sculptorRosterVisible ? `${sculptors.length} ${sculptorRosterDemo ? "sample " : ""}sculptors` : "Publication pending"}</span>
       </div>
-      <div class="sculptor-layout">
+      ${sculptorRosterVisible ? "" : `<div class="sculptor-publication-pending" role="status"><strong>No unapproved artist data is shown.</strong><span>The site will open the roster, corridor map, passport, and People's Choice ballot together after publication.</span></div>`}
+      <div class="sculptor-layout" ${sculptorRosterVisible ? "" : "hidden"}>
         <div class="corridor-map-wrap">
           <div class="corridor-map" id="corridor-map" role="group" aria-label="Competition corridor map with sculpture locations"></div>
           <div class="corridor-legend" id="corridor-legend"></div>
         </div>
         <aside class="sculptor-detail" id="sculptor-detail" aria-live="polite"></aside>
       </div>
-      <div class="sculptor-filters" id="sculptor-filters"></div>
-      <div class="sculptor-roster" id="sculptor-roster"></div>
+      <div class="sculptor-filters" id="sculptor-filters" ${sculptorRosterVisible ? "" : "hidden"}></div>
+      <div class="sculptor-roster" id="sculptor-roster" ${sculptorRosterVisible ? "" : "hidden"}></div>
 
-      <div class="passport-panel" id="passport-panel">
+      <div class="passport-panel" id="passport-panel" ${sculptorRosterVisible ? "" : "hidden"}>
         <div class="passport-head">
           <div>
             <p class="eyebrow">Sculpture Passport</p>
@@ -1002,7 +980,7 @@ app.innerHTML = `
         <div class="passport-reward" id="passport-reward" hidden></div>
       </div>
 
-      <div class="voting-panel" id="voting-panel">
+      <div class="voting-panel" id="voting-panel" ${sculptorRosterVisible ? "" : "hidden"}>
         <div class="passport-head">
           <div>
             <p class="eyebrow">People's Choice</p>
@@ -7737,7 +7715,7 @@ function updateNetworkStatus() {
     return;
   }
   const online = navigator.onLine;
-  status.textContent = online ? "Live" : "Offline";
+  status.textContent = online ? "Online" : "Offline";
   status.dataset.state = online ? "online" : "offline";
 }
 
@@ -7833,7 +7811,7 @@ document.querySelector("#simulate-btn").addEventListener("click", () => {
 
 if (!ADMIN_ENTRY) {
   startTideMotion();
-  startLiveBeach();
+  if (LIVE_BEACH_DEMO_ENABLED) startLiveBeach();
 }
 
 function startLiveBeach() {

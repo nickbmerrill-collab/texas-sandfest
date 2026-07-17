@@ -19,6 +19,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html {
   scroll-behavior: smooth;
 }
@@ -2914,6 +2918,32 @@ time {
   margin-bottom: 24px;
 }
 
+.lb-standby {
+  position: relative;
+  min-height: 210px;
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 10px;
+  padding: clamp(28px, 5vw, 56px) 0;
+  border-top: 1px solid var(--lb-line);
+  border-bottom: 1px solid var(--lb-line);
+}
+
+.lb-standby strong {
+  font: 500 clamp(24px, 3vw, 38px)/1.1 "Instrument Serif", serif;
+}
+
+.lb-standby span {
+  max-width: 720px;
+  color: var(--lb-ink-soft);
+  line-height: 1.6;
+}
+
+.lb-standby .button {
+  margin-top: 8px;
+}
+
 .lb-eyebrow-row {
   display: flex;
   gap: 12px;
@@ -3988,6 +4018,21 @@ time {
   font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
+}
+.sculptor-publication-pending {
+  display: grid;
+  gap: 8px;
+  padding: 30px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.sculptor-publication-pending strong {
+  font-size: 18px;
+}
+.sculptor-publication-pending span {
+  max-width: 720px;
+  color: var(--muted);
+  line-height: 1.6;
 }
 .sculptor-layout {
   display: grid;

@@ -1,0 +1,55 @@
+{
+  "_note": "Local board-demonstration data only. Names, activities, crowd states, waits, and recommendations are fictional and must never be included in a production artifact.",
+  "sculptures": [
+    { "id": 1, "x": 0.06, "y": 0.42, "sculptor": "Diego Aponte", "country": "US", "title": "Gulf Saint", "crowd": "moderate", "state": "carving" },
+    { "id": 2, "x": 0.12, "y": 0.55, "sculptor": "Ines Roca", "country": "AR", "title": "Rio de Memoria", "crowd": "packed", "state": "judging" },
+    { "id": 3, "x": 0.18, "y": 0.40, "sculptor": "Mira Patel", "country": "GB", "title": "Lullaby of the Bell Tower", "crowd": "packed", "state": "carving" },
+    { "id": 4, "x": 0.24, "y": 0.58, "sculptor": "Hugo Brandt", "country": "NL", "title": "Long Shadow Lighthouse", "crowd": "moderate", "state": "carving" },
+    { "id": 5, "x": 0.30, "y": 0.43, "sculptor": "Pablo Vera", "country": "ES", "title": "Madrugada", "crowd": "moderate", "state": "carving" },
+    { "id": 6, "x": 0.36, "y": 0.56, "sculptor": "Sasha Volkov", "country": "LV", "title": "Snowbird Returning", "crowd": "light", "state": "carving" },
+    { "id": 7, "x": 0.42, "y": 0.41, "sculptor": "Olamide Diop", "country": "SN", "title": "Dunes of the Drum", "crowd": "moderate", "state": "talk" },
+    { "id": 8, "x": 0.48, "y": 0.57, "sculptor": "Theo Larsson", "country": "SE", "title": "The Sleeping Captain", "crowd": "light", "state": "carving" },
+    { "id": 9, "x": 0.54, "y": 0.44, "sculptor": "Halima Asad", "country": "MA", "title": "Caravan of Salt", "crowd": "light", "state": "carving" },
+    { "id": 10, "x": 0.60, "y": 0.55, "sculptor": "Kalani Ho", "country": "US", "title": "Wave's Last Stand", "crowd": "moderate", "state": "carving" },
+    { "id": 11, "x": 0.66, "y": 0.40, "sculptor": "Esra Demir", "country": "TR", "title": "Bridge of Wings", "crowd": "light", "state": "carving" },
+    { "id": 12, "x": 0.72, "y": 0.58, "sculptor": "Lin Yuwei", "country": "TW", "title": "Paper Boats", "crowd": "moderate", "state": "carving" },
+    { "id": 13, "x": 0.78, "y": 0.42, "sculptor": "Ada Reyes", "country": "PH", "title": "Mother Reef", "crowd": "moderate", "state": "carving" },
+    { "id": 14, "x": 0.83, "y": 0.56, "sculptor": "Nino Suarez", "country": "MX", "title": "The Whale's Lullaby", "crowd": "light", "state": "talk" },
+    { "id": 15, "x": 0.89, "y": 0.43, "sculptor": "Kojiro Tan", "country": "JP", "title": "Cloud Ferryman", "crowd": "light", "state": "carving" },
+    { "id": 16, "x": 0.94, "y": 0.55, "sculptor": "Jelena Marek", "country": "HR", "title": "Tidal Court", "crowd": "moderate", "state": "carving" }
+  ],
+  "context": {
+    "visitor": { "x": 0.20, "y": 0.62 },
+    "stats": {
+      "tide": "+2.4 ft",
+      "sunset": "2h 47m",
+      "nextStage": "Coastal Roots",
+      "air": "78 F - NE 9"
+    },
+    "suggestion": {
+      "targetId": 14,
+      "walkMinutes": 4,
+      "reason": "Skip the south plaza in this simulation. The demonstration route is four minutes and the sample crowd is light.",
+      "eventStartsInMin": 6
+    },
+    "nowOnBeach": [
+      { "kind": "Sample sculpture", "title": "Mother Reef", "meta": "Ada Reyes - PH", "caption": "Demonstration time-lapse", "pinId": 13 },
+      { "kind": "Sample stage", "title": "Coastal Roots Trio", "meta": "Stage A", "caption": "Demonstration run of show", "pinId": null },
+      { "kind": "Sample line", "title": "El Tiburon Tacos", "meta": "Food Court", "caption": "Demonstration wait: 3 min", "pinId": null }
+    ],
+    "timeline": [
+      { "hour": "9 AM", "label": "Gates open", "preset": "early" },
+      { "hour": "10 AM", "label": "First carve", "preset": "early" },
+      { "hour": "11 AM", "label": "Family band", "preset": "rising" },
+      { "hour": "12 PM", "label": "Lunch surge", "preset": "peak" },
+      { "hour": "1 PM", "label": "Heat watch", "preset": "peak" },
+      { "hour": "2 PM", "label": "Youth build", "preset": "rising" },
+      { "hour": "3 PM", "label": "Sponsor hour", "preset": "balanced" },
+      { "hour": "4 PM", "label": "Master demos", "preset": "rising" },
+      { "hour": "5 PM", "label": "Golden hour", "preset": "balanced" },
+      { "hour": "6 PM", "label": "Stage set 2", "preset": "peak" },
+      { "hour": "7 PM", "label": "Sunset photos", "preset": "evening" },
+      { "hour": "8 PM", "label": "Final sweep", "preset": "evening" }
+    ]
+  }
+}
