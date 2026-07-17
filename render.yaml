@@ -1,27 +1,92 @@
+# yaml-language-server: $schema=https://render.com/schema/render.yaml.json
 # One-click deploy via the Render Blueprint button:
 # https://render.com/deploy?repo=https://github.com/nickbmerrill-collab/texas-sandfest
 #
 # Stands up:
-#   - Web service: sandfest-api (node, /health probe, custom domain api.heyelab.com)
-#   - Postgres: sandfest-db (free tier; upgrade for prod)
+#   - Web service: sandfest-api (node, /ready probe, custom domain api.heyelab.com)
+#   - Static site: sandfest-admin (isolated ops bundle, custom domain sandfest-admin.heyelab.com)
+#   - Background worker: sandfest-worker (durable message, SMS, and sync jobs)
+#   - Postgres: sandfest-db (paid, PITR-capable production data plane)
 #
 # After it boots, point heyelab.com DNS:
 #   CNAME api.heyelab.com   → sandfest-api.onrender.com
-#   CNAME sandfest-admin.heyelab.com → sandfest-admin.onrender.com (if you split admin out later)
+#   CNAME sandfest-admin.heyelab.com → sandfest-admin.onrender.com
 # See docs/heyelab-backend-deployment.md for the full cutover.
 
 services:
   - type: web
+    name: sandfest-admin
+    runtime: static
+    branch: main
+    buildCommand: npm ci && npm run build:admin
+    staticPublishPath: ./dist-admin
+    autoDeployTrigger: checksPass
+    domains:
+      - sandfest-admin.heyelab.com
+    envVars:
+      - key: SANDFEST_DEPLOYMENT_ENV
+        value: production
+      - key: VITE_SANDFEST_AUTH_MODE
+        value: oidc
+      - key: VITE_SANDFEST_AUTH_ISSUER
+        value: https://auth.heyelab.com/
+      # OAuth SPA client IDs are public identifiers, but this must be the exact
+      # SandFest admin client registered at the IdP before the build can pass.
+      - key: VITE_SANDFEST_AUTH_CLIENT_ID
+        sync: false
+      - key: VITE_SANDFEST_AUTH_REDIRECT_URI
+        value: https://sandfest-admin.heyelab.com/
+      - key: VITE_SANDFEST_AUTH_POST_LOGOUT_REDIRECT_URI
+        value: https://sandfest-admin.heyelab.com/
+      - key: VITE_SANDFEST_AUTH_SCOPES
+        value: openid profile email
+      - key: VITE_SANDFEST_AUTH_AUDIENCE
+        value: https://api.heyelab.com/sandfest
+      - key: VITE_SANDFEST_API_BASE_URL
+        value: https://api.heyelab.com/sandfest
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: Strict-Transport-Security
+        value: max-age=31536000; includeSubDomains
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: no-referrer
+      - path: /*
+        name: Permissions-Policy
+        value: camera=(), microphone=(), geolocation=()
+      - path: /*
+        name: Content-Security-Policy
+        value: default-src 'self'; connect-src 'self' https://api.heyelab.com https://auth.heyelab.com; img-src 'self' data:; script-src 'self'; style-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'
+      - path: /index.html
+        name: Cache-Control
+        value: no-store
+
+  - type: web
     name: sandfest-api
     runtime: docker
+    branch: main
     plan: starter
-    healthCheckPath: /health
-    autoDeploy: true
+    healthCheckPath: /ready
+    autoDeployTrigger: checksPass
+    disk:
+      name: sandfest-partner-assets
+      mountPath: /var/data/sandfest-partner-assets
+      sizeGB: 10
     envVars:
       - key: SANDFEST_ENV
         value: production
-      - key: SANDFEST_API_PORT
-        value: "8788"
+      - key: SANDFEST_EVENT_ID
+        value: texas-sandfest-2027
+      - key: SANDFEST_API_HOST
+        value: 0.0.0.0
+      - key: SANDFEST_API_PREFIX
+        value: /sandfest
       # Bearer-token mode is rejected in production (see deployment doc).
       # We pre-wire the JWKS env so that once auth.heyelab.com is live, the
       # API switches to JWT validation automatically — no redeploy needed.
@@ -47,6 +112,67 @@ services:
           property: connectionString
       - key: SANDFEST_DATABASE_SSL
         value: no-verify
+      # Private managed Key Value keeps every API instance on one limiter.
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: sandfest-rate-limit
+          property: connectionString
+      # Paid Render Postgres supplies PITR; the attached encrypted disk receives
+      # daily snapshots. /ready stays red until both are restored and verified.
+      - key: SANDFEST_BACKUP_PROVIDER
+        value: render-managed
+      - key: SANDFEST_DATABASE_RECOVERY_WINDOW_DAYS
+        value: "3"
+      - key: SANDFEST_ASSET_SNAPSHOT_RETENTION_DAYS
+        value: "7"
+      - key: SANDFEST_DATABASE_RESTORE_DRILL_AT
+        sync: false
+      - key: SANDFEST_ASSET_RESTORE_DRILL_AT
+        sync: false
+      - key: SANDFEST_RESTORE_DRILL_MAX_AGE_DAYS
+        value: "90"
+      - key: SANDFEST_REQUIRED_CAPABILITIES
+        value: stripe_ticketing,stripe_partner_payments,transactional_email,quickbooks_invoices,camera_ingest,staff_directory,outreach_discovery,sms_safety
+      # Staff-triggered, review-first regional business research. Discovery only
+      # creates source-attributed prospects; it never sends outreach directly.
+      - key: OUTREACH_DISCOVERY_ENABLED
+        value: "true"
+      - key: OUTREACH_DISCOVERY_PROVIDER
+        value: openstreetmap
+      - key: OUTREACH_DISCOVERY_SECRET
+        sync: false
+      - key: OUTREACH_DISCOVERY_USER_AGENT
+        value: TexasSandFest-PartnerOps/1.0
+      - key: OUTREACH_DISCOVERY_CONTACT
+        value: info@texassandfest.org
+      - key: OUTREACH_DISCOVERY_NOMINATIM_URL
+        value: https://nominatim.openstreetmap.org/search
+      - key: OUTREACH_DISCOVERY_OVERPASS_URLS
+        value: https://overpass-api.de/api/interpreter,https://z.overpass-api.de/api/interpreter,https://overpass.private.coffee/api/interpreter
+      - key: OUTREACH_DISCOVERY_TIMEOUT_MS
+        value: "10000"
+      # Reviewed partner invoices. Keep disabled until sandbox OAuth and Item IDs are verified.
+      - key: QB_ENVIRONMENT
+        value: sandbox
+      - key: QB_INVOICE_SYNC_ENABLED
+        value: "false"
+      - key: QB_CLIENT_ID
+        sync: false
+      - key: QB_CLIENT_SECRET
+        sync: false
+      - key: QB_REDIRECT_URI
+        value: https://api.heyelab.com/sandfest/api/integrations/quickbooks/callback
+      - key: QB_REALM_ID
+        sync: false
+      - key: QB_REFRESH_TOKEN
+        sync: false
+      - key: QB_MINOR_VERSION
+        value: "75"
+      - key: QB_SPONSOR_ITEM_ID
+        sync: false
+      - key: QB_VENDOR_ITEM_ID
+        sync: false
       - key: SANDFEST_RATE_LIMIT_WINDOW_MS
         value: "60000"
       - key: SANDFEST_PUBLIC_RATE_LIMIT
@@ -55,6 +181,49 @@ services:
         value: "120"
       - key: SANDFEST_CHECKOUT_RATE_LIMIT
         value: "30"
+      - key: SANDFEST_PARTNER_STATUS_RATE_LIMIT
+        value: "30"
+      - key: SANDFEST_PUBLIC_WRITE_RATE_LIMIT
+        value: "60"
+      # Keep launch-critical dates, hours, and contact facts under review.
+      - key: SANDFEST_EVENT_GUIDE_SOURCE_MAX_AGE_DAYS
+        value: "90"
+      # Public vendor/sponsor intake fails closed until Siteverify is ready.
+      - key: SANDFEST_TURNSTILE_ENABLED
+        value: "true"
+      - key: SANDFEST_TURNSTILE_SECRET_KEY
+        sync: false
+      - key: SANDFEST_TURNSTILE_HOSTNAMES
+        value: www.texassandfest.org,texassandfest.org,sandfest.heyelab.com,nickbmerrill-collab.github.io
+      - key: SANDFEST_TURNSTILE_TIMEOUT_MS
+        value: "8000"
+      # Must match the worker value so acknowledgment and reminder links verify.
+      - key: SANDFEST_PARTNER_PORTAL_SECRET
+        generateValue: true
+      - key: SANDFEST_OUTREACH_PREFERENCES_SECRET
+        generateValue: true
+      - key: SANDFEST_PUBLIC_SITE_URL
+        value: https://www.texassandfest.org
+      - key: SANDFEST_JOB_LEASE_MS
+        value: "300000"
+      - key: SANDFEST_PARTNER_ASSET_DIR
+        value: /var/data/sandfest-partner-assets
+      - key: SANDFEST_PARTNER_ASSET_MAX_BYTES
+        value: "10485760"
+      # Camera-bound HMAC credentials from local inference hosts; no footage.
+      - key: CAMERA_INGEST_ENABLED
+        value: "false"
+      - key: CAMERA_INGEST_KEYS
+        sync: false
+      - key: CAMERA_INGEST_REQUIRED_CAMERA_IDS
+        value: "ferry-loading,ferry-stacking,harbor-island-entrance,harbor-island-stacking,north-gate,south-gate,food-court,competition-corridor"
+      # Optional local-development fallback; production rejects shared-only mode.
+      - key: CAMERA_INGEST_SECRET
+        sync: false
+      - key: CAMERA_INGEST_MAX_SKEW_SECONDS
+        value: "300"
+      - key: CAMERA_INGEST_RATE_LIMIT
+        value: "600"
       # Stripe pre-wired in test mode; flip to true + add live keys later.
       - key: STRIPE_TICKETING_ENABLED
         value: "false"
@@ -66,8 +235,223 @@ services:
         value: https://www.texassandfest.org/tickets/success?session_id={CHECKOUT_SESSION_ID}
       - key: STRIPE_CANCEL_URL
         value: https://www.texassandfest.org/#tickets
+      # Review-first partner acknowledgments. Enable only after sender/domain verification.
+      - key: TRANSACTIONAL_EMAIL_ENABLED
+        value: "false"
+      - key: BREVO_API_KEY
+        sync: false
+      - key: BREVO_SENDER_EMAIL
+        sync: false
+      - key: BREVO_SENDER_NAME
+        value: Texas SandFest
+      - key: BREVO_REPLY_TO_EMAIL
+        value: info@texassandfest.org
+      # API-only bearer credential configured on the Brevo transactional webhook.
+      - key: BREVO_WEBHOOK_TOKEN
+        sync: false
+      # Safety SMS remains a no-launch capability until sender approval, signed
+      # callbacks, and the launch-volume acceptance in docs/sms-safety.md pass.
+      - key: SMS_ENABLED
+        value: "false"
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_FROM_NUMBER
+        sync: false
+      - key: TWILIO_MESSAGING_SERVICE_SID
+        sync: false
+      - key: TWILIO_API_BASE_URL
+        value: https://api.twilio.com
+      - key: TWILIO_STATUS_CALLBACK_URL
+        value: https://api.heyelab.com/sandfest/api/webhooks/twilio/status
+      - key: TWILIO_SAFETY_INBOUND_WEBHOOK_URL
+        value: https://api.heyelab.com/sandfest/api/webhooks/twilio/inbound/smsSafety
+      - key: TWILIO_MARKETING_INBOUND_WEBHOOK_URL
+        value: https://api.heyelab.com/sandfest/api/webhooks/twilio/inbound/smsMarketing
+      - key: SANDFEST_SMS_MAX_RECIPIENTS
+        value: "500"
+      - key: SANDFEST_SMS_WEBHOOK_RATE_LIMIT
+        value: "1200"
+
+  - type: worker
+    name: sandfest-worker
+    runtime: docker
+    branch: main
+    plan: starter
+    autoDeployTrigger: checksPass
+    dockerCommand: node scripts/worker.mjs
+    maxShutdownDelaySeconds: 60
+    envVars:
+      - key: SANDFEST_ENV
+        value: production
+      - key: SANDFEST_EVENT_ID
+        value: texas-sandfest-2027
+      - key: SANDFEST_DATABASE_URL
+        fromDatabase:
+          name: sandfest-db
+          property: connectionString
+      - key: SANDFEST_DATABASE_SSL
+        value: no-verify
+      # Must match the API value so worker-generated portal links verify.
+      - key: SANDFEST_PARTNER_PORTAL_SECRET
+        fromService:
+          type: web
+          name: sandfest-api
+          envVarKey: SANDFEST_PARTNER_PORTAL_SECRET
+      - key: SANDFEST_OUTREACH_PREFERENCES_SECRET
+        fromService:
+          type: web
+          name: sandfest-api
+          envVarKey: SANDFEST_OUTREACH_PREFERENCES_SECRET
+      - key: SANDFEST_PUBLIC_SITE_URL
+        value: https://www.texassandfest.org
+      - key: SANDFEST_JOB_LEASE_MS
+        value: "300000"
+      - key: QB_ENVIRONMENT
+        fromService:
+          type: web
+          name: sandfest-api
+          envVarKey: QB_ENVIRONMENT
+      - key: QB_INVOICE_SYNC_ENABLED
+        fromService:
+          type: web
+          name: sandfest-api
+          envVarKey: QB_INVOICE_SYNC_ENABLED
+      - key: QB_CLIENT_ID
+        fromService:
+          type: web
+          name: sandfest-api
+          envVarKey: QB_CLIENT_ID
+      - key: QB_CLIENT_SECRET
+        fromService:
+          type: web
+          name: sandfest-api
+          envVarKey: QB_CLIENT_SECRET
+      - key: QB_REDIRECT_URI
+        fromService:
+          type: web
+          name: sandfest-api
+          envVarKey: QB_REDIRECT_URI
+      - key: QB_REALM_ID
+        fromService:
+          type: web
+          name: sandfest-api
+          envVarKey: QB_REALM_ID
+      - key: QB_REFRESH_TOKEN
+        fromService:
+          type: web
+          name: sandfest-api
+          envVarKey: QB_REFRESH_TOKEN
+      - key: QB_MINOR_VERSION
+        fromService:
+          type: web
+          name: sandfest-api
+          envVarKey: QB_MINOR_VERSION
+      - key: QB_SPONSOR_ITEM_ID
+        fromService:
+          type: web
+          name: sandfest-api
+          envVarKey: QB_SPONSOR_ITEM_ID
+      - key: QB_VENDOR_ITEM_ID
+        fromService:
+          type: web
+          name: sandfest-api
+          envVarKey: QB_VENDOR_ITEM_ID
+      - key: SANDFEST_WORKER_POLL_MS
+        value: "2000"
+      - key: SANDFEST_WORKER_BATCH
+        value: "20"
+      - key: TRANSACTIONAL_EMAIL_ENABLED
+        fromService:
+          type: web
+          name: sandfest-api
+          envVarKey: TRANSACTIONAL_EMAIL_ENABLED
+      - key: BREVO_API_KEY
+        fromService:
+          type: web
+          name: sandfest-api
+          envVarKey: BREVO_API_KEY
+      - key: BREVO_SENDER_EMAIL
+        fromService:
+          type: web
+          name: sandfest-api
+          envVarKey: BREVO_SENDER_EMAIL
+      - key: BREVO_SENDER_NAME
+        fromService:
+          type: web
+          name: sandfest-api
+          envVarKey: BREVO_SENDER_NAME
+      - key: BREVO_REPLY_TO_EMAIL
+        fromService:
+          type: web
+          name: sandfest-api
+          envVarKey: BREVO_REPLY_TO_EMAIL
+      - key: SMS_ENABLED
+        fromService:
+          type: web
+          name: sandfest-api
+          envVarKey: SMS_ENABLED
+      - key: TWILIO_ACCOUNT_SID
+        fromService:
+          type: web
+          name: sandfest-api
+          envVarKey: TWILIO_ACCOUNT_SID
+      - key: TWILIO_AUTH_TOKEN
+        fromService:
+          type: web
+          name: sandfest-api
+          envVarKey: TWILIO_AUTH_TOKEN
+      - key: TWILIO_FROM_NUMBER
+        fromService:
+          type: web
+          name: sandfest-api
+          envVarKey: TWILIO_FROM_NUMBER
+      - key: TWILIO_MESSAGING_SERVICE_SID
+        fromService:
+          type: web
+          name: sandfest-api
+          envVarKey: TWILIO_MESSAGING_SERVICE_SID
+      - key: TWILIO_API_BASE_URL
+        fromService:
+          type: web
+          name: sandfest-api
+          envVarKey: TWILIO_API_BASE_URL
+      - key: TWILIO_STATUS_CALLBACK_URL
+        fromService:
+          type: web
+          name: sandfest-api
+          envVarKey: TWILIO_STATUS_CALLBACK_URL
+      - key: TWILIO_SAFETY_INBOUND_WEBHOOK_URL
+        fromService:
+          type: web
+          name: sandfest-api
+          envVarKey: TWILIO_SAFETY_INBOUND_WEBHOOK_URL
+      - key: TWILIO_MARKETING_INBOUND_WEBHOOK_URL
+        fromService:
+          type: web
+          name: sandfest-api
+          envVarKey: TWILIO_MARKETING_INBOUND_WEBHOOK_URL
+      - key: SANDFEST_SMS_MAX_RECIPIENTS
+        fromService:
+          type: web
+          name: sandfest-api
+          envVarKey: SANDFEST_SMS_MAX_RECIPIENTS
+
+  # Rate-limit counters are short-lived and must be shared across API instances.
+  # The service is private-only, non-persistent, and refuses eviction so an
+  # overloaded limiter fails visibly instead of silently forgetting counters.
+  - type: keyvalue
+    name: sandfest-rate-limit
+    plan: starter
+    ipAllowList: []
+    maxmemoryPolicy: noeviction
+    persistenceMode: off
 
 databases:
   - name: sandfest-db
-    plan: free
+    plan: basic-1gb
+    diskSizeGB: 15
+    storageAutoscalingEnabled: true
     postgresMajorVersion: "16"
+    ipAllowList: []

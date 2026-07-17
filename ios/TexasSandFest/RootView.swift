@@ -63,6 +63,10 @@ struct CustomerRootView: View {
                 .tabItem { Label("Beach", systemImage: "sparkles.tv") }
                 .tag(CustomerTab.map)
 
+            SculptorsView()
+                .tabItem { Label("Sculptors", systemImage: "photo.artframe") }
+                .tag(CustomerTab.sculptors)
+
             ConciergeView()
                 .tabItem { Label("Sandy", systemImage: "sparkles") }
                 .tag(CustomerTab.concierge)
@@ -83,6 +87,10 @@ struct AdminRootView: View {
             AdminDashboardView()
                 .tabItem { Label("Command", systemImage: "rectangle.3.group") }
                 .tag(AdminTab.command)
+
+            FleetView()
+                .tabItem { Label("Fleet", systemImage: "car.side") }
+                .tag(AdminTab.fleet)
 
             OpsView()
                 .tabItem { Label("Incidents", systemImage: "radio") }
@@ -122,12 +130,14 @@ enum CustomerTab {
     case today
     case schedule
     case map
+    case sculptors
     case concierge
     case tickets
 }
 
 enum AdminTab {
     case command
+    case fleet
     case incidents
     case partners
     case finance

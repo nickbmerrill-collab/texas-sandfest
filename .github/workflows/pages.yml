@@ -1,18 +1,9 @@
 name: Deploy public web to GitHub Pages
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "src/**"
-      - "public/**"
-      - "index.html"
-      - "vite.config.js"
-      - "package.json"
-      - "package-lock.json"
-      - "data/**"
-      - ".github/workflows/pages.yml"
-  workflow_dispatch:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
 
 permissions:
   contents: read
@@ -25,22 +16,36 @@ concurrency:
 
 jobs:
   build:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "npm"
       - run: npm ci
-      - name: Build static site
+      - name: Require production Turnstile registration
+        env:
+          VITE_SANDFEST_TURNSTILE_SITE_KEY: ${{ vars.SANDFEST_TURNSTILE_SITE_KEY }}
+        run: test -n "$VITE_SANDFEST_TURNSTILE_SITE_KEY" || (echo "::error::Set repository variable SANDFEST_TURNSTILE_SITE_KEY to the production Cloudflare widget site key." && exit 1)
+      - name: Build visitor-only static site
         env:
           # Pages publishes at https://<owner>.github.io/<repo>/
           DEPLOY_BASE: /${{ github.event.repository.name }}/
-        run: npm run build
+          SANDFEST_DEPLOYMENT_ENV: production
+          # Public identifier from the production Turnstile widget. The Vite
+          # build rejects missing and Cloudflare test keys.
+          VITE_SANDFEST_TURNSTILE_SITE_KEY: ${{ vars.SANDFEST_TURNSTILE_SITE_KEY }}
+        run: npm run build:public && npm run test:pages-artifact
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: dist-public
 
   deploy:
     runs-on: ubuntu-latest

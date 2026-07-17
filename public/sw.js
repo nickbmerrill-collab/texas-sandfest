@@ -1,16 +1,24 @@
-const CACHE_VERSION = "sandfest-public-v1";
-const APP_SHELL = [
-  "/",
-  "/index.html",
-  "/manifest.webmanifest",
-  "/data/app-bootstrap.json",
-  "/data/ticket-products.json",
-  "/data/crawl-summary.json",
-  "/data/media-assets.json",
-  "/data/incoming-inventory.json",
-  "/assets/sandfest-media/media-manifest.json",
-  "/assets/sandfest-app-icon.svg"
-];
+const CACHE_VERSION = "sandfest-public-__BUILD_ID__";
+const BUILD_ASSETS = /* __BUILD_ASSETS__ */ [];
+const MEDIA_ASSETS = /* __MEDIA_ASSETS__ */ [];
+const APP_BASE = new URL("./", self.location.href);
+const appUrl = value => new URL(value, APP_BASE).pathname;
+const APP_SHELL = [...new Set([
+  "./",
+  "index.html",
+  "manifest.webmanifest",
+  "data/app-bootstrap.json",
+  "data/ticket-products.json",
+  "data/sculptors.json",
+  "data/crawl-summary.json",
+  "data/media-assets.json",
+  "data/incoming-inventory.json",
+  "assets/sandfest-media/media-manifest.json",
+  "assets/sandfest-media/media-derivatives.json",
+  "assets/sandfest-app-icon.svg",
+  ...MEDIA_ASSETS,
+  ...BUILD_ASSETS
+])].map(appUrl);
 
 self.addEventListener("install", event => {
   event.waitUntil(
@@ -34,18 +42,18 @@ self.addEventListener("fetch", event => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  if (url.pathname.startsWith("/data/") || url.pathname.endsWith("media-manifest.json")) {
+  if (url.pathname.includes("/data/") || url.pathname.endsWith("media-manifest.json")) {
     event.respondWith(networkFirst(request));
     return;
   }
 
-  if (url.pathname.startsWith("/assets/")) {
+  if (url.pathname.includes("/assets/")) {
     event.respondWith(cacheFirst(request));
     return;
   }
 
   if (request.mode === "navigate") {
-    event.respondWith(networkFirst(request, "/index.html"));
+    event.respondWith(networkFirst(request, appUrl("index.html")));
     return;
   }
 

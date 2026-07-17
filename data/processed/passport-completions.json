@@ -1,0 +1,42 @@
+{
+  "_note": "Sculpture Passport completions (lib/passport.mjs). Mutated by public stamp API.",
+  "lastUpdated": "2026-07-15T21:32:17.277Z",
+  "completions": [
+    {
+      "id": "hc_seed_001",
+      "huntId": "sculpture-passport-2026",
+      "checkpointId": "cp_ent_tidal_guardian",
+      "attendeeRef": "device_demo_visitor_a",
+      "at": "2026-04-18T10:15:00-05:00",
+      "method": "qr_scan",
+      "pointsAwarded": 10
+    },
+    {
+      "id": "hc_seed_002",
+      "huntId": "sculpture-passport-2026",
+      "checkpointId": "cp_ent_coral_cathedral",
+      "attendeeRef": "device_demo_visitor_a",
+      "at": "2026-04-18T11:02:00-05:00",
+      "method": "qr_scan",
+      "pointsAwarded": 10
+    },
+    {
+      "id": "hc_seed_003",
+      "huntId": "sculpture-passport-2026",
+      "checkpointId": "cp_ent_dune_dragon",
+      "attendeeRef": "device_demo_visitor_a",
+      "at": "2026-04-18T12:40:00-05:00",
+      "method": "tap",
+      "pointsAwarded": 10
+    },
+    {
+      "id": "hc_seed_004",
+      "huntId": "sculpture-passport-2026",
+      "checkpointId": "cp_ent_tidal_guardian",
+      "attendeeRef": "device_demo_visitor_b",
+      "at": "2026-04-18T14:00:00-05:00",
+      "method": "qr_scan",
+      "pointsAwarded": 10
+    }
+  ]
+}

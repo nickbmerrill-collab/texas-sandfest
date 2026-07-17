@@ -1,0 +1,65 @@
+{
+  "title": "Texas SandFest: One Platform for Visitors and Operations",
+  "scenes": [
+    {
+      "title": "Visitor Home",
+      "frame": "01-visitor-home.png",
+      "narration": "Texas SandFest can become one connected platform for the entire festival. Visitors get a polished, mobile-friendly guide, while the same underlying information supports the teams running the beach. The experience begins with the event, its mission, dates, location, and the most important visitor actions."
+    },
+    {
+      "title": "Live Beach",
+      "frame": "02-live-beach.png",
+      "narration": "Live Beach turns the festival map into a living guide. Guests can see crowd conditions, current performances, sculpture locations, short food lines, and Sandy's suggested route. The timeline can also replay the day, helping visitors choose where to go and helping staff understand demand."
+    },
+    {
+      "title": "Ticketing and Consent",
+      "frame": "03-ticketing.png",
+      "narration": "Ticketing is shaped for general admission, V I P, Apple Pay, sponsor packages, and guarded raffle flows. The customer sees one clear cart, while marketing and safety consent remain separate and unchecked by default. Live charging stays disabled until approved Stripe keys, prices, and webhooks are connected."
+    },
+    {
+      "title": "Sculptors",
+      "frame": "04-sculptors-passport.png",
+      "narration": "The sculptor experience connects the roster to the actual beach. Guests can filter divisions, tap a marker, meet the artist, read about the work, and see exactly where to find it. That same structured data can power the website, the native app, maps, and event-day signage."
+    },
+    {
+      "title": "Passport and People's Choice",
+      "frame": "05-voting-passport.png",
+      "narration": "The Sculpture Passport makes exploration participatory. Guests scan markers as they visit each work, complete the trail, and become eligible for a prize drawing. People's Choice voting sits beside it with a live tally and the ability to enforce one vote per device or require a ticket reference."
+    },
+    {
+      "title": "Vendor Map",
+      "frame": "06-vendor-map.png",
+      "narration": "Food, vendors, sponsors, and activities become searchable public pins instead of a static list. Booth assignments can be imported from Eventeny, then mirrored into the visitor map while staff retain operational details such as permits, utilities, load-in windows, and inspection status."
+    },
+    {
+      "title": "Ask Sandy",
+      "frame": "07-ask-sandy.png",
+      "narration": "Ask Sandy gives guests one trusted place for questions about tickets, parking, accessibility, families, schedules, vendors, and policies. Today the demonstration uses approved local rules. The production path adds source-backed retrieval, live operations context, staff escalation, and an auditable answer history."
+    },
+    {
+      "title": "Operations Mode",
+      "frame": "08-operations.png",
+      "narration": "A single switch reveals the staff side without exposing it to visitors. Operations teams can monitor zone load, gate pressure, volunteer coverage, weather, incidents, and accessibility needs. Simulated crowd updates already show how the system can recommend dispatching staff before a small issue becomes a bottleneck."
+    },
+    {
+      "title": "Admin Readiness",
+      "frame": "09-admin-readiness.png",
+      "narration": "The admin console is permission-aware and connected to a real local application programming interface. It reports deployment readiness, role access, Stripe guardrails, alerts, transactions, audits, and configuration snapshots. Sensitive actions stay behind staff authentication and explicit permissions."
+    },
+    {
+      "title": "Revenue Operations",
+      "frame": "10-revenue-fleet.png",
+      "narration": "Revenue reporting reconciles ticketing, Eventeny, Square, sponsor, raffle, and manual entries before reviewed totals reach QuickBooks. The goal is not to replace accounting. It is to give the board and event leaders a timely operational view while preserving QuickBooks as the financial ledger."
+    },
+    {
+      "title": "Fleet Checkout",
+      "frame": "11-fleet-operations.png",
+      "narration": "Fleet checkout brings golf carts, radios, chargers, keys, and shared gear into the same command surface. Staff can scan an asset, record who has it, capture battery condition or damage, and close the loop at check-in. The native iPhone flow uses the same records."
+    },
+    {
+      "title": "Volunteer Coverage",
+      "frame": "12-volunteer-coverage.png",
+      "narration": "Volunteer coverage turns roster exports into zone staffing, open gaps, captain briefs, and hours. Together, these capabilities show a practical path from today's website to a coordinated festival platform: simpler for guests, clearer for staff, and more accountable for the board."
+    }
+  ]
+}

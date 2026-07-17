@@ -1,0 +1,4 @@
+# The edge host runs one local YOLO + ByteTrack process per camera.
+lap>=0.5.12,<1
+opencv-python>=4.10,<5
+ultralytics>=8.3,<9

@@ -1,0 +1,4 @@
+booth_id,business_name,category,zone,size,utilities,booth_status,status,beach_marker,map_x,map_y,booth_fee_cents,eventeny_id,description,coi_status,health_status,public
+V-01,Coastal Tacos,food,vendor-row,10x20,power-30A|water,assigned,paid,12.5,0.22,0.72,65000,ev_5521,Fish tacos and elotes,approved,approved,true
+V-02,Island Shave Ice,food,vendor-row,10x10,power-30A,assigned,paid,13,0.35,0.74,45000,ev_5522,Hawaiian shave ice,approved,approved,true
+V-03,Sand Prints Co,craft,vendor-row,10x10,,assigned,approved,13,0.48,0.7,35000,ev_5601,Beach art prints,approved,approved,true

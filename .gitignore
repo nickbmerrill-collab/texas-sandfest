@@ -3,8 +3,28 @@
 !.env.example
 node_modules/
 dist/
+dist-public/
+dist-admin/
 data/incoming/quickbooks/*.json
 data/incoming/quickbooks/*.token
+
+# Local-only credential/secret staging — never commit secrets.
+# The whole credentials drop folder is ignored except its README.
+data/incoming/credentials/*
+!data/incoming/credentials/README.md
+# Runtime write noise (keep README + intentional seeds only)
+data/processed/admin-audit/*.json
+!data/processed/admin-audit/README.md
+data/processed/orders/pending/*.json
+data/processed/orders/payment-events/*.json
+data/processed/config-snapshots/*.json
+data/processed/job-queue/
+data/processed/partner-assets/
+.secrets/
+*.secret
+*.pem
+*.key
+!lib/**/*.key
 *.xcuserdata/
 DerivedData/
 .DS_Store
@@ -12,3 +32,11 @@ DerivedData/
 ios/build/
 ios/TexasSandFest.xcodeproj/xcuserdata/
 ios/TexasSandFest.xcodeproj/project.xcworkspace/xcuserdata/
+.sandfest-runtime/
+artifacts/board-demo/
+camera_agent/.venv/
+camera_agent/*.onnx
+camera_agent/*.pt
+__pycache__/
+*.py[cod]
+.vercel

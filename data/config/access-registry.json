@@ -1,0 +1,152 @@
+{
+  "_comment": "Non-secret registry of systems the platform touches. NEVER put passwords, tokens, or keys in this file. Record only: what the system is, who owns it, and WHERE the secret lives (env var name, password-manager vault item, etc.). Update status as logins arrive.",
+  "lastUpdated": "2026-07-15",
+  "statusLegend": {
+    "needed": "We expect a login/key but do not have it yet",
+    "received": "Credential received and filed into its secret location",
+    "active": "Wired into the platform and working",
+    "n/a": "Not applicable / not using"
+  },
+  "systems": [
+    {
+      "id": "eventeny",
+      "name": "Eventeny",
+      "category": "ticketing-vendor-sponsor-applications",
+      "url": "https://www.eventeny.com/",
+      "owner": "TBD",
+      "secretLocation": "password-manager",
+      "status": "needed",
+      "notes": "Current system of record for ticketing + vendor/sponsor applications. Need admin login + API access if available."
+    },
+    {
+      "id": "stripe",
+      "name": "Stripe",
+      "category": "payments",
+      "url": "https://dashboard.stripe.com/",
+      "owner": "TBD",
+      "secretLocation": ".env: STRIPE_SECRET_KEY / STRIPE_PUBLISHABLE_KEY / STRIPE_WEBHOOK_SECRET",
+      "status": "needed",
+      "notes": "Owned ticket checkout + Apple Pay. Keys go in .env, never in git."
+    },
+    {
+      "id": "quickbooks",
+      "name": "QuickBooks Online",
+      "category": "finance",
+      "url": "https://qbo.intuit.com/",
+      "owner": "TBD",
+      "secretLocation": ".env: QB_CLIENT_ID / QB_CLIENT_SECRET / QB_REALM_ID / QB_REFRESH_TOKEN",
+      "status": "needed",
+      "notes": "OAuth app + realm ID. See docs/quickbooks-integration.md."
+    },
+    {
+      "id": "domain-dns",
+      "name": "Domain / DNS (texassandfest.org)",
+      "category": "infrastructure",
+      "url": "https://texassandfest.org",
+      "owner": "TBD",
+      "secretLocation": "password-manager",
+      "status": "needed",
+      "notes": "Registrar + DNS login. Needed for email auth (SPF/DKIM), subdomains, and site cutover."
+    },
+    {
+      "id": "website-host",
+      "name": "Website host / CMS (current texassandfest.org)",
+      "category": "infrastructure",
+      "url": "https://texassandfest.org",
+      "owner": "TBD",
+      "secretLocation": "password-manager",
+      "status": "needed",
+      "notes": "Current site appears Wix-hosted (media asset URLs are wixstatic). Need admin to plan overhaul/migration."
+    },
+    {
+      "id": "email-marketing",
+      "name": "Email marketing (Mailchimp/Klaviyo/Constant Contact — TBD)",
+      "category": "marketing",
+      "url": "",
+      "owner": "TBD",
+      "secretLocation": "password-manager + .env for API key",
+      "status": "needed",
+      "notes": "Provider to be confirmed by research. Need existing list export + API key."
+    },
+    {
+      "id": "sms-twilio",
+      "name": "SMS gateway (Twilio — proposed)",
+      "category": "communications",
+      "url": "https://www.twilio.com/",
+      "owner": "TBD",
+      "secretLocation": ".env: TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM_NUMBER",
+      "status": "needed",
+      "notes": "For ticket confirmations, event reminders, and public alerts. Requires opt-in/consent handling + A2P 10DLC registration."
+    },
+    {
+      "id": "social-accounts",
+      "name": "Social media (Instagram/Facebook/TikTok/X)",
+      "category": "marketing",
+      "url": "",
+      "owner": "TBD",
+      "secretLocation": "password-manager + scheduler (Buffer/Metricool)",
+      "status": "needed",
+      "notes": "Account logins + business/Meta assets for ads."
+    },
+    {
+      "id": "web-analytics",
+      "name": "Web analytics (GA4 / Plausible — TBD)",
+      "category": "marketing",
+      "url": "",
+      "owner": "TBD",
+      "secretLocation": "password-manager",
+      "status": "needed",
+      "notes": "Measurement ID + admin access for the overhauled site."
+    },
+    {
+      "id": "map-platform",
+      "name": "Map platform (Mapbox/MapLibre/Proxi — proposed)",
+      "category": "product",
+      "url": "https://www.mapbox.com/",
+      "owner": "TBD",
+      "secretLocation": ".env: MAPBOX_ACCESS_TOKEN",
+      "status": "needed",
+      "notes": "For sculptor/POI interactive map on web + iOS. Provider pending research."
+    },
+    {
+      "id": "connectivity",
+      "name": "On-site connectivity (Starlink / managed WiFi — proposed)",
+      "category": "infrastructure",
+      "url": "",
+      "owner": "TBD",
+      "secretLocation": "password-manager",
+      "status": "needed",
+      "notes": "Private LAN for ~100 users + POS/RFID. Pending research; may be a rental account."
+    },
+    {
+      "id": "rfid-cashless",
+      "name": "RFID / cashless provider (TBD)",
+      "category": "commerce",
+      "url": "",
+      "owner": "TBD",
+      "secretLocation": "password-manager + .env",
+      "status": "needed",
+      "notes": "Only if RFID/cashless is adopted. Pending research + go/no-go decision."
+    },
+    {
+      "id": "google-workspace",
+      "name": "Google Workspace / shared email + drive",
+      "category": "infrastructure",
+      "url": "https://admin.google.com/",
+      "owner": "TBD",
+      "secretLocation": "password-manager",
+      "status": "needed",
+      "notes": "Org email + document sharing for incoming docs."
+    },
+    {
+      "id": "radio-comms",
+      "name": "Two-way radio / PoC comms (current: radio)",
+      "category": "communications",
+      "url": "",
+      "owner": "TBD",
+      "secretLocation": "n/a (hardware)",
+      "status": "active",
+      "notes": "Currently VHF/UHF radios on-site. Evaluating push-to-talk-over-cellular augmentation."
+    }
+  ]
+}

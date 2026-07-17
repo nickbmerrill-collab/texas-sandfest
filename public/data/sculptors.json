@@ -1,0 +1,156 @@
+{
+  "_note": "Sample sculptor/entry/POI data for the Sculptors section + corridor map. Fictional placeholder sculptors — replace with the real roster when it arrives. Model follows docs/research/03-sculptor-pages-wayfinding.md: markerIndex maps beach markers to GPS; entries link sculptor -> POI; illustratedMapXY (0-1) places pins on the self-contained corridor map without needing a map token.",
+  "meta": {
+    "event": "Texas SandFest 2026",
+    "venue": "Port Aransas Beach, TX",
+    "schemaVersion": "1.0"
+  },
+  "legend": [
+    { "colorKey": "master_solo", "label": "Master Solo", "colorHex": "#006d77" },
+    { "colorKey": "master_duo", "label": "Master Duo", "colorHex": "#e85d4a" },
+    { "colorKey": "semi_pro", "label": "Semi-Pro", "colorHex": "#f7b733" },
+    { "colorKey": "amateur", "label": "Amateur", "colorHex": "#7a5195" }
+  ],
+  "markerIndex": {
+    "12.5": { "lat": 27.83412, "lng": -97.05987 },
+    "13": { "lat": 27.83455, "lng": -97.05961 },
+    "13.5": { "lat": 27.83498, "lng": -97.05935 },
+    "14": { "lat": 27.83541, "lng": -97.05909 },
+    "14.5": { "lat": 27.83584, "lng": -97.05883 }
+  },
+  "sculptors": [
+    {
+      "id": "scl_river_delgado",
+      "name": "River Delgado",
+      "division": "master_solo",
+      "hometown": "San Diego, CA",
+      "returning": true,
+      "bio": "Master carver known for towering figurative work and razor-sharp detail. Three-time people's choice honoree.",
+      "socials": { "instagram": "@samplehandle" },
+      "entryId": "ent_tidal_guardian"
+    },
+    {
+      "id": "scl_marisol_kade",
+      "name": "Marisol & Kade",
+      "division": "master_duo",
+      "hometown": "Galveston, TX",
+      "returning": true,
+      "bio": "Sibling duo blending marine life with architectural arches. Texas favorites since 2019.",
+      "socials": { "instagram": "@samplehandle" },
+      "entryId": "ent_coral_cathedral"
+    },
+    {
+      "id": "scl_asha_nwosu",
+      "name": "Asha Nwosu",
+      "division": "master_solo",
+      "hometown": "Portland, OR",
+      "returning": false,
+      "bio": "Debut master competitor; large-scale abstract forms inspired by Gulf currents.",
+      "socials": {},
+      "entryId": "ent_current_song"
+    },
+    {
+      "id": "scl_theo_brand",
+      "name": "Theo Brand",
+      "division": "semi_pro",
+      "hometown": "Austin, TX",
+      "returning": true,
+      "bio": "Semi-pro rising talent; playful, kid-favorite creature sculptures.",
+      "socials": { "instagram": "@samplehandle" },
+      "entryId": "ent_dune_dragon"
+    },
+    {
+      "id": "scl_lena_portis",
+      "name": "Lena Portis",
+      "division": "semi_pro",
+      "hometown": "Corpus Christi, TX",
+      "returning": false,
+      "bio": "Local semi-pro sculptor; intricate lace-like sand filigree.",
+      "socials": {},
+      "entryId": "ent_lace_tide"
+    },
+    {
+      "id": "scl_beach_buddies",
+      "name": "The Beach Buddies",
+      "division": "amateur",
+      "hometown": "Port Aransas, TX",
+      "returning": true,
+      "bio": "Community amateur team of local families building a sandcastle skyline.",
+      "socials": {},
+      "entryId": "ent_castle_row"
+    }
+  ],
+  "entries": [
+    {
+      "id": "ent_tidal_guardian",
+      "title": "Tidal Guardian",
+      "sculptorId": "scl_river_delgado",
+      "division": "master_solo",
+      "status": "sculpting",
+      "beachMarker": "13",
+      "poiId": "poi_13",
+      "statement": "A 12-foot sea guardian rising from the surf."
+    },
+    {
+      "id": "ent_coral_cathedral",
+      "title": "Coral Cathedral",
+      "sculptorId": "scl_marisol_kade",
+      "division": "master_duo",
+      "status": "sculpting",
+      "beachMarker": "13.5",
+      "poiId": "poi_135",
+      "statement": "Vaulted arches of coral and kelp."
+    },
+    {
+      "id": "ent_current_song",
+      "title": "Current Song",
+      "sculptorId": "scl_asha_nwosu",
+      "division": "master_solo",
+      "status": "planning",
+      "beachMarker": "14",
+      "poiId": "poi_14",
+      "statement": "Abstract waves mapping Gulf currents."
+    },
+    {
+      "id": "ent_dune_dragon",
+      "title": "Dune Dragon",
+      "sculptorId": "scl_theo_brand",
+      "division": "semi_pro",
+      "status": "complete",
+      "beachMarker": "12.5",
+      "poiId": "poi_125",
+      "statement": "A friendly dragon curled along the dune."
+    },
+    {
+      "id": "ent_lace_tide",
+      "title": "Lace Tide",
+      "sculptorId": "scl_lena_portis",
+      "division": "semi_pro",
+      "status": "sculpting",
+      "beachMarker": "14.5",
+      "poiId": "poi_145",
+      "statement": "Filigree sand lace echoing tide lines."
+    },
+    {
+      "id": "ent_castle_row",
+      "title": "Castle Row",
+      "sculptorId": "scl_beach_buddies",
+      "division": "amateur",
+      "status": "complete",
+      "beachMarker": "12.5",
+      "poiId": "poi_125b",
+      "statement": "A skyline of family-built sandcastles."
+    }
+  ],
+  "pois": [
+    { "id": "poi_13", "type": "sculpture", "entryId": "ent_tidal_guardian", "beachMarker": "13", "colorKey": "master_solo", "illustratedMapXY": { "x": 0.42, "y": 0.44 } },
+    { "id": "poi_135", "type": "sculpture", "entryId": "ent_coral_cathedral", "beachMarker": "13.5", "colorKey": "master_duo", "illustratedMapXY": { "x": 0.55, "y": 0.38 } },
+    { "id": "poi_14", "type": "sculpture", "entryId": "ent_current_song", "beachMarker": "14", "colorKey": "master_solo", "illustratedMapXY": { "x": 0.68, "y": 0.46 } },
+    { "id": "poi_125", "type": "sculpture", "entryId": "ent_dune_dragon", "beachMarker": "12.5", "colorKey": "semi_pro", "illustratedMapXY": { "x": 0.28, "y": 0.5 } },
+    { "id": "poi_145", "type": "sculpture", "entryId": "ent_lace_tide", "beachMarker": "14.5", "colorKey": "semi_pro", "illustratedMapXY": { "x": 0.8, "y": 0.4 } },
+    { "id": "poi_125b", "type": "sculpture", "entryId": "ent_castle_row", "beachMarker": "12.5", "colorKey": "amateur", "illustratedMapXY": { "x": 0.34, "y": 0.6 } },
+    { "id": "poi_north_gate", "type": "gate", "label": "North Gate", "beachMarker": "12.5", "colorKey": "amenity", "illustratedMapXY": { "x": 0.14, "y": 0.28 } },
+    { "id": "poi_food", "type": "food", "label": "Food & Beverage", "beachMarker": "13", "colorKey": "amenity", "illustratedMapXY": { "x": 0.5, "y": 0.66 } },
+    { "id": "poi_restroom", "type": "restroom", "label": "Restrooms", "beachMarker": "14", "colorKey": "amenity", "illustratedMapXY": { "x": 0.72, "y": 0.68 } }
+  ]
+}

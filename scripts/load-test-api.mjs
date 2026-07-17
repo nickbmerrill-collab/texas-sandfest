@@ -9,7 +9,11 @@ const paths = [
   "/api/public/alert",
   "/api/public/bootstrap",
   "/api/public/tickets",
-  "/api/public/sponsors"
+  "/api/public/sponsors",
+  "/api/public/passport",
+  "/api/public/voting",
+  "/api/public/booths",
+  "/api/public/island-conditions"
 ];
 
 const results = {

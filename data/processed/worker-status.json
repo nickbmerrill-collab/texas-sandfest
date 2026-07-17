@@ -1,0 +1,10 @@
+{
+  "service": "sandfest-worker",
+  "state": "stopped",
+  "pid": 59135,
+  "heartbeatAt": "2026-07-17T10:24:25.018Z",
+  "pollMs": 2000,
+  "batchSize": 10,
+  "workerId": "Heyelabs-Mac-Studio.local:59135",
+  "jobLeaseMs": 300000
+}

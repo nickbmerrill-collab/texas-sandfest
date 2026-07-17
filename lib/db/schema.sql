@@ -13,12 +13,20 @@ CREATE TABLE IF NOT EXISTS orders (
   event_id                    TEXT NOT NULL,
   status                      TEXT NOT NULL,
   stripe_checkout_session_id  TEXT,
+  payment_intent_id           TEXT,
+  idempotency_key_hash        TEXT,
+  idempotency_fingerprint     TEXT,
   data                        JSONB NOT NULL,
   created_at                  TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at                  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_intent_id TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS idempotency_key_hash TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS idempotency_fingerprint TEXT;
 CREATE INDEX IF NOT EXISTS orders_created_at_idx ON orders (created_at DESC);
 CREATE INDEX IF NOT EXISTS orders_session_idx     ON orders (stripe_checkout_session_id);
+CREATE INDEX IF NOT EXISTS orders_payment_intent_idx ON orders (payment_intent_id);
+CREATE UNIQUE INDEX IF NOT EXISTS orders_idempotency_idx ON orders (idempotency_key_hash) WHERE idempotency_key_hash IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS payment_events (
   id                   TEXT PRIMARY KEY,
@@ -66,3 +74,69 @@ CREATE TABLE IF NOT EXISTS config_snapshots (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS snapshots_target_idx ON config_snapshots (target_type, created_at DESC);
+
+-- Platform ledgers (fleet, revenue, booths, consent, volunteer mirror, hunt def).
+-- Multi-instance safe replacement for ad-hoc JSON files under data/processed/.
+CREATE TABLE IF NOT EXISTS platform_documents (
+  key        TEXT PRIMARY KEY,
+  data       JSONB NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Append-heavy scavenger hunt stamps (unique per attendee × checkpoint).
+CREATE TABLE IF NOT EXISTS hunt_completions (
+  id             TEXT PRIMARY KEY,
+  hunt_id        TEXT NOT NULL,
+  checkpoint_id  TEXT NOT NULL,
+  attendee_ref   TEXT NOT NULL,
+  method         TEXT,
+  points         INTEGER NOT NULL DEFAULT 0,
+  data           JSONB NOT NULL,
+  completed_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (hunt_id, checkpoint_id, attendee_ref)
+);
+CREATE INDEX IF NOT EXISTS hunt_completions_attendee_idx ON hunt_completions (attendee_ref);
+CREATE INDEX IF NOT EXISTS hunt_completions_hunt_idx ON hunt_completions (hunt_id, completed_at DESC);
+
+-- People's Choice: one active vote per attendee per event.
+CREATE TABLE IF NOT EXISTS peoples_choice_votes (
+  id            TEXT PRIMARY KEY,
+  event_id      TEXT NOT NULL,
+  entry_id      TEXT NOT NULL,
+  attendee_ref  TEXT NOT NULL,
+  channel       TEXT,
+  data          JSONB NOT NULL,
+  voted_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (event_id, attendee_ref)
+);
+CREATE INDEX IF NOT EXISTS peoples_choice_entry_idx ON peoples_choice_votes (event_id, entry_id);
+CREATE INDEX IF NOT EXISTS peoples_choice_voted_idx ON peoples_choice_votes (voted_at DESC);
+
+-- Async job queue (SMS fan-out, QuickBooks sync, imports).
+CREATE TABLE IF NOT EXISTS platform_jobs (
+  id            TEXT PRIMARY KEY,
+  type          TEXT NOT NULL,
+  status        TEXT NOT NULL DEFAULT 'queued',
+  attempts      INTEGER NOT NULL DEFAULT 0,
+  max_attempts  INTEGER NOT NULL DEFAULT 5,
+  payload       JSONB NOT NULL DEFAULT '{}'::jsonb,
+  last_error    TEXT,
+  run_after     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  locked_by     TEXT,
+  locked_at     TIMESTAMPTZ,
+  lease_token   TEXT,
+  failure_handled_at TIMESTAMPTZ,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE platform_jobs ADD COLUMN IF NOT EXISTS locked_by TEXT;
+ALTER TABLE platform_jobs ADD COLUMN IF NOT EXISTS locked_at TIMESTAMPTZ;
+ALTER TABLE platform_jobs ADD COLUMN IF NOT EXISTS lease_token TEXT;
+ALTER TABLE platform_jobs ADD COLUMN IF NOT EXISTS failure_handled_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS platform_jobs_claim_idx
+  ON platform_jobs (status, run_after, created_at)
+  WHERE status = 'queued';
+CREATE INDEX IF NOT EXISTS platform_jobs_type_idx ON platform_jobs (type, created_at DESC);
+CREATE INDEX IF NOT EXISTS platform_jobs_lease_idx
+  ON platform_jobs (locked_at)
+  WHERE status = 'running';
