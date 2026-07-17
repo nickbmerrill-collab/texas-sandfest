@@ -4158,6 +4158,7 @@ body.mode-ops header nav a[data-audience="public"] {
 .admin-inline-form select,
 .admin-inline-form textarea,
 .admin-campaign-form input,
+.admin-campaign-form select,
 .admin-campaign-form textarea,
 .admin-partner-row-actions input,
 .admin-partner-row-actions select,
@@ -4655,8 +4656,12 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .admin-campaign-wide { grid-column: 1 / -1; }
 .admin-campaign-form > .button { justify-self: start; }
 .admin-campaign-list { max-height: 660px; }
-.admin-campaign-metrics { display: grid; gap: 5px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.admin-campaign-metrics { display: grid; gap: 5px; grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .admin-campaign-metrics span { background: var(--foam); color: var(--deep); font-size: 11px; font-weight: 800; padding: 7px; text-align: center; }
+.admin-campaign-automation { background: #eef6f5; border-left: 4px solid var(--gulf); color: var(--deep); display: grid; font-size: 11px; gap: 3px; line-height: 1.45; padding: 9px 11px; }
+.admin-campaign-automation strong { font-size: 12px; }
+.admin-campaign-automation[data-state="blocked"] { background: #fff0ee; border-left-color: #a62929; }
+.admin-campaign-automation[data-state="review"] { background: var(--foam); border-left-color: var(--muted); }
 .admin-prospect-location-controls { display: grid; gap: 6px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .admin-prospect-contact-controls { display: grid; gap: 6px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .admin-prospect-schedule-controls { display: grid; gap: 6px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -4949,6 +4954,7 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
   .admin-receivables-aging { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-camera-config { grid-template-columns: 1fr 1fr; }
   .admin-camera-config input[name="sourceUrl"] { grid-column: 1 / -1; }
+  .admin-campaign-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-campaign-wide { grid-column: auto; }
   .admin-prospect-location-controls { grid-template-columns: 1fr 1fr; }
   .admin-discovery-fields { grid-template-columns: 1fr 1fr; }

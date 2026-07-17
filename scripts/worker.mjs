@@ -22,7 +22,9 @@ import {
 } from "../lib/sms-operations.mjs";
 import { readPlatformDoc, updatePlatformDoc, writePlatformDoc } from "../lib/platform-data.mjs";
 import {
+  OUTREACH_CAMPAIGN_AUTOMATION_POLICY,
   PARTNER_TRANSACTIONAL_AUTOMATION_POLICY,
+  applyOutreachCampaignAutomation,
   applyTransactionalFollowupAutomation,
   automatedFollowupQueueCandidates,
   emptyPartnerOperations,
@@ -244,7 +246,10 @@ async function handleJob(job) {
     if (followup.status === "sent") return { ok: true, alreadySent: true, followupId: followup.id };
     const recipientContext = await readRecipientContext();
     if (job.payload.automated === true && followup.status === "approved") {
-      if (followup.approvedBy !== `automation:${PARTNER_TRANSACTIONAL_AUTOMATION_POLICY}`) {
+      const automationPolicy = String(followup.automationPolicy || "");
+      if (![PARTNER_TRANSACTIONAL_AUTOMATION_POLICY, OUTREACH_CAMPAIGN_AUTOMATION_POLICY].includes(automationPolicy)
+        || job.payload.automationPolicy !== automationPolicy
+        || followup.approvedBy !== `automation:${automationPolicy}`) {
         throw new Error("Automated send job does not match an automation-approved follow-up.");
       }
       let queued = null;
@@ -267,7 +272,10 @@ async function handleJob(job) {
       return { ok: true, canceled: true, followupId: followup.id, status: followup.status };
     }
     if (followup.status !== "queued") throw new Error(`Follow-up is ${followup.status}, not queued.`);
-    const resolved = resolveFollowupRecipient(doc, followup.id, recipientContext);
+    const resolved = resolveFollowupRecipient(doc, followup.id, {
+      ...recipientContext,
+      requireActiveCampaign: Boolean(followup.prospectId)
+    });
     if (!resolved.ok) throw new Error(resolved.error);
     const preferenceUrl = followup.prospectId ? outreachPreferencesUrl(resolved.recipient) : null;
     const delivery = await sendTransactionalEmail({
@@ -338,15 +346,19 @@ async function scheduleAutomatedFollowups(candidates, recipientContext = {}) {
   let failed = 0;
   for (const candidate of candidates.slice(0, BATCH)) {
     try {
+      const automationPolicy = candidate.automationPolicy;
+      if (![PARTNER_TRANSACTIONAL_AUTOMATION_POLICY, OUTREACH_CAMPAIGN_AUTOMATION_POLICY].includes(automationPolicy)) {
+        throw new Error("Follow-up does not carry a supported automation policy.");
+      }
       const job = await enqueueJob(ROOT, {
         type: "partner.followup.send",
         payload: {
           followupId: candidate.id,
           automated: true,
-          automationPolicy: PARTNER_TRANSACTIONAL_AUTOMATION_POLICY
+          automationPolicy
         },
         maxAttempts: 5,
-        idempotencyKey: `${PARTNER_TRANSACTIONAL_AUTOMATION_POLICY}:${candidate.id}:${candidate.approvedAt}`
+        idempotencyKey: `${automationPolicy}:${candidate.id}:${candidate.approvedAt}`
       });
       if (!["queued", "running"].includes(job.status)) {
         throw new Error(`Automation job ${job.id} is ${job.status}; a fresh approval is required before retrying.`);
@@ -501,7 +513,13 @@ async function tick() {
       preferenceUrlForProspect: outreachPreferencesUrl,
       sponsorInvitationUrlForProspect: sponsorInviteUrl
     });
-    const automated = applyTransactionalFollowupAutomation(outreach.doc, {
+    const outreachAutomated = applyOutreachCampaignAutomation(outreach.doc, {
+      providerReady: automationProviderReady,
+      maxBatch: BATCH,
+      idFactory: prefix => `${prefix}_${randomUUID()}`,
+      ...recipientContext
+    });
+    const automated = applyTransactionalFollowupAutomation(outreachAutomated.doc, {
       providerReady: automationProviderReady,
       maxBatch: BATCH,
       idFactory: prefix => `${prefix}_${randomUUID()}`,
@@ -511,17 +529,28 @@ async function tick() {
     generatedMilestoneDrafts = milestones.generated.length;
     generatedOutreachDrafts = outreach.generated.length;
     generatedDrafts = generatedTaskDrafts + generatedMilestoneDrafts + generatedOutreachDrafts;
-    autoApproved = automated.approved.length;
-    autoSkipped = automated.skipped.length;
-    automationCandidates = automatedFollowupQueueCandidates(automated.doc);
+    autoApproved = outreachAutomated.approved.length + automated.approved.length;
+    autoSkipped = outreachAutomated.skipped.length + automated.skipped.length;
+    automationCandidates = automatedFollowupQueueCandidates(automated.doc, {
+      maxBatch: BATCH,
+      providerReady: automationProviderReady
+    });
     return automated.doc;
   }, { fallback: partnerSeed });
   if (generatedTaskDrafts) console.log(`[worker] generated ${generatedTaskDrafts} task notification draft(s)`);
   if (generatedMilestoneDrafts) console.log(`[worker] generated ${generatedMilestoneDrafts} milestone follow-up draft(s)`);
   if (generatedOutreachDrafts) console.log(`[worker] generated ${generatedOutreachDrafts} outreach draft(s)`);
+  const campaignAutomationCandidates = automationCandidates.filter(item => item.automationPolicy === OUTREACH_CAMPAIGN_AUTOMATION_POLICY).length;
+  const transactionalAutomationCandidates = automationCandidates.filter(item => item.automationPolicy === PARTNER_TRANSACTIONAL_AUTOMATION_POLICY).length;
   const automated = await scheduleAutomatedFollowups(automationCandidates, recipientContext);
   if (autoApproved || automated.queued || automated.failed) {
-    console.log(`[worker] transactional automation approved=${autoApproved} queued=${automated.queued} skipped=${autoSkipped} failed=${automated.failed}`);
+    if (campaignAutomationCandidates) {
+      console.log(`[worker] outreach campaign automation policy=${OUTREACH_CAMPAIGN_AUTOMATION_POLICY} candidates=${campaignAutomationCandidates}`);
+    }
+    if (transactionalAutomationCandidates) {
+      console.log(`[worker] transactional automation policy=${PARTNER_TRANSACTIONAL_AUTOMATION_POLICY} candidates=${transactionalAutomationCandidates}`);
+    }
+    console.log(`[worker] message automation approved=${autoApproved} queued=${automated.queued} skipped=${autoSkipped} failed=${automated.failed}`);
   }
   const jobs = await claimNextJobs(ROOT, { limit: BATCH, workerId: QUEUE.workerId, leaseMs: QUEUE.leaseMs });
   await reconcileTerminalQueueFailures();

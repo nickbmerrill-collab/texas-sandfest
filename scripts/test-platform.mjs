@@ -93,8 +93,10 @@ import {
   verifyOutreachDiscoveryPreview
 } from "../lib/outreach-discovery.mjs";
 import {
+  OUTREACH_CAMPAIGN_AUTOMATION_POLICY,
   PARTNER_TRANSACTIONAL_AUTOMATION_POLICY,
   PARTNER_TRANSACTIONAL_FOLLOWUP_KINDS,
+  applyOutreachCampaignAutomation,
   applyTransactionalFollowupAutomation,
   automatedFollowupQueueCandidates,
   createPartnerBrandAsset,
@@ -117,6 +119,7 @@ import {
   generateDueTaskFollowups,
   matchOutreachProspects,
   outreachDistanceMiles,
+  outreachCampaignAutomationReadiness,
   partnerAutomationReadiness,
   prepareFollowupDraft,
   queueFollowupDelivery,
@@ -2320,7 +2323,7 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
     postalCode: "bad-zip",
     latitude: 27.8
   }, { idFactory, now });
-  ok("outreach campaign targeting", campaign.ok && campaign.campaign.targeting.postalCodes[0] === "78373" && matchOutreachProspects(campaign.doc, campaign.campaign).length === 1);
+  ok("outreach campaign targeting", campaign.ok && campaign.campaign.targeting.postalCodes[0] === "78373" && campaign.campaign.deliveryMode === "review_first" && campaign.campaign.dailySendLimit === 25 && matchOutreachProspects(campaign.doc, campaign.campaign).length === 1);
   ok("outreach radius targeting", radiusCampaign.ok && matchOutreachProspects(radiusCampaign.doc, radiusCampaign.campaign).map(item => item.id).join() === prospect.prospect.id && outreachDistanceMiles(27.8339, -97.0611, 30.2672, -97.7431) > 150);
   ok("outreach geofence validation", !invalidGeofence.ok && invalidGeofence.error.includes("requires center"));
   ok("outreach location correction", correctedProspectLocation.ok && correctedProspectLocation.prospect.fitScore === 100 && correctedProspectLocation.prospect.fitReasons.length === 3 && !invalidProspectLocation.ok);
@@ -2340,6 +2343,45 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   const campaignDraftAgain = generateDueOutreachFollowups(campaignDraft.doc, { idFactory, now });
   ok("outreach personalized draft", campaignDraft.generated.length === 1 && campaignDraft.generated[0].subject.includes("Island Hotel") && campaignDraft.generated[0].status === "draft_ready" && campaignDraft.generated[0].body.includes(preferenceUrl) && campaignDraft.generated[0].body.includes(issuedInvitation.invitationUrl));
   ok("outreach draft idempotency", campaignDraftAgain.generated.length === 0);
+  const automatedProspect = createOutreachProspect(campaignDraft.doc, {
+    organizationName: "Harbor Lodging Group",
+    contactName: "Taylor Morgan",
+    contactEmail: "partnerships@harbor-lodging.example",
+    contactBasis: "business_relevance",
+    status: "contact_ready",
+    industry: "lodging",
+    city: "Port Aransas",
+    state: "TX",
+    postalCode: "78373",
+    latitude: 27.834,
+    longitude: -97.061
+  }, { idFactory, now });
+  const automatedCampaign = createOutreachCampaign(automatedProspect.doc, {
+    name: "Approved lodging sequence",
+    deliveryMode: "approved_sequence",
+    dailySendLimit: 1,
+    targeting: { industries: ["lodging"], cities: ["Port Aransas"], states: ["TX"] },
+    sequence: [{ delayDays: 0, subjectTemplate: "SandFest and {{organization}}", bodyTemplate: "Hello {{contactName}}, may we share our sponsor program?" }]
+  }, { actorId: "sponsor_1", idFactory, now });
+  const blockedAutomatedActivation = updateOutreachCampaignStatus(automatedCampaign.doc, automatedCampaign.campaign.id, "activate", { actorId: "sponsor_1", idFactory, now });
+  const activatedAutomatedCampaign = updateOutreachCampaignStatus(automatedCampaign.doc, automatedCampaign.campaign.id, "activate", { actorId: "sponsor_1", idFactory, now, providerReady: true });
+  const generatedAutomatedCampaign = generateDueOutreachFollowups(activatedAutomatedCampaign.doc, { idFactory, now });
+  const appliedAutomatedCampaign = applyOutreachCampaignAutomation(generatedAutomatedCampaign.doc, { idFactory, now, providerReady: true });
+  const automatedReadiness = outreachCampaignAutomationReadiness(appliedAutomatedCampaign.doc, activatedAutomatedCampaign.campaign, { now, providerReady: true });
+  const campaignQueueCandidates = automatedFollowupQueueCandidates(appliedAutomatedCampaign.doc, { maxBatch: 10, now, providerReady: true });
+  const providerBlockedCampaignCandidates = automatedFollowupQueueCandidates(appliedAutomatedCampaign.doc, { maxBatch: 10, now, providerReady: false });
+  const carriedQueueDoc = {
+    ...appliedAutomatedCampaign.doc,
+    followups: appliedAutomatedCampaign.doc.followups.map(item => item.id === appliedAutomatedCampaign.approved[0].id
+      ? { ...item, status: "queued", queuedAt: "2026-05-14T23:59:00.000Z" }
+      : item)
+  };
+  const carriedQueueReadiness = outreachCampaignAutomationReadiness(carriedQueueDoc, automatedCampaign.campaign.id, { now: "2026-05-15T01:00:00.000Z", providerReady: true });
+  const pausedAutomatedCampaign = updateOutreachCampaignStatus(appliedAutomatedCampaign.doc, automatedCampaign.campaign.id, "pause", { actorId: "sponsor_1", idFactory, now });
+  ok("campaign automation requires delivery readiness", !blockedAutomatedActivation.ok && blockedAutomatedActivation.providerNotReady === true && activatedAutomatedCampaign.ok);
+  ok("campaign approval automates one bounded message", generatedAutomatedCampaign.generated.length === 1 && appliedAutomatedCampaign.approved.length === 1 && appliedAutomatedCampaign.approved[0].automationPolicy === OUTREACH_CAMPAIGN_AUTOMATION_POLICY && automatedReadiness.dailySendLimit === 1 && automatedReadiness.remainingToday === 0 && campaignQueueCandidates.length === 1);
+  ok("campaign automation fails closed and carries queued capacity", providerBlockedCampaignCandidates.length === 0 && carriedQueueReadiness.queuedPending === 1 && carriedQueueReadiness.remainingToday === 0);
+  ok("campaign pause returns unsent automation to review", pausedAutomatedCampaign.ok && pausedAutomatedCampaign.returnedToReview === 1 && pausedAutomatedCampaign.doc.followups.find(item => item.id === appliedAutomatedCampaign.approved[0].id)?.status === "draft_ready" && automatedFollowupQueueCandidates(pausedAutomatedCampaign.doc, { now }).length === 0);
   const movedOutsideCampaign = updateOutreachProspect(campaignDraft.doc, prospect.prospect.id, {
     city: "Austin",
     postalCode: "78701",

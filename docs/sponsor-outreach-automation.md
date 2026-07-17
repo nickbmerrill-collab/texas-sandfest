@@ -2,7 +2,7 @@
 
 ## Operating model
 
-Sponsor outreach is always review-first and is excluded from transactional partner automation. Automation selects eligible prospects and prepares personalized drafts; it does not approve or send them. A staff member with `outreach:write` activates campaigns, and a staff member with `partners:write` reviews and queues each message. Brevo remains gated by `TRANSACTIONAL_EMAIL_ENABLED=true`, a verified sender, a valid API key, and an authenticated delivery webhook in production.
+Sponsor outreach defaults to review-first and remains separate from transactional partner automation. Each campaign may either require individual message review or use an explicitly approved sequence with a one-to-100-message daily limit. A staff member with `outreach:write` approves and activates an automated sequence once; the worker may then approve and queue only eligible messages belonging to that active campaign. Review-first messages still require a staff member with `partners:write` to review and queue each message. Brevo remains gated by `TRANSACTIONAL_EMAIL_ENABLED=true`, a verified sender, a valid API key, and an authenticated delivery webhook in production; an approved sequence cannot activate until both sending and delivery tracking are ready.
 
 ## Prospect controls
 
@@ -12,7 +12,7 @@ Every prospect has a scored geography/industry fit, pipeline status, business em
 
 Once a prospect is qualified and has a verified decision maker, business email, and contact basis, outreach staff can choose an active sponsorship package and issue a 30-day sponsor invitation. The signed capability binds the prospect, package, email identity, expiration, and invitation version. It lives in the URL fragment, is concealed after the public page opens, and can be copied again without rotating it. Replacing or revoking an invitation invalidates the previous link; queued outreach blocks either action so a message cannot be sent with a capability that staff just invalidated.
 
-Issuing or replacing an invitation appends the current link to eligible unsent sponsor-outreach drafts and returns previously approved drafts to review. The worker also regenerates the current invitation immediately before it prepares a due campaign draft. Sponsor outreach remains review-first throughout this handoff.
+Issuing or replacing an invitation appends the current link to eligible unsent sponsor-outreach drafts and returns previously approved drafts to review. The worker also regenerates the current invitation immediately before it prepares a due campaign draft. On its next pass, it may reapprove the message only when the prospect still belongs to an active, explicitly approved sequence.
 
 Opening the link prefills and locks the invited business, email, and package while leaving the contact, description, and explicit contact consent visible to the recipient. Staff do not fabricate an application on the prospect's behalf. A valid public submission atomically creates the sponsor application, brand profile, package deliverables, key dates, review task, acknowledgment draft, expected package amount, and private partner portal. The prospect becomes `won`, stores the application link, and every remaining unsent outreach message is dismissed. Concurrent or repeated submissions converge on the same application. Reopening a used invitation recovers the resulting private portal instead of creating another application.
 
@@ -58,16 +58,16 @@ Changing a prospect's location, qualification, contact basis, or email dismisses
 
 ## Campaign lifecycle
 
-1. Create a `draft` campaign with one to four sequence steps.
+1. Create a `draft` campaign with one to four sequence steps, a delivery mode, and a daily send limit.
 2. Set targeting by industry, city, state, ZIP, optional center/radius, and minimum fit score.
-3. Activate the campaign. Activation fails when no eligible prospects match.
+3. Activate the campaign. Activation fails when no eligible prospects match; approved-sequence activation also fails until email delivery and authenticated callbacks are ready.
 4. Generate due drafts manually or allow the background worker to generate them.
-5. Review each `draft_ready` message, then approve or dismiss it.
-6. Queue an approved message for Brevo delivery.
+5. In review-first mode, review each `draft_ready` message and approve or dismiss it. In approved-sequence mode, the worker approves only the current campaign's eligible drafts within its daily limit.
+6. Queue approved messages for Brevo delivery. Retry-safe job keys bind the campaign policy, message, and approval timestamp.
 7. After delivery is proven, the next sequence step becomes eligible when its delay expires.
-8. Pause, complete, or archive the campaign when appropriate.
+8. Pause, complete, or archive the campaign when appropriate. Pausing returns unsent automated messages to review and clears their jobs; completing or archiving dismisses all unsent campaign messages.
 
-Generation is idempotent by campaign, prospect, and sequence step. Repeated worker ticks or API calls cannot create a duplicate step.
+Generation is idempotent by campaign, prospect, and sequence step. Repeated worker ticks or API calls cannot create a duplicate step. Before every automated approval and provider call, current campaign status, targeting, contact basis, recipient identity, suppression, invitation version, and preference capability are revalidated.
 
 ## Template fields
 

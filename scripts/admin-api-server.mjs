@@ -139,6 +139,7 @@ import {
   failPartnerPaymentCheckout,
   generateDueOutreachFollowups,
   normalizePartnerOperations,
+  outreachCampaignAutomationReadiness,
   outreachCampaignMetrics,
   partnerAutomationReadiness,
   queueFollowupDelivery,
@@ -4980,11 +4981,16 @@ async function handleRequest(request, response) {
     if (method === "GET" && pathname === "/api/admin/outreach") {
       if (!(await requirePermission(request, response, "outreach:read"))) return;
       const doc = await readPartnerOperations();
+      const outreachAutomationProviderReady = emailConfigFromEnv().ready && BREVO_WEBHOOK.ready;
       sendJson(request, response, 200, {
         lastUpdated: doc.lastUpdated,
         summary: summarizePartnerOperations(doc).outreach,
         prospects: doc.prospects,
-        campaigns: doc.campaigns.map(campaign => ({ ...campaign, metrics: outreachCampaignMetrics(doc, campaign) })),
+        campaigns: doc.campaigns.map(campaign => ({
+          ...campaign,
+          metrics: outreachCampaignMetrics(doc, campaign),
+          automation: outreachCampaignAutomationReadiness(doc, campaign, { providerReady: outreachAutomationProviderReady })
+        })),
         followups: doc.followups.map(adminPartnerFollowupView),
         preferences: publicOutreachPreferencesReadiness(OUTREACH_PREFERENCES),
         discovery: publicOutreachDiscoveryReadiness(OUTREACH_DISCOVERY),
@@ -5285,17 +5291,27 @@ async function handleRequest(request, response) {
       const action = outreachCampaignActionMatch[2];
       const beforeDoc = await readPartnerOperations();
       const before = beforeDoc.campaigns.find(item => item.id === campaignId) ?? null;
+      const outreachAutomationProviderReady = emailConfigFromEnv().ready && BREVO_WEBHOOK.ready;
       const result = await mutatePartnerOperations(doc => updateOutreachCampaignStatus(doc, campaignId, action, {
         actorId: session.id,
         idFactory: prefix => `${prefix}_${randomUUID()}`,
-        now: new Date().toISOString()
+        now: new Date().toISOString(),
+        providerReady: outreachAutomationProviderReady
       }));
       if (!result?.ok) {
-        sendJson(request, response, result?.error === "Campaign not found." ? 404 : 400, { error: result?.error || "Campaign status could not be changed." });
+        sendJson(request, response, result?.error === "Campaign not found." ? 404 : result?.providerNotReady ? 409 : 400, { error: result?.error || "Campaign status could not be changed." });
         return;
       }
-      await writeAuditRecord(request, `outreach.campaign.${action}`, { type: "campaign", id: campaignId }, before, result.campaign);
-      sendJson(request, response, 200, { campaign: result.campaign });
+      await writeAuditRecord(request, `outreach.campaign.${action}`, { type: "campaign", id: campaignId }, before, result.campaign, {
+        returnedToReview: result.returnedToReview,
+        dismissedFollowups: result.dismissedFollowups
+      });
+      sendJson(request, response, 200, {
+        campaign: result.campaign,
+        returnedToReview: result.returnedToReview,
+        dismissedFollowups: result.dismissedFollowups,
+        automation: outreachCampaignAutomationReadiness(result.doc, result.campaign, { providerReady: outreachAutomationProviderReady })
+      });
       return;
     }
 

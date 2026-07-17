@@ -291,13 +291,23 @@ try {
   check("seeded work and outreach are visible", seeded.data.tasks?.length === 3 && seeded.data.followups?.length >= 2 && outreach.status === 200 && outreach.data.prospects?.length === 1 && outreach.data.campaigns?.length === 1);
   check("board staff routing is current and private", seeded.data.staffDirectory?.ready === true && seeded.data.staffDirectory?.activeStaff === 7 && seeded.data.staffDirectory?.routedTeams === 7 && seeded.data.assignmentDirectory?.teams?.every(item => item.notificationReady === true) && seeded.data.assignmentDirectory?.staff?.every(item => !("email" in item)));
   const seededSponsorProspect = outreach.data.prospects?.[0];
+  const seededOutreachCampaign = outreach.data.campaigns?.[0];
   check("seeded outreach has accountable follow-up", seededSponsorProspect?.ownerId === "sponsor" && seededSponsorProspect?.nextActionAt && outreach.data.summary?.nextActionsScheduled === 1 && outreach.data.summary?.unassigned === 0);
+  check("seeded outreach exposes bounded campaign approval", seededOutreachCampaign?.deliveryMode === "approved_sequence" && seededOutreachCampaign?.dailySendLimit === 5 && seededOutreachCampaign?.automation?.enabled === true && seededOutreachCampaign?.automation?.active === false);
   const boardSponsorInvitation = await request(base, "POST", `/api/admin/outreach/prospects/${seededSponsorProspect?.id}/sponsor-invitation`, {
     action: "issue",
     packageId: "tarpon"
   }, { auth: true });
   const boardSponsorInvitationHash = boardSponsorInvitation.data.invitation?.url ? new URL(boardSponsorInvitation.data.invitation.url).hash : "";
   const boardSponsorInvitationToken = new URLSearchParams(boardSponsorInvitationHash.slice(boardSponsorInvitationHash.indexOf("?") + 1)).get("token");
+  const boardCampaignActivation = await request(base, "POST", `/api/admin/outreach/campaigns/${seededOutreachCampaign?.id}/activate`, {}, { auth: true });
+  const outreachWorkerOutput = await runWorker(child.processEnv);
+  const deliveredOutreach = await waitFor(async () => {
+    const workspace = await request(base, "GET", "/api/admin/outreach", undefined, { auth: true });
+    const message = workspace.data.followups?.find(item => item.campaignId === seededOutreachCampaign?.id);
+    return message?.status === "sent" && message?.deliveryStatus === "delivered" ? { workspace, message } : null;
+  });
+  check("board-approved outreach sequence delivers through the local sandbox", boardCampaignActivation.status === 200 && boardCampaignActivation.data.automation?.active === true && outreachWorkerOutput.includes("outreach_campaign_v1") && deliveredOutreach?.message?.automationPolicy === "outreach_campaign_v1" && deliveredOutreach?.message?.body?.includes(boardSponsorInvitation.data.invitation?.url));
   const boardPublicInvitation = await request(base, "POST", "/api/public/sponsor-invitation", { token: boardSponsorInvitationToken });
   const boardInvitedSponsor = await request(base, "POST", "/api/public/sponsor-inquiries", {
     organizationName: seededSponsorProspect?.organizationName,
@@ -391,10 +401,12 @@ try {
     deliveredStatuses: latestWorkspace?.data.followups?.map(item => ({ kind: item.kind, status: item.status, deliveryStatus: item.deliveryStatus })) || null,
     emailHealth
   };
-  const localDeliveryReady = automationEnabled.status === 200 && automationEnabled.data.automation?.active === true && automatedWorkerOutput.includes("transactional automation") && deliveredMessages.length >= 5 && emailHealth.acceptedMessages >= 5 && emailHealth.deliveryCallbacks >= 5 && emailHealth.callbackFailures === 0;
-  const reviewPolicyPreserved = deliveredMessages.every(item => !item.campaignId) && latestWorkspace?.data.email?.ready === true && latestWorkspace?.data.email?.deliveryTracking?.ready === true && latestWorkspace?.data.automation?.policy === "partner_transactional_v1";
+  const localDeliveryReady = automationEnabled.status === 200 && automationEnabled.data.automation?.active === true && automatedWorkerOutput.includes("transactional automation") && deliveredMessages.length >= 6 && emailHealth.acceptedMessages >= 6 && emailHealth.deliveryCallbacks >= 6 && emailHealth.callbackFailures === 0;
+  const approvedCampaignMessages = deliveredMessages.filter(item => item.campaignId);
+  const transactionalMessages = deliveredMessages.filter(item => !item.campaignId);
+  const automationPolicyScoped = approvedCampaignMessages.length === 1 && approvedCampaignMessages.every(item => item.automationPolicy === "outreach_campaign_v1") && transactionalMessages.every(item => item.automationPolicy === "partner_transactional_v1") && latestWorkspace?.data.email?.ready === true && latestWorkspace?.data.email?.deliveryTracking?.ready === true && latestWorkspace?.data.automation?.policy === "partner_transactional_v1";
   check("board transactional automation delivers known-partner messages locally", localDeliveryReady, localDeliveryReady ? "" : JSON.stringify(automationProof));
-  check("board email sandbox preserves outreach review policy", reviewPolicyPreserved, reviewPolicyPreserved ? "" : JSON.stringify(automationProof));
+  check("board automation stays scoped to approved campaigns and transactional policy", automationPolicyScoped, automationPolicyScoped ? "" : JSON.stringify(automationProof));
 
   const conditions = await request(base, "GET", "/api/public/island-conditions");
   check("board conditions expose fresh synthetic lanes without claiming live hardware", conditions.status === 200 && conditions.data.cameras?.length === 8 && conditions.data.summary?.freshObservations === 8 && conditions.data.summary?.liveCameras === 0 && conditions.data.summary?.armedCameras === 0);
