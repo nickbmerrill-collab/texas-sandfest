@@ -27,6 +27,7 @@ import {
   applyOutreachCampaignAutomation,
   applyTransactionalFollowupAutomation,
   automatedFollowupQueueCandidates,
+  beginFollowupProviderSubmission,
   claimFollowupDelivery,
   emptyPartnerOperations,
   generateDueOutreachFollowups,
@@ -37,8 +38,7 @@ import {
   queueFollowupDelivery,
   recordFollowupDelivery,
   recordPartnerInvoiceReconciliation,
-  recordPartnerInvoiceSync,
-  resolveFollowupRecipient
+  recordPartnerInvoiceSync
 } from "../lib/partner-ops.mjs";
 import { emailConfigFromEnv, sendTransactionalEmail } from "../lib/email.mjs";
 import { applyBrevoDeliveryEvents, brevoWebhookConfig } from "../lib/brevo-webhook.mjs";
@@ -249,17 +249,19 @@ async function handleJob(job) {
       if (followup.deliveryClaimId !== job.id) {
         return { ok: true, canceled: true, followupId: followup.id, status: followup.status };
       }
-      let unknown = null;
-      await updatePlatformDoc(ROOT, "partnerOps", current => {
-        unknown = recordFollowupDelivery(current, followup.id, {
-          sent: false,
-          provider: "worker",
-          error: "A previous worker stopped after claiming delivery; verify the provider before a manual retry."
-        }, { terminal: true, unknownOutcome: true, deliveryClaimId: job.id });
-        return unknown.ok ? unknown.doc : normalizePartnerOperations(current);
-      }, { fallback: doc });
-      if (!unknown?.ok) throw new Error(unknown?.error || "Unknown email outcome could not be recorded.");
-      return { ok: true, deliveryUnknown: true, followupId: followup.id, status: unknown.followup.status };
+      if (followup.providerSubmissionStartedAt) {
+        let unknown = null;
+        await updatePlatformDoc(ROOT, "partnerOps", current => {
+          unknown = recordFollowupDelivery(current, followup.id, {
+            sent: false,
+            provider: "worker",
+            error: "A previous worker stopped after starting provider submission; verify the provider before a manual retry."
+          }, { terminal: true, unknownOutcome: true, deliveryClaimId: job.id });
+          return unknown.ok ? unknown.doc : normalizePartnerOperations(current);
+        }, { fallback: doc });
+        if (!unknown?.ok) throw new Error(unknown?.error || "Unknown email outcome could not be recorded.");
+        return { ok: true, deliveryUnknown: true, followupId: followup.id, status: unknown.followup.status };
+      }
     }
     const recipientContext = await readRecipientContext();
     if (job.payload.automated === true && followup.status === "approved") {
@@ -285,82 +287,66 @@ async function handleJob(job) {
       doc = normalizePartnerOperations(await readPlatformDoc(ROOT, "partnerOps", emptyPartnerOperations()));
       followup = doc.followups.find(item => item.id === job.payload.followupId);
     }
-    if (job.payload.automated === true && ["draft_ready", "dismissed", "failed"].includes(followup?.status)) {
+    if (["draft_ready", "dismissed", "failed"].includes(followup?.status)) {
       return { ok: true, canceled: true, followupId: followup.id, status: followup.status };
     }
-    if (followup.status !== "queued") throw new Error(`Follow-up is ${followup.status}, not queued.`);
-    let claimed = null;
+    if (!["queued", "sending"].includes(followup.status)) throw new Error(`Follow-up is ${followup.status}, not queued or sending.`);
+    if (followup.status === "queued") {
+      let claimed = null;
+      await updatePlatformDoc(ROOT, "partnerOps", current => {
+        claimed = claimFollowupDelivery(current, followup.id, {
+          ...recipientContext,
+          deliveryClaimId: job.id,
+          now: new Date().toISOString()
+        });
+        return claimed.ok ? claimed.doc : normalizePartnerOperations(current);
+      }, { fallback: doc });
+      if (!claimed?.ok) {
+        if (claimed?.canceled || claimed?.status === "sent") {
+          return { ok: true, canceled: claimed.status !== "sent", alreadySent: claimed.status === "sent", followupId: followup.id, status: claimed.status };
+        }
+        throw new Error(claimed?.error || "Follow-up delivery could not be claimed.");
+      }
+      doc = claimed.doc;
+      followup = claimed.followup;
+    }
+    let begun = null;
     await updatePlatformDoc(ROOT, "partnerOps", current => {
-      claimed = claimFollowupDelivery(current, followup.id, {
+      begun = beginFollowupProviderSubmission(current, followup.id, {
         ...recipientContext,
         deliveryClaimId: job.id,
+        actorId: "worker",
         now: new Date().toISOString()
       });
-      return claimed.ok ? claimed.doc : normalizePartnerOperations(current);
+      return begun.ok ? begun.doc : normalizePartnerOperations(current);
     }, { fallback: doc });
-    if (!claimed?.ok) {
-      if (claimed?.canceled || claimed?.status === "sent") {
-        return { ok: true, canceled: claimed.status !== "sent", alreadySent: claimed.status === "sent", followupId: followup.id, status: claimed.status };
+    if (!begun?.ok) {
+      if (begun?.canceled || begun?.status === "sent") {
+        return { ok: true, canceled: begun.status !== "sent", alreadySent: begun.status === "sent", followupId: followup.id, status: begun.status };
       }
-      throw new Error(claimed?.error || "Follow-up delivery could not be claimed.");
+      throw new Error(begun?.error || "Provider submission could not be started.");
     }
-    doc = claimed.doc;
-    followup = claimed.followup;
-    let sendOutcome = null;
+    if (begun.canceled) return { ok: true, canceled: true, followupId: followup.id, status: begun.status };
+    followup = begun.followup;
+    const preferenceUrl = followup.prospectId ? outreachPreferencesUrl(begun.recipient) : null;
+    const delivery = await sendTransactionalEmail({
+      toEmail: followup.recipient,
+      toName: begun.toName,
+      subject: followup.subject,
+      textContent: preferenceUrl ? appendOutreachPreferenceFooter(followup.body, preferenceUrl) : followup.body,
+      listUnsubscribeUrl: preferenceUrl,
+      idempotencyKey: followup.deliveryIdempotencyKey,
+      tags: ["sandfest-partner", `followup-${followup.id}`]
+    }, { config: emailConfigFromEnv() });
+    if (!delivery.sent && !delivery.duplicate) {
+      const error = new Error(delivery.error || delivery.reason || "Transactional email was not sent.");
+      error.delivery = delivery;
+      throw error;
+    }
+    let recorded = null;
     try {
-      await updatePlatformDoc(ROOT, "partnerOps", async current => {
-        const currentDoc = normalizePartnerOperations(current);
-        const currentFollowup = currentDoc.followups.find(item => item.id === followup.id);
-        if (!currentFollowup || currentFollowup.status !== "sending" || currentFollowup.deliveryClaimId !== job.id) {
-          sendOutcome = { ok: true, canceled: true, status: currentFollowup?.status || "missing" };
-          return currentDoc;
-        }
-        const resolved = resolveFollowupRecipient(currentDoc, currentFollowup.id, {
-          ...recipientContext,
-          requireActiveCampaign: Boolean(currentFollowup.prospectId)
-        });
-        if (!resolved.ok) {
-          const campaign = currentFollowup.campaignId ? currentDoc.campaigns.find(item => item.id === currentFollowup.campaignId) : null;
-          const returnToReview = campaign && campaign.status !== "active";
-          const nextFollowup = {
-            ...currentFollowup,
-            status: returnToReview ? "draft_ready" : "dismissed",
-            approvedBy: null,
-            approvedAt: null,
-            automationPolicy: null,
-            automationDecision: returnToReview ? "returned_to_review" : "delivery_eligibility_revoked",
-            automationApprovedAt: null,
-            automationCampaignApprovedAt: null,
-            automationJobId: null,
-            deliveryClaimId: null,
-            deliveryClaimedAt: null,
-            dismissedAt: returnToReview ? currentFollowup.dismissedAt : new Date().toISOString(),
-            dismissedBy: returnToReview ? currentFollowup.dismissedBy : "worker",
-            lastError: resolved.error,
-            updatedAt: new Date().toISOString()
-          };
-          sendOutcome = { ok: true, canceled: true, status: nextFollowup.status };
-          return {
-            ...currentDoc,
-            lastUpdated: nextFollowup.updatedAt,
-            followups: currentDoc.followups.map(item => item.id === nextFollowup.id ? nextFollowup : item)
-          };
-        }
-        const preferenceUrl = currentFollowup.prospectId ? outreachPreferencesUrl(resolved.recipient) : null;
-        const delivery = await sendTransactionalEmail({
-          toEmail: currentFollowup.recipient,
-          toName: resolved.toName,
-          subject: currentFollowup.subject,
-          textContent: preferenceUrl ? appendOutreachPreferenceFooter(currentFollowup.body, preferenceUrl) : currentFollowup.body,
-          listUnsubscribeUrl: preferenceUrl,
-          idempotencyKey: currentFollowup.deliveryIdempotencyKey,
-          tags: ["sandfest-partner", `followup-${currentFollowup.id}`]
-        }, { config: emailConfigFromEnv() });
-        if (!delivery.sent && !delivery.duplicate) {
-          sendOutcome = { ok: false, delivery, error: delivery.error || delivery.reason || "Transactional email was not sent." };
-          return currentDoc;
-        }
-        const recorded = recordFollowupDelivery(currentDoc, currentFollowup.id, delivery.duplicate ? {
+      await updatePlatformDoc(ROOT, "partnerOps", current => {
+        recorded = recordFollowupDelivery(current, followup.id, delivery.duplicate ? {
           ...delivery,
           error: "Brevo already accepted this idempotency key; verify provider delivery before a manual retry."
         } : delivery, {
@@ -368,33 +354,21 @@ async function handleJob(job) {
           unknownOutcome: delivery.duplicate === true,
           deliveryClaimId: job.id
         });
-        if (!recorded.ok) {
-          sendOutcome = { ok: false, delivery, error: recorded.error || "Email outcome could not be recorded." };
-          return currentDoc;
-        }
+        if (!recorded.ok) return normalizePartnerOperations(current);
         const reconciled = applyBrevoDeliveryEvents(recorded.doc, []);
-        const recordedFollowup = reconciled.doc.followups.find(item => item.id === currentFollowup.id);
-        sendOutcome = delivery.duplicate
-          ? { ok: true, deliveryUnknown: true, status: recordedFollowup.status }
-          : { ok: true, delivery, status: recordedFollowup.status };
+        recorded = { ...recorded, doc: reconciled.doc, followup: reconciled.doc.followups.find(item => item.id === followup.id) };
         return reconciled.doc;
       }, { fallback: doc });
     } catch (error) {
-      if (sendOutcome?.delivery) error.delivery = sendOutcome.delivery;
+      error.delivery = delivery;
       throw error;
     }
-    if (!sendOutcome?.ok) {
-      const error = new Error(sendOutcome?.error || "Transactional email was not sent.");
-      error.delivery = sendOutcome?.delivery;
+    if (!recorded?.ok) {
+      const error = new Error(recorded?.error || "Email outcome could not be recorded.");
+      error.delivery = delivery;
       throw error;
     }
-    if (sendOutcome.canceled) {
-      return { ok: true, canceled: true, followupId: followup.id, status: sendOutcome.status };
-    }
-    if (sendOutcome.deliveryUnknown) {
-      return { ok: true, deliveryUnknown: true, followupId: followup.id, status: sendOutcome.status };
-    }
-    const delivery = sendOutcome.delivery;
+    if (delivery.duplicate) return { ok: true, deliveryUnknown: true, followupId: followup.id, status: recorded.followup.status };
     console.log(`[worker] partner.followup.send job=${job.id} followup=${followup.id} provider=${delivery.provider} message=${delivery.providerMessageId || "accepted"}`);
     return { ok: true, followupId: followup.id, provider: delivery.provider, providerMessageId: delivery.providerMessageId };
   }

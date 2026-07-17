@@ -1413,6 +1413,11 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
     status: "contact_ready"
   }, { auth: true });
   const automationOutreachGeneration = await request(base, "POST", `/api/admin/outreach/campaigns/${campaignId}/generate`, {}, { auth: true });
+  const manualOutreachWorkspace = await request(base, "GET", "/api/admin/outreach", undefined, { auth: true });
+  const manualOutreachDraft = manualOutreachWorkspace.data.followups?.find(item => item.prospectId === automationProspect.data.prospect?.id && item.campaignId === campaignId && item.kind === "sponsor_outreach");
+  const manualOutreachApproval = await request(base, "POST", `/api/admin/partners/followups/${manualOutreachDraft?.id}/review`, { action: "approve" }, { auth: true });
+  const manualOutreachQueue = await request(base, "POST", `/api/admin/partners/followups/${manualOutreachDraft?.id}/send`, {}, { auth: true });
+  const pausedManualOutreach = await request(base, "POST", `/api/admin/outreach/campaigns/${campaignId}/pause`, {}, { auth: true });
   const approvedSequenceCampaign = await request(base, "POST", "/api/admin/outreach/campaigns", {
     name: "Postgres approved sponsor sequence",
     objective: "Prove bounded campaign-approved delivery",
@@ -1444,8 +1449,8 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
   }, { headers: { "idempotency-key": "postgres-automatic-sponsor-intake-0001" } });
   check(
     "transactional automation enables only with provider ready",
-    automationProspect.status === 201 && automationOutreachGeneration.data.generated === 1 && approvedSequenceCampaign.status === 201 && approvedSequenceActivation.status === 200 && approvedSequenceActivation.data.automation?.active === true && automationMode.status === 200 && automationMode.data.automation?.active === true && automaticIntake.status === 201,
-    `prospect=${automationProspect.status} generated=${automationOutreachGeneration.data.generated ?? "missing"} campaign=${approvedSequenceCampaign.status}:${approvedSequenceActivation.status} mode=${automationMode.status}:${automationMode.data.error || automationMode.data.automation?.mode || "missing"} intake=${automaticIntake.status}`
+    automationProspect.status === 201 && automationOutreachGeneration.data.generated === 1 && manualOutreachApproval.status === 200 && manualOutreachQueue.status === 202 && pausedManualOutreach.status === 200 && approvedSequenceCampaign.status === 201 && approvedSequenceActivation.status === 200 && approvedSequenceActivation.data.automation?.active === true && automationMode.status === 200 && automationMode.data.automation?.active === true && automaticIntake.status === 201,
+    `prospect=${automationProspect.status} generated=${automationOutreachGeneration.data.generated ?? "missing"} manual=${manualOutreachApproval.status}:${manualOutreachQueue.status}:${pausedManualOutreach.status} campaign=${approvedSequenceCampaign.status}:${approvedSequenceActivation.status} mode=${automationMode.status}:${automationMode.data.error || automationMode.data.automation?.mode || "missing"} intake=${automaticIntake.status}`
   );
   await runChild(["scripts/worker.mjs"], {
     ...commonEnv,
@@ -1473,12 +1478,14 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
   const automaticallySentFollowups = automatedPartnerDoc?.followups?.filter(item => item.status === "sent" && item.automationPolicy === "partner_transactional_v1") || [];
   const automationPool = await getPool();
   const automationJobRows = await automationPool.query("SELECT id, status FROM platform_jobs WHERE id = $1", [automatedAcknowledgment?.automationJobId]);
+  const manualOutreachJobRows = await automationPool.query("SELECT id, status, attempts FROM platform_jobs WHERE id = $1", [manualOutreachQueue.data.job?.id]);
   check(
     "worker auto-delivers known-partner transaction once",
     automatedAcknowledgment?.status === "sent" && automatedAcknowledgment?.approvedBy === "automation:partner_transactional_v1" && automatedAcknowledgment?.automationPolicy === "partner_transactional_v1" && automaticDeliveries.length === 1 && automationJobRows.rowCount === 1 && automationJobRows.rows[0]?.status === "done",
     `followup=${automatedAcknowledgment?.status || "missing"} approved=${automatedAcknowledgment?.approvedBy || "missing"} policy=${automatedAcknowledgment?.automationPolicy || "missing"} job=${automatedAcknowledgment?.automationJobId || "missing"}:${automationJobRows.rows[0]?.status || "missing"} deliveries=${automaticDeliveries.length} error=${automatedAcknowledgment?.lastError || "none"}`
   );
   check("worker keeps default sponsor outreach review gated", reviewGatedOutreach?.status === "draft_ready" && !reviewGatedOutreach?.approvedAt && !emailMock.deliveries.some(item => item.body.tags?.includes(followupProviderTag(reviewGatedOutreach?.id))));
+  check("worker cancels a withdrawn manual send without retry", manualOutreachJobRows.rowCount === 1 && manualOutreachJobRows.rows[0]?.status === "done" && Number(manualOutreachJobRows.rows[0]?.attempts) === 1 && !emailMock.deliveries.some(item => item.body.tags?.includes(followupProviderTag(manualOutreachDraft?.id))));
   check("worker delivers one campaign-approved sponsor message", automatedOutreach?.status === "sent" && automatedOutreach?.approvedBy === "automation:outreach_campaign_v1" && automatedOutreach?.automationPolicy === "outreach_campaign_v1" && automatedOutreachDeliveries.length === 1 && automatedOutreachDeliveries[0]?.body.to?.[0]?.email === "outreach-review@postgres-auto.example");
   check("worker auto-delivers volunteer task assignment once", automatedTaskNotice?.status === "sent" && automatedTaskNotice?.deliveryStatus === "accepted" && automatedTaskNotice?.approvedBy === "automation:partner_transactional_v1" && taskNoticeDeliveries.length === 1 && taskNoticeDeliveries[0]?.body.to?.[0]?.email === "alex@example.com");
   check("every automated follow-up has one provider call", automaticallySentFollowups.length > 0 && automaticallySentFollowups.every(followup => emailMock.deliveries.filter(item => item.body.tags?.includes(followupProviderTag(followup.id))).length === 1));
