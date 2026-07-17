@@ -172,6 +172,7 @@ npm run camera:push -- --heartbeat heartbeat.json
 - Send one aggregate every 5-30 seconds; the default rate limit supports eight feeds at that cadence.
 - Send a heartbeat at least once per minute and before the first metric after agent startup.
 - Alert when a configured source becomes stale, but publish its level as `unknown` rather than carrying the last value forward.
+- The public API omits queue, flow, count, occupancy, and wait metrics unless an armed pipeline has a current observation and is operationally `live` or `degraded`. The private operations record retains the last observation for diagnostics and audit history.
 - Staff the Incident Command queue whenever monitoring is armed; automated escalation does not replace operator acknowledgment, dispatch, or closeout.
 - Fresh `ferry-loading` and `ferry-stacking` observations automatically produce a `camera_estimate` ferry wait; a fresher reviewed operator update takes precedence.
 - Rotate one camera at a time: add a second key ID for that camera, deploy it to the local host, confirm the admin workspace reports rotation overlap, switch the host, and then remove the old key.

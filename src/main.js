@@ -4579,17 +4579,20 @@ function renderIslandConditions(payload) {
     </article>`;
   grid.innerHTML = (payload.cameras || []).map(camera => {
     const displayStatus = camera.operationalStatus === "live" ? camera.level : camera.operationalStatus || camera.level;
+    const observation = camera.freshness?.state === "live" && ["live", "degraded"].includes(camera.operationalStatus)
+      ? camera.observation
+      : null;
     return `
     <article class="island-camera-card" data-level="${escapeAttr(camera.level || "unknown")}" data-operational-status="${escapeAttr(camera.operationalStatus || "unknown")}">
       <div><span>${escapeHtml(conditionLabel(camera.kind))}</span><b>${escapeHtml(conditionLabel(displayStatus))}</b></div>
       <strong>${escapeHtml(camera.name)}</strong>
       <p>${escapeHtml(camera.zone)}</p>
       <dl>
-        <div><dt>Queue</dt><dd>${camera.observation?.queueLength ?? "-"}</dd></div>
-        <div><dt>Flow/min</dt><dd>${camera.observation?.flowPerMinute ?? "-"}</dd></div>
-        <div><dt>Wait</dt><dd>${camera.observation?.estimatedWaitMinutes != null ? `${camera.observation.estimatedWaitMinutes}m` : "-"}</dd></div>
+        <div><dt>Queue</dt><dd>${observation?.queueLength ?? "-"}</dd></div>
+        <div><dt>Flow/min</dt><dd>${observation?.flowPerMinute ?? "-"}</dd></div>
+        <div><dt>Wait</dt><dd>${observation?.estimatedWaitMinutes != null ? `${observation.estimatedWaitMinutes}m` : "-"}</dd></div>
       </dl>
-      <small>${escapeHtml(conditionLabel(camera.operationalStatus))}${camera.freshness?.ageMinutes != null ? ` · metric ${camera.freshness.ageMinutes}m ago` : ""}</small>
+      <small>${escapeHtml(conditionLabel(camera.operationalStatus))}${camera.freshness?.ageMinutes != null ? ` · ${observation ? "metric" : "last metric"} ${camera.freshness.ageMinutes}m ago` : ""}</small>
     </article>
   `;
   }).join("");
