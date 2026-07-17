@@ -96,13 +96,42 @@ function publicProductionSecurityPlugin(env, target = buildTarget) {
   };
 }
 
+const BOARD_DEMO_WEB_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
+
+export function boardDemoAccessPlugin(env) {
+  const token = String(env.SANDFEST_BOARD_DEMO_ADMIN_TOKEN || "").trim();
+  if (!token) return null;
+  if (token.length < 24) throw new Error("SANDFEST_BOARD_DEMO_ADMIN_TOKEN must be at least 24 characters.");
+  return {
+    name: "sandfest-board-demo-access",
+    apply: "serve",
+    configureServer(server) {
+      const host = String(server.config.server.host || "");
+      if (!BOARD_DEMO_WEB_HOSTS.has(host)) {
+        throw new Error("Board demo access requires the Vite server to bind an exact loopback host.");
+      }
+    },
+    transformIndexHtml() {
+      const serializedToken = JSON.stringify(token)
+        .replace(/</g, "\\u003c")
+        .replace(/\u2028/g, "\\u2028")
+        .replace(/\u2029/g, "\\u2029");
+      return [{
+        tag: "script",
+        children: `globalThis.__SANDFEST_BOARD_ADMIN_TOKEN__ = ${serializedToken};`,
+        injectTo: "head-prepend"
+      }];
+    }
+  };
+}
+
 export default defineConfig(({ mode }) => {
   const env = { ...loadEnv(mode, process.cwd(), ""), ...process.env };
   validateAdminBuildEnvironment(env);
   validatePublicBuildEnvironment(env);
   return {
     base,
-    plugins: [publicProductionSecurityPlugin(env)].filter(Boolean),
+    plugins: [publicProductionSecurityPlugin(env), boardDemoAccessPlugin(env)].filter(Boolean),
     publicDir: buildTarget === "admin" ? false : "public",
     server: {
       host: "127.0.0.1",

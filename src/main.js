@@ -12,6 +12,7 @@ import {
   resolveInitialSiteMode,
   siteModeForHash
 } from "../lib/site-mode.mjs";
+import { boardDemoAccessConfig } from "../lib/board-demo-access.mjs";
 import {
   forgetMatchingPartnerPortalAccess,
   partnerPortalSafeHash,
@@ -599,6 +600,16 @@ function defaultPublicApiBase() {
 // visitor artifacts stay public-only; the admin entry always enables ops mode.
 const OPS_DEMO_ENABLED = !ADMIN_ENTRY && (import.meta.env.DEV || import.meta.env.VITE_SANDFEST_OPS_DEMO === "true");
 const OPS_SURFACE_ENABLED = ADMIN_ENTRY || OPS_DEMO_ENABLED;
+const BOARD_DEMO_INJECTED_TOKEN = globalThis.__SANDFEST_BOARD_ADMIN_TOKEN__;
+try { delete globalThis.__SANDFEST_BOARD_ADMIN_TOKEN__; } catch { /* ignore */ }
+const BOARD_DEMO_ACCESS = boardDemoAccessConfig({
+  development: import.meta.env.DEV,
+  authMode: ADMIN_AUTH_MODE,
+  apiBase: defaultPublicApiBase(),
+  token: BOARD_DEMO_INJECTED_TOKEN
+});
+let boardDemoWorkspaceLoaded = false;
+let boardDemoWorkspaceLoad = null;
 
 function publicApiBase() {
   const adminBaseInput = document.querySelector("#admin-api-base");
@@ -1074,6 +1085,11 @@ app.innerHTML = `
               <button id="admin-sign-out" class="button secondary" type="button" hidden>Sign out</button>
             </div>
           </div>
+        ` : BOARD_DEMO_ACCESS.enabled ? `
+          <div class="admin-auth-control">
+            <span>Staff session</span>
+            <strong>Local board demo</strong>
+          </div>
         ` : `
           <label>
             <span>Admin token</span>
@@ -1082,7 +1098,7 @@ app.innerHTML = `
         `}
         <button id="admin-load-config" class="button primary" type="button" ${ADMIN_AUTH_MODE === "oidc" ? "disabled" : ""}>Load config</button>
       </div>
-      <p id="admin-api-status" class="checkout-status" role="status" aria-live="polite">${ADMIN_AUTH_MODE === "oidc" ? "Signed out." : "Start the local backend, enter its admin token, then load config."}</p>
+      <p id="admin-api-status" class="checkout-status" role="status" aria-live="polite">${ADMIN_AUTH_MODE === "oidc" ? "Signed out." : BOARD_DEMO_ACCESS.enabled ? "Local board session ready. Loading operations..." : "Start the local backend, enter its admin token, then load config."}</p>
       <div class="admin-readiness-grid">
         <article>
           <strong>API subdomain</strong>
@@ -2289,6 +2305,7 @@ function adminApiBase() {
 
 function adminToken() {
   if (ADMIN_AUTH_MODE === "oidc") return adminAuthClient?.accessToken() || "";
+  if (BOARD_DEMO_ACCESS.enabled) return BOARD_DEMO_ACCESS.token;
   return document.querySelector("#admin-api-token")?.value || "";
 }
 
@@ -3052,6 +3069,7 @@ function setSiteMode(mode) {
     btn.setAttribute("aria-selected", String(active));
   });
   try { localStorage.setItem("sandfest_site_mode", normalized); } catch { /* ignore */ }
+  if (normalized === "ops" && BOARD_DEMO_ACCESS.enabled) void loadBoardDemoWorkspace();
 }
 
 function initSiteMode() {
@@ -6760,6 +6778,7 @@ async function loadAdminWorkspace() {
   const button = document.querySelector("#admin-load-config");
   button.disabled = true;
   setAdminStatus("Loading admin config...", "idle");
+  let loaded = false;
   try {
     await loadAdminSession();
     await loadAdminDeployment();
@@ -6795,12 +6814,24 @@ async function loadAdminWorkspace() {
       await loadAdminConditions({ quiet: true }).catch(() => {});
     }
     setAdminStatus(`Loaded ${adminConfigState.tickets.products.length} ticket products, ${adminConfigState.config.sponsorPackages.length} sponsor packages, and ${adminConfigState.config.vendorOfferings.length} vendor offerings.`, "ok");
+    loaded = true;
+    if (BOARD_DEMO_ACCESS.enabled) boardDemoWorkspaceLoaded = true;
   } catch (error) {
     const localHint = ADMIN_AUTH_MODE === "token" ? " Confirm the local API is running and the token matches." : "";
     setAdminStatus(`${error.message}${localHint}`, "error");
   } finally {
     button.disabled = ADMIN_AUTH_MODE === "oidc" && !adminToken();
   }
+  return loaded;
+}
+
+async function loadBoardDemoWorkspace() {
+  if (!BOARD_DEMO_ACCESS.enabled || boardDemoWorkspaceLoaded) return boardDemoWorkspaceLoaded;
+  if (boardDemoWorkspaceLoad) return boardDemoWorkspaceLoad;
+  boardDemoWorkspaceLoad = loadAdminWorkspace().finally(() => {
+    boardDemoWorkspaceLoad = null;
+  });
+  return boardDemoWorkspaceLoad;
 }
 
 document.querySelector("#admin-load-config").addEventListener("click", loadAdminWorkspace);
@@ -7847,7 +7878,10 @@ function rgba([red, green, blue], alpha) {
 // Keep legacy board-demo operations markup out of the production visitor DOM.
 // Event handlers are bound before this final prune so local demo behavior stays
 // unchanged and production public initialization remains null-safe.
-if (ADMIN_ENTRY) await initializeAdminAuthentication();
+if (ADMIN_ENTRY) {
+  if (ADMIN_AUTH_MODE === "oidc") await initializeAdminAuthentication();
+  else if (BOARD_DEMO_ACCESS.enabled) await loadBoardDemoWorkspace();
+}
 
 if (ADMIN_ENTRY) {
   document.querySelectorAll('main > section[data-audience="public"], main > section[data-audience="all"]').forEach(section => section.remove());
