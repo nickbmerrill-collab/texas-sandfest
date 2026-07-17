@@ -1,0 +1,26 @@
+{
+  "_note": "Synthetic staff routing seed. Replace with a verified Connecteam, OIDC, HR, or board-approved staff import before production.",
+  "schemaVersion": 1,
+  "eventId": "texas-sandfest-2026",
+  "source": "seed",
+  "lastUpdated": "2026-07-17T00:00:00.000Z",
+  "verifiedAt": null,
+  "staff": [
+    { "id": "staff_operations", "eventId": "texas-sandfest-2026", "name": "Jamie Torres", "email": "jamie.torres@example.com", "status": "active", "roles": ["ops_admin"], "teams": ["operations"] },
+    { "id": "staff_sponsor", "eventId": "texas-sandfest-2026", "name": "Morgan Ellis", "email": "morgan.ellis@example.com", "status": "active", "roles": ["sponsor_admin"], "teams": ["sponsor"] },
+    { "id": "staff_finance", "eventId": "texas-sandfest-2026", "name": "Riley Chen", "email": "riley.chen@example.com", "status": "active", "roles": ["finance_admin"], "teams": ["finance"] },
+    { "id": "staff_volunteers", "eventId": "texas-sandfest-2026", "name": "Casey Patel", "email": "casey.patel@example.com", "status": "active", "roles": ["volunteer_captain"], "teams": ["volunteer-captains"] },
+    { "id": "staff_traffic", "eventId": "texas-sandfest-2026", "name": "Avery Brooks", "email": "avery.brooks@example.com", "status": "active", "roles": ["traffic_lead"], "teams": ["traffic"] },
+    { "id": "staff_guest_services", "eventId": "texas-sandfest-2026", "name": "Taylor Nguyen", "email": "taylor.nguyen@example.com", "status": "active", "roles": ["guest_services_lead"], "teams": ["guest-services"] },
+    { "id": "staff_production", "eventId": "texas-sandfest-2026", "name": "Jordan Davis", "email": "jordan.davis@example.com", "status": "active", "roles": ["production_lead"], "teams": ["production"] }
+  ],
+  "teamRoutes": [
+    { "teamId": "operations", "notificationOwnerId": "staff_operations" },
+    { "teamId": "sponsor", "notificationOwnerId": "staff_sponsor" },
+    { "teamId": "finance", "notificationOwnerId": "staff_finance" },
+    { "teamId": "volunteer-captains", "notificationOwnerId": "staff_volunteers" },
+    { "teamId": "traffic", "notificationOwnerId": "staff_traffic" },
+    { "teamId": "guest-services", "notificationOwnerId": "staff_guest_services" },
+    { "teamId": "production", "notificationOwnerId": "staff_production" }
+  ]
+}

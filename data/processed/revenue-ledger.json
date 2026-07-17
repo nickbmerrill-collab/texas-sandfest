@@ -1,5 +1,6 @@
 {
   "_note": "Phase 0 seed for the unified revenue ledger (lib/revenue.mjs). Sample data illustrating the normalized revenue_event shape across Stripe, Eventeny, Square, and manual sources. Replace with live feeds when Stripe/Eventeny/Square logins arrive: Stripe via webhooks (charge.succeeded, payout.paid), Eventeny via reporting/CSV export, Square via API. Amounts in cents.",
+  "eventId": "texas-sandfest-2026",
   "lastUpdated": "2026-07-15T00:00:00Z",
   "currency": "usd",
   "expectedAttendance": 100000,

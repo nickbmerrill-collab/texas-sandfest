@@ -19,6 +19,70 @@
     "applePayEnabled": false,
     "productsSource": "data/processed/ticket-products.json"
   },
+  "vendorOfferings": [
+    {
+      "id": "food-beverage-booth",
+      "name": "Food and beverage booth",
+      "amount": 175000,
+      "currency": "usd",
+      "publicLabel": "$1,750 application fee",
+      "active": true,
+      "requiresApproval": true,
+      "categories": [
+        "food"
+      ],
+      "description": "Festival marketplace space for prepared food and nonalcoholic beverage vendors.",
+      "inclusions": [
+        "Marketplace booth footprint",
+        "Vendor credentials",
+        "Published booth listing"
+      ],
+      "stripePriceId": null,
+      "quickBooksItemId": null
+    },
+    {
+      "id": "marketplace-booth",
+      "name": "Marketplace booth",
+      "amount": 125000,
+      "currency": "usd",
+      "publicLabel": "$1,250 application fee",
+      "active": true,
+      "requiresApproval": true,
+      "categories": [
+        "retail",
+        "artisan",
+        "service"
+      ],
+      "description": "Festival marketplace space for retailers, artists, makers, and service exhibitors.",
+      "inclusions": [
+        "Marketplace booth footprint",
+        "Vendor credentials",
+        "Published booth listing"
+      ],
+      "stripePriceId": null,
+      "quickBooksItemId": null
+    },
+    {
+      "id": "community-nonprofit-booth",
+      "name": "Community nonprofit booth",
+      "amount": 50000,
+      "currency": "usd",
+      "publicLabel": "$500 application fee",
+      "active": true,
+      "requiresApproval": true,
+      "categories": [
+        "nonprofit"
+      ],
+      "description": "Community marketplace space reserved for eligible nonprofit organizations.",
+      "inclusions": [
+        "Community booth footprint",
+        "Vendor credentials",
+        "Published booth listing"
+      ],
+      "stripePriceId": null,
+      "quickBooksItemId": null
+    }
+  ],
   "sponsorPackages": [
     {
       "id": "whale",
@@ -101,6 +165,15 @@
       "roles": [
         "super_admin",
         "sponsor_admin",
+        "finance_admin"
+      ]
+    },
+    {
+      "id": "vendor-offerings",
+      "label": "Vendor offerings",
+      "description": "Configure public vendor categories, application fees, inclusions, QuickBooks items, and approval status.",
+      "roles": [
+        "super_admin",
         "finance_admin"
       ]
     },

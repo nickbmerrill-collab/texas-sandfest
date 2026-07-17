@@ -1,20 +1,21 @@
 # Stripe Ticketing and Apple Pay
 
-This scaffold makes SandFest ready for Stripe checkout without enabling live charges in the static prototype.
+SandFest ticket checkout is implemented end to end, but live sales remain configuration-gated. The static visitor artifact always fails closed; only a ready API with approved products and a complete Stripe configuration can mark products available for checkout.
 
 ## Current Boundary
 
-- Product catalog: `data/processed/ticket-products.json`
-- Public copy: `public/data/ticket-products.json`
+- Private product catalog: `data/processed/ticket-products.json`
+- Provider-private static catalog: `public/data/ticket-products.json`
 - Static UI: `src/main.js`
-- Environment placeholders: `.env.example`
-- Future backend endpoint: `POST /api/stripe/create-checkout-session`
-- Future webhook endpoint: `POST /api/stripe/webhook`
+- Environment contract: `.env.example`
+- Public catalog: `GET /api/public/tickets`
+- Checkout endpoint: `POST /api/stripe/create-checkout-session`
+- Webhook endpoint: `POST /api/stripe/webhook`
 - Admin config API: `https://api.heyelab.com/sandfest/api/admin/config`
 
-The browser must never decide charge amounts. The frontend can submit product IDs and quantities, but the server must load trusted products, enforce limits, create the Checkout Session, and return Stripe's hosted URL.
+The browser never decides charge amounts and never receives Stripe Price IDs. It submits product IDs and quantities with a stable `Idempotency-Key`; the server loads trusted products, enforces limits, persists the order, reuses the original Checkout Session on retry, and returns an exact `https://checkout.stripe.com` URL.
 
-Ticket prices, Stripe Price IDs, VIP limits, and sponsor package settings should be configured through the Heyelab-hosted admin backend, then served back to the public website and iOS app through public-safe API endpoints.
+Ticket prices, Stripe Price IDs, VIP limits, and sale status are configured through the Heyelab-hosted admin backend. A product becomes publicly purchasable only when it is active, does not require review, has a positive server amount, has a non-placeholder Stripe Price ID, and the ticketing integration is ready. The static catalog never advertises an open sale.
 
 ## Products
 
@@ -28,16 +29,53 @@ Ticket prices, Stripe Price IDs, VIP limits, and sponsor package settings should
 ## Checkout Session Flow
 
 1. Customer builds a cart in the public app.
-2. Frontend posts only product IDs and quantities to `/api/stripe/create-checkout-session`.
+2. Frontend posts only product IDs and quantities to `/api/stripe/create-checkout-session` with a retry-stable `Idempotency-Key`.
 3. Server validates all products against `ticket-products.json` or the production database.
 4. Server rejects review-gated products unless the admin approval path has created a one-off checkout.
 5. Server rejects products with placeholder Stripe Price IDs or inactive sale status.
 6. If Stripe is not configured, server stores a validated pending order and returns `stripe_not_configured`.
-7. When Stripe is configured, server creates a Stripe Checkout Session with trusted `price` IDs and `quantity` values.
+7. When Stripe is configured, the server creates a Stripe Checkout Session with trusted `price` IDs and `quantity` values. Reusing the key with the same cart returns the original session; reusing it with a changed cart is rejected.
 8. Customer pays through Stripe Checkout. Apple Pay appears for eligible devices/browsers after Stripe and Apple Pay setup is complete.
 9. Stripe redirects to the success URL with `{CHECKOUT_SESSION_ID}`.
-10. Webhook fulfillment creates QR/wristband records, will-call records, receipts, and finance events.
-11. Replayed webhook events are acknowledged without creating duplicate fulfillment records.
+10. A fresh, signed Stripe webhook locates the stored order by order, Checkout Session, or PaymentIntent identity and verifies event year, amount, currency, payment status, and provider references.
+11. Fulfillment is derived from the stored order, never Stripe metadata. Deterministic QR/wristband or will-call records are created only after reconciliation succeeds.
+12. Replayed webhook events are acknowledged without creating duplicate fulfillment records. Failed asynchronous payments and mismatches move to review instead of fulfilling.
+13. Full refunds close the order and every fulfillment record. Partial refunds retain the cumulative amount and move fulfillment to review.
+
+Enable ticket sales only after sandbox acceptance:
+
+```bash
+STRIPE_TICKETING_ENABLED=true
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_SUCCESS_URL=https://www.texassandfest.org/tickets/success?session_id={CHECKOUT_SESSION_ID}
+STRIPE_CANCEL_URL=https://www.texassandfest.org/#tickets
+```
+
+## Partner Invoice Checkout
+
+Vendor and sponsor charges use a separate, review-gated path from ticket sales:
+
+1. Staff approves the application amount, creates an invoice, and approves that invoice.
+2. The partner opens the rotatable private portal and requests checkout for that invoice ID.
+3. The API reserves one active checkout for the current server-computed balance and reuses it on retries.
+4. `lib/stripe-partner-payments.mjs` creates a one-line Stripe Checkout Session with inline `price_data`; the browser never submits or controls the amount.
+5. `checkout.session.completed` or `checkout.session.async_payment_succeeded` must carry a valid, fresh Stripe signature and matching checkout, application, invoice, amount, currency, and paid status.
+6. A valid event records one Stripe payment in the partner ledger, updates the invoice balance, and marks the checkout complete. It does not create ticket fulfillment.
+7. Replayed event IDs and repeated PaymentIntent IDs are idempotent.
+8. `charge.refunded` uses Stripe's cumulative refunded amount to restore the receivable for partial or full refunds.
+
+Enable the flow only after sandbox validation:
+
+```bash
+STRIPE_PARTNER_PAYMENTS_ENABLED=true
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PARTNER_SUCCESS_URL=https://www.texassandfest.org/#partner-payment-success?session_id={CHECKOUT_SESSION_ID}
+STRIPE_PARTNER_CANCEL_URL=https://www.texassandfest.org/#partner-status
+```
+
+Production readiness requires the official `https://api.stripe.com` API origin, HTTPS redirect URLs, and a webhook timestamp within `STRIPE_WEBHOOK_TOLERANCE_SECONDS` (300 seconds by default).
 
 Local records are written to:
 
@@ -71,15 +109,15 @@ Required events:
 - `payment_intent.payment_failed`
 - `charge.refunded`
 
-Fulfillment must be idempotent by Stripe event ID and Checkout Session ID. A webhook may arrive more than once, and the success redirect is not enough to fulfill an order.
+Fulfillment is idempotent by Stripe event ID, Checkout Session ID, stored order ID, and deterministic fulfillment ID. A webhook may arrive more than once, and the success redirect is never enough to fulfill an order.
 
-The local prototype now stores payment events under stable Stripe event filenames. If the same event ID arrives again, the API returns `duplicate: true` and does not queue fulfillment. If a different successful event arrives for a Checkout Session that already has fulfillment records, the event is recorded with `fulfillmentStatus: "already_queued"` and reuses the existing fulfillment IDs.
+Payment evidence stores a privacy-minimized object summary and reconciliation result, not the raw Stripe event or customer details. If the same event ID arrives again, the API returns `duplicate: true` and does not create more fulfillment. A different valid success event for an already fulfilled session reuses the existing fulfillment IDs.
 
 Store:
 
 - Stripe Checkout Session ID
 - Stripe PaymentIntent ID
-- buyer email and phone
+- buyer email and phone on the private order only
 - line items and quantities
 - QR/wristband fulfillment status
 - refund status
@@ -116,8 +154,14 @@ Recommended categories:
 - Complete raffle compliance review before online raffle checkout.
 - Approve ticket terms: filming notice, service animals policy, resale policy, refund policy, and will-call rules.
 - Configure Stripe webhook endpoint with HTTPS.
+- Confirm `GET /api/public/tickets` contains no `stripePriceId`, secret, placeholder Price ID, or unavailable product marked purchasable.
+- Confirm the static production artifact reports every ticket unavailable until it reaches the ready API.
 - Verify webhook signatures using the raw request body.
+- Submit one checkout twice with the same key and confirm both responses return the same Checkout Session and only one provider session exists.
+- Reuse that key with a changed cart and confirm the API rejects it.
 - Replay the same sandbox webhook twice and confirm no additional fulfillment records are created.
+- Send amount, currency, event-year, order, and Checkout Session mismatches and confirm no fulfillment is created.
+- Exercise paid, asynchronous failure, full refund, and partial refund events against Postgres and verify order plus fulfillment states.
 - Test with Stripe CLI and sandbox cards before live keys.
 - Verify Apple Pay on Safari/iPhone and in the native app if native checkout is enabled.
 - Run a finance reconciliation dry run into QuickBooks sandbox.

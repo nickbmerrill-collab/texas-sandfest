@@ -120,14 +120,21 @@ Initial production targets:
 | API origin down | public app keeps cached guide, schedule, map, policies |
 | Cell signal drops | installed web app reopens cached app shell and static event data |
 | Stripe unavailable | checkout returns clear retry state, no duplicate local fulfillment |
+| Partner intake response lost | retry with the same idempotency key returns the original application and portal without duplicate tasks or messages |
 | Webhook repeated | idempotent event handling by Stripe event ID |
 | Webhook delayed | order remains paid-pending-fulfillment until event arrives |
 | QuickBooks down | payment/fulfillment continues, finance sync retries later |
 | Admin misconfiguration | audit log and rollback to previous config version |
+| Database data loss | restore paid Postgres PITR into an isolated instance, verify with `npm run recovery:verify`, then deliberately repoint services |
+| Private upload loss | restore a daily encrypted disk snapshot at an isolated path and run `npm run recovery:verify:assets` against restored Postgres before production cutover |
 
-## Current Prototype Gap
+## Storage Modes
 
-The local API currently uses `data/processed/orders/` JSON files. That is useful for development evidence, but it is not production-safe for 100,000 visitors. Before launch, replace local files with a database and durable job/queue layer.
+Local development defaults to atomic JSON documents and a filesystem queue for inspectable test data. Production mode supports Postgres row locking, append-only audit/event tables, platform documents, and the durable job queue exercised by `npm run test:postgres`. A launch deployment must set `SANDFEST_DATABASE_URL`, run with Postgres storage, and keep API and worker processes on the same database; file mode is not a production data plane for 100,000 visitors.
+
+Background work uses fenced leases rather than permanent `running` flags. A worker crash returns the job to the queue after `SANDFEST_JOB_LEASE_MS`; a stale worker's completion token is rejected after ownership changes. Exhausted crash recovery is reflected in the owning sponsor message, QuickBooks invoice, or incident dispatch so staff do not see a false queued state. Queue health is part of `/ready` and the authenticated operations console: unhandled terminal failures block production readiness, while handled historical failures remain visible without keeping the service red.
+
+The production Blueprint uses paid managed Postgres with PITR and an encrypted persistent disk with daily snapshots. Recovery is treated as unproven until isolated restores of both data planes succeed. `/ready` requires recent timestamps for both drills; database structure and counts are verified read-only with `npm run recovery:verify`, while `npm run recovery:verify:assets` proves every Postgres-referenced upload by size and SHA-256 and emits a deterministic aggregate manifest hash.
 
 ## Load Testing
 

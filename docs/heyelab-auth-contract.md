@@ -13,7 +13,25 @@ This doc is the contract that Heyelab's auth service must satisfy for the SandFe
 | Audience | Tokens minted for the SandFest API must include `aud: "https://api.heyelab.com/sandfest"` (or a list containing it). |
 | Algorithm | RS256 (or any asymmetric alg supported by [`jose`](https://github.com/panva/jose)). HS256 is rejected. |
 | Key rotation | Publish new keys on the JWKS endpoint **before** signing with them; keep old keys for at least one token-lifetime window after rotation. The SandFest API caches the JWKS with `jose`'s default policy and refetches on `kid` miss. |
-| Discovery (optional) | If publishing `https://auth.heyelab.com/.well-known/openid-configuration`, point `jwks_uri` at the JWKS endpoint above. SandFest does not require discovery — it reads the JWKS URL directly from `SANDFEST_AUTH_JWKS_URL`. |
+| Discovery | `GET https://auth.heyelab.com/.well-known/openid-configuration` is required by the browser admin client. It must advertise the issuer, authorization endpoint, token endpoint, JWKS URI, `code` response type, and `S256` PKCE support. The token and discovery endpoints must allow CORS from `https://sandfest-admin.heyelab.com`. |
+
+The API still reads `SANDFEST_AUTH_JWKS_URL` directly. Discovery is required for the admin browser login, not for API token verification.
+
+## Browser client registration
+
+Register `https://sandfest-admin.heyelab.com` as a **public SPA client**:
+
+| Setting | Value |
+| --- | --- |
+| Grant / response type | Authorization Code / `code` |
+| PKCE | Required, `S256` only |
+| Client authentication | `none` (no client secret in the browser) |
+| Redirect URI | `https://sandfest-admin.heyelab.com/` (exact match) |
+| Post-logout redirect URI | `https://sandfest-admin.heyelab.com/` (exact match) |
+| Scopes | `openid profile email` |
+| API audience | `https://api.heyelab.com/sandfest` |
+
+The access token must be the JWT described in this contract. The UI uses `oidc-client-ts` for callback state validation and PKCE, stores the user session in `sessionStorage`, does not use the implicit flow, and does not put a client secret or refresh token in build configuration.
 
 ## Required claims
 
@@ -42,7 +60,7 @@ The `sandfest_role` claim must contain one of these six string values (or an arr
 | `ops_admin` | Alerts, orders, payment events, fulfillment status updates, audit, snapshots. |
 | `ticketing_admin` | Ticket catalog writes, plus orders/payments/fulfillment reads. |
 | `sponsor_admin` | Sponsor package writes, plus orders/fulfillment reads. |
-| `finance_admin` | Read-only access to orders, payments, fulfillment, audit. |
+| `finance_admin` | Finance reads plus review-gated partner invoice create, approve, void, and QuickBooks sync. |
 | `viewer` | Read-only across the admin surface. No writes, no rollback. |
 
 Tokens with no recognized role value are rejected with HTTP 401. Tokens with a recognized role but missing a permission for the requested route get HTTP 403.
@@ -53,7 +71,25 @@ Heyelab is the source of truth for which Heyelab user maps to which SandFest rol
 
 - The SandFest API never stores Heyelab tokens, refresh tokens, user passwords, or MFA secrets. It only verifies bearer tokens it receives on each request.
 - The SandFest admin UI (`https://sandfest-admin.heyelab.com`) handles login by redirecting to Heyelab's IdP, then attaches the resulting JWT as `Authorization: Bearer …` on API calls.
+- The admin UI keeps the OIDC user and access token in per-tab `sessionStorage`. A 401 or token-expiry event clears that session and requires another sign-in.
+- The production admin bundle pins the API base to `https://api.heyelab.com/sandfest`; staff cannot edit the destination that receives the bearer token.
 - The SandFest API never federates to the IdP server-to-server. Heyelab can rotate keys, change session policy, force MFA, or revoke users without coordinating with the SandFest deployment.
+
+## SandFest admin build env vars (production)
+
+```bash
+SANDFEST_DEPLOYMENT_ENV=production
+VITE_SANDFEST_AUTH_MODE=oidc
+VITE_SANDFEST_AUTH_ISSUER=https://auth.heyelab.com/
+VITE_SANDFEST_AUTH_CLIENT_ID=<registered-public-spa-client-id>
+VITE_SANDFEST_AUTH_REDIRECT_URI=https://sandfest-admin.heyelab.com/
+VITE_SANDFEST_AUTH_POST_LOGOUT_REDIRECT_URI=https://sandfest-admin.heyelab.com/
+VITE_SANDFEST_AUTH_SCOPES="openid profile email"
+VITE_SANDFEST_AUTH_AUDIENCE=https://api.heyelab.com/sandfest
+VITE_SANDFEST_API_BASE_URL=https://api.heyelab.com/sandfest
+```
+
+The client ID is a public identifier, not a secret. It is left as a required Render value so a deploy cannot accidentally use an unregistered placeholder. The Vite build fails closed when production mode is selected without OIDC or when an OIDC issuer, client ID, redirect URI, or API base is missing or insecure.
 
 ## SandFest API env vars (production)
 

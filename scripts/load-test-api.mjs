@@ -12,7 +12,8 @@ const paths = [
   "/api/public/sponsors",
   "/api/public/passport",
   "/api/public/voting",
-  "/api/public/booths"
+  "/api/public/booths",
+  "/api/public/island-conditions"
 ];
 
 const results = {

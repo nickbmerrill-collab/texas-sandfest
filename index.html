@@ -3,20 +3,36 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="sandfest-surface" content="public" />
+    <meta
+      name="description"
+      content="Texas SandFest visitor guide for tickets, sculptors, live island conditions, vendors, sponsors, and event information in Port Aransas."
+    />
     <meta name="theme-color" content="#f6d66f" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="SandFest" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <title>Texas SandFest AI Platform</title>
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Texas SandFest" />
+    <meta property="og:description" content="Plan your Texas SandFest visit in Port Aransas." />
+    <meta property="og:image" content="/assets/sandfest-media/optimized/hero-1440.webp" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <title>Texas SandFest | Port Aransas</title>
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/assets/sandfest-app-icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/assets/sandfest-app-icon.svg" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+    <link
+      rel="preload"
+      as="image"
+      href="%BASE_URL%assets/sandfest-media/optimized/hero-1440.webp"
+      imagesrcset="%BASE_URL%assets/sandfest-media/optimized/hero-800.webp 800w, %BASE_URL%assets/sandfest-media/optimized/hero-1440.webp 1440w, %BASE_URL%assets/sandfest-media/optimized/hero-2400.webp 2400w"
+      imagesizes="100vw"
+      type="image/webp"
+      fetchpriority="high"
+    />
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
-  <body>
+  <body class="mode-public">
     <div id="app"></div>
     <script type="module" src="/src/main.js"></script>
   </body>

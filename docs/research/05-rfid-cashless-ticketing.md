@@ -45,10 +45,10 @@ NFC (13.56 MHz, reads on phones, chip ~$0.05–0.15) for cashless/ID; UHF (860�
 ## 4. Ticketing & revenue tracking (Stripe + Eventeny + QuickBooks)
 Revenue lands in ≥3 silos (Eventeny, Stripe, vendor Square), each netting fees on different payout schedules. Build a single **`revenue_event` ledger** in the Node admin API — one row per money movement:
 ```
-source(eventeny|stripe|square|manual) · category(ticket|vendor_fee|sponsorship|merch|raffle|cashless_topup)
-gross_amount · processor_fee · net_amount · payout_id/date · qb_class · qb_account · external_ref
+event_id · source(eventeny|stripe|square|manual) · category(ticket|vendor_fee|sponsorship|merch|raffle|cashless_topup)
+entry_type(receipt|refund|void) · gross_amount · processor_fee · net_amount · payout_id/date · qb_class · qb_account · external_ref
 ```
-**Ingestion:** Stripe webhooks (`charge.succeeded`, `payout.paid`) real-time; Eventeny via reporting/API export (confirm API — else scheduled CSV); Square via API if standardized. **QuickBooks pattern:** book gross sales → processor fees to a "Merchant Fees" expense → route through a **Stripe/Square clearing account** so bank deposits reconcile; use **QuickBooks Classes** per revenue stream so the P&L splits automatically. **Dashboard KPIs:** gross vs net by category, fee %, tickets sold vs capacity, spend-per-attendee, top vendors, sponsorship fulfillment, payouts-reconciled-to-bank tile.
+**Ingestion:** Stripe webhooks (`charge.succeeded`, `payout.paid`) real-time; Eventeny via reporting/API export (confirm API); Square via API if standardized. The implemented first-year fallback is a finance-only, preview-gated settlement CSV import with exact cent parsing, current-event/provider validation, row-level exceptions, duplicate references, replay protection, durable import receipts, and admin audit evidence. **QuickBooks pattern:** book gross sales → processor fees to a "Merchant Fees" expense → route through a **Stripe/Square clearing account** so bank deposits reconcile; use **QuickBooks Classes** per revenue stream so the P&L splits automatically. **Dashboard KPIs:** gross vs net by category, fee %, tickets sold vs capacity, spend-per-attendee, top vendors, sponsorship fulfillment, payouts-reconciled-to-bank tile.
 
 ## 5. Staged recommendation
 | Phase | Adopt |

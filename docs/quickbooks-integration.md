@@ -41,6 +41,8 @@ Required app values:
 - `QB_REDIRECT_URI`
 - `QB_REALM_ID`
 - `QB_REFRESH_TOKEN`
+- `QB_INVOICE_SYNC_ENABLED=true` after sandbox verification
+- A `quickBooksItemId` on each sponsor tier and vendor offering. `QB_SPONSOR_ITEM_ID` and `QB_VENDOR_ITEM_ID` remain fallback mappings for legacy records without a configured package or offering item.
 
 Access tokens expire after one hour, so backend jobs should refresh from a stored refresh token before calls.
 
@@ -85,6 +87,38 @@ Set `QB_WRITE_TOKEN_FILE=true` only if you want the local callback helper to wri
 - Mirror invoice/payment status back to SandFest Sponsor CRM.
 - Keep benefit fulfillment in SandFest, not QuickBooks.
 
+### Reviewed Invoice Workflow
+
+1. Finance creates a SandFest invoice draft from the approved application amount. The browser cannot supply the accounting amount.
+2. A `finance_admin` or `super_admin` approves the immutable invoice snapshot.
+3. Queueing is rejected until OAuth, realm, refresh token, the explicit sync gate, and the relevant QuickBooks Item ID are ready.
+4. The background worker refreshes an access token, finds or creates the QuickBooks Customer, and creates the Invoice.
+5. Customer and invoice writes use deterministic QuickBooks `requestid` values so job retries do not duplicate accounting objects.
+6. SandFest stores the QuickBooks customer ID, invoice ID, document number, reported balance, attempts, errors, and sync time. The local payment subledger keeps a separate operational balance and flags any difference from the last QuickBooks balance as a reconciliation exception.
+7. Finance can queue a versioned balance refresh from the synced invoice card. The worker reads the current QuickBooks Invoice, records its reported total, balance, provider update timestamp, refresh attempts, and check time, and leaves the SandFest payment ledger unchanged.
+8. A refresh pending for more than the worker retry window, a terminal refresh failure, a check older than 24 hours, or a QuickBooks amount/balance difference appears in receivables exceptions for finance action.
+
+Creating the QuickBooks invoice does not email it automatically. Sending, payment terms, and collections remain finance-controlled in QuickBooks until a separate reviewed send policy is approved.
+
+A lower QuickBooks balance indicates accounting activity that SandFest has not yet matched. The read-only refresh never manufactures a check, card, Eventeny, Stripe, or QuickBooks payment in SandFest. Finance must identify the provider transaction and record or import it with its real external reference; the next refresh then proves that the two ledgers agree.
+
+### Receivables and Payment Controls
+
+- Only `finance_admin` and `super_admin` can record or reverse partner payments.
+- Payment methods and received dates are validated. A method-specific external reference is idempotent per application, preventing webhook or operator retries from double-posting a transaction.
+- Successful payments allocate to the active invoice atomically. Payments received before invoice creation are held as unapplied funds and allocated when finance creates the invoice.
+- Overpayments remain visible as unapplied credit. The receivables workspace reports current, 1-30, 31-60, 61-90, 90+, and unbilled balances plus overdue, sync, unapplied-fund, and provider-balance exceptions.
+- Marking a payment refunded or void records an action already completed with the bank, card processor, Eventeny, Stripe, or QuickBooks. It does not initiate movement of money at that provider. A reason and audit record are required, and the local invoice/application balance is restored immediately.
+
+### Provider Settlement Imports
+
+- Only `finance_admin` and `super_admin` receive `revenue:write` and may preview or commit settlement CSVs.
+- Finance selects Eventeny, Square, Stripe, or manual as the provider. Every accepted row is locked to the configured current event and must include an external reference, ISO date, supported revenue category, and exact gross amount in dollars or cents.
+- Preview performs no write. It reports valid rows, invalid rows, existing provider references, gross, fees, net, and a content/provider/event hash. Commit rejects any changed CSV or provider until it is previewed again.
+- Receipt, refund, and void signs are normalized, supplied net must equal gross minus fees, and duplicate keys use provider + entry type + external reference across both settlement and site-native partner records.
+- Commit uses the atomic file/Postgres document update, materializes historical rows onto their prior event before advancing the ledger context, records a bounded import receipt, and writes `revenue.import.commit` to the admin audit log. Replaying the same hash cannot add another entry or receipt.
+- This import records completed provider activity. It does not initiate charges, refunds, payouts, bank deposits, or QuickBooks journal entries.
+
 ### Vendor Finance
 
 - Match vendor records to QuickBooks Vendor objects where needed.
@@ -111,7 +145,6 @@ Set `QB_WRITE_TOKEN_FILE=true` only if you want the local callback helper to wri
 
 ## Open Decisions
 
-- Whether sponsor invoices are created in SandFest or manually in QuickBooks and mirrored back.
 - Whether Eventeny sponsor payment state should reconcile against QuickBooks invoices.
-- Whether each sponsor tier maps to QuickBooks Items, Classes, or both.
+- Whether each sponsor tier should add a QuickBooks Class in addition to its required Item mapping.
 - How nonprofit/scholarship donation categories should map to accounts/classes.

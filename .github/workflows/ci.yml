@@ -8,6 +8,18 @@ on:
 jobs:
   platform:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -17,10 +29,22 @@ jobs:
       - run: npm ci
       - name: Unit + pure suite
         run: npm run test:platform
+      - name: Deployment acceptance gate contracts
+        run: npm run test:deployment-verifier
+      - name: Render Blueprint production contract
+        run: npm run test:render-blueprint
+      - name: Camera edge-agent contract
+        run: npm run test:camera-agent
       - name: API smoke suite
         run: npm run test:platform:api
-      - name: Production build (visitor + admin)
-        run: npm run build
+      - name: Isolated board runtime
+        run: npm run test:board-runtime
+      - name: Postgres production data plane
+        env:
+          SANDFEST_POSTGRES_TEST_ADMIN_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable
+        run: npm run test:postgres
+      - name: Production build isolation (visitor + admin)
+        run: npm run build:surfaces
       - name: Load test (public GETs)
         run: |
           SANDFEST_API_PORT=8791 SANDFEST_ADMIN_API_TOKEN=dev-admin-token-change-me npm run api:dev &
@@ -28,6 +52,8 @@ jobs:
           sleep 1
           npm run api:load-test -- http://127.0.0.1:8791 200 20
           kill $API_PID
+      - name: Production dependency audit
+        run: npm audit --audit-level=high
 
   ios-parse:
     runs-on: macos-latest

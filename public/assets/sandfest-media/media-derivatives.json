@@ -1,0 +1,791 @@
+{
+  "version": 1,
+  "derivatives": [
+    {
+      "sourcePath": "/assets/sandfest-media/photos/f800df-53497f8c3802433885cf16fd00de0b7b-mv2-jpg-f800df-53497f8c3802433885cf16fd00de0b7b-mv2-jpg.jpg",
+      "kind": "hero",
+      "defaultPath": "/assets/sandfest-media/optimized/hero-1440.webp",
+      "width": 1440,
+      "height": 960,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/hero-800.webp",
+          "width": 800,
+          "height": 533,
+          "bytes": 76880
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/hero-1440.webp",
+          "width": 1440,
+          "height": 960,
+          "bytes": 215182
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/hero-2400.webp",
+          "width": 2400,
+          "height": 1600,
+          "bytes": 534894
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/logos/f800df-efa20fda892545788c6b856bf58487b7-mv2-png-txsf-official-logo-cropped-transparent-png.png",
+      "kind": "brand",
+      "defaultPath": "/assets/sandfest-media/optimized/brand-5138553897f4-240.webp",
+      "width": 240,
+      "height": 120,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/brand-5138553897f4-120.webp",
+          "width": 120,
+          "height": 60,
+          "bytes": 3514
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/brand-5138553897f4-240.webp",
+          "width": 240,
+          "height": 120,
+          "bytes": 10126
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/photos/f800df-b05ba62d4f574a6da81bb26bb1c1ca00-mv2-jpg-f800df-b05ba62d4f574a6da81bb26bb1c1ca00-mv2-jpg.jpg",
+      "kind": "gallery",
+      "defaultPath": "/assets/sandfest-media/optimized/gallery-f273d9262f70-720.webp",
+      "width": 720,
+      "height": 480,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/gallery-f273d9262f70-360.webp",
+          "width": 360,
+          "height": 240,
+          "bytes": 9858
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/gallery-f273d9262f70-720.webp",
+          "width": 720,
+          "height": 480,
+          "bytes": 30624
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/photos/f800df-e2ee06389b0f41bda26ee00078ebd68a-mv2-jpg-f800df-e2ee06389b0f41bda26ee00078ebd68a-mv2-jpg.jpg",
+      "kind": "gallery",
+      "defaultPath": "/assets/sandfest-media/optimized/gallery-839460c92876-720.webp",
+      "width": 720,
+      "height": 405,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/gallery-839460c92876-360.webp",
+          "width": 360,
+          "height": 202,
+          "bytes": 16004
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/gallery-839460c92876-720.webp",
+          "width": 720,
+          "height": 405,
+          "bytes": 57784
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/photos/11062b-e298cfdb13fc435c87ec381beb6fc85e-mv2-jpg-11062b-e298cfdb13fc435c87ec381beb6fc85e-mv2-jpg.jpg",
+      "kind": "gallery",
+      "defaultPath": "/assets/sandfest-media/optimized/gallery-b366e899b26e-720.webp",
+      "width": 720,
+      "height": 480,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/gallery-b366e899b26e-360.webp",
+          "width": 360,
+          "height": 240,
+          "bytes": 2824
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/gallery-b366e899b26e-720.webp",
+          "width": 720,
+          "height": 480,
+          "bytes": 6886
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/photos/11062b-e8771669914d4b8a949e06893dfd43a0-mv2-jpg-11062b-e8771669914d4b8a949e06893dfd43a0-mv2-jpg.jpg",
+      "kind": "gallery",
+      "defaultPath": "/assets/sandfest-media/optimized/gallery-325a3b61fc86-720.webp",
+      "width": 720,
+      "height": 488,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/gallery-325a3b61fc86-360.webp",
+          "width": 360,
+          "height": 244,
+          "bytes": 7796
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/gallery-325a3b61fc86-720.webp",
+          "width": 720,
+          "height": 488,
+          "bytes": 71558
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/photos/f800df-276285d5d6e5432ea12492ed8d318b1d-mv2-jpeg-f800df-276285d5d6e5432ea12492ed8d318b1d-mv2-jpeg.jpg",
+      "kind": "gallery",
+      "defaultPath": "/assets/sandfest-media/optimized/gallery-0ed825f80de9-720.webp",
+      "width": 720,
+      "height": 720,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/gallery-0ed825f80de9-360.webp",
+          "width": 360,
+          "height": 360,
+          "bytes": 14446
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/gallery-0ed825f80de9-720.webp",
+          "width": 720,
+          "height": 720,
+          "bytes": 32334
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/photos/f800df-0040a10da3b541058bb6939973ae5096-mv2-jpg-f800df-0040a10da3b541058bb6939973ae5096-mv2-jpg.jpg",
+      "kind": "gallery",
+      "defaultPath": "/assets/sandfest-media/optimized/gallery-01cd8bd5a6ae-720.webp",
+      "width": 720,
+      "height": 432,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/gallery-01cd8bd5a6ae-360.webp",
+          "width": 360,
+          "height": 216,
+          "bytes": 8608
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/gallery-01cd8bd5a6ae-720.webp",
+          "width": 720,
+          "height": 432,
+          "bytes": 19516
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/photos/f800df-82cd7a1461bc4e15a4cdc474ccfd0995-mv2-jpg-stbp-jpg.jpg",
+      "kind": "gallery",
+      "defaultPath": "/assets/sandfest-media/optimized/gallery-dff7cef31bcc-720.webp",
+      "width": 720,
+      "height": 218,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/gallery-dff7cef31bcc-360.webp",
+          "width": 360,
+          "height": 109,
+          "bytes": 4970
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/gallery-dff7cef31bcc-720.webp",
+          "width": 720,
+          "height": 218,
+          "bytes": 10040
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/photos/f800df-7e5bf6ece54344a8a10fea772cc41296-mv2-jpeg-jetty-boat-jpeg.jpg",
+      "kind": "gallery",
+      "defaultPath": "/assets/sandfest-media/optimized/gallery-abf2ff1edfb0-720.webp",
+      "width": 720,
+      "height": 615,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/gallery-abf2ff1edfb0-360.webp",
+          "width": 360,
+          "height": 307,
+          "bytes": 3806
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/gallery-abf2ff1edfb0-720.webp",
+          "width": 720,
+          "height": 615,
+          "bytes": 8620
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/photos/f800df-b45ec5f6ec0c44c4b722043e75777360-mv2-jpeg-joy-jpeg.jpg",
+      "kind": "field",
+      "defaultPath": "/assets/sandfest-media/optimized/field-bcd76a560193-720.webp",
+      "width": 720,
+      "height": 541,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/field-bcd76a560193-360.webp",
+          "width": 360,
+          "height": 270,
+          "bytes": 8868
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/field-bcd76a560193-720.webp",
+          "width": 720,
+          "height": 541,
+          "bytes": 17236
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/photos/f800df-4fb04318170d4af18a46775f0cb4ade0-mv2-jpg-f800df-4fb04318170d4af18a46775f0cb4ade0-mv2-jpg.jpg",
+      "kind": "field",
+      "defaultPath": "/assets/sandfest-media/optimized/field-1c34be3ec0be-720.webp",
+      "width": 720,
+      "height": 720,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/field-1c34be3ec0be-360.webp",
+          "width": 360,
+          "height": 360,
+          "bytes": 4990
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/field-1c34be3ec0be-720.webp",
+          "width": 720,
+          "height": 720,
+          "bytes": 12178
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/photos/f800df-9079949f74174202a475f6614c3dd27a-mv2-jpg-f800df-9079949f74174202a475f6614c3dd27a-mv2-jpg.jpg",
+      "kind": "field",
+      "defaultPath": "/assets/sandfest-media/optimized/field-0868b4663bc1-720.webp",
+      "width": 500,
+      "height": 218,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/field-0868b4663bc1-360.webp",
+          "width": 360,
+          "height": 157,
+          "bytes": 5556
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/field-0868b4663bc1-720.webp",
+          "width": 500,
+          "height": 218,
+          "bytes": 8034
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/photos/f800df-8fbe8310bf5e4f31b8b18292239e1eed-mv2-jpg-f800df-8fbe8310bf5e4f31b8b18292239e1eed-mv2-jpg.jpg",
+      "kind": "field",
+      "defaultPath": "/assets/sandfest-media/optimized/field-3b690192ec3f-720.webp",
+      "width": 720,
+      "height": 275,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/field-3b690192ec3f-360.webp",
+          "width": 360,
+          "height": 137,
+          "bytes": 6382
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/field-3b690192ec3f-720.webp",
+          "width": 720,
+          "height": 275,
+          "bytes": 13252
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/photos/f800df-85bfdd6c2bb648b5a21fb7b808061439-mv2-jpg-f800df-85bfdd6c2bb648b5a21fb7b808061439-mv2-jpg.jpg",
+      "kind": "field",
+      "defaultPath": "/assets/sandfest-media/optimized/field-ad0a960b0825-720.webp",
+      "width": 480,
+      "height": 530,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/field-ad0a960b0825-360.webp",
+          "width": 360,
+          "height": 398,
+          "bytes": 9550
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/field-ad0a960b0825-720.webp",
+          "width": 480,
+          "height": 530,
+          "bytes": 12702
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/photos/f800df-691acd5b747a413ab4c1d8054b5fab0b-mv2-jpg-f800df-691acd5b747a413ab4c1d8054b5fab0b-mv2-jpg.jpg",
+      "kind": "field",
+      "defaultPath": "/assets/sandfest-media/optimized/field-a2e91172b977-720.webp",
+      "width": 720,
+      "height": 406,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/field-a2e91172b977-360.webp",
+          "width": 360,
+          "height": 203,
+          "bytes": 10150
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/field-a2e91172b977-720.webp",
+          "width": 720,
+          "height": 406,
+          "bytes": 23116
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/maps/f800df-68896ded650d4eaa826c2a7d015b5276-mv2-jpg-dji-0546-edit-jpg.jpg",
+      "kind": "map",
+      "defaultPath": "/assets/sandfest-media/optimized/map-43d9e6eb51bd-720.webp",
+      "width": 720,
+      "height": 405,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/map-43d9e6eb51bd-360.webp",
+          "width": 360,
+          "height": 203,
+          "bytes": 12416
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/map-43d9e6eb51bd-720.webp",
+          "width": 720,
+          "height": 405,
+          "bytes": 46956
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/maps/f800df-4ff68fafe7e948aa9bafccde668b8b35-mv2-jpg-plan-travel-tools-maps-port-aransas-texas-illustrated-map-0db32d7d-f69a-.jpg",
+      "kind": "map",
+      "defaultPath": "/assets/sandfest-media/optimized/map-1805fe04b6ef-720.webp",
+      "width": 720,
+      "height": 546,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/map-1805fe04b6ef-360.webp",
+          "width": 360,
+          "height": 273,
+          "bytes": 16856
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/map-1805fe04b6ef-720.webp",
+          "width": 720,
+          "height": 546,
+          "bytes": 46052
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/maps/f800df-3b35e67ddef446ae8b248bf2340b0e1c-mv2-jpg-f800df-3b35e67ddef446ae8b248bf2340b0e1c-mv2-jpg.jpg",
+      "kind": "map",
+      "defaultPath": "/assets/sandfest-media/optimized/map-40df1bbf33f3-720.webp",
+      "width": 720,
+      "height": 480,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/map-40df1bbf33f3-360.webp",
+          "width": 360,
+          "height": 240,
+          "bytes": 18434
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/map-40df1bbf33f3-720.webp",
+          "width": 720,
+          "height": 480,
+          "bytes": 69542
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/maps/f800df-2038ba23f1e44444968a94e358f89922-mv2-png-travel-edited-png.png",
+      "kind": "map",
+      "defaultPath": "/assets/sandfest-media/optimized/map-91c1b4b973a5-720.webp",
+      "width": 720,
+      "height": 547,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/map-91c1b4b973a5-360.webp",
+          "width": 360,
+          "height": 274,
+          "bytes": 13090
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/map-91c1b4b973a5-720.webp",
+          "width": 720,
+          "height": 547,
+          "bytes": 31442
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/sponsor-logos/f800df-5858ec362d5e458d8d12acf51087fb1d-mv2-png-tjh-new-png-png.png",
+      "kind": "sponsor",
+      "defaultPath": "/assets/sandfest-media/optimized/sponsor-918dcd79bdbd-360.webp",
+      "width": 224,
+      "height": 180,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/sponsor-918dcd79bdbd-180.webp",
+          "width": 180,
+          "height": 144,
+          "bytes": 5680
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/sponsor-918dcd79bdbd-360.webp",
+          "width": 224,
+          "height": 180,
+          "bytes": 7450
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/sponsor-logos/f800df-3d8dc6a9772d485a93c3d7ec5193b05d-mv2-png-f800df-3d8dc6a9772d485a93c3d7ec5193b05d-mv2-png.png",
+      "kind": "sponsor",
+      "defaultPath": "/assets/sandfest-media/optimized/sponsor-47fa2294ccb3-360.webp",
+      "width": 288,
+      "height": 180,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/sponsor-47fa2294ccb3-180.webp",
+          "width": 180,
+          "height": 113,
+          "bytes": 2682
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/sponsor-47fa2294ccb3-360.webp",
+          "width": 288,
+          "height": 180,
+          "bytes": 4402
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/sponsor-logos/f800df-f514c867d5e34d1dbf2b3af4e14721c2-mv2-jpeg-bl-truck-jpeg.jpg",
+      "kind": "sponsor",
+      "defaultPath": "/assets/sandfest-media/optimized/sponsor-75c983942285-360.webp",
+      "width": 360,
+      "height": 112,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/sponsor-75c983942285-180.webp",
+          "width": 180,
+          "height": 56,
+          "bytes": 2032
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/sponsor-75c983942285-360.webp",
+          "width": 360,
+          "height": 112,
+          "bytes": 4552
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/sponsor-logos/f800df-7388012d9da44e5290259cf640b33a5a-mv2-jpg-apg-e-jpg.jpg",
+      "kind": "sponsor",
+      "defaultPath": "/assets/sandfest-media/optimized/sponsor-f2369ebf2b2f-360.webp",
+      "width": 360,
+      "height": 137,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/sponsor-f2369ebf2b2f-180.webp",
+          "width": 180,
+          "height": 69,
+          "bytes": 3570
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/sponsor-f2369ebf2b2f-360.webp",
+          "width": 360,
+          "height": 137,
+          "bytes": 7770
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/sponsor-logos/f800df-3f51930de51b4179a84ddc01dab806bf-mv2-png-f800df-3f51930de51b4179a84ddc01dab806bf-mv2-png.png",
+      "kind": "sponsor",
+      "defaultPath": "/assets/sandfest-media/optimized/sponsor-a4dd942d8ff7-360.webp",
+      "width": 288,
+      "height": 180,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/sponsor-a4dd942d8ff7-180.webp",
+          "width": 180,
+          "height": 113,
+          "bytes": 2240
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/sponsor-a4dd942d8ff7-360.webp",
+          "width": 288,
+          "height": 180,
+          "bytes": 3570
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/sponsor-logos/f800df-b91f3ad8f57d45219d4c80f60635f662-mv2-png-f800df-b91f3ad8f57d45219d4c80f60635f662-mv2-png.png",
+      "kind": "sponsor",
+      "defaultPath": "/assets/sandfest-media/optimized/sponsor-c2f137b47c23-360.webp",
+      "width": 352,
+      "height": 180,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/sponsor-c2f137b47c23-180.webp",
+          "width": 180,
+          "height": 92,
+          "bytes": 9494
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/sponsor-c2f137b47c23-360.webp",
+          "width": 352,
+          "height": 180,
+          "bytes": 21880
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/sponsor-logos/f800df-a37bf1278d6543b2b961ae96b41b2970-mv2-png-f800df-a37bf1278d6543b2b961ae96b41b2970-mv2-png.png",
+      "kind": "sponsor",
+      "defaultPath": "/assets/sandfest-media/optimized/sponsor-8011a0ba3c82-360.webp",
+      "width": 245,
+      "height": 145,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/sponsor-8011a0ba3c82-180.webp",
+          "width": 180,
+          "height": 107,
+          "bytes": 7336
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/sponsor-8011a0ba3c82-360.webp",
+          "width": 245,
+          "height": 145,
+          "bytes": 9164
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/sponsor-logos/f800df-82d4f2248ff84bdea12e57bbf1da79cb-mv2-png-heb-helping-here-logo-updated-2022-png.png",
+      "kind": "sponsor",
+      "defaultPath": "/assets/sandfest-media/optimized/sponsor-b4dba2eefb1b-360.webp",
+      "width": 360,
+      "height": 174,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/sponsor-b4dba2eefb1b-180.webp",
+          "width": 180,
+          "height": 87,
+          "bytes": 5652
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/sponsor-b4dba2eefb1b-360.webp",
+          "width": 360,
+          "height": 174,
+          "bytes": 11082
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/sponsor-logos/f800df-a7c9bd7bdc8645ec9158f84e9901542f-mv2-png-beachgate-logo-png.png",
+      "kind": "sponsor",
+      "defaultPath": "/assets/sandfest-media/optimized/sponsor-5de7f62d302f-360.webp",
+      "width": 156,
+      "height": 180,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/sponsor-5de7f62d302f-360.webp",
+          "width": 156,
+          "height": 180,
+          "bytes": 13760
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/sponsor-logos/f800df-cb9efefcd297435ea6b9b81625c5ac22-mv2-jpg-texas-lottery-hat-and-hand-jpg.jpg",
+      "kind": "sponsor",
+      "defaultPath": "/assets/sandfest-media/optimized/sponsor-6e451e0a66fb-360.webp",
+      "width": 143,
+      "height": 180,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/sponsor-6e451e0a66fb-360.webp",
+          "width": 143,
+          "height": 180,
+          "bytes": 7236
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/sponsor-logos/f800df-e320a895d75c486d8919304e050ba6c8-mv2-png-gignac-edited-png.png",
+      "kind": "sponsor",
+      "defaultPath": "/assets/sandfest-media/optimized/sponsor-9a88c4c979e2-360.webp",
+      "width": 360,
+      "height": 116,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/sponsor-9a88c4c979e2-180.webp",
+          "width": 180,
+          "height": 58,
+          "bytes": 5934
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/sponsor-9a88c4c979e2-360.webp",
+          "width": 360,
+          "height": 116,
+          "bytes": 12536
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/sponsor-logos/f800df-7d78c3ce2a254762b4590f21acfe684c-mv2-png-senior-helpers-png.png",
+      "kind": "sponsor",
+      "defaultPath": "/assets/sandfest-media/optimized/sponsor-bcffe71d8d02-360.webp",
+      "width": 360,
+      "height": 142,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/sponsor-bcffe71d8d02-180.webp",
+          "width": 180,
+          "height": 71,
+          "bytes": 6094
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/sponsor-bcffe71d8d02-360.webp",
+          "width": 360,
+          "height": 142,
+          "bytes": 13472
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/sponsor-logos/f800df-1ba154128ee942ef8ab36bc4bd5a291f-mv2-jpg-hayden-jpg.jpg",
+      "kind": "sponsor",
+      "defaultPath": "/assets/sandfest-media/optimized/sponsor-9f182716bd31-360.webp",
+      "width": 360,
+      "height": 126,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/sponsor-9f182716bd31-180.webp",
+          "width": 180,
+          "height": 63,
+          "bytes": 1732
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/sponsor-9f182716bd31-360.webp",
+          "width": 360,
+          "height": 126,
+          "bytes": 2890
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/sponsor-logos/f800df-e0ebe2d749e34f30afdf697ff1210b9a-mv2-jpg-stewart-jpg.jpg",
+      "kind": "sponsor",
+      "defaultPath": "/assets/sandfest-media/optimized/sponsor-df81e01b672a-360.webp",
+      "width": 180,
+      "height": 180,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/sponsor-df81e01b672a-360.webp",
+          "width": 180,
+          "height": 180,
+          "bytes": 2284
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/sponsor-logos/f800df-820ce1cece3a46458dab77405f2ee53a-mv2-png-f800df-820ce1cece3a46458dab77405f2ee53a-mv2-png.png",
+      "kind": "sponsor",
+      "defaultPath": "/assets/sandfest-media/optimized/sponsor-e1d6605d97b7-360.webp",
+      "width": 293,
+      "height": 180,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/sponsor-e1d6605d97b7-180.webp",
+          "width": 180,
+          "height": 111,
+          "bytes": 10486
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/sponsor-e1d6605d97b7-360.webp",
+          "width": 293,
+          "height": 180,
+          "bytes": 21016
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/sponsor-logos/f800df-9c1e98e06a3e4a2abe2670ef3da61079-mv2-png-f800df-9c1e98e06a3e4a2abe2670ef3da61079-mv2-png.png",
+      "kind": "sponsor",
+      "defaultPath": "/assets/sandfest-media/optimized/sponsor-a82fdf2103b6-360.webp",
+      "width": 304,
+      "height": 180,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/sponsor-a82fdf2103b6-180.webp",
+          "width": 180,
+          "height": 107,
+          "bytes": 4110
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/sponsor-a82fdf2103b6-360.webp",
+          "width": 304,
+          "height": 180,
+          "bytes": 9094
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/sponsor-logos/f800df-badf7916a0f844ac9b8418a55ce62550-mv2-jpg-zapp-family-jpg.jpg",
+      "kind": "sponsor",
+      "defaultPath": "/assets/sandfest-media/optimized/sponsor-421ef9dacbc2-360.webp",
+      "width": 360,
+      "height": 170,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/sponsor-421ef9dacbc2-180.webp",
+          "width": 180,
+          "height": 85,
+          "bytes": 2778
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/sponsor-421ef9dacbc2-360.webp",
+          "width": 360,
+          "height": 170,
+          "bytes": 7832
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/sponsor-logos/f800df-9c4b421545bd4bd8a022b11daf5e7886-mv2-jpg-bernies-jpg.jpg",
+      "kind": "sponsor",
+      "defaultPath": "/assets/sandfest-media/optimized/sponsor-e2ca946ffac6-360.webp",
+      "width": 219,
+      "height": 180,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/sponsor-e2ca946ffac6-180.webp",
+          "width": 180,
+          "height": 148,
+          "bytes": 6026
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/sponsor-e2ca946ffac6-360.webp",
+          "width": 219,
+          "height": 180,
+          "bytes": 8700
+        }
+      ]
+    }
+  ]
+}

@@ -13,12 +13,20 @@ CREATE TABLE IF NOT EXISTS orders (
   event_id                    TEXT NOT NULL,
   status                      TEXT NOT NULL,
   stripe_checkout_session_id  TEXT,
+  payment_intent_id           TEXT,
+  idempotency_key_hash        TEXT,
+  idempotency_fingerprint     TEXT,
   data                        JSONB NOT NULL,
   created_at                  TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at                  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_intent_id TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS idempotency_key_hash TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS idempotency_fingerprint TEXT;
 CREATE INDEX IF NOT EXISTS orders_created_at_idx ON orders (created_at DESC);
 CREATE INDEX IF NOT EXISTS orders_session_idx     ON orders (stripe_checkout_session_id);
+CREATE INDEX IF NOT EXISTS orders_payment_intent_idx ON orders (payment_intent_id);
+CREATE UNIQUE INDEX IF NOT EXISTS orders_idempotency_idx ON orders (idempotency_key_hash) WHERE idempotency_key_hash IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS payment_events (
   id                   TEXT PRIMARY KEY,
@@ -114,10 +122,21 @@ CREATE TABLE IF NOT EXISTS platform_jobs (
   payload       JSONB NOT NULL DEFAULT '{}'::jsonb,
   last_error    TEXT,
   run_after     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  locked_by     TEXT,
+  locked_at     TIMESTAMPTZ,
+  lease_token   TEXT,
+  failure_handled_at TIMESTAMPTZ,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE platform_jobs ADD COLUMN IF NOT EXISTS locked_by TEXT;
+ALTER TABLE platform_jobs ADD COLUMN IF NOT EXISTS locked_at TIMESTAMPTZ;
+ALTER TABLE platform_jobs ADD COLUMN IF NOT EXISTS lease_token TEXT;
+ALTER TABLE platform_jobs ADD COLUMN IF NOT EXISTS failure_handled_at TIMESTAMPTZ;
 CREATE INDEX IF NOT EXISTS platform_jobs_claim_idx
   ON platform_jobs (status, run_after, created_at)
   WHERE status = 'queued';
 CREATE INDEX IF NOT EXISTS platform_jobs_type_idx ON platform_jobs (type, created_at DESC);
+CREATE INDEX IF NOT EXISTS platform_jobs_lease_idx
+  ON platform_jobs (locked_at)
+  WHERE status = 'running';

@@ -30,6 +30,13 @@ Set `SANDFEST_DATABASE_URL`. Schema (`lib/db/schema.sql`) adds:
 
 Access via `lib/platform-data.mjs` (used by the admin API).
 
+Schema creation is guarded by a database advisory lock so simultaneous pod
+starts cannot race on `CREATE TABLE IF NOT EXISTS`. Platform document updates
+take a transaction advisory lock per document before `SELECT ... FOR UPDATE`,
+which also protects the first insert when no row exists yet. This prevents
+simultaneous vendor, sponsor, outreach, worker, or camera writes from replacing
+one another during a cold database start.
+
 Pool defaults: `max=40`, connect timeout 5s (override with env).
 
 ## Security controls (event day)
@@ -75,8 +82,15 @@ For a **single VPS** event weekend (thousands concurrent, not 100k API RPS):
 ```bash
 npm run test:platform
 npm run test:platform:api
+npm run test:postgres
 npm run build
 ```
+
+`npm run test:postgres` provisions a disposable database and exercises schema
+startup from four processes, concurrent first writes, concurrent public partner
+intake, outreach sequencing, passport and voting uniqueness, signed camera
+metrics, the durable worker queue, and audit persistence. CI runs the same suite
+against Postgres 17.
 
 ## Enterprise controls (this tranche)
 
@@ -84,14 +98,14 @@ npm run build
 |---------|-----|
 | Shared rate limits | `REDIS_URL` (ioredis) or Upstash REST; else memory |
 | Async SMS | Alert publish enqueues `sms.alert_fanout`; run `npm run worker` |
-| Ops bundle split | `/admin.html` → `src/admin.js` (not in visitor bundle) |
+| Ops bundle split | `npm run build:public` and `npm run build:admin` produce mutually exclusive deploy artifacts; CI asserts each bundle is absent from the other surface |
 | Ticket-linked votes | Optional `ticketRef`; enforce with `SANDFEST_REQUIRE_TICKET_VOTE=true` |
 | XSS | `escapeHtml` / `escapeAttr` on admin cards, votes, booths, fleet, sculptors |
 | CI | `.github/workflows/ci.yml` — tests, build, load-test, Swift parse |
 
-## Remaining (ops maturity)
+## Remaining (external launch dependencies)
 
-- Redis required in multi-pod prod (document in deploy runbook)
 - Full ticket registry validation against Eventeny/Stripe (needs logins)
-- Queue for QuickBooks write-behind beyond stub job type
-- CDN WAF in front of public write endpoints
+- CDN WAF policy in front of public write endpoints
+
+Production readiness now fails closed unless the API has a reachable shared Redis or Upstash rate-limit backend. QuickBooks invoices use the durable reviewed job queue; provider activation still requires approved sandbox OAuth and item IDs.
