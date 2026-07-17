@@ -2143,7 +2143,18 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   const teamAssignmentNotice = generateDueTaskFollowups(blockedTask.doc, { idFactory, taskRecipients: staffTaskRecipients, now });
   const generatedTeamAssignment = teamAssignmentNotice.generated.find(item => item.taskId === task.task.id && item.kind === "task_assignment");
   const teamAssignmentApproved = reviewFollowup(teamAssignmentNotice.doc, generatedTeamAssignment?.id, "approve", { actorId: "ops_1", taskRecipients: staffTaskRecipients, now });
+  const queuedTeamAssignment = queueFollowupDelivery(teamAssignmentApproved.doc, generatedTeamAssignment?.id, { taskRecipients: staffTaskRecipients, now });
+  const claimedTeamAssignment = claimFollowupDelivery(queuedTeamAssignment.doc, generatedTeamAssignment?.id, { deliveryClaimId: "job_task_assignment", taskRecipients: staffTaskRecipients, now });
+  const reassignedBeforeTaskHandoff = updatePartnerTask(claimedTeamAssignment.doc, task.task.id, {
+    assigneeType: "staff",
+    assigneeId: "staff_operations",
+    assigneeName: "Jamie Torres"
+  }, { actorId: "ops_1", idFactory, now });
+  const begunTeamAssignment = beginFollowupProviderSubmission(claimedTeamAssignment.doc, generatedTeamAssignment?.id, { deliveryClaimId: "job_task_assignment", taskRecipients: staffTaskRecipients, now });
+  const completedAfterTaskHandoff = updatePartnerTask(begunTeamAssignment.doc, task.task.id, { status: "done" }, { actorId: "ops_1", idFactory, now });
   ok("team task notification resolves accountable owner", generatedTeamAssignment?.recipient === "morgan.ellis@example.com" && teamAssignmentApproved.ok);
+  ok("task reassignment cancels an unstarted notification handoff", reassignedBeforeTaskHandoff.ok && reassignedBeforeTaskHandoff.dismissedFollowups === 1 && reassignedBeforeTaskHandoff.doc.followups.find(item => item.id === generatedTeamAssignment?.id)?.status === "dismissed" && reassignedBeforeTaskHandoff.doc.followups.find(item => item.id === generatedTeamAssignment?.id)?.deliveryClaimId === null);
+  ok("task completion preserves a started notification handoff", completedAfterTaskHandoff.ok && completedAfterTaskHandoff.dismissedFollowups === 0 && completedAfterTaskHandoff.doc.followups.find(item => item.id === generatedTeamAssignment?.id)?.status === "sending" && completedAfterTaskHandoff.doc.followups.find(item => item.id === generatedTeamAssignment?.id)?.providerSubmissionStartedAt === now);
   const staffTask = createPartnerTask(paid.doc, {
     title: "Confirm staff briefing",
     assigneeType: "staff",
