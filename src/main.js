@@ -583,6 +583,9 @@ function defaultPublicApiBase() {
   if (import.meta.env.PROD) {
     return CONFIGURED_ADMIN_API_BASE || "https://api.heyelab.com/sandfest";
   }
+  if (BOARD_DEMO_INJECTED_TOKEN && ["127.0.0.1", "localhost", "[::1]"].includes(window.location.hostname)) {
+    return "http://127.0.0.1:8806";
+  }
   try {
     const saved = localStorage.getItem("sandfest_api_base");
     if (saved) return saved;
