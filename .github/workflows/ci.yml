@@ -33,6 +33,8 @@ jobs:
         run: npm run test:deployment-verifier
       - name: Render Blueprint production contract
         run: npm run test:render-blueprint
+      - name: Vercel project isolation contract
+        run: npm run test:vercel-project-guard
       - name: Camera edge-agent contract
         run: npm run test:camera-agent
       - name: API smoke suite

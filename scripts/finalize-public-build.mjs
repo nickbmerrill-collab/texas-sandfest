@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFile, readdir, writeFile } from "node:fs/promises";
+import { readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const root = path.resolve(import.meta.dirname, "..");
@@ -9,6 +9,7 @@ const entryPath = path.join(outDir, "index.html");
 const workerPath = path.join(outDir, "sw.js");
 const mediaManifestPath = path.join(outDir, "assets", "sandfest-media", "media-derivatives.json");
 const buildAssetPattern = /\.(?:css|js|woff2?)$/i;
+const originalMediaDirectories = ["logos", "maps", "photos", "social", "sponsor-logos"];
 
 const [entryHtml, workerTemplate, assetEntries, mediaManifestText] = await Promise.all([
   readFile(entryPath, "utf8"),
@@ -54,4 +55,7 @@ const worker = workerTemplate
   .replace("/* __MEDIA_ASSETS__ */ []", mediaAssetManifest);
 
 await writeFile(workerPath, worker);
+await Promise.all(originalMediaDirectories.map(directory =>
+  rm(path.join(outDir, "assets", "sandfest-media", directory), { recursive: true, force: true })
+));
 console.log(`Finalized public offline shell ${buildId} with ${buildAssets.length} compiled assets and ${mediaAssets.length} optimized media files.`);

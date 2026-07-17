@@ -1,0 +1,25 @@
+.git
+.github
+.ruff_cache
+.sandfest-runtime
+.vercel
+artifacts
+camera_agent
+data
+dist
+dist-admin
+dist-public
+docs
+ios
+node_modules
+Texas SandFest Vault
+
+# The visitor build serves responsive WebP derivatives, not source photography.
+public/assets/sandfest-media/logos
+public/assets/sandfest-media/maps
+public/assets/sandfest-media/photos
+public/assets/sandfest-media/social
+public/assets/sandfest-media/sponsor-logos
+
+.env
+.env.*
