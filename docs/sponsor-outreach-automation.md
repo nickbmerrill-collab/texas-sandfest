@@ -63,7 +63,7 @@ Changing a prospect's location, qualification, contact basis, or email dismisses
 3. Activate the campaign. Activation fails when no eligible prospects match; approved-sequence activation also fails until email delivery and authenticated callbacks are ready.
 4. Generate due drafts manually or allow the background worker to generate them.
 5. In review-first mode, review each `draft_ready` message and approve or dismiss it. In approved-sequence mode, the worker approves only the current campaign's eligible drafts within its daily limit.
-6. Queue approved messages for Brevo delivery. Retry-safe job keys bind the campaign policy, message, and approval timestamp.
+6. Queue approved messages for Brevo delivery. The daily limit counts every queued or delivered campaign message, including messages a staff member queues manually. Retry-safe job keys bind the campaign policy, message, and approval timestamp.
 7. After delivery is proven, the next sequence step becomes eligible when its delay expires.
 8. Pause, complete, or archive the campaign when appropriate. Pausing returns unsent automated messages to review and clears their jobs; completing or archiving dismisses all unsent campaign messages.
 

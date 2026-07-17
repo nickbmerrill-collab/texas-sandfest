@@ -2370,6 +2370,19 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   const automatedReadiness = outreachCampaignAutomationReadiness(appliedAutomatedCampaign.doc, activatedAutomatedCampaign.campaign, { now, providerReady: true });
   const campaignQueueCandidates = automatedFollowupQueueCandidates(appliedAutomatedCampaign.doc, { maxBatch: 10, now, providerReady: true });
   const providerBlockedCampaignCandidates = automatedFollowupQueueCandidates(appliedAutomatedCampaign.doc, { maxBatch: 10, now, providerReady: false });
+  const manualCampaignDoc = {
+    ...appliedAutomatedCampaign.doc,
+    followups: appliedAutomatedCampaign.doc.followups.map(item => item.id === appliedAutomatedCampaign.approved[0].id
+      ? { ...item, approvedBy: "sponsor_1", automationPolicy: null, automationCampaignApprovedAt: null }
+      : item)
+  };
+  const manuallyQueuedCampaign = queueFollowupDelivery(manualCampaignDoc, appliedAutomatedCampaign.approved[0].id, { now });
+  const manualOverflowId = `${appliedAutomatedCampaign.approved[0].id}_overflow`;
+  const manualOverflowDoc = {
+    ...manuallyQueuedCampaign.doc,
+    followups: [...manuallyQueuedCampaign.doc.followups, { ...appliedAutomatedCampaign.approved[0], id: manualOverflowId, approvedBy: "sponsor_1", automationPolicy: null, automationCampaignApprovedAt: null }]
+  };
+  const manuallyQueuedOverflow = queueFollowupDelivery(manualOverflowDoc, manualOverflowId, { now });
   const carriedQueueDoc = {
     ...appliedAutomatedCampaign.doc,
     followups: appliedAutomatedCampaign.doc.followups.map(item => item.id === appliedAutomatedCampaign.approved[0].id
@@ -2381,6 +2394,7 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   ok("campaign automation requires delivery readiness", !blockedAutomatedActivation.ok && blockedAutomatedActivation.providerNotReady === true && activatedAutomatedCampaign.ok);
   ok("campaign approval automates one bounded message", generatedAutomatedCampaign.generated.length === 1 && appliedAutomatedCampaign.approved.length === 1 && appliedAutomatedCampaign.approved[0].automationPolicy === OUTREACH_CAMPAIGN_AUTOMATION_POLICY && automatedReadiness.dailySendLimit === 1 && automatedReadiness.remainingToday === 0 && campaignQueueCandidates.length === 1);
   ok("campaign automation fails closed and carries queued capacity", providerBlockedCampaignCandidates.length === 0 && carriedQueueReadiness.queuedPending === 1 && carriedQueueReadiness.remainingToday === 0);
+  ok("campaign daily cap includes manual delivery", manuallyQueuedCampaign.ok && !manuallyQueuedOverflow.ok && manuallyQueuedOverflow.dailyLimitReached === true && outreachCampaignAutomationReadiness(manuallyQueuedCampaign.doc, automatedCampaign.campaign.id, { now, providerReady: true }).remainingToday === 0);
   ok("campaign pause returns unsent automation to review", pausedAutomatedCampaign.ok && pausedAutomatedCampaign.returnedToReview === 1 && pausedAutomatedCampaign.doc.followups.find(item => item.id === appliedAutomatedCampaign.approved[0].id)?.status === "draft_ready" && automatedFollowupQueueCandidates(pausedAutomatedCampaign.doc, { now }).length === 0);
   const movedOutsideCampaign = updateOutreachProspect(campaignDraft.doc, prospect.prospect.id, {
     city: "Austin",
