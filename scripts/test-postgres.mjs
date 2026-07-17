@@ -1634,7 +1634,19 @@ PG-EVENTENY-V-1,vendor,Postgres Eventeny Vendor,Postgres Import Contact,${postgr
     SANDFEST_RECOVERY_ASSET_MIN_FILES: "2"
   }, "Postgres asset recovery verification");
   const assetRecoveryEvidence = JSON.parse(assetRecoveryOutput.trim().split("\n").at(-1));
-  check("isolated asset recovery verification proves every restored upload", assetRecoveryEvidence.ok && assetRecoveryEvidence.mode === "read-only" && assetRecoveryEvidence.database === "restored" && assetRecoveryEvidence.assetDirectory === "restored" && assetRecoveryEvidence.assets?.verified === recoveryUploads.length + recoveryIncomingDoc.documents.length && assetRecoveryEvidence.assets?.brandAssets >= 1 && assetRecoveryEvidence.assets?.vendorDocuments >= 1 && assetRecoveryEvidence.assets?.incomingDocuments === 1 && /^[a-f0-9]{64}$/.test(assetRecoveryEvidence.assets?.manifestSha256 || ""));
+  check("isolated asset recovery verification proves every restored upload", assetRecoveryEvidence.ok && assetRecoveryEvidence.mode === "read-only" && assetRecoveryEvidence.database === "restored" && assetRecoveryEvidence.assetDirectory === "restored" && assetRecoveryEvidence.assets?.verified === recoveryUploads.length + recoveryIncomingDoc.documents.length && assetRecoveryEvidence.assets?.brandAssets >= 1 && assetRecoveryEvidence.assets?.vendorDocuments >= 1 && assetRecoveryEvidence.assets?.incomingDocuments === 1 && assetRecoveryEvidence.assets?.incomingDocumentMetadataPresent === true && /^[a-f0-9]{64}$/.test(assetRecoveryEvidence.assets?.manifestSha256 || ""));
+  await verificationPool.query("DELETE FROM platform_documents WHERE key = $1", ["incoming-documents"]);
+  const legacyAssetRecoveryOutput = await runChild(["scripts/verify-asset-recovery.mjs"], {
+    ...commonEnv,
+    SANDFEST_DATABASE_URL: "",
+    SANDFEST_RECOVERY_DATABASE_URL: databaseUrl,
+    SANDFEST_RECOVERY_DATABASE_SSL: "false",
+    SANDFEST_PARTNER_ASSET_DIR: partnerAssetDir,
+    SANDFEST_RECOVERY_ASSET_DIR: recoveryAssetDir,
+    SANDFEST_RECOVERY_ASSET_MIN_FILES: "2"
+  }, "Pre-document asset recovery verification");
+  const legacyAssetRecoveryEvidence = JSON.parse(legacyAssetRecoveryOutput.trim().split("\n").at(-1));
+  check("asset recovery remains compatible with pre-document backups", legacyAssetRecoveryEvidence.ok && legacyAssetRecoveryEvidence.assets?.verified === recoveryUploads.length && legacyAssetRecoveryEvidence.assets?.incomingDocuments === 0 && legacyAssetRecoveryEvidence.assets?.incomingDocumentMetadataPresent === false);
   await writeFile(path.join(recoveryAssetDir, recoveryUploads[0].storageKey), Buffer.alloc(recoveryUploads[0].sizeBytes, 1));
   let corruptedAssetRejected = false;
   try {

@@ -94,7 +94,7 @@ try {
   const result = await client.query("SELECT key, data FROM platform_documents WHERE key = ANY($1::text[])", [["partner-operations", "incoming-documents"]]);
   const documents = new Map(result.rows.map(row => [row.key, row.data]));
   if (!documents.has("partner-operations")) throw new Error("Recovery database is missing the partner-operations platform document.");
-  if (!documents.has("incoming-documents")) throw new Error("Recovery database is missing the incoming-documents platform document.");
+  const incomingDocumentMetadataPresent = documents.has("incoming-documents");
 
   const extraction = platformAssetRecoveryReferences(documents.get("partner-operations"), documents.get("incoming-documents"));
   const verification = await verifyPartnerAssetRecovery(extraction, readRestoredAsset, { minimumFiles });
@@ -121,6 +121,7 @@ try {
       brandAssets: verification.counts.brandAssets,
       vendorDocuments: verification.counts.vendorDocuments,
       incomingDocuments: verification.counts.incomingDocuments,
+      incomingDocumentMetadataPresent,
       externalReferences: verification.counts.externalReferences,
       bytes: verification.counts.bytes,
       minimumFiles: verification.minimumFiles,

@@ -748,6 +748,7 @@ console.log("\n=== Pure library suite ===\n");
     dailyClose: "19:30"
   };
   const config = eventContextConfig({ SANDFEST_EVENT_ID: DEFAULT_EVENT_ID });
+  const incomingDocumentSeed = JSON.parse(await readFile(path.join(ROOT, "data", "processed", "incoming-documents.json"), "utf8"));
   const aligned = eventContextReadiness({
     config,
     guide,
@@ -791,6 +792,7 @@ console.log("\n=== Pure library suite ===\n");
     documents: { ...documents, fleet: { ...documents.fleet, eventId: DEFAULT_EVENT_ID } }
   });
   ok("current event context validates explicit annual namespace", config.valid && config.explicit && config.eventId === DEFAULT_EVENT_ID && aligned.ready);
+  ok("private document seed uses the current annual namespace", incomingDocumentSeed.eventId === DEFAULT_EVENT_ID && incomingDocumentSeed.documents.length === 0);
   ok("current event context reports stale and missing operational documents", !mismatched.ready && mismatched.mismatchedDocs.length === 2 && !invalidConfig.valid);
   ok("event rollover covers every governed operational document", rollover.ok && Object.keys(rollover.documents).length === ROLLOVER_DOCUMENT_KEYS.length && /^[a-f0-9]{64}$/.test(rollover.archiveDigest));
   ok("event archive digest is stable across object key order", eventArchiveDigest({ b: 2, a: { d: 4, c: 3 } }) === eventArchiveDigest({ a: { c: 3, d: 4 }, b: 2 }));
