@@ -1,6 +1,32 @@
 # Incoming Ingestion
 
-All private or exported files should land in `data/incoming/` first. The scanner builds a review queue before anything is promoted into the app, vault, QuickBooks mapping, or customer-facing content.
+Private source files have two controlled intake paths:
+
+1. Staff upload through the operations **Documents** workspace. This is the production path for board packets, provider exports, finance files, runbooks, and communications.
+2. Bulk local drops land in `data/incoming/` and pass through the repository scanner before promotion.
+
+Neither path publishes content automatically.
+
+## Staff Document Workspace
+
+`GET /api/admin/documents` requires `documents:read`. Upload, review, owner assignment, and archive changes require `documents:write`.
+
+Supported files are PDF, UTF-8 text, CSV, JSON, EML, PNG, JPEG, WebP, DOCX, XLSX, and PPTX. The API verifies signatures or structured text, enforces a 20 MB default limit, hashes every file with SHA-256, and collapses exact replays into the original annual record. Text, CSV, JSON, and EML receive a bounded staff-only preview; binary formats remain stored without server-side execution or extraction.
+
+The metadata lifecycle is:
+
+`received` -> `in_review` -> `approved` or `changes_requested` -> `archived`
+
+Archived files remain available to authorized staff on the private mount. Downloads recompute file size and checksum before returning bytes. Upload, review, integrity failure, and download actions are audited without copying document text into the audit trail.
+
+Production requires:
+
+```bash
+SANDFEST_INCOMING_DOCUMENT_DIR=/private/persistent/incoming-documents
+SANDFEST_INCOMING_DOCUMENT_MAX_BYTES=20971520
+```
+
+Render maps the intake directory to the API's private persistent disk. File bytes never enter the static visitor/admin artifacts and storage keys never leave the API.
 
 ## Drop Folders
 
@@ -23,6 +49,6 @@ npm run incoming:scan
 - `data/processed/incoming-inventory.md`
 - `public/data/incoming-inventory.json` after `npm run public:sync`
 
-## Rule
+## Bulk Drop Rule
 
 Do not wire new exports directly into the customer app. Scan first, review source ownership, classify records, then promote into canonical app data.

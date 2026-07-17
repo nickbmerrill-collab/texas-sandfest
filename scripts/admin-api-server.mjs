@@ -213,6 +213,20 @@ import {
   readPartnerAssetUpload,
   savePartnerAssetUpload
 } from "../lib/partner-assets.mjs";
+import {
+  adminIncomingDocument,
+  createIncomingDocument,
+  deleteIncomingDocumentUpload,
+  emptyIncomingDocumentIntake,
+  incomingDocumentDownloadName,
+  incomingDocumentStorageConfig,
+  normalizeIncomingDocumentIntake,
+  readIncomingDocumentUpload,
+  saveIncomingDocumentUpload,
+  summarizeIncomingDocuments,
+  updateIncomingDocument,
+  verifyIncomingDocumentBytes
+} from "../lib/incoming-documents.mjs";
 import { approvedPublicSponsorAsset, publicSponsorShowcase } from "../lib/sponsor-showcase.mjs";
 import { publicTicketCatalog } from "../lib/ticket-catalog.mjs";
 import { emailConfigFromEnv, publicEmailReadiness } from "../lib/email.mjs";
@@ -293,6 +307,7 @@ const CODE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..
 const ROOT = resolveRuntimeRoot(CODE_ROOT);
 const RUNTIME_ROOT = runtimeRootProfile(CODE_ROOT, ROOT);
 const PARTNER_ASSET_STORAGE = partnerAssetStorageConfig(ROOT);
+const INCOMING_DOCUMENT_STORAGE = incomingDocumentStorageConfig(ROOT);
 const OUTREACH_PREFERENCES = outreachPreferencesConfig();
 const TURNSTILE = turnstileConfig(process.env);
 const BREVO_WEBHOOK = brevoWebhookConfig(process.env);
@@ -326,6 +341,7 @@ const OPERATIONAL_EVENT_DOCUMENT_KEYS = [
   "voting",
   "booths",
   "partnerOps",
+  "incomingDocuments",
   "islandConditions",
   "smsOperations"
 ];
@@ -441,6 +457,8 @@ const rolePermissions = {
   ops_admin: [
     "admin:read",
     "content:write",
+    "documents:read",
+    "documents:write",
     "alert:read",
     "alert:write",
     "orders:read",
@@ -505,6 +523,7 @@ const rolePermissions = {
     "voting:read",
     "booths:read",
     "partners:read",
+    "documents:read",
     "finance:write",
     "conditions:read",
     "fulfillment:read",
@@ -548,7 +567,8 @@ const KNOWN_REQUIRED_CAPABILITIES = new Set([
   "camera_ingest",
   "staff_directory",
   "outreach_discovery",
-  "sms_safety"
+  "sms_safety",
+  "document_ingestion"
 ]);
 const DEFAULT_PRODUCTION_CAPABILITIES = [...KNOWN_REQUIRED_CAPABILITIES];
 
@@ -1436,6 +1456,18 @@ async function deploymentProfile() {
       PARTNER_ASSET_STORAGE.ready ? `Private partner document storage is ready (${Math.round(PARTNER_ASSET_STORAGE.maxBytes / 1024 / 1024)} MB per file).` : PARTNER_ASSET_STORAGE.reason,
       production ? "error" : "warning"
     ),
+    documentIngestion: (() => {
+      const required = capabilityPolicy.required.has("document_ingestion");
+      return checkStatus(
+        (!required && !production) || INCOMING_DOCUMENT_STORAGE.ready,
+        INCOMING_DOCUMENT_STORAGE.ready
+          ? `Private document intake is ready (${Math.round(INCOMING_DOCUMENT_STORAGE.maxBytes / 1024 / 1024)} MB per file).`
+          : required
+            ? `Required document intake is not ready. ${INCOMING_DOCUMENT_STORAGE.reason}`
+            : INCOMING_DOCUMENT_STORAGE.reason,
+        required || production ? "error" : "warning"
+      );
+    })(),
     sms: (() => {
       const sms = smsConfigFromEnv(process.env);
       const required = capabilityPolicy.required.has("sms_safety");
@@ -1625,6 +1657,11 @@ function revenueImportResponse(result) {
   };
 }
 
+function incomingDocumentAuditView(record) {
+  const { textPreview: _textPreview, ...metadata } = adminIncomingDocument(record);
+  return metadata;
+}
+
 async function mutateRevenueLedger(parsed, options = {}) {
   let result = null;
   const fallback = {
@@ -1652,7 +1689,7 @@ function sendJson(request, response, status, payload, headers = {}) {
   const responseHeaders = {
     "content-type": "application/json; charset=utf-8",
     "access-control-allow-methods": "GET,POST,PATCH,OPTIONS",
-    "access-control-allow-headers": "content-type,authorization,idempotency-key,x-partner-reference,x-partner-token,x-file-name,x-asset-kind,x-asset-label,x-requirement-id,x-document-label",
+    "access-control-allow-headers": "content-type,authorization,idempotency-key,x-partner-reference,x-partner-token,x-file-name,x-asset-kind,x-asset-label,x-requirement-id,x-document-label,x-document-domain,x-document-title,x-owner-team",
     "x-request-id": requestId,
     "x-content-type-options": "nosniff",
     "referrer-policy": "no-referrer",
@@ -2961,6 +2998,7 @@ async function handleRequest(request, response) {
         cameraIngestReady: cameraIngestConfig().ready,
         backupRecoveryReady: recoveryReadiness(process.env).ready,
         partnerPortalReady: partnerPortalConfig().ready,
+        documentIngestionReady: INCOMING_DOCUMENT_STORAGE.ready,
         outreachPreferencesReady: OUTREACH_PREFERENCES.ready,
         stripePartnerPaymentsReady: STRIPE_PARTNER_PAYMENTS.ready,
         rateLimitBackend: rateLimiter.kind,
@@ -4058,6 +4096,166 @@ async function handleRequest(request, response) {
       const session = await requireAdmin(request, response);
       if (!session) return;
       sendJson(request, response, 200, { deployment: await deploymentProfile() });
+      return;
+    }
+
+    if (method === "GET" && pathname === "/api/admin/documents") {
+      if (!(await requirePermission(request, response, "documents:read"))) return;
+      const doc = normalizeIncomingDocumentIntake(
+        await readPlatformDoc(ROOT, "incomingDocuments", emptyIncomingDocumentIntake(CURRENT_EVENT_ID)),
+        { eventId: CURRENT_EVENT_ID }
+      );
+      if (doc.eventId !== CURRENT_EVENT_ID) {
+        sendJson(request, response, 409, { error: `Document intake belongs to ${doc.eventId}; expected ${CURRENT_EVENT_ID}.` });
+        return;
+      }
+      const status = String(url.searchParams.get("status") || "").trim();
+      const domain = String(url.searchParams.get("domain") || "").trim();
+      const documents = doc.documents
+        .filter(record => !status || record.status === status)
+        .filter(record => !domain || record.domain === domain)
+        .sort((left, right) => String(right.uploadedAt || "").localeCompare(String(left.uploadedAt || "")))
+        .slice(0, clampLimit(url.searchParams.get("limit"), 200))
+        .map(adminIncomingDocument);
+      sendJson(request, response, 200, {
+        documents,
+        summary: summarizeIncomingDocuments(doc, { eventId: CURRENT_EVENT_ID }),
+        storage: {
+          ready: INCOMING_DOCUMENT_STORAGE.ready,
+          maxBytes: INCOMING_DOCUMENT_STORAGE.maxBytes,
+          allowedTypes: INCOMING_DOCUMENT_STORAGE.allowedTypes,
+          reason: INCOMING_DOCUMENT_STORAGE.reason
+        }
+      });
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/admin/documents/upload") {
+      const session = await requirePermission(request, response, "documents:write");
+      if (!session) return;
+      if (!INCOMING_DOCUMENT_STORAGE.ready) {
+        sendJson(request, response, 503, { error: INCOMING_DOCUMENT_STORAGE.reason || "Document intake storage is unavailable." });
+        return;
+      }
+      const header = name => String(Array.isArray(request.headers[name]) ? request.headers[name][0] : request.headers[name] || "").trim();
+      const documentId = `incoming_document_${randomUUID()}`;
+      const buffer = await readBufferBody(request, INCOMING_DOCUMENT_STORAGE.maxBytes);
+      const saved = await saveIncomingDocumentUpload(ROOT, {
+        documentId,
+        eventId: CURRENT_EVENT_ID,
+        fileName: header("x-file-name"),
+        contentType: request.headers["content-type"],
+        buffer
+      }, { config: INCOMING_DOCUMENT_STORAGE });
+      if (!saved.ok) {
+        sendJson(request, response, 400, { error: saved.error });
+        return;
+      }
+      let result = null;
+      try {
+        await updatePlatformDoc(ROOT, "incomingDocuments", current => {
+          result = createIncomingDocument(current, {
+            ...saved,
+            id: documentId,
+            domain: header("x-document-domain"),
+            title: header("x-document-title"),
+            ownerTeam: header("x-owner-team") || null
+          }, {
+            eventId: CURRENT_EVENT_ID,
+            actorId: session.id,
+            now: new Date().toISOString()
+          });
+          return result?.ok ? result.doc : normalizeIncomingDocumentIntake(current, { eventId: CURRENT_EVENT_ID });
+        }, { fallback: emptyIncomingDocumentIntake(CURRENT_EVENT_ID) });
+      } catch (error) {
+        await deleteIncomingDocumentUpload(ROOT, saved.storageKey, { config: INCOMING_DOCUMENT_STORAGE });
+        throw error;
+      }
+      if (!result?.ok || result.duplicate) {
+        await deleteIncomingDocumentUpload(ROOT, saved.storageKey, { config: INCOMING_DOCUMENT_STORAGE });
+      }
+      if (!result?.ok) {
+        sendJson(request, response, result.eventContextMismatch ? 409 : 400, { error: result.error || "Document could not be registered." });
+        return;
+      }
+      if (!result.duplicate) {
+        await writeAuditRecord(request, "document.upload", { type: "incomingDocument", id: result.document.id }, null, incomingDocumentAuditView(result.document), {
+          domain: result.document.domain,
+          sizeBytes: result.document.sizeBytes,
+          checksumSha256: result.document.checksumSha256
+        });
+      }
+      sendJson(request, response, result.duplicate ? 200 : 201, {
+        duplicate: result.duplicate,
+        document: adminIncomingDocument(result.document),
+        summary: summarizeIncomingDocuments(result.doc, { eventId: CURRENT_EVENT_ID })
+      });
+      return;
+    }
+
+    const adminDocumentContentMatch = pathname.match(/^\/api\/admin\/documents\/([^/]+)\/content$/);
+    if (method === "GET" && adminDocumentContentMatch) {
+      if (!(await requirePermission(request, response, "documents:read"))) return;
+      const documentId = decodeURIComponent(adminDocumentContentMatch[1]);
+      const doc = normalizeIncomingDocumentIntake(
+        await readPlatformDoc(ROOT, "incomingDocuments", emptyIncomingDocumentIntake(CURRENT_EVENT_ID)),
+        { eventId: CURRENT_EVENT_ID }
+      );
+      const record = doc.documents.find(item => item.id === documentId);
+      if (!record) {
+        sendJson(request, response, 404, { error: "Document not found." });
+        return;
+      }
+      const stored = await readIncomingDocumentUpload(ROOT, record.storageKey, { config: INCOMING_DOCUMENT_STORAGE });
+      if (!stored.ok) {
+        sendJson(request, response, 404, { error: stored.error });
+        return;
+      }
+      const verified = verifyIncomingDocumentBytes(record, stored.buffer);
+      if (!verified.ok) {
+        await writeAuditRecord(request, "document.integrity_failure", { type: "incomingDocument", id: record.id }, null, null, verified);
+        sendJson(request, response, 409, { error: verified.error });
+        return;
+      }
+      await writeAuditRecord(request, "document.download", { type: "incomingDocument", id: record.id }, null, null, {
+        domain: record.domain,
+        sizeBytes: record.sizeBytes,
+        checksumSha256: record.checksumSha256
+      });
+      sendBinary(request, response, 200, stored.buffer, {
+        contentType: record.contentType,
+        fileName: incomingDocumentDownloadName(record)
+      });
+      return;
+    }
+
+    const adminDocumentMatch = pathname.match(/^\/api\/admin\/documents\/([^/]+)$/);
+    if (method === "PATCH" && adminDocumentMatch) {
+      const session = await requirePermission(request, response, "documents:write");
+      if (!session) return;
+      const documentId = decodeURIComponent(adminDocumentMatch[1]);
+      const body = await readBody(request);
+      let result = null;
+      await updatePlatformDoc(ROOT, "incomingDocuments", current => {
+        result = updateIncomingDocument(current, documentId, body, {
+          eventId: CURRENT_EVENT_ID,
+          actorId: session.id,
+          now: new Date().toISOString()
+        });
+        return result?.ok ? result.doc : normalizeIncomingDocumentIntake(current, { eventId: CURRENT_EVENT_ID });
+      }, { fallback: emptyIncomingDocumentIntake(CURRENT_EVENT_ID) });
+      if (!result?.ok) {
+        sendJson(request, response, result?.eventContextMismatch ? 409 : result?.error === "Document not found." ? 404 : 400, { error: result?.error || "Document review could not be saved." });
+        return;
+      }
+      if (result.changed) {
+        await writeAuditRecord(request, "document.review", { type: "incomingDocument", id: result.document.id }, incomingDocumentAuditView(result.before), incomingDocumentAuditView(result.document));
+      }
+      sendJson(request, response, 200, {
+        changed: result.changed,
+        document: adminIncomingDocument(result.document),
+        summary: summarizeIncomingDocuments(result.doc, { eventId: CURRENT_EVENT_ID })
+      });
       return;
     }
 

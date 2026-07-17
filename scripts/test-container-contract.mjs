@@ -160,6 +160,7 @@ for (const pattern of [
   "data/incoming",
   "data/raw",
   "data/processed/documents",
+  "data/processed/incoming-documents",
   "data/processed/job-queue",
   "data/processed/partner-assets",
   "**/*credential*",

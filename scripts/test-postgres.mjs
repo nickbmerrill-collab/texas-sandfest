@@ -30,6 +30,7 @@ let apiChild = null;
 let databaseName = null;
 let databaseUrl = null;
 let partnerAssetDir = null;
+let incomingDocumentDir = null;
 let recoveryAssetDir = null;
 let stripeMock = null;
 let emailMock = null;
@@ -298,6 +299,7 @@ async function main() {
   databaseName = `sandfest_pgtest_${process.pid}_${randomBytes(4).toString("hex")}`;
   databaseUrl = databaseUrlFor(ADMIN_URL, databaseName);
   partnerAssetDir = await mkdtemp(path.join(tmpdir(), "sandfest-postgres-brand-assets-"));
+  incomingDocumentDir = path.join(partnerAssetDir, "incoming-documents");
   stripeMock = await startStripeMock();
   emailMock = await startEmailMock();
   twilioMock = await startTwilioMock();
@@ -324,6 +326,7 @@ async function main() {
     OUTREACH_DISCOVERY_PROVIDER: "fixture",
     SANDFEST_PUBLIC_SITE_URL: "https://www.texassandfest.org",
     SANDFEST_PARTNER_ASSET_DIR: partnerAssetDir,
+    SANDFEST_INCOMING_DOCUMENT_DIR: incomingDocumentDir,
     CAMERA_INGEST_ENABLED: "true",
     CAMERA_INGEST_KEYS: CAMERA_KEYS,
     CAMERA_INGEST_SECRET: "",
@@ -465,6 +468,8 @@ async function main() {
   });
   await writePlatformDoc(ROOT, "consent", { eventId: EVENT_ID, lastUpdated: null, records: [] });
   await writePlatformDoc(ROOT, "booths", { eventId: EVENT_ID, lastUpdated: null, source: "empty", booths: [], vendors: [], imports: [] });
+  const { emptyIncomingDocumentIntake } = await import("../lib/incoming-documents.mjs");
+  await writePlatformDoc(ROOT, "incomingDocuments", emptyIncomingDocumentIntake(EVENT_ID));
   const { emptySmsOperations } = await import("../lib/sms-operations.mjs");
   await writePlatformDoc(ROOT, "smsOperations", emptySmsOperations(EVENT_ID));
   await closePool();
@@ -503,6 +508,31 @@ async function main() {
   }, { auth: true });
   const postgresPublicGuide = await request(base, "GET", "/api/public/bootstrap");
   check("event guide publish persists in Postgres", postgresGuidePublish.status === 200 && postgresGuidePublish.data.readiness?.ready === true && postgresPublicGuide.data.guide?.sourceCheckedAt === postgresGuideCheckedAt && !("publishedBy" in postgresPublicGuide.data.guide));
+
+  const postgresDocumentBytes = Buffer.from("Postgres board packet\nPrivate source record\n", "utf8");
+  const postgresDocumentHeaders = {
+    authorization: `Bearer ${TOKEN}`,
+    "content-type": "text/plain",
+    "x-file-name": "postgres-board-packet.txt",
+    "x-document-domain": "docs",
+    "x-document-title": "Postgres board packet",
+    "x-owner-team": "operations"
+  };
+  const [postgresDocumentUploadA, postgresDocumentUploadB] = await Promise.all([
+    requestUpload(base, "/api/admin/documents/upload", postgresDocumentBytes, postgresDocumentHeaders),
+    requestUpload(base, "/api/admin/documents/upload", postgresDocumentBytes, postgresDocumentHeaders)
+  ]);
+  const postgresDocuments = await request(base, "GET", "/api/admin/documents", undefined, { auth: true });
+  const postgresDocument = postgresDocuments.data.documents?.[0];
+  const postgresDocumentReview = await request(base, "PATCH", `/api/admin/documents/${encodeURIComponent(postgresDocument?.id || "missing")}`, {
+    status: "in_review",
+    ownerTeam: "operations",
+    notes: "Validated through the Postgres metadata plane."
+  }, { auth: true });
+  const postgresDocumentDownload = await requestDownload(base, `/api/admin/documents/${encodeURIComponent(postgresDocument?.id || "missing")}/content`);
+  check("concurrent document uploads converge in Postgres", [postgresDocumentUploadA, postgresDocumentUploadB].filter(item => item.status === 201).length === 1 && [postgresDocumentUploadA, postgresDocumentUploadB].filter(item => item.status === 200 && item.data.duplicate === true).length === 1 && postgresDocuments.data.summary?.total === 1);
+  check("Postgres document metadata excludes private storage paths", postgresDocuments.status === 200 && postgresDocument?.textPreview.includes("Postgres board packet") && !("storageKey" in (postgresDocument || {})) && postgresDocument?.checksumSha256?.length === 64);
+  check("Postgres document review and controlled download", postgresDocumentReview.status === 200 && postgresDocumentReview.data.document?.status === "in_review" && postgresDocumentReview.data.document?.reviewedBy === "postgres-test-admin" && postgresDocumentDownload.status === 200 && postgresDocumentDownload.body.equals(postgresDocumentBytes) && postgresDocumentDownload.disposition.includes("postgres-board-packet.txt"));
 
   const postgresVendorCatalog = await request(base, "GET", "/api/public/vendors");
   const postgresVendorOfferingPatch = await request(base, "PATCH", "/api/admin/vendor-offerings/marketplace-booth", {
@@ -1590,8 +1620,10 @@ PG-EVENTENY-V-1,vendor,Postgres Eventeny Vendor,Postgres Import Contact,${postgr
   recoveryAssetDir = await mkdtemp(path.join(tmpdir(), "sandfest-postgres-recovery-assets-"));
   await cp(partnerAssetDir, recoveryAssetDir, { recursive: true, force: true });
   const recoveryPartnerDoc = await readPlatformDoc(ROOT, "partnerOps", null);
+  const recoveryIncomingDoc = await readPlatformDoc(ROOT, "incomingDocuments", null);
   const recoveryUploads = [...(recoveryPartnerDoc?.brandAssets || []), ...(recoveryPartnerDoc?.vendorDocuments || [])].filter(item => item.sourceType === "upload");
   check("Postgres recovery fixture includes sponsor and vendor uploads", recoveryUploads.some(item => item.storageKey?.endsWith(".png")) && recoveryUploads.some(item => item.storageKey?.endsWith(".pdf")));
+  check("Postgres recovery fixture includes private intake documents", recoveryIncomingDoc?.documents?.length === 1 && recoveryIncomingDoc.documents[0]?.checksumSha256?.length === 64);
   const assetRecoveryOutput = await runChild(["scripts/verify-asset-recovery.mjs"], {
     ...commonEnv,
     SANDFEST_DATABASE_URL: "",
@@ -1602,7 +1634,19 @@ PG-EVENTENY-V-1,vendor,Postgres Eventeny Vendor,Postgres Import Contact,${postgr
     SANDFEST_RECOVERY_ASSET_MIN_FILES: "2"
   }, "Postgres asset recovery verification");
   const assetRecoveryEvidence = JSON.parse(assetRecoveryOutput.trim().split("\n").at(-1));
-  check("isolated asset recovery verification proves every restored upload", assetRecoveryEvidence.ok && assetRecoveryEvidence.mode === "read-only" && assetRecoveryEvidence.database === "restored" && assetRecoveryEvidence.assetDirectory === "restored" && assetRecoveryEvidence.assets?.verified === recoveryUploads.length && assetRecoveryEvidence.assets?.brandAssets >= 1 && assetRecoveryEvidence.assets?.vendorDocuments >= 1 && /^[a-f0-9]{64}$/.test(assetRecoveryEvidence.assets?.manifestSha256 || ""));
+  check("isolated asset recovery verification proves every restored upload", assetRecoveryEvidence.ok && assetRecoveryEvidence.mode === "read-only" && assetRecoveryEvidence.database === "restored" && assetRecoveryEvidence.assetDirectory === "restored" && assetRecoveryEvidence.assets?.verified === recoveryUploads.length + recoveryIncomingDoc.documents.length && assetRecoveryEvidence.assets?.brandAssets >= 1 && assetRecoveryEvidence.assets?.vendorDocuments >= 1 && assetRecoveryEvidence.assets?.incomingDocuments === 1 && assetRecoveryEvidence.assets?.incomingDocumentMetadataPresent === true && /^[a-f0-9]{64}$/.test(assetRecoveryEvidence.assets?.manifestSha256 || ""));
+  await verificationPool.query("DELETE FROM platform_documents WHERE key = $1", ["incoming-documents"]);
+  const legacyAssetRecoveryOutput = await runChild(["scripts/verify-asset-recovery.mjs"], {
+    ...commonEnv,
+    SANDFEST_DATABASE_URL: "",
+    SANDFEST_RECOVERY_DATABASE_URL: databaseUrl,
+    SANDFEST_RECOVERY_DATABASE_SSL: "false",
+    SANDFEST_PARTNER_ASSET_DIR: partnerAssetDir,
+    SANDFEST_RECOVERY_ASSET_DIR: recoveryAssetDir,
+    SANDFEST_RECOVERY_ASSET_MIN_FILES: "2"
+  }, "Pre-document asset recovery verification");
+  const legacyAssetRecoveryEvidence = JSON.parse(legacyAssetRecoveryOutput.trim().split("\n").at(-1));
+  check("asset recovery remains compatible with pre-document backups", legacyAssetRecoveryEvidence.ok && legacyAssetRecoveryEvidence.assets?.verified === recoveryUploads.length && legacyAssetRecoveryEvidence.assets?.incomingDocuments === 0 && legacyAssetRecoveryEvidence.assets?.incomingDocumentMetadataPresent === false);
   await writeFile(path.join(recoveryAssetDir, recoveryUploads[0].storageKey), Buffer.alloc(recoveryUploads[0].sizeBytes, 1));
   let corruptedAssetRejected = false;
   try {

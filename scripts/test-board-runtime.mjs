@@ -74,6 +74,7 @@ async function startApi(port, runtimeRoot, emailPort, smsPort) {
     OUTREACH_DISCOVERY_PROVIDER: "fixture",
     SANDFEST_PUBLIC_SITE_URL: "https://www.texassandfest.org",
     SANDFEST_API_PUBLIC_BASE_URL: `http://127.0.0.1:${port}`,
+    SANDFEST_INCOMING_DOCUMENT_DIR: path.join(runtimeRoot, "private", "incoming-documents"),
     SANDFEST_TURNSTILE_ENABLED: "false",
     CAMERA_INGEST_ENABLED: "true",
     CAMERA_INGEST_SECRET: CAMERA_SECRET,
@@ -192,7 +193,7 @@ try {
   const resolved = resolveRuntimeRoot(ROOT, { SANDFEST_RUNTIME_ROOT: targetRoot });
   check("runtime root resolves outside repository data", resolved === targetRoot && resolved !== ROOT);
   check("board seed covers core operations", prepared.applications === 2 && prepared.invoices === 1 && prepared.payments === 1 && prepared.tasks === 3 && prepared.prospects === 1 && prepared.safetySmsRecipients === 1);
-  check("board seed covers field operations", prepared.cameras === 8 && prepared.volunteerShifts === 12);
+  check("board seed covers field operations", prepared.cameras === 8 && prepared.volunteerShifts === 12 && prepared.documents === 3);
 
   const port = await freePort();
   const emailPort = await freePort();
@@ -231,6 +232,12 @@ try {
   const publicBoardSponsorJson = JSON.stringify(publicBoardSponsor || {});
   check("board runtime publishes only approved sponsor branding", publicSponsorCatalog.status === 200 && publicBoardSponsor?.packageName === "Marlin" && publicBoardSponsor?.tagline === "Rooted on the Texas coast" && publicBoardSponsor?.primaryColor === "#006B63" && publicBoardSponsor?.secondaryColor === "#F4B942" && publicBoardSponsor?.logo === null);
   check("public sponsor branding excludes private workflow data", !/(applicationId|contactEmail|contactName|storageKey|reviewedBy|reviewNotes|sourceUrl)/.test(publicBoardSponsorJson));
+
+  const boardDocuments = await request(base, "GET", "/api/admin/documents", undefined, { auth: true });
+  const boardLoadInDocument = boardDocuments.data.documents?.find(item => item.title === "Vendor load-in matrix");
+  const boardDocumentDownload = await requestRaw(base, `/api/admin/documents/${encodeURIComponent(boardLoadInDocument?.id || "missing")}/content`, { auth: true });
+  check("board document intake shows governed private source files", boardDocuments.status === 200 && boardDocuments.data.summary?.total === 3 && boardDocuments.data.summary?.byStatus?.approved === 1 && boardDocuments.data.summary?.byStatus?.in_review === 1 && boardLoadInDocument?.textPreview.includes("Coastal Bites") && !("storageKey" in (boardLoadInDocument || {})));
+  check("board document intake downloads checksum-verified bytes", boardDocumentDownload.status === 200 && boardDocumentDownload.contentType.startsWith("text/csv") && boardDocumentDownload.disposition.includes("vendor-load-in-matrix.csv") && boardDocumentDownload.body.toString("utf8").includes("South"));
 
   const boardConsent = await request(base, "GET", "/api/admin/consent", undefined, { auth: true });
   const boardSmsBefore = await request(base, "GET", "/api/admin/sms", undefined, { auth: true });

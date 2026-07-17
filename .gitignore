@@ -20,6 +20,7 @@ data/processed/orders/payment-events/*.json
 data/processed/config-snapshots/*.json
 data/processed/job-queue/
 data/processed/partner-assets/
+data/processed/incoming-documents/
 .secrets/
 *.secret
 *.pem

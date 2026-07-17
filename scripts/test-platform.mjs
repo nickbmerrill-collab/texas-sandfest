@@ -199,7 +199,22 @@ import {
   validatePartnerAssetUpload
 } from "../lib/partner-assets.mjs";
 import {
+  adminIncomingDocument,
+  createIncomingDocument,
+  deleteIncomingDocumentUpload,
+  emptyIncomingDocumentIntake,
+  incomingDocumentStorageConfig,
+  readIncomingDocumentUpload,
+  saveIncomingDocumentUpload,
+  summarizeIncomingDocuments,
+  updateIncomingDocument,
+  validateIncomingDocumentUpload,
+  verifyIncomingDocumentBytes
+} from "../lib/incoming-documents.mjs";
+import {
+  incomingDocumentRecoveryReferences,
   partnerAssetRecoveryReferences,
+  platformAssetRecoveryReferences,
   verifyPartnerAssetRecovery
 } from "../lib/asset-recovery.mjs";
 import { approvedPublicSponsorAsset, publicSponsorShowcase } from "../lib/sponsor-showcase.mjs";
@@ -733,6 +748,7 @@ console.log("\n=== Pure library suite ===\n");
     dailyClose: "19:30"
   };
   const config = eventContextConfig({ SANDFEST_EVENT_ID: DEFAULT_EVENT_ID });
+  const incomingDocumentSeed = JSON.parse(await readFile(path.join(ROOT, "data", "processed", "incoming-documents.json"), "utf8"));
   const aligned = eventContextReadiness({
     config,
     guide,
@@ -758,6 +774,7 @@ console.log("\n=== Pure library suite ===\n");
     voting: { eventId: from, votingOpen: true, entries: [{ id: "entry-1" }], votes: [{ id: "vote-1" }] },
     booths: { eventId: from, booths: [{ id: "booth-1", eventId: from }], vendors: [{ id: "vendor-1", eventId: from }] },
     partnerOps: { ...emptyPartnerOperations(from), applications: [{ id: "app-1" }] },
+    incomingDocuments: { ...emptyIncomingDocumentIntake(from), documents: [{ id: "doc-1", eventId: from }] },
     islandConditions: { eventId: from, cameras: [{ id: "cam-1", observation: { peopleCount: 20 } }], observations: [{ id: "obs-1" }], incidents: [{ id: "incident-1" }], dispatches: [{ id: "dispatch-1" }] },
     smsOperations: { ...emptySmsOperations(from), campaigns: [{ id: "sms-campaign-1" }], messages: [{ id: "sms-message-1" }], preferenceEvents: [{ id: "sms-preference-1" }] }
   };
@@ -775,10 +792,11 @@ console.log("\n=== Pure library suite ===\n");
     documents: { ...documents, fleet: { ...documents.fleet, eventId: DEFAULT_EVENT_ID } }
   });
   ok("current event context validates explicit annual namespace", config.valid && config.explicit && config.eventId === DEFAULT_EVENT_ID && aligned.ready);
+  ok("private document seed uses the current annual namespace", incomingDocumentSeed.eventId === DEFAULT_EVENT_ID && incomingDocumentSeed.documents.length === 0);
   ok("current event context reports stale and missing operational documents", !mismatched.ready && mismatched.mismatchedDocs.length === 2 && !invalidConfig.valid);
   ok("event rollover covers every governed operational document", rollover.ok && Object.keys(rollover.documents).length === ROLLOVER_DOCUMENT_KEYS.length && /^[a-f0-9]{64}$/.test(rollover.archiveDigest));
   ok("event archive digest is stable across object key order", eventArchiveDigest({ b: 2, a: { d: 4, c: 3 } }) === eventArchiveDigest({ a: { c: 3, d: 4 }, b: 2 }));
-  ok("event rollover carries reusable setup and resets season activity", rollover.documents.fleet.assets[0].status === "available" && rollover.documents.fleet.checkouts.length === 0 && rollover.documents.volunteers.shifts.length === 0 && rollover.documents.consent.records.length === 0 && rollover.documents.passportHunt.hunt.id === "sculpture-passport-2027" && rollover.documents.passportHunt.hunt.active === false && rollover.documents.voting.votes.length === 0 && rollover.documents.partnerOps.eventId === DEFAULT_EVENT_ID && rollover.documents.islandConditions.incidents.length === 0 && rollover.documents.smsOperations.campaigns.length === 0);
+  ok("event rollover carries reusable setup and resets season activity", rollover.documents.fleet.assets[0].status === "available" && rollover.documents.fleet.checkouts.length === 0 && rollover.documents.volunteers.shifts.length === 0 && rollover.documents.consent.records.length === 0 && rollover.documents.passportHunt.hunt.id === "sculpture-passport-2027" && rollover.documents.passportHunt.hunt.active === false && rollover.documents.voting.votes.length === 0 && rollover.documents.partnerOps.eventId === DEFAULT_EVENT_ID && rollover.documents.incomingDocuments.documents.length === 0 && rollover.documents.islandConditions.incidents.length === 0 && rollover.documents.smsOperations.campaigns.length === 0);
   ok("event rollover refuses mixed source context", !rejectedRollover.ok && rejectedRollover.mismatches?.[0]?.key === "fleet");
 }
 
@@ -1833,6 +1851,113 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   ok("asset recovery requires a meaningful restored file set", !emptyRecovery.ok && emptyRecovery.counts.referenced === 0 && emptyRecovery.issues.some(item => item.type === "minimum_files"));
   if (storedAsset.ok) await deletePartnerAssetUpload(ROOT, storedAsset.storageKey, { config: uploadConfig });
   await rm(uploadDir, { recursive: true, force: true });
+  const incomingDir = await mkdtemp(path.join(tmpdir(), "sandfest-incoming-documents-"));
+  const incomingConfig = incomingDocumentStorageConfig(ROOT, {
+    SANDFEST_ENV: "development",
+    SANDFEST_INCOMING_DOCUMENT_DIR: incomingDir,
+    SANDFEST_INCOMING_DOCUMENT_MAX_BYTES: "4096"
+  });
+  const incomingProductionMissing = incomingDocumentStorageConfig(ROOT, { SANDFEST_ENV: "production" });
+  const incomingText = Buffer.from("Texas SandFest board packet\nReviewed source facts\n", "utf8");
+  const storedIncoming = await saveIncomingDocumentUpload(ROOT, {
+    documentId: "incoming_test_1",
+    eventId: DEFAULT_EVENT_ID,
+    fileName: "board-packet.txt",
+    contentType: "text/plain",
+    buffer: incomingText
+  }, { config: incomingConfig });
+  const readIncoming = storedIncoming.ok
+    ? await readIncomingDocumentUpload(ROOT, storedIncoming.storageKey, { config: incomingConfig })
+    : { ok: false };
+  const createdIncoming = storedIncoming.ok ? createIncomingDocument(emptyIncomingDocumentIntake(DEFAULT_EVENT_ID), {
+    ...storedIncoming,
+    id: "incoming_test_1",
+    domain: "docs",
+    title: "Board packet",
+    ownerTeam: "operations"
+  }, { eventId: DEFAULT_EVENT_ID, actorId: "ops_1", now }) : { ok: false };
+  const duplicateIncoming = createdIncoming.ok ? createIncomingDocument(createdIncoming.doc, {
+    ...storedIncoming,
+    id: "incoming_test_2",
+    domain: "finance",
+    title: "Duplicate packet",
+    ownerTeam: "finance"
+  }, { eventId: DEFAULT_EVENT_ID, actorId: "finance_1", now }) : { ok: false };
+  const reviewedIncoming = createdIncoming.ok ? updateIncomingDocument(createdIncoming.doc, createdIncoming.document.id, {
+    status: "approved",
+    notes: "Reviewed against the board source packet."
+  }, { eventId: DEFAULT_EVENT_ID, actorId: "ops_1", now }) : { ok: false };
+  const incomingSummary = reviewedIncoming.ok ? summarizeIncomingDocuments(reviewedIncoming.doc, { eventId: DEFAULT_EVENT_ID }) : {};
+  const incomingAdminJson = reviewedIncoming.ok ? JSON.stringify(adminIncomingDocument(reviewedIncoming.document)) : "";
+  const verifiedIncoming = readIncoming.ok && reviewedIncoming.ok
+    ? verifyIncomingDocumentBytes(reviewedIncoming.document, readIncoming.buffer)
+    : { ok: false };
+  const incomingRecovery = reviewedIncoming.ok ? incomingDocumentRecoveryReferences(reviewedIncoming.doc) : { ok: false, references: [] };
+  const platformRecovery = reviewedIncoming.ok ? platformAssetRecoveryReferences({ brandAssets: [], vendorDocuments: [] }, reviewedIncoming.doc) : { ok: false, references: [] };
+  const verifiedPlatformRecovery = await verifyPartnerAssetRecovery(platformRecovery, async storageKey => ({
+    ok: storageKey === `incoming-documents/${storedIncoming.storageKey}`,
+    buffer: storageKey === `incoming-documents/${storedIncoming.storageKey}` ? incomingText : null
+  }));
+  const invalidIncomingJson = validateIncomingDocumentUpload({
+    fileName: "broken.json",
+    contentType: "application/json",
+    buffer: Buffer.from("{not-json}", "utf8")
+  }, { maxBytes: 4096 });
+  const genericZip = Buffer.from([
+    0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0b, 0x00,
+    0x00, 0x00, 0x6e, 0x6f, 0x74, 0x2d, 0x6f, 0x66, 0x66, 0x69, 0x63, 0x65,
+    0x50, 0x4b, 0x01, 0x02, 0x14, 0x00, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0b, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x6e, 0x6f, 0x74, 0x2d, 0x6f, 0x66, 0x66, 0x69, 0x63, 0x65,
+    0x50, 0x4b, 0x05, 0x06, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x39, 0x00,
+    0x00, 0x00, 0x29, 0x00, 0x00, 0x00, 0x00, 0x00
+  ]);
+  const minimalOfficeZip = entryNames => {
+    const localParts = [];
+    const centralParts = [];
+    let localOffset = 0;
+    for (const entryName of entryNames) {
+      const name = Buffer.from(entryName, "utf8");
+      const localHeader = Buffer.alloc(30);
+      localHeader.writeUInt32LE(0x04034b50, 0);
+      localHeader.writeUInt16LE(20, 4);
+      localHeader.writeUInt16LE(name.length, 26);
+      const centralHeader = Buffer.alloc(46);
+      centralHeader.writeUInt32LE(0x02014b50, 0);
+      centralHeader.writeUInt16LE(20, 4);
+      centralHeader.writeUInt16LE(20, 6);
+      centralHeader.writeUInt16LE(name.length, 28);
+      centralHeader.writeUInt32LE(localOffset, 42);
+      localParts.push(localHeader, name);
+      centralParts.push(centralHeader, name);
+      localOffset += localHeader.length + name.length;
+    }
+    const centralDirectory = Buffer.concat(centralParts);
+    const end = Buffer.alloc(22);
+    end.writeUInt32LE(0x06054b50, 0);
+    end.writeUInt16LE(entryNames.length, 8);
+    end.writeUInt16LE(entryNames.length, 10);
+    end.writeUInt32LE(centralDirectory.length, 12);
+    end.writeUInt32LE(localOffset, 16);
+    return Buffer.concat([...localParts, centralDirectory, end]);
+  };
+  const minimalDocx = minimalOfficeZip(["[Content_Types].xml", "word/document.xml"]);
+  const minimalXlsx = minimalOfficeZip(["[Content_Types].xml", "xl/workbook.xml"]);
+  const minimalPptx = minimalOfficeZip(["[Content_Types].xml", "ppt/presentation.xml"]);
+  ok("document intake storage fails closed in production", incomingConfig.ready && !incomingProductionMissing.ready && incomingProductionMissing.reason.includes("SANDFEST_INCOMING_DOCUMENT_DIR"));
+  ok("document intake validates, stores, and previews text", storedIncoming.ok && readIncoming.ok && readIncoming.buffer.equals(incomingText) && storedIncoming.extractionStatus === "preview_ready" && storedIncoming.textPreview.includes("board packet"));
+  ok("document intake records and deduplicates checksums", createdIncoming.ok && !createdIncoming.duplicate && duplicateIncoming.ok && duplicateIncoming.duplicate && duplicateIncoming.document.id === createdIncoming.document.id && duplicateIncoming.doc.documents.length === 1);
+  ok("document intake review lifecycle and summary", reviewedIncoming.ok && reviewedIncoming.document.status === "approved" && reviewedIncoming.document.reviewedBy === "ops_1" && incomingSummary.total === 1 && incomingSummary.byStatus.approved === 1);
+  ok("document intake admin payload hides storage paths", !incomingAdminJson.includes("storageKey") && incomingAdminJson.includes(storedIncoming.checksumSha256));
+  ok("document intake download integrity proof", verifiedIncoming.ok && !verifyIncomingDocumentBytes(reviewedIncoming.document, Buffer.from("tampered")).ok);
+  ok("document intake is included in the restore manifest", incomingRecovery.ok && incomingRecovery.references[0]?.storageKey === `incoming-documents/${storedIncoming.storageKey}` && platformRecovery.counts.incomingDocuments === 1 && verifiedPlatformRecovery.ok && verifiedPlatformRecovery.counts.incomingDocuments === 1);
+  ok("document intake rejects mismatched structured content", !invalidIncomingJson.ok && !validateIncomingDocumentUpload({ fileName: "fake.pdf", contentType: "application/pdf", buffer: Buffer.from("not a pdf") }, { maxBytes: 4096 }).ok);
+  ok("document intake rejects generic ZIP files renamed as Office documents", !validateIncomingDocumentUpload({ fileName: "fake.docx", contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", buffer: genericZip }, { maxBytes: 4096 }).ok);
+  ok("document intake distinguishes Office package families", validateIncomingDocumentUpload({ fileName: "packet.docx", buffer: minimalDocx }, { maxBytes: 4096 }).ok && validateIncomingDocumentUpload({ fileName: "ledger.xlsx", buffer: minimalXlsx }, { maxBytes: 4096 }).ok && validateIncomingDocumentUpload({ fileName: "briefing.pptx", buffer: minimalPptx }, { maxBytes: 4096 }).ok && !validateIncomingDocumentUpload({ fileName: "renamed.docx", buffer: minimalXlsx }, { maxBytes: 4096 }).ok);
+  if (storedIncoming.ok) await deleteIncomingDocumentUpload(ROOT, storedIncoming.storageKey, { config: incomingConfig });
+  await rm(incomingDir, { recursive: true, force: true });
   const safeTicketCatalog = publicTicketCatalog({
     currency: "usd",
     checkoutEndpoint: "/unsafe-override",
@@ -3190,6 +3315,7 @@ let isolatedRuntimeRoot = null;
 let isolatedJobQueueDir = null;
 let isolatedAuditDir = null;
 let isolatedPartnerAssetDir = null;
+let isolatedIncomingDocumentDir = null;
 let isolatedCommerceDir = null;
 let stripeMock = null;
 let turnstileMock = null;
@@ -3201,6 +3327,7 @@ if (!API_BASE) {
   isolatedJobQueueDir = await mkdtemp(path.join(tmpdir(), "sandfest-api-smoke-jobs-"));
   isolatedAuditDir = await mkdtemp(path.join(tmpdir(), "sandfest-api-smoke-audit-"));
   isolatedPartnerAssetDir = await mkdtemp(path.join(tmpdir(), "sandfest-api-smoke-brand-assets-"));
+  isolatedIncomingDocumentDir = await mkdtemp(path.join(tmpdir(), "sandfest-api-smoke-incoming-documents-"));
   isolatedCommerceDir = await mkdtemp(path.join(tmpdir(), "sandfest-api-smoke-commerce-"));
   isolatedRuntimeRoot = await mkdtemp(path.join(tmpdir(), "sandfest-api-smoke-runtime-"));
   await cp(path.join(ROOT, "data"), path.join(isolatedRuntimeRoot, "data"), { recursive: true });
@@ -3209,6 +3336,7 @@ if (!API_BASE) {
   const isolatedConsentPath = path.join(isolatedRuntimeRoot, "data", "processed", "consent-ledger.json");
   const isolatedVolunteerPath = path.join(isolatedRuntimeRoot, "data", "processed", "volunteer-mirror.json");
   const isolatedBoothPath = path.join(isolatedRuntimeRoot, "data", "processed", "booth-map.json");
+  const isolatedIncomingDocumentPath = path.join(isolatedRuntimeRoot, "data", "processed", "incoming-documents.json");
   const isolatedConsent = JSON.parse(await readFile(isolatedConsentPath, "utf8"));
   const isolatedVolunteers = JSON.parse(await readFile(isolatedVolunteerPath, "utf8"));
   const isolatedBooths = JSON.parse(await readFile(isolatedBoothPath, "utf8"));
@@ -3233,7 +3361,8 @@ if (!API_BASE) {
       booths: (isolatedBooths.booths || []).map(item => ({ ...item, eventId: DEFAULT_EVENT_ID })),
       vendors: (isolatedBooths.vendors || []).map(item => ({ ...item, eventId: DEFAULT_EVENT_ID })),
       imports: []
-    }, null, 2)}\n`, "utf8")
+    }, null, 2)}\n`, "utf8"),
+    writeFile(isolatedIncomingDocumentPath, `${JSON.stringify(emptyIncomingDocumentIntake(DEFAULT_EVENT_ID), null, 2)}\n`, "utf8")
   ]);
   stripeMock = await startStripeMock();
   turnstileMock = await startTurnstileMock();
@@ -3284,7 +3413,8 @@ if (!API_BASE) {
       SANDFEST_ORDER_DIR: path.join(isolatedCommerceDir, "orders"),
       SANDFEST_PAYMENT_EVENT_DIR: path.join(isolatedCommerceDir, "payment-events"),
       SANDFEST_FULFILLMENT_DIR: path.join(isolatedCommerceDir, "fulfillment"),
-      SANDFEST_PARTNER_ASSET_DIR: isolatedPartnerAssetDir
+      SANDFEST_PARTNER_ASSET_DIR: isolatedPartnerAssetDir,
+      SANDFEST_INCOMING_DOCUMENT_DIR: isolatedIncomingDocumentDir
   };
   child = spawn("node", ["scripts/admin-api-server.mjs"], {
     cwd: ROOT,
@@ -3417,6 +3547,50 @@ try {
   ok("event guide publish rejects invalid dates", invalidGuidePublish.status === 400 && invalidGuidePublish.data.errors?.includes("Event end date cannot precede the start date."));
   ok("event guide publish updates public and admin readiness", validGuidePublish.status === 200 && validGuidePublish.data.readiness?.ready === true && publishedPublicBootstrap.data.guide?.sourceCheckedAt === sourceCheckedAt && !("publishedBy" in publishedPublicBootstrap.data.guide) && publishedAdminConfig.data.eventGuideReadiness?.ready === true);
 
+  const apiDocumentBytes = Buffer.from("Board packet source\nOwner: Operations\n", "utf8");
+  const unauthenticatedDocumentsApi = await hitRaw("GET", "/api/admin/documents");
+  const unauthenticatedDocumentUploadApi = await hitRaw("POST", "/api/admin/documents/upload", apiDocumentBytes, {
+    "content-type": "text/plain",
+    "x-file-name": "board-source.txt",
+    "x-document-domain": "docs",
+    "x-document-title": "Board source",
+    "x-owner-team": "operations"
+  });
+  const documentUploadApi = await hitRaw("POST", "/api/admin/documents/upload", apiDocumentBytes, {
+    "content-type": "text/plain",
+    "x-file-name": "board-source.txt",
+    "x-document-domain": "docs",
+    "x-document-title": "Board source",
+    "x-owner-team": "operations"
+  }, true);
+  const documentReplayApi = await hitRaw("POST", "/api/admin/documents/upload", apiDocumentBytes, {
+    "content-type": "text/plain",
+    "x-file-name": "board-source-copy.txt",
+    "x-document-domain": "finance",
+    "x-document-title": "Duplicate board source",
+    "x-owner-team": "finance"
+  }, true);
+  const documentListApi = await hit("GET", "/api/admin/documents", null, true);
+  const documentIdApi = documentUploadApi.data.document?.id;
+  const documentReviewApi = await hit("PATCH", `/api/admin/documents/${encodeURIComponent(documentIdApi || "missing")}`, {
+    status: "approved",
+    ownerTeam: "operations",
+    notes: "Reviewed against the board packet."
+  }, true);
+  const documentDownloadApi = await hitRaw("GET", `/api/admin/documents/${encodeURIComponent(documentIdApi || "missing")}/content`, undefined, {}, true);
+  const invalidDocumentUploadApi = await hitRaw("POST", "/api/admin/documents/upload", Buffer.from("not a pdf"), {
+    "content-type": "application/pdf",
+    "x-file-name": "false-packet.pdf",
+    "x-document-domain": "docs",
+    "x-document-title": "False packet"
+  }, true);
+  ok("document intake API requires dedicated staff authentication", unauthenticatedDocumentsApi.status === 401 && unauthenticatedDocumentUploadApi.status === 401);
+  ok("document intake API stores private metadata and preview", documentUploadApi.status === 201 && documentUploadApi.data.document?.textPreview.includes("Board packet source") && !("storageKey" in (documentUploadApi.data.document || {})) && documentUploadApi.data.document?.checksumSha256?.length === 64);
+  ok("document intake API is checksum-idempotent", documentReplayApi.status === 200 && documentReplayApi.data.duplicate === true && documentReplayApi.data.document?.id === documentIdApi && documentListApi.data.summary?.total === 1);
+  ok("document intake API governs review lifecycle", documentReviewApi.status === 200 && documentReviewApi.data.document?.status === "approved" && documentReviewApi.data.document?.reviewedBy === "local-admin" && documentReviewApi.data.summary?.byStatus?.approved === 1);
+  ok("document intake API verifies controlled downloads", documentDownloadApi.status === 200 && documentDownloadApi.data.equals(apiDocumentBytes) && documentDownloadApi.headers.get("content-disposition")?.includes("board-source.txt") && documentDownloadApi.headers.get("cache-control") === "private, no-store");
+  ok("document intake API rejects spoofed file types", invalidDocumentUploadApi.status === 400 && invalidDocumentUploadApi.data.error?.includes("do not match"));
+
   if (child) {
     const productionProbePort = String(await freePort());
     const productionProbeQueue = await mkdtemp(path.join(tmpdir(), "sandfest-production-file-probe-"));
@@ -3440,6 +3614,7 @@ try {
           SANDFEST_OUTREACH_PREFERENCES_SECRET: "production-file-probe-outreach-secret-0123456789",
           SANDFEST_PUBLIC_SITE_URL: "https://www.texassandfest.org",
           SANDFEST_PARTNER_ASSET_DIR: isolatedPartnerAssetDir,
+          SANDFEST_INCOMING_DOCUMENT_DIR: isolatedIncomingDocumentDir,
           SANDFEST_JOB_QUEUE_DIR: productionProbeQueue,
           SANDFEST_ADMIN_CONFIG_PATH: malformedProductionConfig,
           SANDFEST_REQUIRED_CAPABILITIES: "transactional_email,camera_ingest,outreach_discovery",
@@ -4702,6 +4877,8 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
   const smsAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("sms."));
   ok("Twilio webhook audit is aggregate-only", smsAuditApi.some(item => item.record?.action === "sms.delivery.webhook") && smsAuditApi.some(item => item.record?.action === "sms.preference.webhook") && !JSON.stringify(smsAuditApi).includes("+13615550188") && !JSON.stringify(smsAuditApi).includes("platform-twilio-auth-secret"));
   ok("event guide publish is audited", auditApi.data.audit?.some(item => item.record?.action === "content.event-guide.publish"));
+  const documentAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("document."));
+  ok("private document lifecycle is audited without file contents", documentAuditApi.some(item => item.record?.action === "document.upload") && documentAuditApi.some(item => item.record?.action === "document.review") && documentAuditApi.some(item => item.record?.action === "document.download") && !JSON.stringify(documentAuditApi).includes("Board packet source"));
   ok("revenue settlement commit is audited", auditApi.data.audit?.some(item => item.record?.action === "revenue.import.commit" && item.record?.after?.source === "square" && item.record?.after?.imported === 1));
   const eventenyPartnerImportAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action === "partner.application.import");
   ok("Eventeny application import audit is aggregate-only", eventenyPartnerImportAuditApi.length >= 1 && eventenyPartnerImportAuditApi.some(item => item.record?.after?.fileName === "eventeny-applications-api.csv" && item.record?.after?.summary?.imported === 2) && !JSON.stringify(eventenyPartnerImportAuditApi).includes(eventenyPartnerEmailApi) && !JSON.stringify(eventenyPartnerImportAuditApi).includes("Vendor Import Contact"));
@@ -4721,6 +4898,7 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
     await rm(isolatedJobQueueDir, { recursive: true, force: true });
     await rm(isolatedAuditDir, { recursive: true, force: true });
     await rm(isolatedPartnerAssetDir, { recursive: true, force: true });
+    await rm(isolatedIncomingDocumentDir, { recursive: true, force: true });
     await rm(isolatedCommerceDir, { recursive: true, force: true });
     await stripeMock?.close();
     await turnstileMock?.close();

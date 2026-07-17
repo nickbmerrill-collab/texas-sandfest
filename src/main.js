@@ -213,6 +213,7 @@ let adminConfigState = null;
 let adminSessionState = null;
 let adminPartnerState = null;
 let adminConditionsState = null;
+let adminDocumentState = null;
 let revenueImportPreview = null;
 let volunteerImportPreview = null;
 let boothImportPreview = null;
@@ -626,6 +627,7 @@ app.innerHTML = `
     <nav>
       ${ADMIN_ENTRY ? `
         <a href="#admin-config">Overview</a>
+        <a href="#admin-documents">Documents</a>
         <a href="#admin-partners">Partners</a>
         <a href="#admin-revenue">Accounting</a>
         <a href="#admin-volunteers">Staffing</a>
@@ -1151,6 +1153,29 @@ app.innerHTML = `
             <button id="admin-publish-event-guide" class="button primary" type="submit">Publish facts</button>
           </div>
         </form>
+      </div>
+      <div class="admin-document-panel" id="admin-documents">
+        <div class="editor-heading admin-document-heading">
+          <div>
+            <p class="eyebrow">Private document intake</p>
+            <h2>Review queue</h2>
+          </div>
+          <button id="admin-load-documents" class="button secondary" data-requires-permission="documents:read" type="button">Refresh documents</button>
+        </div>
+        <div id="admin-document-summary" class="admin-document-summary">
+          <article class="empty-state"><span>No documents loaded.</span></article>
+        </div>
+        <form id="admin-document-upload" class="admin-document-upload" data-requires-permission="documents:write">
+          <label class="admin-document-file"><span>File</span><input name="file" type="file" required accept=".pdf,.txt,.csv,.json,.eml,.png,.jpg,.jpeg,.webp,.docx,.xlsx,.pptx" /></label>
+          <label><span>Domain</span><select name="domain" required><option value="docs">Board and policy</option><option value="ops">Operations</option><option value="finance">Finance</option><option value="eventeny">Eventeny</option><option value="quickbooks">QuickBooks</option><option value="comms">Communications</option></select></label>
+          <label><span>Owner</span><select name="ownerTeam"><option value="">Unassigned</option><option value="operations">Operations</option><option value="sponsor">Sponsor</option><option value="finance">Finance</option><option value="volunteer-captains">Volunteer captains</option><option value="traffic">Traffic and parking</option><option value="guest-services">Guest services</option><option value="production">Production</option></select></label>
+          <label class="admin-document-title"><span>Title</span><input name="title" required maxlength="180" /></label>
+          <button class="button primary" type="submit">Upload document</button>
+          <p id="admin-document-upload-status" class="checkout-status" role="status" aria-live="polite"></p>
+        </form>
+        <div id="admin-document-list" class="admin-document-list">
+          <article class="empty-state"><span>No documents loaded.</span></article>
+        </div>
       </div>
       <div class="admin-alert-panel">
         <div class="editor-heading">
@@ -2409,6 +2434,139 @@ async function loadAdminJobHealth() {
   const data = await adminFetch("/api/admin/jobs?limit=12");
   renderAdminJobHealth(data.summary);
   return data.summary;
+}
+
+const adminDocumentStatusLabels = {
+  received: "Received",
+  in_review: "In review",
+  approved: "Approved",
+  changes_requested: "Changes requested",
+  archived: "Archived"
+};
+
+const adminDocumentOwnerLabels = {
+  operations: "Operations",
+  sponsor: "Sponsor",
+  finance: "Finance",
+  "volunteer-captains": "Volunteer captains",
+  traffic: "Traffic and parking",
+  "guest-services": "Guest services",
+  production: "Production"
+};
+
+function adminDocumentBytes(value) {
+  const bytes = Number(value || 0);
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function adminDocumentStatusOptions(selected) {
+  return Object.entries(adminDocumentStatusLabels)
+    .map(([value, label]) => `<option value="${value}" ${selected === value ? "selected" : ""}>${label}</option>`)
+    .join("");
+}
+
+function adminDocumentOwnerOptions(selected) {
+  return ["<option value=\"\">Unassigned</option>", ...Object.entries(adminDocumentOwnerLabels)
+    .map(([value, label]) => `<option value="${value}" ${selected === value ? "selected" : ""}>${label}</option>`)]
+    .join("");
+}
+
+function renderAdminDocuments(payload = adminDocumentState) {
+  const summaryTarget = document.querySelector("#admin-document-summary");
+  const list = document.querySelector("#admin-document-list");
+  if (!summaryTarget || !list) return;
+  adminDocumentState = payload || { documents: [], summary: {}, storage: {} };
+  const summary = adminDocumentState.summary || {};
+  summaryTarget.innerHTML = `
+    <article><strong>${Number(summary.active || 0)}</strong><span>Active</span></article>
+    <article><strong>${Number(summary.byStatus?.in_review || 0)}</strong><span>In review</span></article>
+    <article><strong>${Number(summary.byStatus?.approved || 0)}</strong><span>Approved</span></article>
+    <article><strong>${Number(summary.unassigned || 0)}</strong><span>Unassigned</span></article>
+    <article><strong>${adminDocumentBytes(summary.bytes)}</strong><span>Private storage</span></article>
+  `;
+  const documents = adminDocumentState.documents || [];
+  list.innerHTML = documents.length ? documents.map(item => `
+    <article class="admin-document-row" data-admin-document="${escapeAttr(item.id)}">
+      <header>
+        <div><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.fileName)} · ${adminDocumentBytes(item.sizeBytes)} · ${escapeHtml(item.domain)}</span></div>
+        <span class="admin-document-state" data-state="${escapeAttr(item.status)}">${escapeHtml(adminDocumentStatusLabels[item.status] || item.status)}</span>
+      </header>
+      <div class="admin-document-fields">
+        <label><span>Status</span><select name="status" ${adminCan("documents:write") ? "" : "disabled"}>${adminDocumentStatusOptions(item.status)}</select></label>
+        <label><span>Owner</span><select name="ownerTeam" ${adminCan("documents:write") ? "" : "disabled"}>${adminDocumentOwnerOptions(item.ownerTeam)}</select></label>
+        <label class="admin-document-notes"><span>Review note</span><input name="notes" maxlength="2000" value="${escapeAttr(item.notes || "")}" ${adminCan("documents:write") ? "" : "disabled"} /></label>
+      </div>
+      ${item.textPreview ? `<details class="admin-document-preview"><summary>Text preview${item.previewTruncated ? " · shortened" : ""}</summary><pre>${escapeHtml(item.textPreview)}</pre></details>` : ""}
+      <footer>
+        <span>${item.uploadedAt ? escapeHtml(new Date(item.uploadedAt).toLocaleString()) : "Timestamp unavailable"}${item.ownerTeam ? ` · ${escapeHtml(adminDocumentOwnerLabels[item.ownerTeam] || item.ownerTeam)}` : ""}</span>
+        <div>
+          <button class="button secondary" type="button" data-download-admin-document="${escapeAttr(item.id)}">Download</button>
+          <button class="button primary" type="button" data-save-admin-document="${escapeAttr(item.id)}" ${adminCan("documents:write") ? "" : "disabled"}>Save review</button>
+        </div>
+      </footer>
+    </article>
+  `).join("") : `<article class="empty-state"><strong>No private documents</strong><span>The intake queue is empty.</span></article>`;
+
+  document.querySelectorAll("[data-save-admin-document]").forEach(button => button.addEventListener("click", async () => {
+    const card = button.closest("[data-admin-document]");
+    button.disabled = true;
+    try {
+      const result = await adminFetch(`/api/admin/documents/${encodeURIComponent(button.dataset.saveAdminDocument)}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          status: card.querySelector('[name="status"]').value,
+          ownerTeam: card.querySelector('[name="ownerTeam"]').value || null,
+          notes: card.querySelector('[name="notes"]').value
+        })
+      });
+      const index = adminDocumentState.documents.findIndex(item => item.id === result.document.id);
+      if (index >= 0) adminDocumentState.documents[index] = result.document;
+      adminDocumentState.summary = result.summary;
+      renderAdminDocuments();
+      setAdminStatus(`Saved review for ${result.document.title}.`, "ok");
+    } catch (error) {
+      setAdminStatus(error.message, "error");
+      button.disabled = false;
+    }
+  }));
+
+  document.querySelectorAll("[data-download-admin-document]").forEach(button => button.addEventListener("click", async () => {
+    button.disabled = true;
+    try {
+      const response = await adminRawFetch(`/api/admin/documents/${encodeURIComponent(button.dataset.downloadAdminDocument)}/content`);
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || `Document download failed with ${response.status}`);
+      }
+      const disposition = response.headers.get("content-disposition") || "";
+      const fileName = disposition.match(/filename="([^"]+)"/i)?.[1] || "sandfest-document";
+      const objectUrl = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = fileName;
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1_000);
+      setAdminStatus(`Downloaded ${fileName}.`, "ok");
+    } catch (error) {
+      setAdminStatus(error.message, "error");
+    } finally {
+      button.disabled = false;
+    }
+  }));
+}
+
+async function loadAdminDocuments({ quiet = false } = {}) {
+  try {
+    const payload = await adminFetch("/api/admin/documents?limit=200");
+    renderAdminDocuments(payload);
+    if (!quiet) setAdminStatus(`Loaded ${payload.summary.active} active private documents.`, "ok");
+    return payload;
+  } catch (error) {
+    if (!quiet) setAdminStatus(error.message, "error");
+    throw error;
+  }
 }
 
 async function adminFetch(path, options = {}) {
@@ -6786,6 +6944,9 @@ async function loadAdminWorkspace() {
     adminConfigState = await adminFetch("/api/admin/config");
     await loadAdminAlert();
     renderAdminEditors();
+    if (adminCan("documents:read")) {
+      await loadAdminDocuments({ quiet: true }).catch(() => {});
+    }
     if (adminCan("revenue:read")) {
       await loadAdminRevenue({ quiet: true }).catch(() => {});
     }
@@ -6835,6 +6996,49 @@ async function loadBoardDemoWorkspace() {
 }
 
 document.querySelector("#admin-load-config").addEventListener("click", loadAdminWorkspace);
+document.querySelector("#admin-load-documents")?.addEventListener("click", () => loadAdminDocuments());
+
+document.querySelector('#admin-document-upload [name="file"]')?.addEventListener("change", event => {
+  const file = event.currentTarget.files?.[0];
+  const title = document.querySelector('#admin-document-upload [name="title"]');
+  if (file && title && !title.value.trim()) title.value = file.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ");
+});
+
+document.querySelector("#admin-document-upload")?.addEventListener("submit", async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const file = form.elements.file.files?.[0];
+  const button = form.querySelector('button[type="submit"]');
+  const status = document.querySelector("#admin-document-upload-status");
+  if (!file) {
+    setFormStatus(status, "Choose a document.", "error");
+    return;
+  }
+  button.disabled = true;
+  setFormStatus(status, "Uploading private document...", "idle");
+  try {
+    const response = await adminRawFetch("/api/admin/documents/upload", {
+      method: "POST",
+      headers: {
+        "content-type": file.type || "application/octet-stream",
+        "x-file-name": file.name,
+        "x-document-domain": form.elements.domain.value,
+        "x-document-title": form.elements.title.value,
+        "x-owner-team": form.elements.ownerTeam.value
+      },
+      body: file
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || `Document upload failed with ${response.status}`);
+    setFormStatus(status, result.duplicate ? "That file is already in the intake queue." : "Document added to the private review queue.", "ok");
+    form.reset();
+    await loadAdminDocuments({ quiet: true });
+  } catch (error) {
+    setFormStatus(status, error.message, "error");
+  } finally {
+    button.disabled = !adminCan("documents:write");
+  }
+});
 
 document.querySelector("#admin-event-guide-form")?.addEventListener("submit", async event => {
   event.preventDefault();
