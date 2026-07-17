@@ -36,6 +36,7 @@ import {
   normalizePartnerOperations,
   prepareFollowupDraft,
   queueFollowupDelivery,
+  releaseAutomatedFollowupApproval,
   recordFollowupDelivery,
   recordPartnerInvoiceReconciliation,
   recordPartnerInvoiceSync
@@ -272,18 +273,27 @@ async function handleJob(job) {
         throw new Error("Automated send job does not match an automation-approved follow-up.");
       }
       let queued = null;
+      let released = null;
       await updatePlatformDoc(ROOT, "partnerOps", current => {
         const currentDoc = currentPartnerOperations(current);
         const currentFollowup = currentDoc.followups.find(item => item.id === job.payload.followupId);
         if (currentFollowup?.status !== "approved") return currentDoc;
+        const now = new Date().toISOString();
         queued = queueFollowupDelivery(currentDoc, currentFollowup.id, {
-          now: new Date().toISOString(),
+          now,
           automationJobId: job.id,
           ...recipientContext
         });
-        return queued.ok ? queued.doc : currentDoc;
+        if (queued.ok) return queued.doc;
+        released = releaseAutomatedFollowupApproval(currentDoc, currentFollowup.id, queued.error, {
+          now,
+          actorId: "worker",
+          automationPolicy,
+          decision: queued.dailyLimitReached ? "daily_capacity_released" : "queue_rejected"
+        });
+        return released.ok ? released.doc : currentDoc;
       }, { fallback: doc });
-      if (queued && !queued.ok) throw new Error(queued.error || "Automated follow-up could not be queued.");
+      if (queued && !queued.ok && !released?.ok) throw new Error(queued.error || "Automated follow-up could not be queued.");
       doc = normalizePartnerOperations(await readPlatformDoc(ROOT, "partnerOps", emptyPartnerOperations()));
       followup = doc.followups.find(item => item.id === job.payload.followupId);
     }
@@ -433,6 +443,7 @@ async function scheduleAutomatedFollowups(candidates, recipientContext = {}) {
         throw new Error(`Automation job ${job.id} is ${job.status}; a fresh approval is required before retrying.`);
       }
       let result = null;
+      let released = null;
       let outcome = "stale";
       await updatePlatformDoc(ROOT, "partnerOps", current => {
         const doc = currentPartnerOperations(current);
@@ -445,13 +456,24 @@ async function scheduleAutomatedFollowups(candidates, recipientContext = {}) {
           outcome = followup?.status || "missing";
           return doc;
         }
+        const now = new Date().toISOString();
         result = queueFollowupDelivery(doc, candidate.id, {
-          now: new Date().toISOString(),
+          now,
           automationJobId: job.id,
           ...recipientContext
         });
-        outcome = result.ok ? "queued" : "rejected";
-        return result.ok ? result.doc : doc;
+        if (result.ok) {
+          outcome = "queued";
+          return result.doc;
+        }
+        released = releaseAutomatedFollowupApproval(doc, candidate.id, result.error, {
+          now,
+          actorId: "worker",
+          automationPolicy,
+          decision: result.dailyLimitReached ? "daily_capacity_released" : "queue_rejected"
+        });
+        outcome = released.ok ? "released" : "rejected";
+        return released.ok ? released.doc : doc;
       }, { fallback: emptyPartnerOperations(CURRENT_EVENT_ID) });
       if (result && !result.ok) throw new Error(result.error || "Automated follow-up could not be queued.");
       if (["queued", "already_queued"].includes(outcome)) queued += 1;
@@ -492,16 +514,25 @@ async function reconcileTerminalQueueFailures() {
       await updatePlatformDoc(ROOT, "partnerOps", current => {
         const doc = normalizePartnerOperations(current);
         const followup = doc.followups.find(item => item.id === job.payload.followupId);
-        if (!followup || !["queued", "sending"].includes(followup.status)) return doc;
-        const result = recordFollowupDelivery(doc, job.payload.followupId, {
-          sent: false,
-          provider: "worker",
-          error: job.lastError
-        }, {
-          terminal: true,
-          unknownOutcome: followup.status === "sending",
-          deliveryClaimId: followup.status === "sending" ? job.id : undefined
-        });
+        if (!followup) return doc;
+        const result = followup.status === "approved" && job.payload.automated === true
+          ? releaseAutomatedFollowupApproval(doc, job.payload.followupId, job.lastError, {
+            actorId: "worker",
+            automationPolicy: job.payload.automationPolicy,
+            decision: "terminal_job_released"
+          })
+          : ["queued", "sending"].includes(followup.status)
+            ? recordFollowupDelivery(doc, job.payload.followupId, {
+              sent: false,
+              provider: "worker",
+              error: job.lastError
+            }, {
+              terminal: true,
+              unknownOutcome: followup.status === "sending",
+              deliveryClaimId: followup.status === "sending" ? job.id : undefined
+            })
+            : null;
+        if (!result) return doc;
         reconciled = result.ok;
         return result.ok ? result.doc : doc;
       }, { fallback: emptyPartnerOperations() });
@@ -635,6 +666,7 @@ async function tick() {
       if (!completion.ok) console.warn(`[worker] job ${job.id} completion ignored: ${completion.reason}`);
     } catch (error) {
       console.error(`[worker] job ${job.id} error:`, error.message);
+      let terminalHandled = true;
       if (job.type === "sms.alert.send" && job.payload?.messageId) {
         await updatePlatformDoc(ROOT, "smsOperations", current => {
           const doc = normalizeSmsOperations(current, { eventId: CURRENT_EVENT_ID });
@@ -651,14 +683,30 @@ async function tick() {
         }, { fallback: emptySmsOperations(CURRENT_EVENT_ID) });
       }
       if (job.type === "partner.followup.send" && job.payload?.followupId) {
+        let partnerFailureHandled = false;
         await updatePlatformDoc(ROOT, "partnerOps", current => {
-          const result = recordFollowupDelivery(current, job.payload.followupId, error.delivery || {
-            sent: false,
-            provider: "brevo",
-            error: error.message
-          }, { terminal: job.attempts >= job.maxAttempts, deliveryClaimId: job.id });
+          const doc = normalizePartnerOperations(current);
+          const followup = doc.followups.find(item => item.id === job.payload.followupId);
+          if (!followup || ["draft_ready", "dismissed", "failed", "sent"].includes(followup.status)) {
+            partnerFailureHandled = true;
+            return doc;
+          }
+          const terminal = job.attempts >= job.maxAttempts;
+          const result = terminal && followup.status === "approved" && job.payload.automated === true
+            ? releaseAutomatedFollowupApproval(doc, job.payload.followupId, error.message, {
+              actorId: "worker",
+              automationPolicy: job.payload.automationPolicy,
+              decision: "terminal_job_released"
+            })
+            : recordFollowupDelivery(doc, job.payload.followupId, error.delivery || {
+              sent: false,
+              provider: "brevo",
+              error: error.message
+            }, { terminal, deliveryClaimId: job.id });
+          partnerFailureHandled = result.ok;
           return result.ok ? result.doc : normalizePartnerOperations(current);
         }, { fallback: emptyPartnerOperations() });
+        terminalHandled = partnerFailureHandled;
       }
       if (job.type === "incident.dispatch.send" && job.payload?.dispatchId) {
         await updatePlatformDoc(ROOT, "islandConditions", current => {
@@ -691,7 +739,7 @@ async function tick() {
           return result.ok ? result.doc : doc;
         }, { fallback: emptyPartnerOperations() });
       }
-      const completion = await completeJob(ROOT, job, { error: error.message, terminalHandled: true });
+      const completion = await completeJob(ROOT, job, { error: error.message, terminalHandled });
       if (!completion.ok) console.warn(`[worker] job ${job.id} failure update ignored: ${completion.reason}`);
     }
   }

@@ -1490,6 +1490,63 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
   check("worker auto-delivers volunteer task assignment once", automatedTaskNotice?.status === "sent" && automatedTaskNotice?.deliveryStatus === "accepted" && automatedTaskNotice?.approvedBy === "automation:partner_transactional_v1" && taskNoticeDeliveries.length === 1 && taskNoticeDeliveries[0]?.body.to?.[0]?.email === "alex@example.com");
   check("every automated follow-up has one provider call", automaticallySentFollowups.length > 0 && automaticallySentFollowups.every(followup => emailMock.deliveries.filter(item => item.body.tags?.includes(followupProviderTag(followup.id))).length === 1));
   check("transactional automation records activity proof", automatedPartnerDoc?.activity?.some(item => item.type === "automation.mode_changed" && item.actorId === "postgres-test-admin") && automatedPartnerDoc?.activity?.some(item => item.type === "followup.auto_approved" && item.entityId === automatedAcknowledgment?.id));
+  const capacityRaceFollowupId = "followup_postgres_capacity_race";
+  const capacityRaceApprovedAt = new Date().toISOString();
+  await updatePlatformDoc(ROOT, "partnerOps", current => {
+    const campaign = current.campaigns.find(item => item.id === approvedSequenceCampaignId);
+    const source = current.followups.find(item => item.id === automatedOutreach?.id);
+    return {
+      ...current,
+      lastUpdated: capacityRaceApprovedAt,
+      followups: [...current.followups, {
+        ...source,
+        id: capacityRaceFollowupId,
+        status: "approved",
+        approvedBy: "automation:outreach_campaign_v1",
+        approvedAt: capacityRaceApprovedAt,
+        automationPolicy: "outreach_campaign_v1",
+        automationDecision: "campaign_approved",
+        automationApprovedAt: capacityRaceApprovedAt,
+        automationCampaignApprovedAt: campaign?.approvedAt,
+        automationJobId: null,
+        automationQueuedAt: null,
+        queuedAt: null,
+        deliveryClaimId: null,
+        deliveryClaimedAt: null,
+        providerSubmissionStartedAt: null,
+        deliveryIdempotencyKey: null,
+        sentAt: null,
+        provider: null,
+        providerMessageId: null,
+        deliveryStatus: null,
+        deliveryAttempts: 0,
+        deliveryEvents: [],
+        lastAttemptAt: null,
+        lastError: null,
+        createdAt: capacityRaceApprovedAt,
+        updatedAt: capacityRaceApprovedAt
+      }]
+    };
+  }, { fallback: emptyPartnerOperations() });
+  const capacityRaceJob = await enqueueJob(ROOT, {
+    type: "partner.followup.send",
+    payload: {
+      followupId: capacityRaceFollowupId,
+      automated: true,
+      automationPolicy: "outreach_campaign_v1"
+    },
+    maxAttempts: 5,
+    idempotencyKey: `outreach_campaign_v1:${capacityRaceFollowupId}:${capacityRaceApprovedAt}`
+  });
+  await runChild(["scripts/worker.mjs"], {
+    ...commonEnv,
+    SANDFEST_WORKER_ONCE: "true",
+    SANDFEST_WORKER_BATCH: "50"
+  }, "Postgres campaign capacity race worker");
+  const capacityRaceDoc = await readPlatformDoc(ROOT, "partnerOps", null);
+  const releasedCapacityRace = capacityRaceDoc?.followups?.find(item => item.id === capacityRaceFollowupId);
+  const capacityRaceJobState = (await listJobs(ROOT, { limit: 1000 })).find(item => item.id === capacityRaceJob.id);
+  check("campaign capacity race releases approval without provider delivery", releasedCapacityRace?.status === "draft_ready" && releasedCapacityRace?.approvedBy === null && releasedCapacityRace?.automationPolicy === null && releasedCapacityRace?.automationDecision === "daily_capacity_released" && capacityRaceJobState?.status === "done" && Number(capacityRaceJobState?.attempts) === 1 && !emailMock.deliveries.some(item => item.body.tags?.includes(followupProviderTag(capacityRaceFollowupId))));
   const reviewFirstMode = await request(base, "PATCH", "/api/admin/partners/automation", { mode: "review_first" }, { auth: true });
   check("transactional automation can be returned to review-first", reviewFirstMode.status === 200 && reviewFirstMode.data.automation?.mode === "review_first" && reviewFirstMode.data.automation?.active === false);
 

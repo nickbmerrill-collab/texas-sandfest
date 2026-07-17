@@ -129,6 +129,7 @@ import {
   queuePartnerInvoiceSync,
   reconcilePartnerStripePayment,
   reconcilePartnerStripeRefund,
+  releaseAutomatedFollowupApproval,
   recordFollowupDelivery,
   recordPartnerInvoiceReconciliation,
   recordPartnerInvoiceSync,
@@ -2402,6 +2403,27 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   };
   const blockedByAutomatedReservation = queueFollowupDelivery(reservedManualDoc, reservedManualId, { now });
   const queuedAutomatedReservation = queueFollowupDelivery(appliedAutomatedCampaign.doc, appliedAutomatedCampaign.approved[0].id, { now, automationJobId: "job_reserved_campaign" });
+  const capacityRaceManualId = `${appliedAutomatedCampaign.approved[0].id}_capacity_race`;
+  const capacityRaceDoc = {
+    ...appliedAutomatedCampaign.doc,
+    followups: [...appliedAutomatedCampaign.doc.followups, {
+      ...appliedAutomatedCampaign.approved[0],
+      id: capacityRaceManualId,
+      status: "queued",
+      approvedBy: "sponsor_1",
+      automationPolicy: null,
+      automationCampaignApprovedAt: null,
+      queuedAt: now
+    }]
+  };
+  const rejectedCapacityRace = queueFollowupDelivery(capacityRaceDoc, appliedAutomatedCampaign.approved[0].id, { now, automationJobId: "job_capacity_race" });
+  const releasedCapacityRace = releaseAutomatedFollowupApproval(capacityRaceDoc, appliedAutomatedCampaign.approved[0].id, rejectedCapacityRace.error, {
+    actorId: "worker",
+    automationPolicy: OUTREACH_CAMPAIGN_AUTOMATION_POLICY,
+    decision: "daily_capacity_released",
+    idFactory,
+    now
+  });
   const manualCampaignDoc = {
     ...appliedAutomatedCampaign.doc,
     followups: appliedAutomatedCampaign.doc.followups.map(item => item.id === appliedAutomatedCampaign.approved[0].id
@@ -2455,6 +2477,7 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   ok("campaign approval automates one bounded message", generatedAutomatedCampaign.generated.length === 1 && appliedAutomatedCampaign.approved.length === 1 && appliedAutomatedCampaign.approved[0].automationPolicy === OUTREACH_CAMPAIGN_AUTOMATION_POLICY && automatedReadiness.dailySendLimit === 1 && automatedReadiness.remainingToday === 0 && campaignQueueCandidates.length === 1);
   ok("campaign automation fails closed and carries queued capacity", providerBlockedCampaignCandidates.length === 0 && carriedQueueReadiness.queuedPending === 1 && carriedQueueReadiness.remainingToday === 0);
   ok("campaign auto-approval reserves daily queue capacity", !blockedByAutomatedReservation.ok && blockedByAutomatedReservation.dailyLimitReached === true && queuedAutomatedReservation.ok && queuedAutomatedReservation.followup.status === "queued");
+  ok("campaign capacity race releases the automated approval", !rejectedCapacityRace.ok && rejectedCapacityRace.dailyLimitReached === true && releasedCapacityRace.ok && releasedCapacityRace.followup.status === "draft_ready" && releasedCapacityRace.followup.approvedBy === null && releasedCapacityRace.followup.automationPolicy === null && releasedCapacityRace.followup.automationDecision === "daily_capacity_released" && releasedCapacityRace.doc.activity.at(-1)?.type === "followup.automation_released");
   ok("campaign daily cap includes manual delivery", manuallyQueuedCampaign.ok && !manuallyQueuedOverflow.ok && manuallyQueuedOverflow.dailyLimitReached === true && outreachCampaignAutomationReadiness(manuallyQueuedCampaign.doc, automatedCampaign.campaign.id, { now, providerReady: true }).remainingToday === 0);
   ok("campaign pause and send use an atomic provider handoff", claimedCampaignDelivery.ok && begunCampaignDelivery.ok && begunCampaignDelivery.followup.providerSubmissionStartedAt === now && pausedAfterProviderStart.inFlightFollowups === 1 && pausedAfterProviderStart.doc.followups.find(item => item.id === claimedCampaignDelivery.followup.id)?.status === "sending" && recordedClaimedDelivery.ok && recordedClaimedDelivery.followup.status === "sent" && failedClaimedDelivery.ok && failedClaimedDelivery.followup.status === "failed" && canceledProviderStart.ok && canceledProviderStart.canceled === true && canceledProviderStart.followup.status === "draft_ready" && !blockedDeliveryClaim.ok && blockedDeliveryClaim.canceled === true);
   ok("campaign terminal states dismiss an unstarted handoff", canceledCompletedProviderStart.ok && canceledCompletedProviderStart.canceled === true && canceledCompletedProviderStart.followup.status === "dismissed" && canceledArchivedProviderStart.ok && canceledArchivedProviderStart.canceled === true && canceledArchivedProviderStart.followup.status === "dismissed");
