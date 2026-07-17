@@ -167,7 +167,7 @@ class CameraEdgeAgentTests(unittest.TestCase):
         approved = json.loads(CONFIG_PATH.read_text())
         approved["model"]["approval"] = {
             "status": "approved",
-            "licenseReference": "reviewed-license-record-2026-07",
+            "licenseReference": "replacement-license-2026",
             "approvedBy": "SandFest technology committee",
             "approvedAt": "2026-07-17T12:00:00Z",
             "decisionReference": "CAMERA-MODEL-2026-001",

@@ -23,7 +23,7 @@ const approvedEnvironment = {
   CAMERA_MODEL_NAME: "reviewed-detector.onnx",
   CAMERA_MODEL_VERSION: "detector-coco-2026.07",
   CAMERA_MODEL_SHA256: "a".repeat(64),
-  CAMERA_MODEL_LICENSE_REFERENCE: "LICENSE-REVIEW-2026-07",
+  CAMERA_MODEL_LICENSE_REFERENCE: "replacement-license-2026",
   CAMERA_MODEL_APPROVED_BY: "SandFest technology committee",
   CAMERA_MODEL_APPROVED_AT: "2026-07-17T12:00:00Z",
   CAMERA_MODEL_DECISION_REFERENCE: "CAMERA-MODEL-2026-001"
@@ -53,6 +53,13 @@ const future = cameraModelApproval({
 }, { nowMs });
 check("future approval timestamp fails closed", !future.ready
   && future.reason.includes("cannot be in the future"));
+
+const missingTimezone = cameraModelApproval({
+  ...approvedEnvironment,
+  CAMERA_MODEL_APPROVED_AT: "2026-07-17T12:00:00"
+}, { nowMs });
+check("approval timestamp without timezone fails closed", !missingTimezone.ready
+  && missingTimezone.reason.includes("with a timezone"));
 
 const mutableArtifact = cameraModelApproval({
   ...approvedEnvironment,

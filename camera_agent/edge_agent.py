@@ -35,7 +35,7 @@ SUPPORTED_CAMERA_KINDS = {"traffic", "queue", "crowd", "line"}
 ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$")
 ENV_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]{1,127}$")
 PLACEHOLDER_PATTERN = re.compile(
-    r"^(?:pending|unknown|unreviewed|none|n/a|replace(?:-with)?|todo)", re.I
+    r"^(?:pending|unknown|unreviewed|none|n/a|replace(?:-with)?$|todo)", re.I
 )
 DEFAULT_ROI = ((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0))
 LOG = logging.getLogger("sandfest-camera-agent")
