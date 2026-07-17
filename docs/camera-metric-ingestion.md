@@ -175,6 +175,7 @@ npm run camera:push -- --heartbeat heartbeat.json
 - The public API omits queue, flow, count, occupancy, and wait metrics unless an armed pipeline has a current observation and is operationally `live` or `degraded`. The private operations record retains the last observation for diagnostics and audit history.
 - Staff the Incident Command queue whenever monitoring is armed; automated escalation does not replace operator acknowledgment, dispatch, or closeout.
 - Fresh `ferry-loading` and `ferry-stacking` observations automatically produce a `camera_estimate` ferry wait; a fresher reviewed operator update takes precedence.
+- TxDOT, operator, and camera-derived ferry estimates expire after 15 minutes. Public responses preserve source and observation timestamps but omit expired wait, ferry-count, directional, and interruption values.
 - Rotate one camera at a time: add a second key ID for that camera, deploy it to the local host, confirm the admin workspace reports rotation overlap, switch the host, and then remove the old key.
 - Revoke only the affected camera credential after a suspected disclosure. A key bound to one camera cannot authenticate another camera route.
 - `CAMERA_INGEST_SECRET` without a key ID remains available only for local development. Production requires `CAMERA_INGEST_KEYS` and rejects shared-only configuration.

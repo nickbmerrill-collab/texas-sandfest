@@ -168,6 +168,7 @@ assert(visitorSource.includes('id="admin-deployment-checks" class="admin-deploym
 assert(visitorSource.includes('data-deployment-filter="attention" aria-pressed="true"') && visitorSource.includes('data-deployment-filter="all" aria-pressed="false"'), "Deployment readiness filters are missing pressed-state semantics.");
 assert(visitorSource.includes("const groupSummary = groupSummaries.get(group);") && visitorSource.includes("${passing}/${total} passing"), "Filtered deployment views do not preserve full-group readiness totals.");
 assert(visitorSource.includes('id="island-condition-updated" role="status" aria-live="polite"'), "Island Conditions is missing its live refresh status.");
+assert(visitorSource.includes('const ferryLive = ferry.freshness?.state === "live";') && visitorSource.includes('Current directional waits unavailable'), "Island Conditions does not fail closed for stale ferry estimates.");
 assert(visitorSource.includes('const observation = camera.freshness?.state === "live"') && visitorSource.includes('${observation?.queueLength ?? "-"}'), "Island Conditions does not fail closed for stale or unarmed camera metrics.");
 assert(visitorSource.includes('id="admin-volunteer-import-result" class="admin-import-result admin-import-wide" aria-live="polite"'), "VolunteerLocal reconciliation is missing its live preview status.");
 assert(visitorSource.includes('id="admin-booth-import-result" class="admin-import-result admin-import-wide" aria-live="polite"'), "Eventeny booth reconciliation is missing its live preview status.");

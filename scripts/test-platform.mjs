@@ -3258,6 +3258,31 @@ Research First,construction,Corpus Christi,,78401,,,,Find decision maker,`;
     }
   }, "2026-07-16T12:00:00.000Z").weather;
   ok("public Island Conditions hides expired weather values", stalePublicWeather.status === "stale" && stalePublicWeather.freshness.state === "stale" && stalePublicWeather.temperatureF == null && stalePublicWeather.shortForecast == null);
+  const ferryFreshnessFixture = {
+    ...seed,
+    ferry: {
+      status: "live",
+      route: "Port Aransas Ferry",
+      source: "TxDOT Corpus Christi DMS",
+      sourceUrl: "https://its.txdot.gov/its/District/CRP/dms-messages",
+      observedAt: "2026-07-16T11:30:00.000Z",
+      checkedAt: "2026-07-16T11:30:00.000Z",
+      estimatedWaitMinutes: 45,
+      operatingFerries: 4,
+      directions: [{
+        id: "to-port-aransas",
+        label: "To Port Aransas",
+        status: "service_interruption",
+        observedAt: "2026-07-16T11:30:00.000Z",
+        estimatedWaitMinutes: null,
+        notice: "FERRY SERVICE SUSPENDED"
+      }]
+    }
+  };
+  const stalePublicFerry = publicIslandConditions(ferryFreshnessFixture, "2026-07-16T12:00:00.000Z").ferry;
+  const currentPublicFerry = publicIslandConditions(ferryFreshnessFixture, "2026-07-16T11:40:00.000Z").ferry;
+  ok("public Island Conditions hides expired ferry values", stalePublicFerry.status === "stale" && stalePublicFerry.freshness.state === "stale" && stalePublicFerry.estimatedWaitMinutes == null && stalePublicFerry.operatingFerries == null && stalePublicFerry.directions[0]?.status === "stale" && stalePublicFerry.directions[0]?.notice == null && stalePublicFerry.observedAt === "2026-07-16T11:30:00.000Z");
+  ok("public Island Conditions preserves current ferry values", currentPublicFerry.status === "live" && currentPublicFerry.estimatedWaitMinutes === 45 && currentPublicFerry.operatingFerries === 4 && currentPublicFerry.directions[0]?.status === "service_interruption" && currentPublicFerry.directions[0]?.notice === "FERRY SERVICE SUSPENDED");
   const txdotPayload = {
     roadwayDmses: {
       SH361AransasPass: [
