@@ -61,7 +61,7 @@ That is the expected demo URL after a successful workflow and Pages enablement. 
 - A paid `basic-1gb` `sandfest-db` Postgres database wired into `SANDFEST_DATABASE_URL`, with a 15 GB autoscaling disk and managed point-in-time recovery
 - All the production env vars from the deployment doc (JWKS, CORS, rate limits, public/admin base URLs)
 
-API, admin, and worker deploys follow `main` only after repository checks pass. The API owns provider configuration; the worker receives the exact QuickBooks, Brevo, Twilio, and portal-capability values through Render service references instead of duplicate dashboard entries. Run `npm run test:render-blueprint` before every Blueprint change. With the official Render CLI authenticated to the target workspace, also run `render blueprints validate render.yaml` before applying it.
+API, admin, and worker deploys follow `main` only after repository checks pass. The API owns provider configuration; the worker receives the exact QuickBooks, Brevo, Twilio, and portal-capability values through Render service references instead of duplicate dashboard entries. Run `npm run test:container-contract` and `npm run test:render-blueprint` before every container or Blueprint change. The container contract requires a frozen production-only dependency install, follows both API and worker import graphs, verifies every runtime package is declared in `dependencies`, enforces a non-root runtime stage, and rejects sensitive build-context paths. With the official Render CLI authenticated to the target workspace, also run `render blueprints validate render.yaml` before applying it. A passing static contract does not replace the first real Render image build and service smoke test.
 
 **Deploy:**
 
