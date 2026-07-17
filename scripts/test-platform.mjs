@@ -3196,6 +3196,9 @@ Research First,construction,Corpus Christi,,78401,,,,Find decision maker,`;
   const publicConditions = publicIslandConditions(healthyObservation.doc, "2026-07-16T12:00:00.000Z");
   const publicNorth = publicConditions.cameras.find(camera => camera.id === "north-gate");
   ok("camera public privacy contract", !("sourceId" in publicNorth) && !("health" in publicNorth) && !("monitoringEnabled" in publicNorth) && !("modelName" in publicNorth.observation) && !("modelSha256" in publicNorth.observation) && publicNorth.observation.peopleCount === 120);
+  const stalePublicNorth = publicIslandConditions(healthyObservation.doc, "2026-07-16T12:05:00.000Z").cameras.find(camera => camera.id === "north-gate");
+  const standbyPublicNorth = publicIslandConditions(observed.doc, "2026-07-16T12:00:00.000Z").cameras.find(camera => camera.id === "north-gate");
+  ok("camera public metrics fail closed when stale or unarmed", stalePublicNorth.level === "unknown" && stalePublicNorth.observation === null && standbyPublicNorth.observation === null);
   const ferryFallbackSeed = {
     ...seed,
     ferry: {
