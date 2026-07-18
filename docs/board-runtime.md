@@ -164,6 +164,13 @@ access, opens the prepared sponsor brand center or vendor onboarding workspace
 against the active loopback API, removes the capability token from browser
 history, and invalidates the previous link. Production builds do not expose this
 shortcut; staff can still use **Copy new portal link** for the governed handoff.
+The production browser gate also creates a new artisan vendor through the public
+form, submits its operating profile and five category-specific compliance
+records, approves the same record in operations, publishes booth A-27 and its
+load-in window, confirms the assignment in the private portal, and verifies the
+dashboard recomputes that vendor as ready. The assignment notice is drafted
+automatically and becomes stale when the vendor confirms, proving the follow-up
+lifecycle without sending an external message.
 
 The seeded Island Harbor Hotel prospect is already qualified, geolocated, and
 assigned. Choose a sponsor package and use **Issue invitation**, then **Open
