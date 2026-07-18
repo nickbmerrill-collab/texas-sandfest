@@ -4989,6 +4989,24 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 
 .admin-partners-panel { display: grid; gap: 16px; margin-top: 28px; }
 .admin-partner-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 10px; }
+.admin-partner-activity-board { background: #f2f5f4; border-left: 5px solid var(--sun); display: grid; gap: 12px; padding: 16px; }
+.admin-partner-activity { display: grid; gap: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 420px; overflow: auto; }
+.admin-partner-activity > article { background: var(--white); border: 1px solid var(--line); border-radius: 6px; display: grid; gap: 10px; grid-template-columns: 4px minmax(0, 1fr); min-width: 0; padding: 11px; }
+.admin-partner-activity > article.empty-state { grid-column: 1 / -1; grid-template-columns: 1fr; }
+.admin-partner-activity-marker { background: var(--gulf); display: block; min-height: 58px; width: 4px; }
+.admin-partner-activity article[data-category="finance"] .admin-partner-activity-marker { background: #4f6f52; }
+.admin-partner-activity article[data-category="schedule"] .admin-partner-activity-marker { background: #1c4778; }
+.admin-partner-activity article[data-category="messaging"] .admin-partner-activity-marker { background: var(--sun); }
+.admin-partner-activity article[data-category="work"] .admin-partner-activity-marker { background: #3d6f8d; }
+.admin-partner-activity article[data-category="branding"] .admin-partner-activity-marker { background: #705583; }
+.admin-partner-activity article[data-category="vendor"] .admin-partner-activity-marker { background: #8a4b14; }
+.admin-partner-activity article[data-category="outreach"] .admin-partner-activity-marker { background: #2d6840; }
+.admin-partner-activity article > div { display: grid; gap: 4px; min-width: 0; }
+.admin-partner-activity header { align-items: start; display: flex; gap: 8px; justify-content: space-between; }
+.admin-partner-activity header strong { color: var(--deep); font-size: 13px; overflow-wrap: anywhere; }
+.admin-partner-activity header span { color: var(--gulf); flex: 0 0 auto; font-size: 10px; font-weight: 800; text-align: right; text-transform: uppercase; }
+.admin-partner-activity p,
+.admin-partner-activity small { color: var(--muted); font-size: 11px; margin: 0; overflow-wrap: anywhere; }
 .admin-partner-automation { align-items: center; background: #eef6f5; border-left: 5px solid var(--gulf); display: grid; gap: 10px; grid-template-columns: minmax(220px, 1fr) minmax(190px, .45fr) auto; padding: 12px 14px; }
 .admin-partner-automation > div { display: grid; gap: 3px; min-width: 0; }
 .admin-partner-automation span { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
@@ -5553,6 +5571,7 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
   .admin-task-wide { grid-column: 1 / -1; }
   .admin-partner-row-actions { grid-template-columns: 1fr auto; }
   .admin-partner-automation { grid-template-columns: 1fr; }
+  .admin-partner-activity { grid-template-columns: 1fr; }
   .admin-partner-automation .button { justify-self: start; }
   .admin-quickbooks-connection { grid-template-columns: 1fr; }
   .admin-quickbooks-actions { justify-content: flex-start; }

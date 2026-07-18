@@ -1405,6 +1405,15 @@ app.innerHTML = `
           </div>
         </div>
         <div id="admin-partner-kpis" class="admin-revenue-kpis"><article class="empty-state"><span>No partner records loaded.</span></article></div>
+        <div class="admin-partner-activity-board">
+          <div class="admin-task-board-heading">
+            <strong>Recent partner workflow activity</strong>
+            <span id="admin-partner-activity-summary">Load partner workspace to view activity.</span>
+          </div>
+          <div id="admin-partner-activity" class="admin-partner-activity keyboard-scroll-region" role="feed" aria-label="Recent partner workflow activity" tabindex="0">
+            <article class="empty-state"><span>No partner activity loaded.</span></article>
+          </div>
+        </div>
         <form id="admin-partner-automation" class="admin-partner-automation" data-requires-permission="partners:write">
           <div><strong>Transactional partner messages</strong><span id="admin-partner-automation-status">Load partner workspace to view policy state.</span></div>
           <select name="mode" aria-label="Partner message automation mode">
@@ -6581,6 +6590,183 @@ function renderAdminCommandSummary(payload, outreach) {
   updated.textContent = `Updated ${new Date(taskBoard.generatedAt || Date.now()).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
 }
 
+const adminPartnerActivityTypes = {
+  "application.created": { category: "intake", one: "Application received", many: "Applications received" },
+  "application.updated": { category: "intake", one: "Application status updated", many: "Application statuses updated" },
+  "application.portal_access_rotated": { category: "intake", one: "Partner portal access refreshed", many: "Partner portal links refreshed" },
+  "invoice.created": { category: "finance", one: "Invoice created", many: "Invoices created" },
+  "invoice.reconciled": { category: "finance", one: "Invoice reconciled", many: "Invoices reconciled" },
+  "payment.recorded": { category: "finance", one: "Payment recorded", many: "Payments recorded" },
+  "payment.reversed": { category: "finance", one: "Payment reversed", many: "Payments reversed" },
+  "payment.voided": { category: "finance", one: "Payment voided", many: "Payments voided" },
+  "payment.stripe_refund_reconciled": { category: "finance", one: "Refund reconciled", many: "Refunds reconciled" },
+  "payment_checkout.created": { category: "finance", one: "Online checkout prepared", many: "Online checkouts prepared" },
+  "payment_checkout.completed": { category: "finance", one: "Online payment completed", many: "Online payments completed" },
+  "milestone.created": { category: "schedule", one: "Key date added", many: "Key dates added" },
+  "milestone.updated": { category: "schedule", one: "Key date updated", many: "Key dates updated" },
+  "milestone.invoice_due_synced": { category: "schedule", one: "Invoice due date synchronized", many: "Invoice due dates synchronized" },
+  "followup.generated": { category: "messaging", one: "Partner message prepared", many: "Partner messages prepared" },
+  "followup.approved": { category: "messaging", one: "Partner message approved", many: "Partner messages approved" },
+  "followup.queued": { category: "messaging", one: "Partner message queued", many: "Partner messages queued" },
+  "followup.sent": { category: "messaging", one: "Partner message accepted", many: "Partner messages accepted" },
+  "task.created": { category: "work", one: "Task assigned", many: "Tasks assigned" },
+  "task.updated": { category: "work", one: "Task updated", many: "Tasks updated" },
+  "task.followup.generated": { category: "work", one: "Assignment notice prepared", many: "Assignment notices prepared" },
+  "brand.profile_submitted": { category: "branding", one: "Brand profile submitted", many: "Brand profiles submitted" },
+  "brand.profile_approved": { category: "branding", one: "Brand profile approved", many: "Brand profiles approved" },
+  "brand.profile_changes_requested": { category: "branding", one: "Brand profile changes requested", many: "Brand profile changes requested" },
+  "brand.asset_submitted": { category: "branding", one: "Brand asset submitted", many: "Brand assets submitted" },
+  "brand.asset_approved": { category: "branding", one: "Brand asset approved", many: "Brand assets approved" },
+  "brand.asset_changes_requested": { category: "branding", one: "Brand asset changes requested", many: "Brand asset changes requested" },
+  "deliverable.created": { category: "branding", one: "Sponsor benefit added", many: "Sponsor benefits added" },
+  "deliverable.updated": { category: "branding", one: "Sponsor benefit updated", many: "Sponsor benefits updated" },
+  "deliverable.partner_approved": { category: "branding", one: "Sponsor benefit approved", many: "Sponsor benefits approved" },
+  "vendor.profile_submitted": { category: "vendor", one: "Vendor profile submitted", many: "Vendor profiles submitted" },
+  "vendor.profile_approved": { category: "vendor", one: "Vendor profile approved", many: "Vendor profiles approved" },
+  "vendor.requirement_approved": { category: "vendor", one: "Vendor requirement approved", many: "Vendor requirements approved" },
+  "vendor.requirement_waived": { category: "vendor", one: "Vendor requirement waived", many: "Vendor requirements waived" },
+  "vendor.requirement_changes_requested": { category: "vendor", one: "Vendor correction requested", many: "Vendor corrections requested" },
+  "vendor.assignment_updated": { category: "vendor", one: "Vendor assignment published", many: "Vendor assignments published" },
+  "vendor.assignment_confirmed": { category: "vendor", one: "Vendor assignment confirmed", many: "Vendor assignments confirmed" },
+  "outreach.prospect.created": { category: "outreach", one: "Sponsor target added", many: "Sponsor targets added" },
+  "outreach.prospect.updated": { category: "outreach", one: "Sponsor target updated", many: "Sponsor targets updated" },
+  "outreach.prospect.suppressed": { category: "outreach", one: "Sponsor outreach suppressed", many: "Sponsor outreach records suppressed" },
+  "outreach.campaign.created": { category: "outreach", one: "Outreach campaign drafted", many: "Outreach campaigns drafted" },
+  "outreach.campaign.activated": { category: "outreach", one: "Outreach campaign activated", many: "Outreach campaigns activated" },
+  "outreach.campaign.paused": { category: "outreach", one: "Outreach campaign paused", many: "Outreach campaigns paused" },
+  "outreach.sponsor_invitation.issued": { category: "outreach", one: "Sponsor invitation issued", many: "Sponsor invitations issued" },
+  "outreach.sponsor_invitation.revoked": { category: "outreach", one: "Sponsor invitation revoked", many: "Sponsor invitations revoked" },
+  "outreach.prospect.converted": { category: "outreach", one: "Sponsor target converted", many: "Sponsor targets converted" }
+};
+
+const adminPartnerActivityCategories = {
+  intake: "Intake",
+  finance: "Finance",
+  schedule: "Key dates",
+  messaging: "Messaging",
+  work: "Work board",
+  branding: "Sponsor branding",
+  vendor: "Vendor readiness",
+  outreach: "Sponsor outreach",
+  operations: "Partner operations"
+};
+
+function adminPartnerActivityDefinition(type) {
+  if (adminPartnerActivityTypes[type]) return adminPartnerActivityTypes[type];
+  const category = type.startsWith("payment") || type.startsWith("invoice")
+    ? "finance"
+    : type.startsWith("milestone")
+      ? "schedule"
+      : type.startsWith("followup")
+        ? "messaging"
+        : type.startsWith("task")
+          ? "work"
+          : type.startsWith("brand") || type.startsWith("deliverable")
+            ? "branding"
+            : type.startsWith("vendor")
+              ? "vendor"
+              : type.startsWith("outreach")
+                ? "outreach"
+                : type.startsWith("application")
+                  ? "intake"
+                  : "operations";
+  const words = String(type || "workflow updated").replace(/[._]+/g, " ");
+  const label = `${words.charAt(0).toUpperCase()}${words.slice(1)}`;
+  return { category, one: label, many: `${label} records` };
+}
+
+function adminPartnerActivityActor(actorId) {
+  const actor = String(actorId || "");
+  if (actor === "automation") return "Automation";
+  if (actor === "public") return "Public site";
+  if (actor.startsWith("partner:")) return "Partner portal";
+  if (actor.includes("finance")) return "Finance team";
+  if (actor.includes("sponsor")) return "Sponsor team";
+  if (actor.includes("vendor")) return "Vendor team";
+  if (actor === "admin" || actor.includes("board")) return "Operations team";
+  return "Staff workflow";
+}
+
+function adminPartnerActivitySubject(payload, outreach, activity) {
+  const entityId = activity.entityId;
+  const detail = activity.detail || {};
+  const applications = payload.applications || [];
+  const directApplication = applications.find(item => item.id === entityId);
+  if (directApplication) return directApplication.organizationName;
+
+  const relatedCollections = [
+    payload.invoices,
+    payload.payments,
+    payload.paymentCheckouts,
+    payload.milestones,
+    payload.followups,
+    payload.brandProfiles,
+    payload.brandAssets,
+    payload.deliverables,
+    payload.vendorProfiles,
+    payload.vendorDocuments,
+    payload.vendorRequirements,
+    payload.vendorAssignments
+  ];
+  const related = relatedCollections.flatMap(items => items || []).find(item => item.id === entityId);
+  const applicationId = detail.applicationId || related?.applicationId;
+  const application = applications.find(item => item.id === applicationId);
+  if (application) return application.organizationName;
+
+  const task = (payload.tasks || []).find(item => item.id === entityId || item.id === detail.taskId);
+  if (task?.title) return task.title;
+  const prospect = (outreach?.prospects || []).find(item => item.id === entityId || item.id === detail.prospectId);
+  if (prospect?.organizationName) return prospect.organizationName;
+  const campaign = (outreach?.campaigns || []).find(item => item.id === entityId || item.id === detail.campaignId);
+  if (campaign?.name) return campaign.name;
+  return "Partner operations";
+}
+
+function groupedAdminPartnerActivity(payload, outreach) {
+  const groups = new Map();
+  for (const activity of payload.activity || []) {
+    const type = String(activity.type || "workflow.updated");
+    const at = String(activity.at || "");
+    const key = `${type}|${at.slice(0, 19)}|${String(activity.actorId || "")}`;
+    const current = groups.get(key);
+    if (current) {
+      current.count += 1;
+      continue;
+    }
+    groups.set(key, {
+      activity,
+      count: 1,
+      definition: adminPartnerActivityDefinition(type),
+      subject: adminPartnerActivitySubject(payload, outreach, activity)
+    });
+  }
+  return [...groups.values()].slice(0, 40);
+}
+
+function renderAdminPartnerActivity(payload, outreach) {
+  const target = document.querySelector("#admin-partner-activity");
+  const summary = document.querySelector("#admin-partner-activity-summary");
+  if (!target || !summary) return;
+  const groups = groupedAdminPartnerActivity(payload, outreach);
+  summary.textContent = `${(payload.activity || []).length} recorded event${(payload.activity || []).length === 1 ? "" : "s"} · ${groups.length} recent update${groups.length === 1 ? "" : "s"}`;
+  target.innerHTML = groups.map(group => {
+    const { activity, count, definition } = group;
+    const title = count === 1 ? definition.one : `${count} ${definition.many.toLowerCase()}`;
+    const timestamp = new Date(activity.at);
+    const timeLabel = Number.isNaN(timestamp.getTime())
+      ? "Time unavailable"
+      : timestamp.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+    return `<article data-partner-activity data-category="${escapeAttr(definition.category)}">
+      <span class="admin-partner-activity-marker" aria-hidden="true"></span>
+      <div>
+        <header><strong>${escapeHtml(title)}</strong><span>${escapeHtml(adminPartnerActivityCategories[definition.category] || adminPartnerActivityCategories.operations)}</span></header>
+        <p>${escapeHtml(count === 1 ? group.subject : "Multiple related workflow records")}</p>
+        <small>${escapeHtml(adminPartnerActivityActor(activity.actorId))} · ${escapeHtml(timeLabel)}</small>
+      </div>
+    </article>`;
+  }).join("") || '<article class="empty-state"><span>No partner workflow activity has been recorded.</span></article>';
+}
+
 function renderAdminPartners(payload, outreach) {
   adminPartnerState = { payload, outreach };
   const summary = payload.summary;
@@ -6615,6 +6801,7 @@ function renderAdminPartners(payload, outreach) {
     revenueKpiCard("Campaigns", `${outreach.summary?.activeCampaigns || 0} active`, `${outreach.summary?.draftsAwaitingReview || 0} drafts · ${outreach.summary?.messagesSent || 0} sent · opt-out ${outreach.preferences?.ready ? "ready" : "off"}`)
   ].join("");
   renderAdminCommandSummary(payload, outreach);
+  renderAdminPartnerActivity(payload, outreach);
   const staffStatus = document.querySelector("#admin-staff-directory-status");
   if (staffStatus) {
     const directory = payload.staffDirectory || {};

@@ -179,6 +179,9 @@ if (visitorUrl && operationsUrl) {
         taskSummary: document.querySelector("#admin-task-board-summary")?.textContent?.trim(),
         documents: document.querySelectorAll("#admin-document-list [data-admin-document]").length,
         quickBooksState: document.querySelector("#admin-quickbooks-connection")?.dataset?.state,
+        partnerActivity: document.querySelectorAll("#admin-partner-activity [data-partner-activity]").length,
+        partnerActivityCategories: [...new Set([...document.querySelectorAll("#admin-partner-activity [data-category]")].map(item => item.dataset.category))],
+        partnerActivityText: document.querySelector("#admin-partner-activity")?.textContent?.trim(),
         resetReady: document.querySelector("#admin-reset-board-demo")?.hidden === false,
         overflowPixels: Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth)
       }));
@@ -205,10 +208,22 @@ if (visitorUrl && operationsUrl) {
     });
     await inspect("operations_workflows", "Operations workflow queues", "Inspect partner, task, document, and accounting board data.", async () => {
       const item = observations.operations;
-      if (item?.partnerApplications < 4 || item?.tasks < 9 || !item?.taskSummary?.includes("active") || item?.documents < 4 || item?.quickBooksState !== "deferred") {
+      const requiredActivityCategories = ["intake", "finance", "schedule", "messaging", "work", "branding", "vendor", "outreach"];
+      if (
+        item?.partnerApplications < 4
+        || item?.tasks < 9
+        || !item?.taskSummary?.includes("active")
+        || item?.documents < 4
+        || item?.quickBooksState !== "deferred"
+        || item?.partnerActivity < 15
+        || requiredActivityCategories.some(category => !item.partnerActivityCategories?.includes(category))
+        || !item.partnerActivityText?.includes("Payment recorded")
+        || !item.partnerActivityText?.includes("Partner message prepared")
+        || /activity_|demo_[sv]app|followup_/.test(item.partnerActivityText || "")
+      ) {
         throw new Error("One or more board workflow queues did not render their prepared records.");
       }
-      return `${item.partnerApplications} applications, ${item.tasks} active task cards, and ${item.documents} documents rendered; live accounting remains deferred.`;
+      return `${item.partnerApplications} applications, ${item.tasks} active task cards, ${item.documents} documents, and ${item.partnerActivity} grouped workflow updates rendered; live accounting remains deferred.`;
     });
     await inspect("browser_health", "Browser render health", "Inspect browser errors and page-width layout on both presentation surfaces.", async () => {
       if (pageErrors.length || consoleErrors.length) {
