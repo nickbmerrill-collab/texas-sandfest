@@ -193,6 +193,7 @@ import {
   verifySponsorInvitationToken
 } from "../lib/sponsor-invitations.mjs";
 import {
+  createSponsorPackageConfig,
   publicSponsorPackage,
   resolveSponsorPackage,
   sponsorPackageCatalog,
@@ -2272,10 +2273,23 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   const invalidSponsorStripe = updateSponsorPackageConfig(sponsorConfig, "tarpon", { stripePriceId: "price_replace_me" });
   const lastSponsorTierDisabled = updateSponsorPackageConfig({ sponsorPackages: [sponsorConfig.sponsorPackages[0]] }, "tarpon", { active: false });
   const updatedSponsorPackage = updateSponsorPackageConfig(sponsorConfig, "tarpon", { amount: 550000, stripePriceId: "price_tarpon_2027", quickBooksItemId: "88" });
+  const createdSponsorPackage = createSponsorPackageConfig(sponsorConfig, {
+    id: "community-partner",
+    name: "Community Partner",
+    amount: 750000,
+    benefits: ["Festival website", "Community stage recognition"]
+  });
+  const duplicateSponsorPackage = createSponsorPackageConfig(createdSponsorPackage.config, {
+    id: "community-partner",
+    name: "Duplicate Community Partner",
+    amount: 800000,
+    benefits: ["Duplicate benefit"]
+  });
   const publicSponsorTier = publicSponsorPackage(updatedSponsorPackage.sponsorPackage);
   ok("sponsor package catalog authority", defaultSponsorCatalog.ready && defaultSponsorCatalog.activePackages.length === 2 && resolvedSponsorPackage.ok && resolvedSponsorPackage.sponsorPackage.amount === 500000);
   ok("sponsor package catalog rejects unsafe pricing and fulfillment", !invalidSponsorAmount.ok && invalidSponsorAmount.error.includes("amount") && !invalidSponsorBenefits.ok && invalidSponsorBenefits.error.includes("benefit") && !invalidSponsorStripe.ok && invalidSponsorStripe.error.includes("Stripe Price ID"));
   ok("sponsor package catalog keeps one public tier active", !lastSponsorTierDisabled.ok && lastSponsorTierDisabled.error.includes("At least one active"));
+  ok("sponsor package creation validates and rejects duplicate IDs", createdSponsorPackage.ok && createdSponsorPackage.sponsorPackage.publicLabel === "$7,500 sponsorship" && !duplicateSponsorPackage.ok && duplicateSponsorPackage.conflict === true);
   ok("public sponsor package hides accounting mappings", updatedSponsorPackage.ok && publicSponsorTier.amount === 550000 && !Object.hasOwn(publicSponsorTier, "quickBooksItemId") && !Object.hasOwn(publicSponsorTier, "stripePriceId"));
   const defaultVendorCatalog = vendorOfferingCatalog({ vendorOfferings: DEFAULT_VENDOR_OFFERINGS });
   const artisanOffering = resolveVendorOffering({ vendorOfferings: DEFAULT_VENDOR_OFFERINGS }, "marketplace-booth", "artisan");
@@ -4933,6 +4947,18 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
   const publicTarponPackage = publicSponsorCatalogApi.data.sponsorPackages?.find(item => item.id === "tarpon");
   ok("GET public sponsor packages", publicSponsorCatalogApi.status === 200 && publicTarponPackage?.amount === 500000 && publicTarponPackage?.benefits?.includes("Web listing") && !Object.hasOwn(publicTarponPackage || {}, "quickBooksItemId") && !Object.hasOwn(publicTarponPackage || {}, "stripePriceId"));
   if (child) {
+    const sponsorPackageCreateBody = {
+      id: "community-champion",
+      name: "Community Champion",
+      amount: 750000,
+      benefits: ["Community stage recognition"],
+      stripePriceId: "price_api_community_champion",
+      quickBooksItemId: "api-community-champion-item"
+    };
+    const concurrentSponsorCreates = await Promise.all([
+      hit("POST", "/api/admin/sponsor-packages", sponsorPackageCreateBody, true),
+      hit("POST", "/api/admin/sponsor-packages", sponsorPackageCreateBody, true)
+    ]);
     const invalidSponsorAmountPatch = await hit("PATCH", "/api/admin/sponsor-packages/tarpon", { amount: 0 }, true);
     const invalidSponsorBenefitPatch = await hit("PATCH", "/api/admin/sponsor-packages/tarpon", { benefits: [] }, true);
     const sponsorPackagePatch = await hit("PATCH", "/api/admin/sponsor-packages/tarpon", {
@@ -4941,8 +4967,10 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     }, true);
     const publicSponsorCatalogAfterPatch = await hit("GET", "/api/public/sponsors");
     const publicTarponAfterPatch = publicSponsorCatalogAfterPatch.data.sponsorPackages?.find(item => item.id === "tarpon");
+    const publicCommunityChampion = publicSponsorCatalogAfterPatch.data.sponsorPackages?.find(item => item.id === "community-champion");
+    ok("admin sponsor package creation is atomic", concurrentSponsorCreates.map(item => item.status).sort((a, b) => a - b).join(",") === "201,409" && publicCommunityChampion?.amount === 750000);
     ok("admin sponsor package validation", invalidSponsorAmountPatch.status === 400 && invalidSponsorAmountPatch.data.error?.includes("amount") && invalidSponsorBenefitPatch.status === 400 && invalidSponsorBenefitPatch.data.error?.includes("benefit") && publicTarponAfterPatch?.amount === 500000);
-    ok("admin sponsor package accounting mapping stays private", sponsorPackagePatch.status === 200 && sponsorPackagePatch.data.readiness?.ready === true && sponsorPackagePatch.data.sponsorPackage?.quickBooksItemId === "api-sponsor-tarpon-item" && !Object.hasOwn(publicTarponAfterPatch || {}, "quickBooksItemId") && !Object.hasOwn(publicTarponAfterPatch || {}, "stripePriceId"));
+    ok("admin sponsor package accounting mapping stays private", sponsorPackagePatch.status === 200 && sponsorPackagePatch.data.readiness?.ready === true && sponsorPackagePatch.data.sponsorPackage?.quickBooksItemId === "api-sponsor-tarpon-item" && !Object.hasOwn(publicTarponAfterPatch || {}, "quickBooksItemId") && !Object.hasOwn(publicTarponAfterPatch || {}, "stripePriceId") && !Object.hasOwn(publicCommunityChampion || {}, "quickBooksItemId") && !Object.hasOwn(publicCommunityChampion || {}, "stripePriceId"));
   }
   const publicVendorCatalogApi = await hit("GET", "/api/public/vendors");
   const publicMarketplaceOffering = publicVendorCatalogApi.data.vendorOfferings?.find(item => item.id === "marketplace-booth");
