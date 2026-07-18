@@ -380,8 +380,51 @@ async function main() {
   const { emptyPartnerOperations } = await import("../lib/partner-ops.mjs");
   const { claimNextJobs, completeJob, enqueueJob, getQueueHealth, listJobs, markTerminalJobHandled } = await import("../lib/job-queue.mjs");
   const { signCameraPayload } = await import("../lib/camera-ingest.mjs");
+  const {
+    beginQuickBooksAuthorization,
+    completeQuickBooksAuthorization,
+    loadQuickBooksRuntimeCredentials,
+    persistQuickBooksTokenRotation,
+    readQuickBooksCredentialStatus
+  } = await import("../lib/quickbooks/credentials.mjs");
 
   const pool = await getPool();
+  const quickBooksEnv = {
+    ...commonEnv,
+    QB_ENVIRONMENT: "sandbox",
+    QB_INVOICE_SYNC_ENABLED: "true",
+    QB_CLIENT_ID: "postgres-quickbooks-client",
+    QB_CLIENT_SECRET: "postgres-quickbooks-secret",
+    QB_REDIRECT_URI: "http://127.0.0.1:8787/api/integrations/quickbooks/callback",
+    QB_TOKEN_ENCRYPTION_KEY: "postgres-quickbooks-encryption-key-0123456789",
+    QB_TOKEN_URL: "http://127.0.0.1:9999/oauth/tokens"
+  };
+  await pool.query("DELETE FROM platform_documents WHERE key = $1", ["quickbooks-credentials"]);
+  const quickBooksStartedAt = Date.now();
+  const quickBooksAuthorization = await beginQuickBooksAuthorization(ROOT, { actorId: "postgres-finance-admin", now: quickBooksStartedAt }, quickBooksEnv);
+  const quickBooksState = new URL(quickBooksAuthorization.authorizationUrl).searchParams.get("state");
+  await completeQuickBooksAuthorization(ROOT, {
+    state: quickBooksState,
+    code: "postgres-private-code",
+    realmId: "postgres-private-realm",
+    now: quickBooksStartedAt + 1_000,
+    fetchImpl: async () => new Response(JSON.stringify({
+      access_token: "postgres-private-access-token",
+      refresh_token: "postgres-private-refresh-token",
+      x_refresh_token_expires_in: 8_726_400
+    }), { status: 200, headers: { "content-type": "application/json" } })
+  }, quickBooksEnv);
+  const quickBooksRow = await pool.query("SELECT data::text AS source FROM platform_documents WHERE key = $1", ["quickbooks-credentials"]);
+  const quickBooksStatus = await readQuickBooksCredentialStatus(ROOT, quickBooksEnv);
+  check("QuickBooks OAuth credential is encrypted in Postgres", quickBooksStatus.connected && quickBooksStatus.canSyncPartnerInvoices && quickBooksStatus.credentialStorage === "postgres" && quickBooksRow.rows.length === 1 && quickBooksRow.rows[0].source.includes("aes-256-gcm") && !quickBooksRow.rows[0].source.includes("postgres-private-refresh-token") && !quickBooksRow.rows[0].source.includes(quickBooksState));
+  const quickBooksRuntime = await loadQuickBooksRuntimeCredentials(ROOT, quickBooksEnv);
+  const quickBooksRotation = await persistQuickBooksTokenRotation(ROOT, quickBooksRuntime, {
+    refresh_token: "postgres-private-rotated-token",
+    x_refresh_token_expires_in: 8_726_400
+  }, { now: quickBooksStartedAt + 2_000 }, quickBooksEnv);
+  const quickBooksRotatedRow = await pool.query("SELECT data::text AS source FROM platform_documents WHERE key = $1", ["quickbooks-credentials"]);
+  const quickBooksRotatedRuntime = await loadQuickBooksRuntimeCredentials(ROOT, quickBooksEnv);
+  check("QuickBooks token rotation is durable and plaintext-free in Postgres", quickBooksRotation.changed && quickBooksRotatedRuntime.tokenVersion === quickBooksRuntime.tokenVersion + 1 && quickBooksRotatedRuntime.env.QB_REFRESH_TOKEN === "postgres-private-rotated-token" && !quickBooksRotatedRow.rows[0].source.includes("postgres-private-rotated-token"));
   await pool.query("DELETE FROM hunt_completions");
   await pool.query("DELETE FROM peoples_choice_votes");
   const oldHuntCompletions = await appendPassportCompletion(ROOT, {

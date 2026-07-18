@@ -25,7 +25,7 @@ data/processed/incoming-inventory.json
 data/processed/incoming-inventory.md
 data/processed/job-queue
 data/processed/partner-assets
-**/*credential*
+data/processed/quickbooks-credentials.json
 **/*secret*
 **/*.pem
 **/*.key

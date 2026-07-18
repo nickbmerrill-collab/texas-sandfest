@@ -39,12 +39,11 @@ Required app values:
 - `QB_CLIENT_ID`
 - `QB_CLIENT_SECRET`
 - `QB_REDIRECT_URI`
-- `QB_REALM_ID`
-- `QB_REFRESH_TOKEN`
+- `QB_TOKEN_ENCRYPTION_KEY` (at least 32 random characters; keep it stable)
 - `QB_INVOICE_SYNC_ENABLED=true` after sandbox verification
 - A `quickBooksItemId` on each sponsor tier and vendor offering. `QB_SPONSOR_ITEM_ID` and `QB_VENDOR_ITEM_ID` remain fallback mappings for legacy records without a configured package or offering item.
 
-Access tokens expire after one hour, so backend jobs should refresh from a stored refresh token before calls.
+`QB_REALM_ID` and `QB_REFRESH_TOKEN` remain optional migration fallbacks. The production path stores the realm and rotating refresh token in the `quickbooks-credentials` platform document. The token is encrypted with AES-256-GCM, bound to the QuickBooks environment and realm, and persisted in Postgres. Access tokens are never stored. The worker persists every replacement refresh token before continuing to the accounting API.
 
 ## API Version
 
@@ -62,19 +61,18 @@ npm run qb:open-invoices
 
 These commands are safe to run without credentials for status checks. Calls that contact QuickBooks require configured environment variables.
 
-## Plug-In Steps When Access Arrives
+## Production Connection
 
 1. Create an Intuit Developer app for QuickBooks Online.
-2. Add the redirect URI from `.env.example`:
-   `http://127.0.0.1:8787/api/integrations/quickbooks/callback`
-3. Add the sandbox or production `QB_CLIENT_ID` and `QB_CLIENT_SECRET` to a local `.env` or deployment secret store.
-4. Set `QB_OAUTH_STATE` to a random value.
-5. In one terminal, run `npm run qb:callback`.
-6. In another terminal, run `npm run qb:auth-url` and open the URL.
-7. Approve access in Intuit.
-8. Capture `realmId` and `refresh_token` from the callback output.
-9. Store `QB_REALM_ID` and `QB_REFRESH_TOKEN` in the secret store.
-10. Run `npm run qb:status`, then `npm run qb:company-info`.
+2. Register the exact deployed redirect URI: `https://api.heyelab.com/sandfest/api/integrations/quickbooks/callback`.
+3. Set `QB_CLIENT_ID` and `QB_CLIENT_SECRET` on the API service. Render generates `QB_TOKEN_ENCRYPTION_KEY` and shares it with the worker.
+4. Sign in to the SandFest operations console as `finance_admin` or `super_admin` and choose **Connect QuickBooks** in Partner operations.
+5. Approve access in Intuit. The callback consumes a one-time, ten-minute state and stores only encrypted credentials.
+6. Confirm the operations console reports the connection as ready, then enable `QB_INVOICE_SYNC_ENABLED=true` after sandbox Item mappings pass review.
+
+The admin status response exposes only readiness, storage type, environment, and timestamps. It never returns the company realm, refresh token, encryption material, or ciphertext. Disconnecting removes the SandFest credential but does not revoke the grant in Intuit; revoke there as well when access must be terminated completely.
+
+The `qb:callback` and `qb:auth-url` commands remain local migration/diagnostic helpers. Their optional token file is development-only:
 
 Set `QB_WRITE_TOKEN_FILE=true` only if you want the local callback helper to write a private token JSON file under `data/incoming/quickbooks/`. Do not commit that file.
 

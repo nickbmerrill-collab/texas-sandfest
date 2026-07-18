@@ -1408,6 +1408,14 @@ app.innerHTML = `
           </select>
           <button class="button secondary" type="submit">Save policy</button>
         </form>
+        <div id="admin-quickbooks-connection" class="admin-quickbooks-connection">
+          <div><strong>QuickBooks accounting connection</strong><span id="admin-quickbooks-status" aria-live="polite">Load partner workspace to view connection state.</span></div>
+          <div class="admin-quickbooks-actions">
+            <button id="admin-connect-quickbooks" class="button primary" data-requires-permission="finance:write" type="button">Connect QuickBooks</button>
+            <button id="admin-refresh-quickbooks" class="button secondary" data-requires-permission="partners:read" type="button">Refresh status</button>
+            <button id="admin-disconnect-quickbooks" class="button secondary" data-requires-permission="finance:write" type="button" hidden>Disconnect</button>
+          </div>
+        </div>
         <div class="admin-incident-board">
           <div class="admin-task-board-heading"><strong>Island incident command</strong><span id="admin-incident-summary">Load island operations to view incidents.</span></div>
           <div id="admin-incident-kpis" class="admin-incident-kpis"><article class="empty-state"><span>No incident data loaded.</span></article></div>
@@ -6232,6 +6240,101 @@ function renderAdminReceivables(payload) {
   </article>`).join("") || '<article class="empty-state"><span>Balances reconcile with no active exceptions.</span></article>';
 }
 
+function renderAdminQuickBooksConnection(quickbooks = {}) {
+  const container = document.querySelector("#admin-quickbooks-connection");
+  const status = document.querySelector("#admin-quickbooks-status");
+  const connectButton = document.querySelector("#admin-connect-quickbooks");
+  const refreshButton = document.querySelector("#admin-refresh-quickbooks");
+  const disconnectButton = document.querySelector("#admin-disconnect-quickbooks");
+  if (!container || !status || !connectButton || !refreshButton || !disconnectButton) return;
+
+  const canFinance = adminCan("finance:write");
+  const canRead = adminCan("partners:read");
+  const refreshedAt = quickbooks.lastRefreshedAt
+    ? new Date(quickbooks.lastRefreshedAt).toLocaleString()
+    : null;
+  status.textContent = quickbooks.connected
+    ? `Connected securely · encrypted ${quickbooks.credentialStorage === "postgres" ? "Postgres" : "local"} credential${refreshedAt ? ` · refreshed ${refreshedAt}` : ""}`
+    : quickbooks.canSyncPartnerInvoices && quickbooks.credentialSource === "environment"
+      ? "Connected through deployment secret"
+      : quickbooks.oauthReady
+        ? `Ready to connect · ${quickbooks.environment || "sandbox"}`
+        : quickbooks.oauthReason || quickbooks.reason || "QuickBooks is not configured.";
+  container.dataset.state = quickbooks.connected || quickbooks.canSyncPartnerInvoices ? "connected" : quickbooks.oauthReady ? "ready" : "unavailable";
+
+  connectButton.hidden = quickbooks.connected === true;
+  connectButton.disabled = !canFinance || !quickbooks.oauthReady || quickbooks.connected === true;
+  disconnectButton.hidden = quickbooks.connected !== true;
+  disconnectButton.disabled = !canFinance || quickbooks.connected !== true;
+  refreshButton.disabled = !canRead;
+
+  refreshButton.onclick = async () => {
+    refreshButton.disabled = true;
+    try {
+      const result = await adminFetch("/api/admin/integrations/quickbooks");
+      if (adminPartnerState?.payload) adminPartnerState.payload.quickbooks = result.quickbooks;
+      renderAdminQuickBooksConnection(result.quickbooks);
+      setAdminStatus(result.quickbooks.connected ? "QuickBooks connection is healthy." : "QuickBooks connection status refreshed.", "ok");
+    } catch (error) {
+      setAdminStatus(error.message, "error");
+    } finally {
+      refreshButton.disabled = !adminCan("partners:read");
+    }
+  };
+
+  connectButton.onclick = async () => {
+    const popup = window.open("about:blank", "sandfest-quickbooks-connect", "popup,width=720,height=780");
+    if (!popup) {
+      setAdminStatus("QuickBooks connection window could not be opened.", "error");
+      return;
+    }
+    connectButton.disabled = true;
+    try {
+      const result = await adminFetch("/api/admin/integrations/quickbooks/authorize", { method: "POST" });
+      popup.opener = null;
+      popup.location.replace(result.authorizationUrl);
+      setAdminStatus("QuickBooks authorization is in progress.", "idle");
+      for (let attempt = 0; attempt < 60; attempt += 1) {
+        await new Promise(resolve => window.setTimeout(resolve, 2_000));
+        const current = await adminFetch("/api/admin/integrations/quickbooks");
+        if (current.quickbooks.connected) {
+          await loadAdminPartners({ quiet: true });
+          setAdminStatus("QuickBooks accounting is connected and ready.", "ok");
+          return;
+        }
+      }
+      setAdminStatus("QuickBooks authorization is still pending. Refresh the connection status after it is completed.", "warning");
+    } catch (error) {
+      if (!popup.closed) popup.close();
+      setAdminStatus(error.message, "error");
+    } finally {
+      connectButton.disabled = !adminCan("finance:write") || !quickbooks.oauthReady;
+    }
+  };
+
+  disconnectButton.onclick = async () => {
+    if (!window.confirm("Disconnect the stored QuickBooks credential from SandFest? This does not revoke the authorization inside QuickBooks.")) return;
+    disconnectButton.disabled = true;
+    try {
+      const result = await adminFetch("/api/admin/integrations/quickbooks/disconnect", {
+        method: "POST",
+        body: JSON.stringify({ confirm: true })
+      });
+      await loadAdminPartners({ quiet: true });
+      setAdminStatus(
+        result.quickbooks?.credentialSource === "environment"
+          ? "Stored QuickBooks connection removed; the deployment-secret fallback remains active."
+          : "QuickBooks was disconnected from SandFest.",
+        "ok"
+      );
+    } catch (error) {
+      setAdminStatus(error.message, "error");
+    } finally {
+      disconnectButton.disabled = !adminCan("finance:write");
+    }
+  };
+}
+
 function renderAdminPartners(payload, outreach) {
   adminPartnerState = { payload, outreach };
   const summary = payload.summary;
@@ -6294,6 +6397,7 @@ function renderAdminPartners(payload, outreach) {
       }
     };
   }
+  renderAdminQuickBooksConnection(payload.quickbooks);
   populateTaskAssignmentDirectory(payload);
   renderAdminTaskBoard(payload);
   renderAdminMilestones(payload);

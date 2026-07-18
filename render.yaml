@@ -167,6 +167,10 @@ services:
         sync: false
       - key: QB_REDIRECT_URI
         value: https://api.heyelab.com/sandfest/api/integrations/quickbooks/callback
+      # Encrypts the rotating OAuth refresh token stored in Postgres. Keep this
+      # generated value stable across API and worker deployments.
+      - key: QB_TOKEN_ENCRYPTION_KEY
+        generateValue: true
       - key: QB_REALM_ID
         sync: false
       - key: QB_REFRESH_TOKEN
@@ -372,6 +376,11 @@ services:
           type: web
           name: sandfest-api
           envVarKey: QB_REDIRECT_URI
+      - key: QB_TOKEN_ENCRYPTION_KEY
+        fromService:
+          type: web
+          name: sandfest-api
+          envVarKey: QB_TOKEN_ENCRYPTION_KEY
       - key: QB_REALM_ID
         fromService:
           type: web

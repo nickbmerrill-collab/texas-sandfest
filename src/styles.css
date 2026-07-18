@@ -4794,6 +4794,12 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .admin-partner-automation span { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
 .admin-partner-automation select { background: var(--white); border: 1px solid var(--line); border-radius: 6px; color: var(--ink); font: inherit; min-height: 40px; min-width: 0; padding: 8px 30px 8px 10px; }
 .admin-partner-automation .button { min-height: 40px; }
+.admin-quickbooks-connection { align-items: center; background: #f2f5f4; border-left: 5px solid var(--coral); display: grid; gap: 12px; grid-template-columns: minmax(240px, 1fr) auto; padding: 12px 14px; }
+.admin-quickbooks-connection[data-state="connected"] { border-left-color: var(--gulf); }
+.admin-quickbooks-connection > div:first-child { display: grid; gap: 3px; min-width: 0; }
+.admin-quickbooks-connection span { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.admin-quickbooks-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.admin-quickbooks-actions .button { min-height: 40px; white-space: nowrap; }
 .admin-export-control { align-items: stretch; display: flex; max-width: 100%; min-width: min(100%, 340px); }
 .admin-export-control select {
   background: #fff;
@@ -5346,6 +5352,8 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
   .admin-partner-row-actions { grid-template-columns: 1fr auto; }
   .admin-partner-automation { grid-template-columns: 1fr; }
   .admin-partner-automation .button { justify-self: start; }
+  .admin-quickbooks-connection { grid-template-columns: 1fr; }
+  .admin-quickbooks-actions { justify-content: flex-start; }
   .admin-payment-entry { grid-template-columns: 1fr 1fr; }
   .admin-payment-entry .button { grid-column: 1 / -1; justify-self: start; }
   .admin-payment-reversal { grid-template-columns: 1fr; }

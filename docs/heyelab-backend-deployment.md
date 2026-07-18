@@ -66,6 +66,10 @@ Routes:
 | `PATCH` | `/api/admin/tickets/:id` | Bearer token | Update ticket pricing, Stripe IDs, review gates, and limits |
 | `PATCH` | `/api/admin/sponsor-packages/:id` | Bearer token | Update sponsor pricing, benefits, Stripe IDs, and QuickBooks mapping |
 | `GET` | `/api/admin/partners` | Bearer token | Applications, invoices, payments, dates, follow-ups, tasks, vendor readiness, and provider readiness |
+| `GET` | `/api/admin/integrations/quickbooks` | `partners:read` | Secret-free accounting connection and sync readiness |
+| `POST` | `/api/admin/integrations/quickbooks/authorize` | `finance:write` | Create a one-time Intuit authorization request |
+| `POST` | `/api/admin/integrations/quickbooks/disconnect` | `finance:write` | Remove the encrypted SandFest credential after explicit confirmation |
+| `GET` | `/api/integrations/quickbooks/callback` | One-time OAuth state | Complete or cancel Intuit authorization without exposing credentials |
 | `GET` | `/api/admin/documents` | `documents:read` | List the annual private document review queue and integrity summary |
 | `POST` | `/api/admin/documents/upload` | `documents:write` | Validate and store one private operational source file with checksum deduplication |
 | `GET` | `/api/admin/documents/:id/content` | `documents:read` | Download one checksum-verified private document |
@@ -397,7 +401,9 @@ The `incoming-documents` platform record rolls over with the annual event namesp
 
 Only `finance_admin` and `super_admin` can create, approve, void, or queue partner invoices, refresh a synced QuickBooks invoice, or record and reverse partner payments. Draft amounts come from the approved application, and sponsor amounts originate from the active server-side tier. Payment references are idempotent per application and method, successful payments allocate atomically to the active invoice, and reversals require a reason and audit entry. Creating an invoice synchronizes its due date into the application's finance-owned `Payment due` milestone. Reaching the approved amount completes that milestone and dismisses active unsent reminders; a refund or reversal that restores a balance reopens only an automation-completed milestone and increments its schedule version. Staff-completed and cancelled milestones remain untouched. A recorded refund documents an action completed at the payment provider; it does not itself move money. The receivables board keeps SandFest's local balance separate from the last reported QuickBooks balance and surfaces aging, unapplied credit, overdue invoices, sync failures, stale refreshes, and amount or balance mismatches. QuickBooks refresh is read-only: it records provider truth and never creates a local payment, so finance must match the real external transaction before the ledgers can agree.
 
-QuickBooks writes are disabled unless `QB_INVOICE_SYNC_ENABLED=true` and OAuth/realm credentials are complete. The worker uses a stable QuickBooks `requestid` for each customer and invoice write, records provider IDs and errors, and never sends an invoice email automatically.
+QuickBooks writes are disabled unless `QB_INVOICE_SYNC_ENABLED=true` and OAuth/realm credentials are complete. Finance connects through the operations console and the deployed callback at `/api/integrations/quickbooks/callback`; the callback accepts one unexpired, one-time state and returns a static no-store page. The refresh token is encrypted with `QB_TOKEN_ENCRYPTION_KEY` using AES-256-GCM and stored in the Postgres `quickbooks-credentials` platform document. The API and worker must share the same stable encryption key. The worker persists Intuit's rotated refresh token before continuing to customer, invoice, or reconciliation calls. Status and audit payloads never expose realm IDs, tokens, encryption material, or ciphertext. `QB_REALM_ID` and `QB_REFRESH_TOKEN` are migration fallbacks only.
+
+The worker uses a stable QuickBooks `requestid` for each customer and invoice write, records provider IDs and errors, and never sends an invoice email automatically. Disconnecting in SandFest removes the encrypted local credential but does not revoke the provider grant; finance must also revoke the app in Intuit when access is terminated.
 
 ## Camera Metric Safety
 

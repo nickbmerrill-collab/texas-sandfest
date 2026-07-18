@@ -44,6 +44,10 @@ import {
 import { emailConfigFromEnv, sendTransactionalEmail } from "../lib/email.mjs";
 import { applyBrevoDeliveryEvents, brevoWebhookConfig } from "../lib/brevo-webhook.mjs";
 import { reconcilePartnerInvoiceFromQuickBooks, syncPartnerInvoiceToQuickBooks } from "../lib/quickbooks/client.mjs";
+import {
+  loadQuickBooksRuntimeCredentials,
+  persistQuickBooksTokenRotation
+} from "../lib/quickbooks/credentials.mjs";
 import { issuePartnerPortalToken, partnerPortalConfig, partnerPortalUrl } from "../lib/partner-portal.mjs";
 import {
   appendOutreachPreferenceFooter,
@@ -214,7 +218,11 @@ async function handleJob(job) {
     if (invoice.status !== "queued") throw new Error(`Partner invoice is ${invoice.status}, not queued.`);
     const application = doc.applications.find(item => item.id === invoice.applicationId);
     if (!application) throw new Error("Application not found for partner invoice.");
-    const sync = await syncPartnerInvoiceToQuickBooks({ application, invoice });
+    const runtime = await loadQuickBooksRuntimeCredentials(ROOT);
+    const sync = await syncPartnerInvoiceToQuickBooks({ application, invoice }, {
+      runtimeEnv: runtime.env,
+      onTokenRefresh: token => persistQuickBooksTokenRotation(ROOT, runtime, token)
+    });
     let recorded = null;
     await updatePlatformDoc(ROOT, "partnerOps", current => {
       recorded = recordPartnerInvoiceSync(current, invoice.id, sync);
@@ -234,7 +242,11 @@ async function handleJob(job) {
     if (Number(invoice.quickBooksReconciliationVersion || 0) !== Number(job.payload.reconciliationVersion || 0)) {
       throw new Error("Partner invoice refresh version is stale.");
     }
-    const reconciliation = await reconcilePartnerInvoiceFromQuickBooks({ invoice });
+    const runtime = await loadQuickBooksRuntimeCredentials(ROOT);
+    const reconciliation = await reconcilePartnerInvoiceFromQuickBooks({ invoice }, {
+      runtimeEnv: runtime.env,
+      onTokenRefresh: token => persistQuickBooksTokenRotation(ROOT, runtime, token)
+    });
     let recorded = null;
     await updatePlatformDoc(ROOT, "partnerOps", current => {
       recorded = recordPartnerInvoiceReconciliation(current, invoice.id, reconciliation);

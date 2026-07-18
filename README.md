@@ -242,16 +242,14 @@ Run `npm run vault:build` after a public scrape, document extraction, or interna
 
 ## QuickBooks
 
-QuickBooks includes a review-gated sponsor/vendor invoice ledger and durable worker sync. It remains off until sandbox OAuth credentials, Item mappings, and `QB_INVOICE_SYNC_ENABLED=true` are configured.
+QuickBooks includes a review-gated sponsor/vendor invoice ledger and durable worker sync. Finance connects from the operations console through a one-time OAuth callback; rotating refresh tokens are AES-256-GCM encrypted in Postgres and never returned to the browser. It remains off until sandbox OAuth, Item mappings, and `QB_INVOICE_SYNC_ENABLED=true` are approved.
 
 ```bash
 cp .env.example .env
 npm run qb:status
-npm run qb:callback
-npm run qb:auth-url
 ```
 
-See `docs/quickbooks-integration.md` for the OAuth and invoice workflow. Keep all QuickBooks credentials and token files out of git.
+See `docs/quickbooks-integration.md` for the production OAuth, migration helper, token-rotation, and invoice workflow. Keep all QuickBooks credentials and token files out of git.
 
 ## Sponsor outreach
 

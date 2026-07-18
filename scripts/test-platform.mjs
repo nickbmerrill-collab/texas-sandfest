@@ -518,6 +518,40 @@ async function startTwilioMock() {
   };
 }
 
+async function startQuickBooksMock() {
+  const requests = [];
+  const server = createHttpServer((request, response) => {
+    const chunks = [];
+    request.on("data", chunk => chunks.push(chunk));
+    request.on("end", () => {
+      const body = new URLSearchParams(Buffer.concat(chunks).toString("utf8"));
+      requests.push({ method: request.method, url: request.url, headers: request.headers, body });
+      if (request.method !== "POST" || body.get("grant_type") !== "authorization_code" || body.get("code") !== "quickbooks-private-code") {
+        response.writeHead(400, { "content-type": "application/json" });
+        response.end(JSON.stringify({ error: "invalid_grant" }));
+        return;
+      }
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({
+        access_token: "quickbooks-private-access-token",
+        refresh_token: "quickbooks-private-refresh-token",
+        expires_in: 3600,
+        x_refresh_token_expires_in: 8_726_400
+      }));
+    });
+  });
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const { port } = server.address();
+  return {
+    tokenUrl: `http://127.0.0.1:${port}/oauth/tokens`,
+    requests,
+    close: () => new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
+  };
+}
+
 function ok(name, cond, detail = "") {
   if (cond) {
     passed += 1;
@@ -3382,10 +3416,11 @@ Research First,construction,Corpus Christi,,78401,,,,Find decision maker,`;
   };
   ok("QuickBooks invoice readiness gate", quickBooksReadiness(env).canSyncPartnerInvoices === true);
   const requests = [];
+  const tokenRotations = [];
   const fetchImpl = async (url, options = {}) => {
     const href = String(url);
     requests.push({ href, options });
-    if (href.includes("/tokens/bearer")) return new Response(JSON.stringify({ access_token: "access" }), { status: 200 });
+    if (href.includes("/tokens/bearer")) return new Response(JSON.stringify({ access_token: "access", refresh_token: "rotated-private-token" }), { status: 200 });
     if (href.includes("/query")) return new Response(JSON.stringify({ QueryResponse: {} }), { status: 200 });
     if (href.includes("/customer")) return new Response(JSON.stringify({ Customer: { Id: "42", DisplayName: "Gulf Coast Bank" } }), { status: 200 });
     if (href.includes("/invoice/99")) return new Response(JSON.stringify({ Invoice: { Id: "99", DocNumber: "1007", TotalAmt: 15000, Balance: 12000, MetaData: { LastUpdatedTime: "2026-07-16T13:00:00.000Z" } } }), { status: 200 });
@@ -3413,18 +3448,20 @@ Research First,construction,Corpus Christi,,78401,,,,Find decision maker,`;
       approvedAt: "2026-07-16T12:00:00.000Z",
       dueAt: "2026-08-15T12:00:00.000Z"
     }
-  }, { fetchImpl }, env);
+  }, { fetchImpl, onTokenRefresh: token => tokenRotations.push(token.refresh_token) }, env);
   const customerRequest = requests.find(item => item.href.includes("/customer"));
   const invoiceRequest = requests.find(item => item.href.includes("/invoice"));
   const invoiceBody = JSON.parse(invoiceRequest.options.body);
   ok("QuickBooks customer create", result.customerCreated && result.customerId === "42" && customerRequest.href.includes("requestid=sf-customer-"));
   ok("QuickBooks invoice create", result.invoiceId === "99" && invoiceRequest.href.includes("requestid=sf-invoice-") && invoiceBody.Line[0].SalesItemLineDetail.ItemRef.value === "77");
   ok("QuickBooks server amount contract", invoiceBody.Line[0].Amount === 15000 && invoiceBody.CustomerRef.value === "42");
+  ok("QuickBooks refresh-token rotation callback precedes accounting writes", tokenRotations.length === 1 && tokenRotations[0] === "rotated-private-token" && !JSON.stringify(result).includes("rotated-private-token"));
   const reconciliation = await reconcilePartnerInvoiceFromQuickBooks({
     invoice: { id: "invoice_12345678-1234-1234-1234-123456789abc", quickBooksInvoiceId: "99" }
-  }, { fetchImpl }, env);
+  }, { fetchImpl, onTokenRefresh: token => tokenRotations.push(token.refresh_token) }, env);
   const reconciliationRequest = requests.find(item => item.href.includes("/invoice/99"));
   ok("QuickBooks invoice reconciliation reads provider truth", reconciliationRequest.options.method === undefined && reconciliation.totalCents === 1500000 && reconciliation.balanceCents === 1200000 && reconciliation.providerUpdatedAt === "2026-07-16T13:00:00.000Z");
+  ok("QuickBooks reconciliation persists rotation without exposing it", tokenRotations.length === 2 && !JSON.stringify(reconciliation).includes("rotated-private-token"));
 }
 
 // Transactional email provider gate and Brevo request contract
@@ -4303,6 +4340,7 @@ let isolatedCommerceDir = null;
 let stripeMock = null;
 let turnstileMock = null;
 let twilioMock = null;
+let quickBooksMock = null;
 let apiChildEnv = null;
 if (!API_BASE) {
   const port = process.env.SANDFEST_API_PORT || String(await freePort());
@@ -4374,6 +4412,7 @@ if (!API_BASE) {
   stripeMock = await startStripeMock();
   turnstileMock = await startTurnstileMock();
   twilioMock = await startTwilioMock();
+  quickBooksMock = await startQuickBooksMock();
   apiChildEnv = {
       ...process.env,
       NODE_ENV: "test",
@@ -4412,6 +4451,15 @@ if (!API_BASE) {
       SANDFEST_DOCUMENT_EXTRACTION_SECRET: SMOKE_DOCUMENT_EXTRACTION_SECRET,
       OUTREACH_DISCOVERY_ENABLED: "true",
       OUTREACH_DISCOVERY_PROVIDER: "fixture",
+      QB_ENVIRONMENT: "sandbox",
+      QB_INVOICE_SYNC_ENABLED: "false",
+      QB_CLIENT_ID: "platform-smoke-quickbooks-client",
+      QB_CLIENT_SECRET: "platform-smoke-quickbooks-secret",
+      QB_REDIRECT_URI: `${API_BASE}/api/integrations/quickbooks/callback`,
+      QB_TOKEN_ENCRYPTION_KEY: "platform-smoke-quickbooks-encryption-key-0123456789",
+      QB_TOKEN_URL: quickBooksMock.tokenUrl,
+      QB_REALM_ID: "",
+      QB_REFRESH_TOKEN: "",
       SANDFEST_PUBLIC_SITE_URL: "https://www.texassandfest.org",
       SANDFEST_TURNSTILE_ENABLED: "true",
       SANDFEST_TURNSTILE_SECRET_KEY: "turnstile-smoke-secret-0123456789",
@@ -5759,6 +5807,31 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
   ok("finance creates approved invoice", approvedSponsor.status === 200 && invoiceApi.status === 201 && invoiceApi.data.invoice?.balanceCents === invoiceApi.data.invoice?.amountCents && sponsorPaymentMilestoneApi?.dueAt === invoiceApi.data.invoice?.dueAt && sponsorPaymentMilestoneApi?.assigneeTeam === "finance");
   const quickBooksReconciliationGateApi = await hit("POST", `/api/admin/partners/invoices/${encodeURIComponent(invoiceApi.data.invoice?.id)}/reconcile`, null, true);
   ok("QuickBooks reconciliation API is credential gated", quickBooksReconciliationGateApi.status === 409 && quickBooksReconciliationGateApi.data.quickbooks?.canSyncPartnerInvoices === false);
+  const unauthenticatedQuickBooksStatusApi = await hit("GET", "/api/admin/integrations/quickbooks");
+  const initialQuickBooksStatusApi = await hit("GET", "/api/admin/integrations/quickbooks", null, true);
+  const quickBooksAuthorizationApi = await hit("POST", "/api/admin/integrations/quickbooks/authorize", null, true);
+  const quickBooksAuthorizationUrlApi = new URL(quickBooksAuthorizationApi.data.authorizationUrl);
+  const quickBooksStateApi = quickBooksAuthorizationUrlApi.searchParams.get("state");
+  const quickBooksCodeApi = "quickbooks-private-code";
+  const quickBooksRealmApi = "quickbooks-private-realm";
+  const quickBooksCallbackApi = await hitRaw("GET", `/api/integrations/quickbooks/callback?state=${encodeURIComponent(quickBooksStateApi)}&code=${encodeURIComponent(quickBooksCodeApi)}&realmId=${encodeURIComponent(quickBooksRealmApi)}`);
+  const quickBooksCallbackTextApi = quickBooksCallbackApi.data.toString("utf8");
+  const quickBooksReplayApi = await hitRaw("GET", `/api/integrations/quickbooks/callback?state=${encodeURIComponent(quickBooksStateApi)}&code=${encodeURIComponent(quickBooksCodeApi)}&realmId=${encodeURIComponent(quickBooksRealmApi)}`);
+  const canceledQuickBooksAuthorizationApi = await hit("POST", "/api/admin/integrations/quickbooks/authorize", null, true);
+  const canceledQuickBooksStateApi = new URL(canceledQuickBooksAuthorizationApi.data.authorizationUrl).searchParams.get("state");
+  const canceledQuickBooksCallbackApi = await hitRaw("GET", `/api/integrations/quickbooks/callback?error=access_denied&error_description=${encodeURIComponent("private provider detail")}&state=${encodeURIComponent(canceledQuickBooksStateApi)}`);
+  const canceledQuickBooksReplayApi = await hitRaw("GET", `/api/integrations/quickbooks/callback?state=${encodeURIComponent(canceledQuickBooksStateApi)}&code=${encodeURIComponent(quickBooksCodeApi)}&realmId=${encodeURIComponent(quickBooksRealmApi)}`);
+  const connectedQuickBooksStatusApi = await hit("GET", "/api/admin/integrations/quickbooks", null, true);
+  const connectedQuickBooksWorkspaceApi = await hit("GET", "/api/admin/partners", null, true);
+  ok("QuickBooks connection controls require admin permission", unauthenticatedQuickBooksStatusApi.status === 401);
+  ok("QuickBooks OAuth begins without exposing credentials", initialQuickBooksStatusApi.status === 200 && initialQuickBooksStatusApi.data.quickbooks?.oauthReady && !initialQuickBooksStatusApi.data.quickbooks?.connected && quickBooksAuthorizationApi.status === 201 && quickBooksStateApi?.length >= 40 && !JSON.stringify(quickBooksAuthorizationApi.data).includes("platform-smoke-quickbooks-secret"));
+  ok("QuickBooks callback stores connection behind hardened HTML", quickBooksCallbackApi.status === 200 && quickBooksCallbackApi.headers.get("content-type")?.startsWith("text/html") && quickBooksCallbackApi.headers.get("content-security-policy")?.includes("default-src 'none'") && quickBooksCallbackApi.headers.get("cache-control") === "no-store" && quickBooksCallbackTextApi.includes("QuickBooks is connected") && !quickBooksCallbackTextApi.includes(quickBooksStateApi) && !quickBooksCallbackTextApi.includes(quickBooksCodeApi) && !quickBooksCallbackTextApi.includes(quickBooksRealmApi) && !quickBooksCallbackTextApi.includes("quickbooks-private-refresh-token"));
+  ok("QuickBooks callback state is one-time", quickBooksReplayApi.status === 400);
+  ok("QuickBooks provider cancellation consumes state without echoing details", canceledQuickBooksCallbackApi.status === 400 && canceledQuickBooksCallbackApi.data.toString("utf8").includes("was not connected") && !canceledQuickBooksCallbackApi.data.toString("utf8").includes("private provider detail") && canceledQuickBooksReplayApi.status === 400);
+  ok("QuickBooks encrypted connection activates accounting API access", connectedQuickBooksStatusApi.data.quickbooks?.connected && connectedQuickBooksStatusApi.data.quickbooks?.canCallAccountingApi && !connectedQuickBooksStatusApi.data.quickbooks?.canSyncPartnerInvoices && connectedQuickBooksStatusApi.data.quickbooks?.credentialSource === "encrypted_store" && connectedQuickBooksWorkspaceApi.data.quickbooks?.canCallAccountingApi && !JSON.stringify(connectedQuickBooksStatusApi.data).includes(quickBooksRealmApi) && !JSON.stringify(connectedQuickBooksStatusApi.data).includes("ciphertext"));
+  const rejectedQuickBooksDisconnectApi = await hit("POST", "/api/admin/integrations/quickbooks/disconnect", { confirm: false }, true);
+  const quickBooksDisconnectApi = await hit("POST", "/api/admin/integrations/quickbooks/disconnect", { confirm: true }, true);
+  ok("QuickBooks disconnect is confirmed and clears local credentials", rejectedQuickBooksDisconnectApi.status === 400 && quickBooksDisconnectApi.status === 200 && quickBooksDisconnectApi.data.changed && !quickBooksDisconnectApi.data.quickbooks?.connected);
   const paymentApi = await hit("POST", `/api/admin/partners/applications/${encodeURIComponent(sponsorApplication?.id)}/payments`, {
     amountCents: 100000,
     method: "check",
@@ -6043,6 +6116,7 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
   const auditApi = await hit("GET", "/api/admin/audit?limit=500", null, true);
   const serializedAudit = JSON.stringify(auditApi.data.audit || []);
   ok("admin audit never stores bearer credential fragments", auditApi.status === 200 && !serializedAudit.includes("tokenHint") && !serializedAudit.includes(TOKEN));
+  ok("QuickBooks OAuth audit contains no authorization secrets", auditApi.data.audit?.some(item => item.record?.action === "accounting.quickbooks.authorize") && auditApi.data.audit?.some(item => item.record?.action === "accounting.quickbooks.connect") && auditApi.data.audit?.some(item => item.record?.action === "accounting.quickbooks.disconnect") && !serializedAudit.includes(quickBooksStateApi) && !serializedAudit.includes(quickBooksCodeApi) && !serializedAudit.includes(quickBooksRealmApi) && !serializedAudit.includes("quickbooks-private-refresh-token"));
   ok("Brevo webhook audit is aggregate-only", auditApi.data.audit?.some(item => item.record?.action === "email.delivery.webhook") && !serializedAudit.includes(webhookRecipient) && !serializedAudit.includes(SMOKE_BREVO_WEBHOOK_TOKEN));
   const smsAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("sms."));
   ok("Twilio webhook audit is aggregate-only", smsAuditApi.some(item => item.record?.action === "sms.delivery.webhook") && smsAuditApi.some(item => item.record?.action === "sms.preference.webhook") && !JSON.stringify(smsAuditApi).includes("+13615550188") && !JSON.stringify(smsAuditApi).includes("platform-twilio-auth-secret"));
@@ -6075,6 +6149,7 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
     await stripeMock?.close();
     await turnstileMock?.close();
     await twilioMock?.close();
+    await quickBooksMock?.close();
   }
 }
 
