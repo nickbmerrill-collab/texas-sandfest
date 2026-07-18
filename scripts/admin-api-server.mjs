@@ -4087,7 +4087,8 @@ async function handleRequest(request, response) {
         })
         : createPartnerApplication(doc, applicationInput, applicationOptions));
       if (!result?.ok) {
-        sendJson(request, response, result?.conflict || result?.eventContextMismatch ? 409 : 400, { error: result?.error || "Application could not be submitted." });
+        const status = result?.retryable ? 503 : (result?.conflict || result?.eventContextMismatch ? 409 : 400);
+        sendJson(request, response, status, { error: result?.error || "Application could not be submitted." });
         return;
       }
       let followupJob = null;
