@@ -621,6 +621,19 @@ console.log("\n=== Pure library suite ===\n");
         textPreview: "TEXAS SANDFEST board platform briefing"
       }]
     },
+    sponsors: {
+      sponsors: [{
+        displayName: "Gulf Shore Credit Union",
+        packageName: "Marlin",
+        primaryColor: "#006B63",
+        secondaryColor: "#F4B942",
+        logo: {
+          path: "/api/public/sponsor-showcase/assets/demo_brand_asset_gulf_shore_primary",
+          contentType: "image/png"
+        }
+      }]
+    },
+    sponsorLogo: { ok: true, status: 200, contentType: "image/png" },
     conditions: {
       weather: { status: "live", freshness: { state: "live" } },
       ferry: { status: "live", freshness: { state: "live" } },
@@ -645,6 +658,9 @@ console.log("\n=== Pure library suite ===\n");
   ok("board demo readiness requires the extracted briefing without exposing private metadata", !missingBriefingReport.ok
     && missingBriefingReport.checks.find(item => item.id === "operations")?.ok === false
     && !JSON.stringify(readyBoardReport).includes("storageKey"));
+  const missingSponsorBrandReport = evaluateBoardDemoReadiness({ ...readyBoardState, sponsors: { sponsors: [] }, sponsorLogo: { ok: false, status: 404 } });
+  ok("board demo readiness requires rendered sponsor branding", !missingSponsorBrandReport.ok
+    && missingSponsorBrandReport.checks.find(item => item.id === "operations")?.ok === false);
   let remoteBoardCheckRejected = false;
   try {
     boardDemoLoopbackUrl("http://127.0.0.1.evil.example:8806", "test URL");

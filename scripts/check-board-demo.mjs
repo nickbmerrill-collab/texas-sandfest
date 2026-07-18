@@ -21,18 +21,18 @@ const configuredTimeoutMs = Number(checkEnvironment.SANDFEST_BOARD_CHECK_TIMEOUT
 const timeoutMs = Number.isFinite(configuredTimeoutMs) ? Math.max(1000, configuredTimeoutMs) : 5000;
 const jsonOutput = process.argv.includes("--json");
 
-async function request(url, { json = true, headers = {} } = {}) {
+async function request(url, { json = true, headers = {}, readBody = true } = {}) {
   try {
     const response = await fetch(url, { headers, redirect: "error", signal: AbortSignal.timeout(timeoutMs) });
-    const body = json ? await response.json().catch(() => null) : await response.text();
-    return { ok: response.ok, status: response.status, body };
+    const body = readBody ? (json ? await response.json().catch(() => null) : await response.text()) : null;
+    return { ok: response.ok, status: response.status, body, contentType: response.headers.get("content-type") || "" };
   } catch (error) {
     return { ok: false, status: 0, body: null, error: error.message };
   }
 }
 
 const authorization = { authorization: `Bearer ${adminToken}` };
-const [web, health, ready, bootstrap, emailSandbox, smsSandbox, conditions, partners, documents] = await Promise.all([
+const [web, health, ready, bootstrap, emailSandbox, smsSandbox, conditions, partners, documents, sponsors] = await Promise.all([
   request(webUrl, { json: false }),
   request(`${apiBase}/health`),
   request(`${apiBase}/ready`),
@@ -41,8 +41,14 @@ const [web, health, ready, bootstrap, emailSandbox, smsSandbox, conditions, part
   request(`${smsBase}/health`),
   request(`${apiBase}/api/public/island-conditions`),
   request(`${apiBase}/api/admin/partners`, { headers: authorization }),
-  request(`${apiBase}/api/admin/documents`, { headers: authorization })
+  request(`${apiBase}/api/admin/documents`, { headers: authorization }),
+  request(`${apiBase}/api/public/sponsors`)
 ]);
+const boardSponsor = sponsors.body?.sponsors?.find(item => item?.displayName === "Gulf Shore Credit Union");
+const sponsorLogoPath = String(boardSponsor?.logo?.path || "");
+const sponsorLogo = sponsorLogoPath.startsWith("/api/public/sponsor-showcase/assets/")
+  ? await request(`${apiBase}${sponsorLogoPath}`, { json: false, readBody: false })
+  : { ok: false, status: 0, body: null, contentType: "" };
 
 const report = {
   checkedAt: new Date().toISOString(),
@@ -56,7 +62,9 @@ const report = {
     smsSandbox: smsSandbox.body,
     conditions: conditions.body,
     partners: partners.body,
-    documents: documents.body
+    documents: documents.body,
+    sponsors: sponsors.body,
+    sponsorLogo
   })
 };
 
