@@ -22,6 +22,7 @@ import {
   DEFAULT_VENDOR_OFFERINGS,
   publicVendorOffering
 } from "../lib/vendor-offerings.mjs";
+import { partnerContactNotice } from "../lib/partner-consent.mjs";
 import {
   DEFAULT_SPONSOR_PACKAGES,
   publicSponsorPackage
@@ -252,6 +253,8 @@ let activePartnerPortalApplication = null;
 let partnerPortalLoadVersion = 0;
 let publicSponsorPackages = DEFAULT_SPONSOR_PACKAGES.map(publicSponsorPackage);
 let publicVendorOfferings = DEFAULT_VENDOR_OFFERINGS.map(publicVendorOffering);
+const sponsorContactNotice = partnerContactNotice("sponsor");
+const vendorInterestContactNotice = partnerContactNotice("vendor", "interest");
 const taskBoardFilters = { status: "active", assignment: "all", query: "" };
 let incidentBoardFilter = "active";
 
@@ -940,7 +943,7 @@ app.innerHTML = `
         </div>
         <div class="booth-section-actions">
           <span class="sculptor-count" id="booth-pin-count">— booths</span>
-          <a class="button primary booth-apply-link" href="#vendor-application-form">Apply as a vendor</a>
+          <a id="vendor-intake-cta" class="button primary booth-apply-link" href="#vendor-application-form">Join vendor interest list</a>
         </div>
       </div>
       <div class="booth-map-layout">
@@ -1676,7 +1679,7 @@ app.innerHTML = `
         <div class="admin-editor-span">
           <div class="editor-heading">
             <p class="eyebrow">Vendor offerings</p>
-            <h2>Categories, fees, and accounting mapping</h2>
+            <h2>Categories, intake mode, fees, and accounting</h2>
           </div>
           <form id="admin-create-vendor-offering" class="admin-edit-card admin-vendor-offering-create" data-requires-permission="finance:write">
             <div class="admin-edit-title">
@@ -1687,6 +1690,7 @@ app.innerHTML = `
               <label><span>Name</span><input name="name" required maxlength="120" autocomplete="off" placeholder="Premium marketplace booth" /></label>
               <label><span>Offering ID</span><input name="id" required maxlength="100" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" autocomplete="off" placeholder="premium-marketplace-booth" /></label>
               <label><span>Amount</span><input name="amount" required type="number" min="0" max="1000000" step="0.01" inputmode="decimal" placeholder="2500.00" /></label>
+              <label><span>Intake mode</span><select name="intakeMode"><option value="interest">Interest list</option><option value="application">Applications open</option></select></label>
               <label><span>Public label</span><input name="publicLabel" maxlength="120" placeholder="Generated from amount" /></label>
               <label><span>Stripe ID</span><input name="stripePriceId" maxlength="160" autocomplete="off" placeholder="Optional" /></label>
               <label><span>QBO item</span><input name="quickBooksItemId" maxlength="160" autocomplete="off" placeholder="Optional" /></label>
@@ -1713,7 +1717,7 @@ app.innerHTML = `
           <div id="admin-vendor-offering-editor" class="admin-editor-list admin-vendor-offering-editor">
             <article class="empty-state">
               <strong>No vendor offering config loaded</strong>
-              <span>Use Load config to edit public vendor offerings and fees.</span>
+              <span>Use Load config to edit public vendor programs and intake mode.</span>
             </article>
           </div>
         </div>
@@ -1931,29 +1935,32 @@ app.innerHTML = `
             <label class="partner-field-wide">Partnership goals<textarea name="description" rows="4" maxlength="2000"></textarea></label>
           </div>
           <p id="sponsor-package-summary" class="partner-offering-summary" aria-live="polite"></p>
-          <label class="partner-consent"><input name="consentToContact" type="checkbox" required /> I agree that Texas SandFest may contact me about this inquiry.</label>
+          <p class="partner-data-use-note">${escapeHtml(sponsorContactNotice.disclosure)}</p>
+          <label class="partner-consent"><input name="consentToContact" type="checkbox" required /><span>${escapeHtml(sponsorContactNotice.checkboxLabel)}</span></label>
           <div class="partner-verification" data-turnstile-verification hidden><div data-turnstile-widget></div></div>
           <button class="button primary" type="submit">Submit sponsorship inquiry</button>
           <p class="partner-form-status" aria-live="polite"></p>
         </form>
         <form id="vendor-application-form" class="partner-form" data-turnstile-action="vendor_application">
-          <div class="partner-form-title"><span>Vendor application</span><h3>Apply for the beach marketplace</h3></div>
+          <div class="partner-form-title"><span id="vendor-intake-label">Vendor interest</span><h3 id="vendor-intake-heading">Join the vendor interest list</h3></div>
           <div class="partner-fields">
             <label>Business name<input name="organizationName" required maxlength="160" autocomplete="organization" /></label>
             <label>Contact name<input name="contactName" required maxlength="120" autocomplete="name" /></label>
             <label>Email<input name="contactEmail" required type="email" maxlength="254" autocomplete="email" /></label>
             <label>Phone<input name="contactPhone" type="tel" maxlength="40" autocomplete="tel" /></label>
             <label>Vendor type<select name="category" required><option value="food">Food and beverage</option><option value="retail">Retail</option><option value="artisan">Artist or maker</option><option value="service">Service</option><option value="nonprofit">Nonprofit</option></select></label>
-            <label>Offering<select name="vendorOfferingId" required>${vendorOfferingOptionsForCategory("food")}</select></label>
+            <label>Program<select name="vendorOfferingId" required>${vendorOfferingOptionsForCategory("food")}</select></label>
             <label>Website<input name="website" type="url" maxlength="500" placeholder="https://" autocomplete="url" /></label>
             <label>City<input name="city" maxlength="100" autocomplete="address-level2" /></label>
             <label>State<input name="state" maxlength="40" value="TX" autocomplete="address-level1" /></label>
             <label class="partner-field-wide">Products and booth needs<textarea name="description" rows="4" maxlength="2000"></textarea></label>
           </div>
+          <p id="vendor-intake-availability" class="partner-availability-note">Vendor applications are not currently open. Join the interest list and review updates on the <a href="https://www.texassandfest.org/vendors" target="_blank" rel="noopener noreferrer">official vendor page</a>.</p>
           <p id="vendor-offering-summary" class="partner-offering-summary" aria-live="polite"></p>
-          <label class="partner-consent"><input name="consentToContact" type="checkbox" required /> I agree that Texas SandFest may contact me about this application.</label>
+          <p id="vendor-data-use-note" class="partner-data-use-note">${escapeHtml(vendorInterestContactNotice.disclosure)}</p>
+          <label class="partner-consent"><input name="consentToContact" type="checkbox" required /><span id="vendor-consent-label">${escapeHtml(vendorInterestContactNotice.checkboxLabel)}</span></label>
           <div class="partner-verification" data-turnstile-verification hidden><div data-turnstile-widget></div></div>
-          <button class="button primary" type="submit">Submit vendor application</button>
+          <button id="vendor-intake-submit" class="button primary" type="submit">Submit vendor interest</button>
           <p class="partner-form-status" aria-live="polite"></p>
         </form>
       </div>
@@ -3126,6 +3133,10 @@ function vendorOfferingAdminCard(offering) {
           <input name="amount" inputmode="decimal" value="${escapeAttr(moneyInput(offering.amount))}" />
         </label>
         <label>
+          <span>Intake mode</span>
+          <select name="intakeMode"><option value="interest" ${offering.intakeMode === "interest" ? "selected" : ""}>Interest list</option><option value="application" ${offering.intakeMode !== "interest" ? "selected" : ""}>Applications open</option></select>
+        </label>
+        <label>
           <span>Eligible categories</span>
           <input name="categories" value="${escapeAttr((offering.categories ?? []).join(", "))}" />
         </label>
@@ -4166,18 +4177,19 @@ function renderPartnerPortalStatus(application) {
       : "";
   const milestones = Array.isArray(application.milestones) ? application.milestones : [];
   const nextStep = application.nextStep;
+  const isVendorInterest = application.type === "vendor" && application.intakeMode === "interest";
   result.innerHTML = `
     <header class="partner-status-heading">
-      <div><span>${escapeHtml(application.type === "vendor" ? "Vendor application" : "Sponsorship inquiry")}</span><h3>${escapeHtml(application.organizationName)}</h3></div>
+      <div><span>${escapeHtml(isVendorInterest ? "Vendor interest" : application.type === "vendor" ? "Vendor application" : "Sponsorship inquiry")}</span><h3>${escapeHtml(application.organizationName)}</h3></div>
       <b data-status="${escapeAttr(application.status)}">${escapeHtml(conditionLabel(application.status))}</b>
     </header>
     <p class="partner-status-reference">${escapeHtml(application.reference)}${application.offeringName ? ` · ${escapeHtml(application.offeringName)}` : ""} · Submitted ${escapeHtml(portalDate(application.submittedAt))}</p>
-    <div class="partner-status-kpis">
+    ${isVendorInterest ? '<div class="partner-status-interest"><strong>No fee or booth assignment is attached to this interest.</strong><span>The SandFest team will contact you when applications open or more information is available.</span></div>' : `<div class="partner-status-kpis">
       <article><span>Payment status</span><strong>${escapeHtml(conditionLabel(finance.paymentStatus || "pending_review"))}</strong></article>
       <article><span>Amount expected</span><strong>${finance.expectedAmountCents > 0 ? escapeHtml(adminMoney(finance.expectedAmountCents)) : "Pending review"}</strong></article>
       <article><span>Paid</span><strong>${escapeHtml(adminMoney(finance.paidAmountCents, "$0.00"))}</strong></article>
       <article><span>Balance</span><strong>${escapeHtml(adminMoney(finance.balanceCents, "$0.00"))}</strong></article>
-    </div>
+    </div>`}
     <div class="partner-status-next">
       <span>Next step</span>
       <strong>${escapeHtml(nextStep?.label || "SandFest team review")}</strong>
@@ -4565,9 +4577,11 @@ async function submitPartnerForm(form, endpoint) {
       submissionError.retryAfter = response.headers.get("retry-after");
       throw submissionError;
     }
+    const isVendorInterest = data.application.type === "vendor" && data.application.intakeMode === "interest";
+    const submissionLabel = isVendorInterest ? "Interest" : "Application";
     setFormStatus(
       status,
-      `<strong>${data.duplicate ? "Application already received." : "Application received."}</strong> Reference ${escapeHtml(data.application.reference)}. ${escapeHtml(data.nextStep)}`,
+      `<strong>${data.duplicate ? `${submissionLabel} already received.` : `${submissionLabel} received.`}</strong> Reference ${escapeHtml(data.application.reference)}. ${escapeHtml(data.nextStep)}`,
       "ok",
       { html: true }
     );
@@ -4589,7 +4603,7 @@ async function submitPartnerForm(form, endpoint) {
   } catch (error) {
     if ([400, 401, 403, 409, 422].includes(error.status)) delete form.dataset.idempotencyKey;
     const message = error.status === 409
-      ? "These application details changed after an earlier attempt. Review them and submit once more."
+      ? "These submission details changed after an earlier attempt. Review them and submit once more."
       : error.status === 429
         ? `Too many attempts. Wait${error.retryAfter ? ` ${error.retryAfter} seconds` : " a moment"} and try again; your entries are still here.`
         : !error.status
@@ -4736,8 +4750,31 @@ async function loadPublicSponsorPackages() {
 function vendorOfferingOptionsForCategory(category, selectedId = "") {
   const eligible = publicVendorOfferings.filter(item => item.categories?.includes(category));
   return eligible.length
-    ? eligible.map((item, index) => `<option value="${escapeAttr(item.id)}" ${(selectedId ? item.id === selectedId : index === 0) ? "selected" : ""}>${escapeHtml(item.name)} - ${escapeHtml(item.publicLabel || adminMoney(item.amount))}</option>`).join("")
+    ? eligible.map((item, index) => `<option value="${escapeAttr(item.id)}" ${(selectedId ? item.id === selectedId : index === 0) ? "selected" : ""}>${escapeHtml(item.intakeMode === "interest" ? item.name : `${item.name} - ${item.publicLabel || adminMoney(item.amount)}`)}</option>`).join("")
     : '<option value="">No offering is currently available</option>';
+}
+
+function renderVendorIntakeMode(offering) {
+  const isInterest = !offering || offering.intakeMode === "interest";
+  const notice = partnerContactNotice("vendor", isInterest ? "interest" : "application");
+  const label = document.querySelector("#vendor-intake-label");
+  const heading = document.querySelector("#vendor-intake-heading");
+  const availability = document.querySelector("#vendor-intake-availability");
+  const disclosure = document.querySelector("#vendor-data-use-note");
+  const consent = document.querySelector("#vendor-consent-label");
+  const submit = document.querySelector("#vendor-intake-submit");
+  const cta = document.querySelector("#vendor-intake-cta");
+  if (label) label.textContent = isInterest ? "Vendor interest" : "Vendor application";
+  if (heading) heading.textContent = isInterest ? "Join the vendor interest list" : "Apply for the beach marketplace";
+  if (availability) {
+    availability.innerHTML = isInterest
+      ? 'Vendor applications are not currently open. Join the interest list and review updates on the <a href="https://www.texassandfest.org/vendors" target="_blank" rel="noopener noreferrer">official vendor page</a>.'
+      : 'Applications are open for this program. Fees and placement remain subject to approval; review updates on the <a href="https://www.texassandfest.org/vendors" target="_blank" rel="noopener noreferrer">official vendor page</a>.';
+  }
+  if (disclosure) disclosure.textContent = notice.disclosure;
+  if (consent) consent.textContent = notice.checkboxLabel;
+  if (submit) submit.textContent = isInterest ? "Submit vendor interest" : "Submit vendor application";
+  if (cta) cta.textContent = isInterest ? "Join vendor interest list" : "Apply as a vendor";
 }
 
 function renderVendorOfferingChoices() {
@@ -4757,6 +4794,7 @@ function renderVendorOfferingChoices() {
       : "No active offering is available for this vendor type.";
     summary.dataset.state = selected ? "ready" : "unavailable";
   }
+  renderVendorIntakeMode(selected);
 }
 
 function bindVendorOfferingChoices() {
@@ -6066,8 +6104,8 @@ function renderAdminVendorReadiness(payload) {
   if (!target) return;
   const readiness = payload.vendorReadiness || { totals: {}, vendors: [] };
   const totals = readiness.totals || {};
-  const vendorApplications = (payload.applications || []).filter(item => item.type === "vendor");
-  if (summary) summary.textContent = `${totals.ready || 0}/${totals.vendors || 0} ready · ${totals.requirementsMissing || 0} missing · ${totals.requirementsAwaitingReview || 0} awaiting review · ${totals.assignmentsUnconfirmed || 0} assignments unconfirmed`;
+  const vendorApplications = (payload.applications || []).filter(item => item.type === "vendor" && item.intakeMode !== "interest");
+  if (summary) summary.textContent = `${totals.ready || 0}/${totals.vendors || 0} ready · ${totals.interests || 0} interests · ${totals.requirementsMissing || 0} missing · ${totals.requirementsAwaitingReview || 0} awaiting review · ${totals.assignmentsUnconfirmed || 0} assignments unconfirmed`;
   target.innerHTML = vendorApplications.map(application => {
     const state = (readiness.vendors || []).find(item => item.applicationId === application.id) || {};
     const profile = (payload.vendorProfiles || []).find(item => item.applicationId === application.id);
@@ -6622,11 +6660,12 @@ function renderAdminPartners(payload, outreach) {
     const invoice = (payload.invoices || []).find(item => item.applicationId === application.id && item.status !== "voided");
     const paymentCheckout = invoice ? (payload.paymentCheckouts || []).filter(item => item.invoiceId === invoice.id).sort((a, b) => String(b.updatedAt || b.createdAt).localeCompare(String(a.updatedAt || a.createdAt)))[0] : null;
     const canFinance = adminCan("finance:write");
+    const isVendorInterest = application.type === "vendor" && application.intakeMode === "interest";
     const canCreateInvoice = canFinance && !invoice && expected > 0 && ["approved", "contracted", "invoiced", "partial"].includes(application.status);
     const canSyncInvoice = payload.quickbooks?.canSyncPartnerInvoices && invoice?.quickBooksItemId;
     const canReconcileInvoice = canFinance && payload.quickbooks?.canSyncPartnerInvoices && invoice?.status === "synced";
     return `<article data-partner-application="${escapeAttr(application.id)}">
-      <header><div><strong>${escapeHtml(application.organizationName)}</strong><span>${escapeHtml(application.reference)} · ${escapeHtml(application.type)}</span></div><b>${adminMoney(paid, "$0.00")} / ${adminMoney(expected, "$0.00")}</b></header>
+      <header><div><strong>${escapeHtml(application.organizationName)}</strong><span>${escapeHtml(application.reference)} · ${escapeHtml(isVendorInterest ? "vendor interest" : application.type)}</span></div><b>${isVendorInterest ? "Amount pending" : `${adminMoney(paid, "$0.00")} / ${adminMoney(expected, "$0.00")}`}</b></header>
       <p>${escapeHtml(application.contactName)} · ${escapeHtml(application.contactEmail)}${application.offeringName ? ` · ${escapeHtml(application.offeringName)}` : application.packageName ? ` · ${escapeHtml(application.packageName)}` : ""}</p>
       <div class="admin-partner-row-actions">
         <select name="status" aria-label="${escapeAttr(`${application.organizationName} application status`)}">${partnerStatusOptions(application.status)}</select>
@@ -6636,13 +6675,13 @@ function renderAdminPartners(payload, outreach) {
         ${BOARD_DEMO_ACCESS.enabled ? `<button type="button" class="button primary" data-open-demo-portal="${escapeAttr(application.id)}" ${adminCan("partners:write") ? "" : "disabled"}>Open demo portal</button>` : ""}
         <button type="button" class="button secondary" data-rotate-portal="${escapeAttr(application.id)}" ${adminCan("partners:write") ? "" : "disabled"}>Copy new portal link</button>
       </div>
-      <div class="admin-payment-entry">
+      ${isVendorInterest ? "" : `<div class="admin-payment-entry">
         <input name="paymentAmount" inputmode="decimal" placeholder="Payment $" aria-label="Payment amount" />
         <select name="paymentMethod" aria-label="Payment method"><option value="check">Check</option><option value="ach">ACH</option><option value="cash">Cash</option><option value="card">Card</option><option value="stripe">Stripe</option><option value="eventeny">Eventeny</option><option value="quickbooks">QuickBooks</option><option value="bank_transfer">Bank transfer</option><option value="manual">Manual</option><option value="other">Other</option></select>
         <input name="paymentReference" required maxlength="160" placeholder="Receipt / transaction reference" aria-label="Receipt or transaction reference" />
         <input name="paymentReceivedAt" type="datetime-local" aria-label="Payment received date" />
         <button type="button" class="button secondary" data-record-payment="${escapeAttr(application.id)}" ${canFinance ? "" : "disabled"}>Record payment</button>
-      </div>
+      </div>`}
       ${invoice ? `<div class="admin-invoice-strip" data-partner-invoice="${escapeAttr(invoice.id)}">
         <div><strong>${adminMoney(invoice.amountCents, "$0.00")} invoice</strong><span>${escapeHtml(conditionLabel(invoice.status))} · due ${escapeHtml(new Date(invoice.dueAt).toLocaleDateString())}</span></div>
         ${invoice.lastError ? `<span class="admin-delivery-error">${escapeHtml(invoice.lastError)}</span>` : ""}
@@ -7502,6 +7541,7 @@ function bindAdminSaveButtons() {
       const patch = {
         publicLabel: card.querySelector('[name="publicLabel"]').value,
         amount: centsFromInput(card.querySelector('[name="amount"]').value),
+        intakeMode: card.querySelector('[name="intakeMode"]').value,
         stripePriceId: card.querySelector('[name="stripePriceId"]').value || null,
         quickBooksItemId: card.querySelector('[name="quickBooksItemId"]').value || null,
         benefits: card.querySelector('[name="benefits"]').value.split("\n").map(item => item.trim()).filter(Boolean),
@@ -7689,6 +7729,7 @@ adminCreateVendorOfferingForm?.addEventListener("submit", async event => {
         id: values.get("id"),
         name: values.get("name"),
         amount: centsFromInput(values.get("amount")),
+        intakeMode: values.get("intakeMode"),
         publicLabel: values.get("publicLabel"),
         stripePriceId: values.get("stripePriceId") || null,
         quickBooksItemId: values.get("quickBooksItemId") || null,
@@ -7704,7 +7745,7 @@ adminCreateVendorOfferingForm?.addEventListener("submit", async event => {
     form.reset();
     delete form.elements.id.dataset.manuallyEdited;
     renderAdminEditors();
-    setAdminStatus(`Added ${result.vendorOffering.name} to vendor applications.`, "ok");
+    setAdminStatus(`Added ${result.vendorOffering.name} to the public vendor intake.`, "ok");
   } catch (error) {
     setAdminStatus(error.message, "error");
   } finally {

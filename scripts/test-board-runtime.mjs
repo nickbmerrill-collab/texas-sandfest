@@ -14,6 +14,7 @@ import { boardSmsSandboxConfig, startBoardSmsSandbox } from "../lib/board-sms-sa
 import { DEFAULT_EVENT_ID } from "../lib/event-context.mjs";
 import { platformDocumentFilePath } from "../lib/platform-data.mjs";
 import { publicAppBootstrapSafety } from "../lib/public-bootstrap.mjs";
+import { partnerContactNotice } from "../lib/partner-consent.mjs";
 import { resolveRuntimeRoot } from "../lib/runtime-root.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -266,7 +267,7 @@ try {
     && !/(sponsors|vendors|coverage|financeSignals|ticketOptions)/.test(JSON.stringify(bootstrap.data)));
   check("board runtime derives a complete synthetic sculpture passport", publicPassport.status === 200 && publicPassport.data.hunt?.active === true && publicPassport.data.checkpoints?.length === 6 && publicPassport.data.checkpoints?.every(item => item.entryId));
   check("board runtime publishes its synthetic ballot only in demo mode", publicVoting.status === 200 && publicVoting.data.votingOpen === true && publicVoting.data.entries?.length === 6 && publicVoting.data.leaderboard?.length === 6);
-  check("board runtime publishes vendor offerings", publicVendorCatalog.status === 200 && publicVendorCatalog.data.vendorOfferings?.length === 3 && publicVendorCatalog.data.vendorOfferings?.some(item => item.id === "marketplace-booth" && item.amount === 125000));
+  check("board runtime publishes synthetic application offerings", publicVendorCatalog.status === 200 && publicVendorCatalog.data.vendorOfferings?.length === 3 && publicVendorCatalog.data.vendorOfferings?.every(item => item.intakeMode === "application" && item.description.includes("Synthetic board-demo")) && publicVendorCatalog.data.vendorOfferings?.some(item => item.id === "marketplace-booth" && item.amount === 125000));
   check("board runtime publishes the current sponsor program", publicSponsorCatalog.status === 200 && publicSponsorCatalog.data.sponsorPackages?.length === 11 && publicSponsorCatalog.data.sponsorPackages?.find(item => item.id === "marlin")?.amount === 1500000 && publicSponsorCatalog.data.sponsorPackages?.find(item => item.id === "whale")?.amount === 5000000 && publicSponsorCatalog.data.sponsorPackages?.find(item => item.id === "the-kraken")?.amount === 25000000);
   const publicBoardSponsor = publicSponsorCatalog.data.sponsors?.find(item => item.displayName === "Gulf Shore Credit Union");
   const publicBoardSponsorJson = JSON.stringify(publicBoardSponsor || {});
@@ -424,7 +425,7 @@ try {
   }, { idempotencyKey: "board-runtime-sponsor-0001" });
   const signedUpPartners = await request(base, "GET", "/api/admin/partners", undefined, { auth: true });
   const signedUpVendor = signedUpPartners.data.applications?.find(item => item.id === vendor.data.application?.id);
-  check("public vendor and sponsor signup work", vendor.status === 201 && sponsor.status === 201 && vendor.data.acknowledgment === "draft_queued" && sponsor.data.acknowledgment === "draft_queued" && signedUpVendor?.offeringId === "marketplace-booth" && signedUpVendor?.expectedAmountCents === 125000);
+  check("public vendor and sponsor signup work", vendor.status === 201 && sponsor.status === 201 && vendor.data.acknowledgment === "draft_queued" && sponsor.data.acknowledgment === "draft_queued" && vendor.data.application?.intakeMode === "application" && signedUpVendor?.offeringId === "marketplace-booth" && signedUpVendor?.expectedAmountCents === 125000 && signedUpVendor?.consentNoticeVersion === partnerContactNotice("vendor", "application").version && signedUpVendor?.consentCapturedAt);
 
   const workerOutput = await runWorker(child.processEnv);
   const afterWorker = await request(base, "GET", "/api/admin/partners", undefined, { auth: true });

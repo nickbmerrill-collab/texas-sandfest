@@ -277,6 +277,11 @@ test("board workflows operate through the public and staff interfaces", async ({
   await vendorApplicationLink.click();
   await expect(page).toHaveURL(/#vendor-application-form$/);
   await expect(page.locator("#vendor-application-form")).toBeInViewport({ ratio: 0.1 });
+  await expect(page.locator("#vendor-intake-label")).toHaveText("Vendor application");
+  await expect(page.locator("#vendor-intake-submit")).toHaveText("Submit vendor application");
+  await expect(page.locator("#vendor-intake-availability")).toContainText("Applications are open for this program");
+  await expect(page.locator("#vendor-data-use-note")).toContainText("Do not submit payment card, bank, tax ID, or health information here.");
+  await expect(page.locator("#sponsor-inquiry-form .partner-data-use-note")).toContainText("private partner status portal");
   const galleryImages = page.locator("#media .media-gallery img");
   await expect(galleryImages).toHaveCount(8);
   await expect.poll(() => galleryImages.evaluateAll(images => images.every(image => image.complete && image.naturalWidth > 0))).toBe(true);
@@ -469,6 +474,7 @@ test("board workflows operate through the public and staff interfaces", async ({
   await vendorOfferingForm.locator('[name="name"]').fill(`Premium marketplace ${runId}`);
   await vendorOfferingForm.locator('[name="id"]').fill(vendorOfferingId);
   await vendorOfferingForm.locator('[name="amount"]').fill("2500.00");
+  await vendorOfferingForm.locator('[name="intakeMode"]').selectOption("application");
   await vendorOfferingForm.locator('[name="categories"][value="retail"]').check();
   await vendorOfferingForm.locator('[name="categories"][value="artisan"]').check();
   await vendorOfferingForm.locator('[name="description"]').fill("Expanded marketplace booth for larger retail and artisan activations.");

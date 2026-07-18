@@ -4733,6 +4733,20 @@ body.mode-ops header nav a[data-audience="public"] {
   padding: 10px 12px;
 }
 .partner-offering-summary[data-state="unavailable"] { background: #fff0ee; border-left-color: #a62929; }
+.partner-availability-note,
+.partner-data-use-note {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 0;
+}
+.partner-availability-note {
+  background: #fff8e8;
+  border-left: 4px solid var(--sun);
+  padding: 10px 12px;
+}
+.partner-availability-note a { color: var(--deep); font-weight: 800; }
+.partner-data-use-note { border-top: 1px solid var(--line); padding-top: 12px; }
 .sponsor-invitation {
   background: #fff3ed;
   border-left: 4px solid var(--coral);
@@ -4858,6 +4872,15 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .partner-status-kpis article:nth-child(4) { border-top-color: #4f6f52; }
 .partner-status-kpis span { color: var(--muted); font-size: 10px; font-weight: 800; text-transform: uppercase; }
 .partner-status-kpis strong { color: var(--deep); font-size: 16px; overflow-wrap: anywhere; text-transform: capitalize; }
+.partner-status-interest {
+  background: var(--white);
+  border-left: 4px solid var(--sun);
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+}
+.partner-status-interest strong { color: var(--deep); }
+.partner-status-interest span { color: var(--muted); font-size: 13px; line-height: 1.45; }
 .partner-status-next,
 .partner-status-invoice { align-items: center; border-left: 4px solid var(--coral); display: grid; gap: 8px 12px; grid-template-columns: minmax(0, 1fr) auto; padding: 10px 12px; }
 .partner-status-invoice { border-left-color: var(--sun); }
