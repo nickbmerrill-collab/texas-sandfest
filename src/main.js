@@ -25,6 +25,11 @@ import {
 import { publicIslandConditionsRefreshDelay } from "../lib/island-conditions.mjs";
 import { DEFAULT_EVENT_ID } from "../lib/event-context.mjs";
 import { publicSculptorRosterPublication } from "../lib/public-roster.mjs";
+import {
+  PUBLIC_FIELD_MEDIA,
+  PUBLIC_GALLERY_MEDIA,
+  selectPublicMediaAssets
+} from "../lib/public-media-selection.mjs";
 
 const siteBase = import.meta.env.BASE_URL || "/";
 const sitePath = value => {
@@ -181,21 +186,9 @@ const heroImage = heroAsset?.publicPath
   ?? "https://static.wixstatic.com/media/f800df_53497f8c3802433885cf16fd00de0b7b~mv2.jpg/v1/fill/w_2500,h_1666,al_c/f800df_53497f8c3802433885cf16fd00de0b7b~mv2.jpg";
 const officialLogo = mediaAssets.find(asset => asset.role === "official_brand")?.publicPath;
 const sponsorLogoAssets = mediaAssets.filter(asset => asset.category === "sponsor-logos").slice(0, 18);
-const galleryAssets = mediaAssets
-  .filter(asset => asset.category === "photos" && asset.role !== "hero")
-  .slice(0, 8);
-const featuredPhotoAssets = mediaAssets
-  .filter(asset => asset.category === "photos" && asset.role !== "hero")
-  .slice(8, 14);
+const galleryAssets = selectPublicMediaAssets(mediaAssets, PUBLIC_GALLERY_MEDIA);
+const featuredPhotoAssets = selectPublicMediaAssets(mediaAssets, PUBLIC_FIELD_MEDIA);
 const mapAssets = mediaAssets.filter(asset => asset.category === "maps").slice(0, 4);
-const assetStats = mediaManifest
-  ? [
-      [mediaManifest.categories.logos ?? 0, "brand logos"],
-      [mediaManifest.categories.photos ?? 0, "event photos"],
-      [mediaManifest.categories["sponsor-logos"] ?? 0, "sponsor logos"],
-      [mediaManifest.categories.maps ?? 0, "map assets"]
-    ]
-  : [];
 let publicTicketCatalogState = ticketCatalog || { currency: "usd", products: [] };
 let ticketProducts = publicTicketCatalogState.products ?? [];
 const ticketCart = new Map();
@@ -279,9 +272,9 @@ const event = normalizeEventGuide(appBootstrap?.guide ?? defaultEventGuide);
 
 const quickStats = [
   ["3", "festival days"],
-  ["9", "core beach zones"],
-  ["3", "surfaces planned"],
-  ["24/7", "AI concierge"]
+  ["9", "beach zones"],
+  ["4", "featured sponsor tiers"],
+  ["1", "island celebration"]
 ];
 
 const schedule = (appBootstrap?.schedule ?? [
@@ -363,11 +356,11 @@ const surfaces = [
 ];
 
 const dataDomains = [
-  ["Content", "Canonical FAQs, policy records, schedule, maps, sponsor tiers, vendor requirements, volunteer rules."],
-  ["Operations", "Zones, gates, shifts, incidents, lost party, ADA requests, weather alerts, shuttle status."],
-  ["Commerce", "Eventeny ticket/app status, sponsor packages, vendor fees, raffle products, merchandise."],
-  ["Finance", "QuickBooks invoices, payments, vendors, sponsor revenue, raffle reconciliation, donation reporting."],
-  ["Community", "Nonprofit grants, scholarship impact, local partners, post-event reporting, Port A Local Co listings."]
+  ["Plan the visit", "Dates, hours, accessibility guidance, maps, tickets, and festival policies in one trusted place."],
+  ["Reach the beach", "Ferry conditions, parking guidance, entrances, walking routes, and timely arrival updates."],
+  ["Explore Port Aransas", "Lodging, dining, shopping, and local experiences that extend the festival weekend."],
+  ["Support local business", "Sponsor, vendor, and community partner discovery connected to the event journey."],
+  ["Share the impact", "Nonprofit support, scholarships, local partnerships, and post-event community results."]
 ];
 
 const financeFlows = [
@@ -391,13 +384,6 @@ const experiencePanels = [
     detail: "A staff surface for volunteer coverage, incidents, vendor readiness, sponsor fulfillment, finance signals, and content approvals.",
     actions: ["Command board", "Asset review", "Partner CRM", "QuickBooks sync"]
   }
-];
-
-const assetWorkflow = [
-  ["Rights review", "Confirm source approval for official, sponsor, sculptor, and volunteer-facing images."],
-  ["Sponsor matching", "Map each scraped logo to a sponsor account, tier, invoice status, and fulfillment checklist."],
-  ["App curation", "Choose a small approved image set for web, iOS, push notifications, sponsor pages, and Port A Local Co."],
-  ["Alt text", "Replace scraped filenames with reviewed captions and accessibility text before launch."]
 ];
 
 const incomingByDomain = new Map((incomingInventory?.folders ?? []).map(folder => [folder.domain, folder]));
@@ -601,7 +587,7 @@ app.innerHTML = `
       <canvas id="tide-motion" class="tide-motion" aria-hidden="true"></canvas>
       <div class="hero-overlay"></div>
       <div class="hero-content">
-        <p class="eyebrow">Port Aransas beach operations platform</p>
+        <p class="eyebrow">Port Aransas · On the beach</p>
         <h1 id="public-event-name">${event.name}</h1>
         <p id="public-event-mission" class="hero-copy">${event.mission}</p>
         <div class="hero-actions">
@@ -812,7 +798,7 @@ app.innerHTML = `
       ${quickStats.map(([value, label]) => `<div><strong>${value}</strong><span>${label}</span></div>`).join("")}
     </section>
 
-    <section class="section experience-section">
+    <section class="section experience-section" id="experience">
       <div class="section-heading">
         <div>
           <p class="eyebrow">Customer + admin sides</p>
@@ -1739,9 +1725,9 @@ app.innerHTML = `
     <section class="section media-section" id="media">
       <div class="section-heading">
         <div>
-          <p class="eyebrow">Scraped frontend media</p>
-          <h2>Official site assets are now local and ready for product screens.</h2>
-          <p class="section-copy">${mediaManifest ? `${mediaManifest.count} public images were downloaded, deduped, and classified from the Texas SandFest site.` : "Run npm run media:download to build the local frontend media manifest."}</p>
+          <p class="eyebrow">Scenes from SandFest</p>
+          <h2>Artistry, community, and Gulf Coast energy.</h2>
+          <p class="section-copy">A look at the sculptures, shared moments, and beach setting that make Texas SandFest a Port Aransas tradition.</p>
         </div>
       </div>
       <div class="media-gallery">
@@ -1750,24 +1736,6 @@ app.innerHTML = `
             <img ${responsiveImageAttributes(asset, "(max-width: 760px) 100vw, 25vw")} alt="${escapeAttr(asset.alt || asset.name || "Texas SandFest media")}" loading="lazy" decoding="async" />
           </figure>
         `).join("")}
-      </div>
-      <div class="asset-dashboard">
-        <div class="asset-stats">
-          ${assetStats.map(([value, label]) => `
-            <div>
-              <strong>${value}</strong>
-              <span>${label}</span>
-            </div>
-          `).join("")}
-        </div>
-        <div class="asset-workflow">
-          ${assetWorkflow.map(([name, detail]) => `
-            <article>
-              <strong>${name}</strong>
-              <span>${detail}</span>
-            </article>
-          `).join("")}
-        </div>
       </div>
     </section>
 
@@ -1845,9 +1813,9 @@ app.innerHTML = `
 
     <section class="section map-media-section">
       <div>
-        <p class="eyebrow">Maps + field imagery</p>
-        <h2>Give guests clarity and staff shared context.</h2>
-        <p class="section-copy">The map and photo assets should become reviewed records: each one needs a use case, source page, owner, and launch status before it appears in the public app.</p>
+        <p class="eyebrow">Know before you go</p>
+        <h2>See the beach corridor before you arrive.</h2>
+        <p class="section-copy">Use festival maps and recent imagery to recognize the beach setting, plan the day, and arrive with a clearer picture of the event.</p>
       </div>
       <div class="map-media-grid">
         ${[...mapAssets, ...featuredPhotoAssets].slice(0, 6).map(asset => `
@@ -2084,9 +2052,9 @@ app.innerHTML = `
 
     <section class="section data-section" id="port-a">
       <div>
-        <p class="eyebrow">Port A Local Co integration</p>
-        <h2>SandFest becomes the anchor event layer for the local destination platform.</h2>
-        <p class="section-copy">The long-term path is to make SandFest a reusable event module inside Port A Local Co: visitors discover where to stay, eat, park, ride, shop, and return after the event. The integration should use shared APIs and canonical records so Port A Local Co gets curated event intelligence without inheriting operational chaos.</p>
+        <p class="eyebrow">Regional destination connection</p>
+        <h2>Extend the festival journey across Port Aransas.</h2>
+        <p class="section-copy">Connect reviewed event information with arrival guidance, lodging, dining, local businesses, and year-round discovery through a governed destination feed.</p>
       </div>
       <div class="domain-grid">
         ${dataDomains.map(([name, detail]) => `

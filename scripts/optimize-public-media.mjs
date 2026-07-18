@@ -2,6 +2,11 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
+import {
+  PUBLIC_FIELD_MEDIA,
+  PUBLIC_GALLERY_MEDIA,
+  selectPublicMediaAssets
+} from "../lib/public-media-selection.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const publicDir = path.join(root, "public");
@@ -11,13 +16,18 @@ const manifestPath = path.join(mediaDir, "media-manifest.json");
 const outputManifestPath = path.join(mediaDir, "media-derivatives.json");
 const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
 const assets = Array.isArray(manifest.assets) ? manifest.assets : [];
-const photos = assets.filter(asset => asset.category === "photos" && asset.role !== "hero");
+const galleryAssets = selectPublicMediaAssets(assets, PUBLIC_GALLERY_MEDIA);
+const fieldAssets = selectPublicMediaAssets(assets, PUBLIC_FIELD_MEDIA);
+
+if (galleryAssets.length !== PUBLIC_GALLERY_MEDIA.length || fieldAssets.length !== PUBLIC_FIELD_MEDIA.length) {
+  throw new Error("The public media manifest is missing one or more curated event photographs.");
+}
 
 const selections = [
   { asset: assets.find(asset => asset.role === "hero"), kind: "hero", widths: [800, 1440, 2400], quality: 78, fallbackWidth: 1440 },
   { asset: assets.find(asset => asset.role === "official_brand"), kind: "brand", widths: [120, 240], height: 120, quality: 84 },
-  ...photos.slice(0, 8).map(asset => ({ asset, kind: "gallery", widths: [360, 720], quality: 76 })),
-  ...photos.slice(8, 14).map(asset => ({ asset, kind: "field", widths: [360, 720], quality: 76 })),
+  ...galleryAssets.map(asset => ({ asset, kind: "gallery", widths: [360, 720], quality: 76 })),
+  ...fieldAssets.map(asset => ({ asset, kind: "field", widths: [360, 720], quality: 76 })),
   ...assets.filter(asset => asset.category === "maps").slice(0, 4)
     .map(asset => ({ asset, kind: "map", widths: [360, 720], quality: 78 })),
   ...assets.filter(asset => asset.category === "sponsor-logos").slice(0, 18)

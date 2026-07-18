@@ -2,6 +2,11 @@ import { access, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { publicAppBootstrapSafety } from "../lib/public-bootstrap.mjs";
 import { publicMediaManifestSafety } from "../lib/public-media-manifest.mjs";
+import {
+  PUBLIC_FIELD_MEDIA,
+  PUBLIC_GALLERY_MEDIA,
+  selectPublicMediaAssets
+} from "../lib/public-media-selection.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const publicDir = path.join(root, "dist-public");
@@ -97,6 +102,18 @@ assert(robots === "User-agent: *\nAllow: /\n", "Public artifact has an invalid o
 assert(publicHtml.includes("optimized/hero-1440.webp") && publicHtml.includes('fetchpriority="high"'), "Public artifact is missing its optimized hero preload.");
 assert(mediaDerivatives.derivatives?.length >= 30, "Public artifact is missing its optimized media catalog.");
 assert(publicMediaManifestSafety(publicMediaManifest).ready, "Public media manifest exposes internal fields or filesystem paths.");
+const curatedGalleryAssets = selectPublicMediaAssets(publicMediaManifest.assets, PUBLIC_GALLERY_MEDIA);
+const curatedFieldAssets = selectPublicMediaAssets(publicMediaManifest.assets, PUBLIC_FIELD_MEDIA);
+assert(curatedGalleryAssets.length === PUBLIC_GALLERY_MEDIA.length, "Public artifact is missing a curated gallery photograph.");
+assert(curatedFieldAssets.length === PUBLIC_FIELD_MEDIA.length, "Public artifact is missing a curated field photograph.");
+const galleryDerivativeSources = mediaDerivatives.derivatives
+  .filter(derivative => derivative.kind === "gallery")
+  .map(derivative => derivative.sourcePath);
+const fieldDerivativeSources = mediaDerivatives.derivatives
+  .filter(derivative => derivative.kind === "field")
+  .map(derivative => derivative.sourcePath);
+assert(JSON.stringify(galleryDerivativeSources) === JSON.stringify(curatedGalleryAssets.map(asset => asset.publicPath)), "Responsive gallery derivatives do not match the curated public selection.");
+assert(JSON.stringify(fieldDerivativeSources) === JSON.stringify(curatedFieldAssets.map(asset => asset.publicPath)), "Responsive field derivatives do not match the curated public selection.");
 const optimizedMediaBytes = mediaDerivatives.derivatives
   .flatMap(derivative => derivative.sources ?? [])
   .reduce((sum, source) => sum + Number(source.bytes || 0), 0);
@@ -208,6 +225,14 @@ for (const marker of [
   "Needs QBO match"
 ]) {
   assert(!publicJavaScript.includes(marker), `Public production JavaScript contains internal data marker ${marker}.`);
+}
+for (const marker of [
+  "Scraped frontend media",
+  "should become reviewed records",
+  "Run npm run media:download",
+  "inheriting operational chaos"
+]) {
+  assert(!visitorSource.includes(marker), `Visitor source contains unfinished public copy: ${marker}.`);
 }
 assert(!publicJavaScript.includes("April 17-19, 2026") && !publicJavaScript.includes("April 17, 2026"), "Public artifact contains stale 2026 event dates.");
 assert(visitorSource.includes('class="skip-link"') && visitorSource.includes('href="#top"'), "Visitor source is missing its keyboard skip link.");
