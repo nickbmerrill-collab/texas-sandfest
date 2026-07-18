@@ -61,6 +61,8 @@ npm run test:camera-agent
 npm run test:camera-model-approval
 npm run test:camera-agent:runtime
 npm run test:camera-agent:fleet-runtime
+npm run test:camera-fleet-qualification
+npm run ready:camera-edge
 npm run camera:model:verify
 npm run camera:agent:validate
 npm run build:surfaces

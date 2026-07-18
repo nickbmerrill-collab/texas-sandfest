@@ -90,12 +90,24 @@ npm run test:camera-agent
 npm run test:camera-model-approval
 SANDFEST_CAMERA_MODEL_DIR=/var/lib/sandfest-camera npm run test:camera-agent:runtime
 SANDFEST_CAMERA_MODEL_DIR=/var/lib/sandfest-camera npm run test:camera-agent:fleet-runtime
+SANDFEST_CAMERA_MODEL_DIR=/var/lib/sandfest-camera npm run camera:fleet:verify
 SANDFEST_CAMERA_MODEL_DIR=/var/lib/sandfest-camera npm run camera:model:verify
 ```
 
-The single-camera runtime test loads the real model, tracker, OpenCV, and PyTorch stack against generated pixels. The fleet runtime test keeps eight independent model instances resident and times a complete eight-source inference cycle against the configured sample-rate budget. These tests write no frame or crop and do not need camera access. They prove local model compatibility and aggregate inference headroom, not RTSP decoder throughput, network behavior, camera placement, or field accuracy; those still require all eight physical feeds under event-like load.
+The single-camera runtime test loads the real model, tracker, OpenCV, and PyTorch stack against generated pixels. The fleet runtime test requires the canonical eight enabled camera lanes, keeps eight independent model instances resident, and requires the slowest complete eight-source inference cycle to fit inside the configured sample-rate budget. It atomically writes `.sandfest-runtime/camera-fleet-qualification.json` with software versions, exact config and model checksums, aggregate and per-lane timings, the privacy boundary, and a canonical evidence checksum. `camera:fleet:verify` rejects tampering, reports older than 24 hours, a different config or model, missing or extra lanes, shared model instances, budget overruns, and evidence fields that could disclose stream credentials or host paths.
 
-`--validate-runtime` checks environment variables for every enabled camera. Combine it with `--validate-production` to require the reviewed model attestation; the systemd service does this automatically:
+Run the complete local-compute acceptance on the exact proposed edge host with one command:
+
+```bash
+SANDFEST_CAMERA_MODEL_DIR=/var/lib/sandfest-camera \
+SANDFEST_CAMERA_CONFIG=/etc/sandfest/camera-agent.json \
+SANDFEST_CAMERA_FLEET_REPORT=/var/lib/sandfest-camera/fleet-qualification.json \
+npm run ready:camera-edge
+```
+
+These tests write no frame or crop and do not need camera access. The saved report proves exact model/config binding, local stack compatibility, fleet membership, independent model residency, and generated-pixel inference headroom. It does not prove RTSP decoder throughput, network behavior, camera placement, calibration, or field accuracy; those still require all eight physical feeds under event-like load. Retain the verified JSON with the commissioning record, but do not treat it as a substitute for fresh signed heartbeats and observations in production `/ready`.
+
+`--validate-runtime` checks environment variables for every enabled camera. Combine it with `--validate-production` to require the exact eight enabled SandFest lanes plus the reviewed model attestation; the systemd service does this automatically:
 
 ```bash
 camera_agent/.venv/bin/python -m camera_agent.edge_agent \

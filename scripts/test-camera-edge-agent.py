@@ -25,7 +25,9 @@ from camera_agent.edge_agent import (  # noqa: E402
     FrameMetrics,
     MetricAggregator,
     MetricsClient,
+    PRODUCTION_CAMERA_IDS,
     build_heartbeat,
+    config_summary,
     derive_frame_metrics,
     load_config,
     point_in_polygon,
@@ -85,21 +87,40 @@ class CameraEdgeAgentTests(unittest.TestCase):
         self.assertEqual(len(self.config["cameras"]), 8)
         self.assertEqual(
             {camera["cameraId"] for camera in self.config["cameras"]},
-            {
-                "ferry-loading",
-                "ferry-stacking",
-                "harbor-island-entrance",
-                "harbor-island-stacking",
-                "north-gate",
-                "south-gate",
-                "food-court",
-                "competition-corridor",
-            },
+            PRODUCTION_CAMERA_IDS,
         )
         for camera in self.config["cameras"]:
             self.assertNotIn("secret", camera)
             self.assertTrue(camera["secretEnv"].startswith("SANDFEST_CAMERA_"))
             self.assertTrue(camera["streamEnv"].endswith("_STREAM"))
+
+    def test_full_fleet_validation_rejects_missing_disabled_and_extra_lanes(self) -> None:
+        validated = validate_config(self.config, require_full_fleet=True)
+        self.assertTrue(config_summary(validated)["fullFleetReady"])
+
+        missing = json.loads(CONFIG_PATH.read_text())
+        missing["cameras"] = missing["cameras"][:-1]
+        with self.assertRaisesRegex(AgentConfigurationError, "exactly eight enabled"):
+            validate_config(missing, require_full_fleet=True)
+
+        disabled = json.loads(CONFIG_PATH.read_text())
+        disabled["cameras"][0]["enabled"] = False
+        with self.assertRaisesRegex(AgentConfigurationError, "missing or disabled"):
+            validate_config(disabled, require_full_fleet=True)
+
+        extra = json.loads(CONFIG_PATH.read_text())
+        ninth = dict(extra["cameras"][0])
+        ninth.update(
+            {
+                "cameraId": "uncommissioned-lane",
+                "sourceId": "camera-uncommissioned-lane",
+                "secretEnv": "SANDFEST_CAMERA_UNCOMMISSIONED_LANE_SECRET",
+                "streamEnv": "SANDFEST_CAMERA_UNCOMMISSIONED_LANE_STREAM",
+            }
+        )
+        extra["cameras"].append(ninth)
+        with self.assertRaisesRegex(AgentConfigurationError, "unexpected"):
+            validate_config(extra, require_full_fleet=True)
 
     def test_inline_stream_credentials_are_rejected(self) -> None:
         unsafe = json.loads(CONFIG_PATH.read_text())
