@@ -4762,6 +4762,7 @@ function renderIslandConditions(payload) {
   if (!kpis || !grid) return;
   const weather = payload.weather || {};
   const ferry = payload.ferry || {};
+  const syntheticWeather = weather.source === "Board weather simulation";
   const ferryDirections = Array.isArray(ferry.directions) ? ferry.directions : [];
   const ferryLive = ferry.freshness?.state === "live";
   const ferryHasInterruption = ferryLive && (ferry.status === "service_interruption" || ferryDirections.some(direction => direction.status === "service_interruption"));
@@ -4784,7 +4785,7 @@ function renderIslandConditions(payload) {
     <article data-level="${escapeAttr(weather.freshness?.state || "unknown")}">
       <span>Weather</span><strong>${weather.temperatureF != null ? `${Math.round(weather.temperatureF)} F` : "Unavailable"}</strong>
       <p>${escapeHtml(weather.shortForecast || conditionLabel(weather.status))}</p>
-      <small>${escapeHtml([weather.windDirection, weather.windSpeed].filter(Boolean).join(" ") || "NWS feed awaiting refresh")}</small>
+      <small>${escapeHtml([weather.windDirection, weather.windSpeed].filter(Boolean).join(" ") || (syntheticWeather ? "Board simulation awaiting refresh" : "NWS feed awaiting refresh"))}</small>
     </article>
     <article data-level="${escapeAttr(ferryHasInterruption ? "critical" : ferry.freshness?.state || "unknown")}">
       <span>Ferry wait</span><strong>${escapeHtml(ferryPrimary)}</strong>
@@ -4798,7 +4799,7 @@ function renderIslandConditions(payload) {
     </article>
     <article data-level="${weather.alerts?.length ? "high" : "low"}">
       <span>Weather alerts</span><strong>${weather.alerts?.length || 0}</strong>
-      <p>${escapeHtml(weather.alerts?.[0]?.event || "No active NWS alerts")}</p>
+      <p>${escapeHtml(weather.alerts?.[0]?.event || (syntheticWeather ? "No simulated weather alerts" : "No active NWS alerts"))}</p>
       <small>${escapeHtml(weather.source || "National Weather Service")}</small>
     </article>`;
   grid.innerHTML = (payload.cameras || []).map(camera => {
@@ -7096,8 +7097,8 @@ function renderAdminConditions(payload) {
       return `<div class="admin-condition-feed" data-state="${escapeAttr(state)}"><strong>${escapeHtml(label)}</strong><span>${escapeHtml(conditionLabel(feed?.status))} · ${escapeHtml(conditionLabel(state))}</span><small>Observed ${escapeHtml(feedTime(observedAt))} · ${escapeHtml(detail)}</small></div>`;
     };
     feeds.innerHTML = [
-      feedRow("National Weather Service", payload.weather || {}, payload.weather?.observedAt),
-      feedRow("TxDOT ferry", payload.ferry || {}, payload.ferry?.checkedAt || payload.ferry?.observedAt)
+      feedRow(payload.weather?.source || "National Weather Service", payload.weather || {}, payload.weather?.observedAt),
+      feedRow(payload.ferry?.source || "TxDOT ferry", payload.ferry || {}, payload.ferry?.checkedAt || payload.ferry?.observedAt)
     ].join("");
   }
   if (ingest) ingest.textContent = payload.ingest?.ready

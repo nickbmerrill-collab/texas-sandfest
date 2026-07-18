@@ -309,6 +309,7 @@ import {
   cameraModelApproval,
   verifyCameraModelPayload
 } from "../lib/camera-model-approval.mjs";
+import { boardDemoSyntheticConditions } from "../lib/board-conditions.mjs";
 import {
   createStripePartnerCheckoutSession,
   publicStripePartnerPaymentsReadiness,
@@ -379,6 +380,13 @@ const BOARD_DEMO_RUNTIME = await (async () => {
     return false;
   }
 })();
+const BOARD_DEMO_CONDITIONS_MODE = String(process.env.SANDFEST_BOARD_CONDITIONS_MODE || "").trim().toLowerCase();
+if (BOARD_DEMO_CONDITIONS_MODE && !["official", "synthetic"].includes(BOARD_DEMO_CONDITIONS_MODE)) {
+  throw new Error("SANDFEST_BOARD_CONDITIONS_MODE must be official or synthetic.");
+}
+if (BOARD_DEMO_CONDITIONS_MODE === "synthetic" && (SANDFEST_ENV === "production" || !BOARD_DEMO_RUNTIME)) {
+  throw new Error("Synthetic board conditions are restricted to an isolated board demo runtime.");
+}
 const BOARD_DEMO_FEED_FIXTURE_BASE = (() => {
   const value = String(process.env.SANDFEST_BOARD_FEED_FIXTURE_BASE_URL || "").trim();
   if (!value) return null;
@@ -1428,10 +1436,21 @@ async function readIslandConditions({ refreshWeather = false, refreshFerry = fal
     const timestamp = lastAttempt ? new Date(lastAttempt).getTime() : Number.NaN;
     return Number.isFinite(timestamp) ? Date.now() - timestamp : Number.POSITIVE_INFINITY;
   };
+  const syntheticConditionsDue = BOARD_DEMO_CONDITIONS_MODE === "synthetic"
+    && (refreshWeather || refreshFerry)
+    && (doc.weather?.source !== "Board weather simulation"
+      || doc.ferry?.source !== "Board ferry simulation"
+      || refreshAge(doc.weather) > 2 * 60_000
+      || refreshAge(doc.ferry) > 2 * 60_000);
+  if (syntheticConditionsDue) {
+    doc = await updatePlatformDoc(ROOT, "islandConditions", current => (
+      boardDemoSyntheticConditions(current, now)
+    ), { fallback: doc });
+  }
   const ferryOverrideUntil = doc.ferry?.manualOverrideUntil ? new Date(doc.ferry.manualOverrideUntil).getTime() : Number.NaN;
   const ferryOverrideActive = Number.isFinite(ferryOverrideUntil) && ferryOverrideUntil > Date.now();
-  const dueWeather = refreshWeather && weatherForecastNeedsRefresh(doc.weather, now);
-  const dueFerry = refreshFerry
+  const dueWeather = BOARD_DEMO_CONDITIONS_MODE !== "synthetic" && refreshWeather && weatherForecastNeedsRefresh(doc.weather, now);
+  const dueFerry = BOARD_DEMO_CONDITIONS_MODE !== "synthetic" && refreshFerry
     && !ferryOverrideActive
     && (failedFeedRefreshNeedsRetry(doc.ferry, now) || refreshAge(doc.ferry) > 2 * 60_000);
   if (dueWeather || dueFerry) {

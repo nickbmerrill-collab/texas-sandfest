@@ -357,6 +357,7 @@ import { publicMediaManifest, publicMediaManifestSafety } from "../lib/public-me
 import { DEFAULT_EVENT_ID, eventContextConfig, eventContextReadiness } from "../lib/event-context.mjs";
 import { publicSculptorRosterPublication } from "../lib/public-roster.mjs";
 import { boardDemoEngagement } from "../lib/board-runtime.mjs";
+import { boardDemoSyntheticConditions } from "../lib/board-conditions.mjs";
 import { developmentPublicApiBase } from "../src/dev-public-api-base.js";
 import { eventArchiveDigest, planEventRollover, ROLLOVER_DOCUMENT_KEYS } from "../lib/event-rollover.mjs";
 import {
@@ -696,6 +697,15 @@ console.log("\n=== Pure library suite ===\n");
     }
   };
   const readyBoardReport = evaluateBoardDemoReadiness(readyBoardState);
+  const syntheticBoardConditions = publicIslandConditions(
+    boardDemoSyntheticConditions({ eventId: DEFAULT_EVENT_ID }, "2026-07-16T12:00:00.000Z"),
+    "2026-07-16T12:00:00.000Z"
+  );
+  ok("board demo conditions stay current, directional, and visibly synthetic without a network", syntheticBoardConditions.weather.source === "Board weather simulation"
+    && syntheticBoardConditions.weather.freshness.state === "live"
+    && syntheticBoardConditions.ferry.source === "Board ferry simulation"
+    && syntheticBoardConditions.ferry.freshness.state === "live"
+    && syntheticBoardConditions.ferry.directions.length === 2);
   const failedBoardReport = evaluateBoardDemoReadiness({
     ...readyBoardState,
     web: { ok: true, status: 200, html: "<main>ordinary development server</main>" },

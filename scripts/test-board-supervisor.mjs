@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
-import { createServer as createHttpServer } from "node:http";
 import { createServer as createNetServer } from "node:net";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -13,9 +12,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 let temporary = null;
 let supervisor = null;
 let occupiedPortServer = null;
-let feedFixtureServer = null;
 let output = "";
-let ferryFixtureRequests = 0;
 const observedPids = new Set();
 
 function freePort() {
@@ -32,61 +29,6 @@ function freePort() {
 function occupyPort() {
   return new Promise((resolve, reject) => {
     const server = createNetServer();
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", () => resolve(server));
-  });
-}
-
-function startFeedFixture() {
-  const ferry = {
-    roadwayDmses: {
-      SH361AransasPass: [
-        {
-          icd_Id: "CRP-SH361 at New Port Golf",
-          name: "SH361 at New Port Golf",
-          hasMessages: true,
-          statusDescription: "Device Online",
-          messagePages: [{ pageNo: 0, lines: ["FERRY WAIT TO", "ARANSAS PASS", "15 MINUTES"] }]
-        },
-        {
-          icd_Id: "CRP-SH361 at Dale Miller Brdg",
-          name: "SH361 at Dale Miller Bridge",
-          hasMessages: true,
-          statusDescription: "Device Online",
-          messagePages: [{ pageNo: 0, lines: ["FERRY WAIT TO", "PORT ARANSAS", "20 MINUTES"] }]
-        }
-      ]
-    }
-  };
-  const server = createHttpServer((request, response) => {
-    if (request.url === "/txdot/ferry") {
-      ferryFixtureRequests += 1;
-      if (ferryFixtureRequests === 1) {
-        response.writeHead(503, { "content-type": "application/json" });
-        response.end(JSON.stringify({ error: "transient_fixture_failure" }));
-        return;
-      }
-    }
-    const now = Date.now();
-    const payload = request.url === "/nws/forecast"
-      ? { properties: { periods: [{
-        temperature: 84,
-        windSpeed: "9 mph",
-        windDirection: "SE",
-        shortForecast: "Board supervisor fixture",
-        probabilityOfPrecipitation: { value: 10 },
-        startTime: new Date(now - 60_000).toISOString(),
-        endTime: new Date(now + 60 * 60_000).toISOString()
-      }] } }
-      : request.url === "/nws/alerts"
-        ? { features: [] }
-        : request.url === "/txdot/ferry"
-          ? ferry
-          : null;
-    response.writeHead(payload ? 200 : 404, { "content-type": "application/json" });
-    response.end(JSON.stringify(payload || { error: "not_found" }));
-  });
-  return new Promise((resolve, reject) => {
     server.once("error", reject);
     server.listen(0, "127.0.0.1", () => resolve(server));
   });
@@ -185,7 +127,6 @@ try {
   const runtimeRoot = path.join(temporary, "runtime");
   const sessionFile = path.join(temporary, "session.json");
   occupiedPortServer = await occupyPort();
-  feedFixtureServer = await startFeedFixture();
   const webPort = occupiedPortServer.address().port;
   const [apiPort, emailPort, smsPort] = await distinctPorts(3);
   const supervisorEnvironment = {
@@ -198,8 +139,7 @@ try {
     QB_CLIENT_ID: "inherited-test-client",
     QB_CLIENT_SECRET: "inherited-test-secret",
     QB_REALM_ID: "inherited-test-realm",
-    QB_REFRESH_TOKEN: "inherited-test-refresh",
-    SANDFEST_BOARD_FEED_FIXTURE_BASE_URL: `http://127.0.0.1:${feedFixtureServer.address().port}`
+    QB_REFRESH_TOKEN: "inherited-test-refresh"
   };
   supervisor = spawn(process.execPath, [
     "scripts/board-demo.mjs",
@@ -228,8 +168,12 @@ try {
     throw new Error("Supervisor did not preserve and move around the occupied web port.");
   }
   console.log(`  ok supervisor preserves an occupied port and starts the complete stack (PID ${initial.pid})`);
-  if (ferryFixtureRequests < 2) throw new Error("Supervisor did not retry the transient TxDOT feed failure.");
-  console.log(`  ok supervisor retries a transient TxDOT failure before reporting readiness (${ferryFixtureRequests} attempts)`);
+  const conditionsResponse = await fetch(`${initial.endpoints.apiBase}/api/public/island-conditions`);
+  const conditions = await conditionsResponse.json();
+  if (!conditionsResponse.ok || conditions.weather?.source !== "Board weather simulation" || conditions.ferry?.source !== "Board ferry simulation") {
+    throw new Error("Supervisor did not start with visibly synthetic, offline-safe conditions.");
+  }
+  console.log("  ok supervisor starts with visibly synthetic weather and ferry data without an external feed");
 
   const serializedSession = JSON.stringify(initial);
   const forbiddenSessionValues = [
@@ -292,6 +236,5 @@ try {
     if (processAlive(pid)) process.kill(pid, "SIGKILL");
   }
   if (occupiedPortServer) await new Promise(resolve => occupiedPortServer.close(resolve));
-  if (feedFixtureServer) await new Promise(resolve => feedFixtureServer.close(resolve));
   if (temporary) await rm(temporary, { recursive: true, force: true });
 }

@@ -145,6 +145,7 @@ function processEnvironment(runtimeRoot, endpoints) {
     SANDFEST_ADMIN_ACTOR_ID: "board-demo",
     SANDFEST_ADMIN_RATE_LIMIT: "500",
     SANDFEST_TURNSTILE_ENABLED: "false",
+    SANDFEST_BOARD_CONDITIONS_MODE: process.env.SANDFEST_BOARD_FEED_FIXTURE_BASE_URL ? "official" : "synthetic",
     SANDFEST_PARTNER_PORTAL_SECRET: "board-demo-partner-portal-secret-change-me",
     SANDFEST_OUTREACH_PREFERENCES_SECRET: "board-demo-outreach-preferences-secret-change-me",
     SANDFEST_SPONSOR_INVITATION_SECRET: "board-demo-sponsor-invitation-secret-change-me",

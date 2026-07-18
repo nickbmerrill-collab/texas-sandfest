@@ -21,7 +21,7 @@ The command rebuilds `.sandfest-runtime/board-2027` from governed source data. I
 - staff-issued sponsor invitations that convert a qualified prospect into the real public sponsor application, brand center, fulfillment plan, key dates, task, finance record, and private portal only after recipient consent;
 - three private source documents in received, review, and approved states, with staff-only text previews and checksum-verified downloads;
 - volunteer coverage, fleet checkout, voting, and Sculpture Passport activity;
-- eight synthetic camera metric lanes, with NWS weather and TxDOT ferry refreshes kept separate. Optional signed playback continuously exercises source activation, heartbeat, anonymous metric ingestion, freshness, and public/admin condition rendering through the real API contract.
+- eight synthetic camera metric lanes plus visibly synthetic weather and ferry snapshots. Optional signed playback continuously exercises source activation, heartbeat, anonymous metric ingestion, freshness, and public/admin condition rendering through the real API contract. Real NWS and TxDOT checks remain a separate post-presentation/live-tool lane.
 
 The generated public bootstrap labels both visitor and operations surfaces as a board demonstration. Every email uses a reserved example domain, the seeded safety subscriber uses a fictional `555-01xx` number, automation begins in `review_first`, and generation performs no external provider calls. Site-native receivables, payments, reversals, aging, and exports remain interactive; QuickBooks stays visibly not connected because the board runtime never carries accounting credentials.
 
@@ -38,16 +38,19 @@ ports without stopping another local service, starts the web, API, worker,
 email, SMS, and eight-camera playback processes, and prints the exact Visitor
 and Operations links only after the same nine readiness checks pass. Keep this
 terminal open during the presentation. `npm run board:check` automatically
-discovers the active session even when the preferred ports were occupied.
+discovers the active session even when the preferred ports were occupied. The
+presentation stack does not call NWS or TxDOT: its weather and ferry cards are
+continuously refreshed from a visibly labeled local simulation, so weak venue
+internet cannot block startup or make the conditions panel stale.
 
 Use an intentional reset when you want to discard demonstration changes and
 restore the synthetic starting state. Stop the stack cleanly from another
 terminal:
 
 ```bash
+npm run board:stop
 npm run board:demo -- --reset
 npm run board:check
-npm run board:stop
 ```
 
 The credential-free session record lives at
@@ -158,8 +161,8 @@ npm run board:check
 This fails closed when the configured board URL is serving an ordinary
 `npm run dev` session, its origin differs from the API's generated public-link
 origin, the isolated API or worker is unavailable, either provider sandbox is
-missing, the seeded partner/staff workspace is incomplete, weather or ferry
-data is stale, or fewer than eight camera playback pipelines are live. The report
+missing, the seeded partner/staff workspace is incomplete, the visibly synthetic
+weather or ferry snapshot is stale, or fewer than eight camera playback pipelines are live. The report
 prints recovery commands but never prints the injected admin credential,
 recipient details, or message content. Use
 `npm run --silent board:check -- --json` for a machine-readable preflight
@@ -203,8 +206,8 @@ lanes, and checks the critical public and operations views at a mobile viewport.
 CI installs an isolated Chromium runtime, retains screenshots and traces only on
 failure, and runs this acceptance inside `ready:production`.
 
-Immediately before a demonstration, verify the external Island Conditions
-sources separately:
+After the board presentation, verify the external Island Conditions sources
+before commissioning the live-tool lane:
 
 ```bash
 npm run test:live-feeds
