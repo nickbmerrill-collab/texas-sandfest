@@ -4955,6 +4955,7 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .admin-task-board-heading { align-items: baseline; display: flex; gap: 12px; justify-content: space-between; }
 .admin-task-board-heading strong { color: var(--deep); }
 .admin-task-board-heading span { color: var(--muted); font-size: 12px; }
+.admin-staff-import .admin-task-board-heading span { min-width: 0; overflow-wrap: anywhere; text-align: right; }
 .admin-task-toolbar { display: grid; gap: 8px; grid-template-columns: minmax(150px, .7fr) minmax(150px, .7fr) minmax(220px, 1.6fr); }
 .admin-task-toolbar input,
 .admin-task-toolbar select,
@@ -5406,6 +5407,7 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
   }
   #refresh-island-conditions { align-self: flex-start; }
   .admin-task-board-heading { align-items: start; flex-direction: column; }
+  .admin-staff-import .admin-task-board-heading span { text-align: left; }
   .admin-incident-kpis,
   .admin-dispatch-create,
   .admin-dispatch-controls { grid-template-columns: 1fr; }

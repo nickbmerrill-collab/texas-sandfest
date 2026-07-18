@@ -407,6 +407,32 @@ test("board workflows operate through the public and staff interfaces", async ({
   await expect(sponsorFulfillment.locator("[data-admin-deliverable]")).toHaveCount(3);
   await expect(sponsorFulfillment).toContainText("Beach signage");
 
+  const staffImportCsv = `staff_id,event_id,name,work_email,status,role,team,notification_team
+staff_operations,${DEFAULT_EVENT_ID},Jamie Torres,jamie.torres@staff.example,active,ops_admin,operations,operations
+staff_sponsor,${DEFAULT_EVENT_ID},Morgan Ellis,morgan.ellis@staff.example,active,sponsor_admin,sponsor,sponsor
+staff_finance,${DEFAULT_EVENT_ID},Riley Chen,riley.chen@staff.example,active,finance_admin,finance,finance
+staff_volunteers,${DEFAULT_EVENT_ID},Casey Patel,casey.patel@staff.example,active,volunteer_captain,volunteer-captains,volunteer-captains
+staff_traffic,${DEFAULT_EVENT_ID},Avery Brooks,avery.brooks@staff.example,on_call,traffic_lead,traffic,traffic
+staff_guest_services,${DEFAULT_EVENT_ID},Taylor Nguyen,taylor.nguyen@staff.example,active,guest_services_lead,guest-services,guest-services
+staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,active,production_lead,production,production`;
+  const staffImportForm = page.locator("#admin-import-staff");
+  await staffImportForm.locator('[name="file"]').setInputFiles({
+    name: "staff-directory-browser.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(staffImportCsv, "utf8")
+  });
+  await staffImportForm.locator('[name="currentEventConfirmed"]').check();
+  const staffPreviewResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/staff-directory/import" && response.request().method() === "POST");
+  await staffImportForm.locator('button[type="submit"]').click();
+  expect((await staffPreviewResponse).status()).toBe(200);
+  await expect(page.locator("#admin-staff-import-result")).toContainText("7/7");
+  await expect(page.locator("#admin-commit-staff-import")).toBeEnabled();
+  const staffCommitResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/staff-directory/import" && response.request().method() === "POST");
+  await page.locator("#admin-commit-staff-import").click();
+  expect((await staffCommitResponse).status()).toBe(201);
+  await expect(page.locator("#admin-api-status")).toContainText("Activated 7 staff and 7 notification routes.");
+  await expect(page.locator("#admin-staff-directory-status")).toContainText("manual_verified");
+
   const discoveryForm = page.locator("#admin-discover-businesses");
   await expect(page.locator("#admin-outreach-discovery-readiness")).toHaveText("fixture ready");
   const discoveryPreviewResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/outreach/discovery/preview" && response.request().method() === "POST");
@@ -562,6 +588,7 @@ test("critical public and operations views fit a mobile viewport", async ({ page
   await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#admin-partners`);
   await expect(page.locator("#admin-api-status")).toContainText("Loaded", { timeout: 25_000 });
   await expect(page.locator("#admin-create-task")).toBeVisible();
+  await expect(page.locator("#admin-import-staff")).toBeVisible();
   await expect(page.locator("#admin-quickbooks-connection")).toBeVisible();
   await expect(page.locator("#admin-quickbooks-status")).toContainText("Ready to connect");
   await assertNoHorizontalOverflow(page);

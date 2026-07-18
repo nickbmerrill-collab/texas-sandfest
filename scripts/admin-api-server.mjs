@@ -62,6 +62,10 @@ import {
   staffTaskRecipients
 } from "../lib/staff-directory.mjs";
 import {
+  applyStaffDirectoryImport,
+  parseStaffDirectoryImport
+} from "../lib/staff-directory-import.mjs";
+import {
   applySmsConsentKeyword,
   consentFromCheckout,
   mergeConsentRecords,
@@ -557,6 +561,7 @@ const rolePermissions = {
     "fleet:write",
     "volunteers:read",
     "volunteers:write",
+    "staff:write",
     "consent:read",
     "passport:read",
     "voting:read",
@@ -880,6 +885,21 @@ function volunteerImportResponse(result) {
   };
 }
 
+function staffDirectoryImportResponse(result) {
+  return {
+    replay: result.replay === true,
+    changed: result.changed === true,
+    previewHash: result.previewHash || null,
+    commitAllowed: result.commitAllowed !== false,
+    commitBlockReason: result.commitBlockReason || null,
+    summary: result.summary,
+    readiness: result.readiness,
+    staff: result.publicDirectory?.staff || [],
+    teams: result.publicDirectory?.teams || [],
+    importRecord: result.importRecord || null
+  };
+}
+
 function boothImportResponse(result) {
   return {
     replay: result.replay === true,
@@ -931,6 +951,15 @@ async function mutateVolunteerMirror(parsed, options = {}) {
     result = applyVolunteerLocalImport(currentDoc, parsed, { ...options, bundleHash, previewHash: currentPreviewHash, commit: true });
     return result?.ok ? result.doc : currentDoc;
   }, { fallback });
+  return result;
+}
+
+async function mutateStaffDirectory(parsed, options = {}) {
+  let result = null;
+  await updatePlatformDoc(ROOT, "staffDirectory", current => {
+    result = applyStaffDirectoryImport(current, parsed, options);
+    return result?.ok ? result.doc : undefined;
+  }, { fallback: null });
   return result;
 }
 
@@ -5386,6 +5415,74 @@ async function handleRequest(request, response) {
         previewHash: String(body.previewHash || ""),
         ...volunteerImportResponse(result)
       });
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/admin/staff-directory/import") {
+      const session = await requirePermission(request, response, "staff:write");
+      if (!session) return;
+      const body = await readBody(request, LARGE_CSV_IMPORT_BODY_BYTES);
+      const mode = String(body.mode || "").trim().toLowerCase();
+      if (!new Set(["preview", "commit"]).has(mode)) {
+        sendJson(request, response, 400, { error: "Choose preview or commit for the staff directory import." });
+        return;
+      }
+      if (body.currentEventConfirmed !== true) {
+        sendJson(request, response, 400, { error: `Confirm that the selected staff file belongs to ${CURRENT_EVENT_ID}.` });
+        return;
+      }
+      if (mode === "commit" && SANDFEST_ENV === "production" && !process.env.SANDFEST_DATABASE_URL) {
+        sendJson(request, response, 503, { error: "Production staff imports require the durable Postgres data plane." });
+        return;
+      }
+      const contents = String(body.contents ?? "");
+      const fileName = String(body.fileName || "").trim().slice(0, 300);
+      const source = String(body.source || "").trim().toLowerCase();
+      const parsed = parseStaffDirectoryImport(contents, {
+        eventId: CURRENT_EVENT_ID,
+        source,
+        fileName,
+        now: new Date().toISOString()
+      });
+      if (!parsed.ok) {
+        sendJson(request, response, 400, {
+          error: parsed.error,
+          errors: (parsed.errors || []).slice(0, 100),
+          readiness: parsed.readiness || null
+        });
+        return;
+      }
+      if (mode === "preview") {
+        const current = await readPlatformDoc(ROOT, "staffDirectory", null);
+        const result = applyStaffDirectoryImport(current, parsed, { now: new Date().toISOString() });
+        sendJson(request, response, 200, staffDirectoryImportResponse(result));
+        return;
+      }
+      const batchId = `staff_import_${randomUUID()}`;
+      const result = await mutateStaffDirectory(parsed, {
+        actorId: session.id,
+        batchId,
+        commit: true,
+        expectedPreviewHash: String(body.previewHash || ""),
+        now: new Date().toISOString()
+      });
+      if (!result?.ok) {
+        const status = result?.previewMismatch || result?.rolloverRequired ? 409 : 400;
+        sendJson(request, response, status, { error: result?.error || "Staff directory could not be imported." });
+        return;
+      }
+      if (!result.replay) {
+        await writeAuditRecord(request, "staff_directory.import.commit", {
+          type: "staff_directory_import",
+          id: result.importRecord?.id || batchId
+        }, null, result.importRecord, {
+          eventId: CURRENT_EVENT_ID,
+          source: parsed.source,
+          previewHash: String(body.previewHash || "").slice(0, 16),
+          summary: result.summary
+        });
+      }
+      sendJson(request, response, result.changed ? 201 : 200, staffDirectoryImportResponse(result));
       return;
     }
 

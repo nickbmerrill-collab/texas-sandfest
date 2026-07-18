@@ -685,6 +685,43 @@ async function main() {
   check("concurrent vendor offering creation is atomic in Postgres", postgresVendorOfferingCreates.map(item => item.status).sort((a, b) => a - b).join(",") === "201,409" && postgresPublicPremiumMarketplace?.amount === 250000);
   check("vendor offering config persists without exposing accounting IDs", postgresVendorOfferingPatch.status === 200 && postgresVendorOfferingPatch.data.vendorOffering?.quickBooksItemId === "postgres-vendor-marketplace-item" && !Object.hasOwn(postgresPublicVendorCatalog.data.vendorOfferings?.find(item => item.id === "marketplace-booth") || {}, "quickBooksItemId") && !Object.hasOwn(postgresPublicPremiumMarketplace || {}, "quickBooksItemId") && !Object.hasOwn(postgresPublicPremiumMarketplace || {}, "stripePriceId"));
 
+  const postgresStaffContents = JSON.stringify({
+    eventId: EVENT_ID,
+    staff: [{
+      id: "staff_command",
+      eventId: EVENT_ID,
+      name: "Postgres Incident Commander",
+      email: "postgres-traffic@example.com",
+      status: "active",
+      roles: ["incident_command"],
+      teams: ["operations", "sponsor", "finance", "volunteer-captains", "traffic", "guest-services", "production"]
+    }],
+    teamRoutes: ["operations", "sponsor", "finance", "volunteer-captains", "traffic", "guest-services", "production"]
+      .map(teamId => ({ teamId, notificationOwnerId: "staff_command" }))
+  });
+  const postgresStaffPayload = {
+    contents: postgresStaffContents,
+    fileName: "staff-directory-postgres.json",
+    source: "hr_import",
+    currentEventConfirmed: true
+  };
+  const postgresStaffPreview = await request(base, "POST", "/api/admin/staff-directory/import", { ...postgresStaffPayload, mode: "preview" }, { auth: true });
+  const [postgresStaffCommitA, postgresStaffCommitB] = await Promise.all([
+    request(base, "POST", "/api/admin/staff-directory/import", { ...postgresStaffPayload, mode: "commit", previewHash: postgresStaffPreview.data.previewHash }, { auth: true }),
+    request(base, "POST", "/api/admin/staff-directory/import", { ...postgresStaffPayload, mode: "commit", previewHash: postgresStaffPreview.data.previewHash }, { auth: true })
+  ]);
+  const postgresStaffDoc = await readPlatformDoc(ROOT, "staffDirectory", null);
+  const postgresStaffWorkspace = await request(base, "GET", "/api/admin/partners", undefined, { auth: true });
+  const postgresStaleStaffCommit = await request(base, "POST", "/api/admin/staff-directory/import", {
+    ...postgresStaffPayload,
+    contents: `${postgresStaffContents}\n`,
+    mode: "commit",
+    previewHash: postgresStaffPreview.data.previewHash
+  }, { auth: true });
+  check("staff directory preview stays private on Postgres", postgresStaffPreview.status === 200 && postgresStaffPreview.data.commitAllowed === true && postgresStaffPreview.data.summary?.activeStaff === 1 && postgresStaffPreview.data.summary?.routedTeams === 7 && !JSON.stringify(postgresStaffPreview.data).includes("postgres-traffic@example.com"));
+  check("concurrent staff directory commits converge once", [postgresStaffCommitA, postgresStaffCommitB].filter(item => item.status === 201).length === 1 && [postgresStaffCommitA, postgresStaffCommitB].filter(item => item.status === 200 && item.data.replay === true).length === 1 && postgresStaffDoc?.imports?.length === 1 && postgresStaffDoc?.source === "hr_import");
+  check("staff directory import activates governed routing without exposing contacts", postgresStaffWorkspace.data.staffDirectory?.ready === true && postgresStaffWorkspace.data.assignmentDirectory?.teams?.every(item => item.notificationReady === true) && postgresStaffWorkspace.data.assignmentDirectory?.staff?.every(item => !("email" in item)) && postgresStaleStaffCommit.status === 409);
+
   const postgresBoothCsv = `booth_id,event_id,vendor_id,eventeny_id,business_name,category,type,zone,booth_status,vendor_status,public,coi_status,map_x,map_y,fee
 PG-B-01,${EVENT_ID},PG-EV-V-01,PG-EV-V-01,Postgres Booth Vendor,retail,vendor,postgres-row,assigned,approved,,,18,28,1250.00`;
   const postgresBoothPayload = { csv: postgresBoothCsv, fileName: "eventeny-booths-postgres.csv", currentEventConfirmed: true };
@@ -1823,12 +1860,14 @@ PG-EVENTENY-V-1,vendor,Postgres Eventeny Vendor,Postgres Import Contact,${postgr
   const serializedBrevoAudits = JSON.stringify(persistedAudits.rows.filter(row => row.data?.action === "email.delivery.webhook"));
   const serializedSponsorInvitationAudits = JSON.stringify(persistedAudits.rows.filter(row => row.data?.action?.startsWith("outreach.sponsor_invitation.")));
   const serializedEventenyPartnerImportAudits = JSON.stringify(persistedAudits.rows.filter(row => row.data?.action === "partner.application.import"));
+  const serializedStaffImportAudits = JSON.stringify(persistedAudits.rows.filter(row => row.data?.action === "staff_directory.import.commit"));
   check("append tables persisted", totals.completions === 1 && totals.votes === 1, `${totals.completions} completion, ${totals.votes} vote`);
   check("admin audits persisted", totals.audits >= 4, `${totals.audits} audit events`);
   check("event guide audit persists", serializedAudits.includes("content.event-guide.publish"));
   check("partner automation audit persists", serializedAudits.includes("partner.automation.update"));
   check("revenue import audit persists", serializedAudits.includes("revenue.import.commit") && serializedAudits.includes("eventeny-postgres.csv"));
   check("Postgres Eventeny import audit is aggregate-only", serializedEventenyPartnerImportAudits.includes("eventeny-partners-postgres.csv") && !serializedEventenyPartnerImportAudits.includes(postgresEventenyImportEmail) && !serializedEventenyPartnerImportAudits.includes("Postgres Import Contact"));
+  check("Postgres staff import audit is aggregate-only", serializedStaffImportAudits.includes("staff-directory-postgres.json") && serializedStaffImportAudits.includes("hr_import") && !serializedStaffImportAudits.includes("postgres-traffic@example.com") && !serializedStaffImportAudits.includes("Postgres Incident Commander"));
   check("Postgres audits exclude bearer credential fragments", !serializedAudits.includes("tokenHint") && !serializedAudits.includes(TOKEN));
   check("Postgres Brevo audits retain counts only", serializedBrevoAudits.includes("email.delivery.webhook") && !serializedBrevoAudits.includes("sponsor@postgres-test.example") && !serializedBrevoAudits.includes(BREVO_WEBHOOK_TOKEN));
   check("Postgres sponsor invitation audits are aggregate-only", serializedSponsorInvitationAudits.includes("outreach.sponsor_invitation.issue") && serializedSponsorInvitationAudits.includes("outreach.sponsor_invitation.copy") && !serializedSponsorInvitationAudits.includes("tsfi1.") && !serializedSponsorInvitationAudits.includes("jordan@postgres-credit-union.example"));

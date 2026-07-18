@@ -35,14 +35,16 @@ Task notices use independent assignment and schedule versions. A new or changed 
 
 The `staff-directory` platform document is annual operational data. Production accepts only `connecteam`, `manual_verified`, `oidc`, or `hr_import` provenance, requires a verification timestamp no older than 90 days, requires every active staff record to have an email, and requires one active notification owner for each of the seven operating teams. The event ID on the directory and every staff row must match `SANDFEST_EVENT_ID`. The repository seed and `board_demo` source are useful for local presentation work but intentionally fail production readiness.
 
-Preview a board-approved JSON or CSV roster before committing it:
+An operations administrator can preview and commit the board-approved JSON or CSV directory beside the staff work board. `POST /api/admin/staff-directory/import` requires `staff:write`, binds the exact file and current private directory into a one-time preview hash, replaces the directory atomically, converges concurrent replays, and writes aggregate-only import and audit evidence. Responses contain display identity and routing readiness but never an email address.
+
+The equivalent CLI is:
 
 ```bash
 npm run import:staff -- /secure/staff-directory.json --source=manual_verified
 npm run import:staff -- /secure/staff-directory.json --source=manual_verified --commit
 ```
 
-CSV imports accept `id`, `name`, `email`, `status`, `roles`, `teams`, and `notification_teams`; list values may be separated by pipes, semicolons, or commas. Preview output omits addresses. Production commits require Postgres and refuse file storage. Complete the archive-first event rollover before importing a new annual directory.
+CSV imports accept `id`, `event_id`, `name`, `email`, `status`, `roles`, `teams`, and `notification_teams`; list values may be separated by pipes, semicolons, or commas. Duplicate staff IDs, email identities, or team routes fail the full replacement. Production commits require Postgres and refuse file storage. A mismatched annual directory may be previewed, but commit remains disabled until the archive-first event rollover is complete.
 
 Payment reminders use the invoice due date as their schedule. When successful payments reach the approved application amount, payment reconciliation completes the finance-owned `Payment due` milestone and dismisses any active unsent reminder. A refund or reversal that restores a balance reopens only a milestone previously completed by `automation:payment_reconciliation`, increments its schedule version, and leaves manually completed or cancelled milestones unchanged. Reminder generation also checks the current ledger balance, so a legacy open milestone cannot produce a payment reminder for a fully paid account.
 

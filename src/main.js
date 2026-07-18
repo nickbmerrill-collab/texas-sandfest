@@ -243,6 +243,7 @@ let adminConditionsState = null;
 let adminDocumentState = null;
 let revenueImportPreview = null;
 let volunteerImportPreview = null;
+let staffImportPreview = null;
 let boothImportPreview = null;
 let partnerImportPreview = null;
 let outreachImportPreview = null;
@@ -1437,6 +1438,17 @@ app.innerHTML = `
         </div>
         <div class="admin-task-board">
           <div class="admin-task-board-heading"><strong>Staff and volunteer work board</strong><span id="admin-task-board-summary">Load partner workspace to view assignments.</span></div>
+          <form id="admin-import-staff" class="admin-inline-form admin-staff-import" data-requires-permission="staff:write">
+            <div class="admin-task-board-heading admin-import-wide"><strong>Staff routing directory</strong><span id="admin-staff-directory-status">Load partner workspace to view routing readiness.</span></div>
+            <label class="admin-import-file"><span>Staff CSV or JSON</span><input name="file" type="file" accept=".csv,.json,text/csv,application/json" required /></label>
+            <label><span>Verified source</span><select name="source"><option value="manual_verified">Board verified</option><option value="connecteam">Connecteam</option><option value="oidc">Identity provider</option><option value="hr_import">HR import</option></select></label>
+            <label class="admin-check admin-import-wide"><input name="currentEventConfirmed" type="checkbox" /><span>I verified this directory and all notification routes belong to the current SandFest event.</span></label>
+            <div id="admin-staff-import-result" class="admin-import-result admin-import-wide" aria-live="polite"></div>
+            <div class="admin-import-actions admin-import-wide">
+              <button class="button secondary" type="submit">Preview directory</button>
+              <button id="admin-commit-staff-import" class="button primary" type="button" hidden disabled>Commit directory</button>
+            </div>
+          </form>
           <div class="admin-task-toolbar">
             <select id="admin-task-status-filter" aria-label="Task status filter">
               <option value="active">Active tasks</option><option value="overdue">Overdue</option><option value="today">Due today</option><option value="blocked">Blocked</option><option value="done">Completed</option><option value="all">All tasks</option>
@@ -5280,6 +5292,45 @@ function clearVolunteerImportPreview({ keepResult = false } = {}) {
   if (!keepResult) document.querySelector("#admin-volunteer-import-result")?.replaceChildren();
 }
 
+async function staffImportPayload(form) {
+  const file = form.elements.file.files?.[0];
+  if (!file) throw new Error("Choose a staff CSV or JSON file.");
+  if (file.size > 5_000_000) throw new Error("The staff directory file is larger than the 5 MB import limit.");
+  return {
+    contents: await file.text(),
+    fileName: file.name,
+    source: form.elements.source.value,
+    currentEventConfirmed: form.elements.currentEventConfirmed.checked
+  };
+}
+
+function renderStaffImportResult(result, { committed = false } = {}) {
+  const output = document.querySelector("#admin-staff-import-result");
+  if (!output) return;
+  const summary = result.summary || {};
+  const ready = result.readiness?.ready === true;
+  output.dataset.state = ready && result.commitAllowed !== false ? "ok" : "warning";
+  output.innerHTML = `
+    <div class="admin-import-summary">
+      <span><b>${escapeHtml(summary.totalStaff || 0)}</b> staff</span>
+      <span><b>${escapeHtml(summary.activeStaff || 0)}</b> active</span>
+      <span><b>${escapeHtml(summary.routedTeams || 0)}/${escapeHtml(summary.totalTeams || 0)}</b> routes</span>
+      <span><b>${ready ? "Ready" : "Blocked"}</b> verification</span>
+    </div>
+    <p>${result.replay ? "This exact directory was already imported; nothing was duplicated." : result.commitBlockReason ? escapeHtml(result.commitBlockReason) : committed ? "The verified directory and all notification routes were replaced atomically." : "Preview only. No staff routing or private contact data has changed."}</p>`;
+}
+
+function clearStaffImportPreview({ keepResult = false } = {}) {
+  staffImportPreview = null;
+  const commit = document.querySelector("#admin-commit-staff-import");
+  if (commit) {
+    commit.hidden = true;
+    commit.disabled = true;
+    commit.textContent = "Commit directory";
+  }
+  if (!keepResult) document.querySelector("#admin-staff-import-result")?.replaceChildren();
+}
+
 function renderAdminConsent(payload) {
   const s = payload.summary;
   const kpis = document.querySelector("#admin-consent-kpis");
@@ -6368,6 +6419,13 @@ function renderAdminPartners(payload, outreach) {
     revenueKpiCard("Prospects", `${outreach.summary?.prospects || 0}`, `${outreach.summary?.qualified || 0} qualified · ${outreach.summary?.nextActionsOverdue || 0} overdue · ${outreach.summary?.unassigned || 0} unassigned`),
     revenueKpiCard("Campaigns", `${outreach.summary?.activeCampaigns || 0} active`, `${outreach.summary?.draftsAwaitingReview || 0} drafts · ${outreach.summary?.messagesSent || 0} sent · opt-out ${outreach.preferences?.ready ? "ready" : "off"}`)
   ].join("");
+  const staffStatus = document.querySelector("#admin-staff-directory-status");
+  if (staffStatus) {
+    const directory = payload.staffDirectory || {};
+    staffStatus.textContent = directory.ready
+      ? `${directory.source || "verified"} · ${directory.activeStaff || 0} active · ${directory.routedTeams || 0}/${directory.totalTeams || 0} routes ready`
+      : directory.reason || `${directory.routedTeams || 0}/${directory.totalTeams || 0} routes ready`;
+  }
   if (automationForm) {
     const automation = payload.automation || {};
     const modeSelect = automationForm.elements.mode;
@@ -7736,6 +7794,54 @@ document.querySelector("#admin-commit-volunteer-import")?.addEventListener("clic
     setAdminStatus(error.message, "error");
   } finally {
     if (!button.hidden) button.disabled = !adminCan("volunteers:write");
+  }
+});
+document.querySelector("#admin-import-staff")?.addEventListener("input", () => clearStaffImportPreview());
+document.querySelector("#admin-import-staff")?.addEventListener("submit", async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector('button[type="submit"]');
+  button.disabled = true;
+  try {
+    const payload = await staffImportPayload(form);
+    const result = await adminFetch("/api/admin/staff-directory/import", {
+      method: "POST",
+      body: JSON.stringify({ ...payload, mode: "preview" })
+    });
+    staffImportPreview = { previewHash: result.previewHash };
+    renderStaffImportResult(result);
+    const commit = document.querySelector("#admin-commit-staff-import");
+    commit.hidden = false;
+    commit.disabled = result.commitAllowed === false || result.readiness?.ready !== true;
+    commit.textContent = `Commit ${result.summary?.activeStaff || 0} active staff`;
+    setAdminStatus(result.commitAllowed === false ? result.commitBlockReason : `Previewed ${result.summary?.activeStaff || 0} active staff and ${result.summary?.routedTeams || 0} notification routes.`, result.commitAllowed === false ? "warning" : "ok");
+  } catch (error) {
+    clearStaffImportPreview();
+    setAdminStatus(error.message, "error");
+  } finally {
+    button.disabled = !adminCan("staff:write");
+  }
+});
+document.querySelector("#admin-commit-staff-import")?.addEventListener("click", async event => {
+  const button = event.currentTarget;
+  const form = button.form;
+  if (!staffImportPreview?.previewHash) return;
+  button.disabled = true;
+  try {
+    const payload = await staffImportPayload(form);
+    const result = await adminFetch("/api/admin/staff-directory/import", {
+      method: "POST",
+      body: JSON.stringify({ ...payload, mode: "commit", previewHash: staffImportPreview.previewHash })
+    });
+    renderStaffImportResult(result, { committed: true });
+    clearStaffImportPreview({ keepResult: true });
+    form.reset();
+    await loadAdminPartners({ quiet: true });
+    setAdminStatus(result.replay ? "That staff directory was already imported; no routes were duplicated." : `Activated ${result.summary?.activeStaff || 0} staff and ${result.summary?.routedTeams || 0} notification routes.`, "ok");
+  } catch (error) {
+    setAdminStatus(error.message, "error");
+  } finally {
+    if (!button.hidden) button.disabled = !adminCan("staff:write");
   }
 });
 document.querySelector("#admin-load-consent")?.addEventListener("click", () => loadAdminConsent());
