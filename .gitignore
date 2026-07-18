@@ -35,6 +35,8 @@ ios/TexasSandFest.xcodeproj/xcuserdata/
 ios/TexasSandFest.xcodeproj/project.xcworkspace/xcuserdata/
 .sandfest-runtime/
 artifacts/board-demo/
+playwright-report/
+test-results/
 camera_agent/.venv/
 camera_agent/*.onnx
 camera_agent/*.pt
