@@ -856,6 +856,7 @@ test("WCAG A and AA checks cover public intake, partner status, concierge, and o
   expect(accessibilityPayload.escalated).toBe(false);
   expect(accessibilityPayload.answer).toContain("North Gate at marker 12.5");
   expect(accessibilityPayload.answer).toContain("ADA parking");
+  expect(accessibilityPayload.answer).not.toContain(".).");
   await expect(page.locator("#chat .concierge-answer")).toHaveCount(1);
   await expect(page.locator("#chat .concierge-answer")).toContainText("North Gate at marker 12.5");
   await expect(page.locator('#chat .concierge-sources a[href="#operations"]')).toHaveText("Published accessibility locations");
