@@ -7,12 +7,12 @@
 
 import { spawn } from "node:child_process";
 import { createHash, createHmac } from "node:crypto";
-import { cp, readFile, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { createServer as createHttpServer } from "node:http";
 import { createServer } from "node:net";
 import twilio from "twilio";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { boardDemoAccessConfig } from "../lib/board-demo-access.mjs";
 import { boardDemoCheckEndpoints, boardDemoLoopbackUrl, evaluateBoardDemoReadiness } from "../lib/board-demo-readiness.mjs";
 import { boardDemoAccessPlugin } from "../vite.config.js";
@@ -3812,6 +3812,42 @@ Research First,construction,Corpus Christi,,78401,,,,Find decision maker,`;
   );
   const final = JSON.parse(await readFile(file, "utf8"));
   ok("atomic mutex counter", final.n === 20, `got ${final.n}`);
+  await writeFile(file, '{"n":0}\n', "utf8");
+  const safeJsonModule = pathToFileURL(path.join(ROOT, "lib", "safe-json-store.mjs")).href;
+  const childSource = `
+    import { updateJsonFile } from ${JSON.stringify(safeJsonModule)};
+    const file = process.env.SANDFEST_SAFE_JSON_TEST_FILE;
+    const increments = Number(process.env.SANDFEST_SAFE_JSON_TEST_INCREMENTS);
+    for (let index = 0; index < increments; index += 1) {
+      await updateJsonFile(file, async current => {
+        await new Promise(resolve => setTimeout(resolve, 2));
+        return { n: Number(current?.n || 0) + 1 };
+      }, { fallback: { n: 0 } });
+    }
+  `;
+  const runCounter = increments => new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, ["--input-type=module", "--eval", childSource], {
+      cwd: ROOT,
+      env: {
+        ...process.env,
+        SANDFEST_SAFE_JSON_TEST_FILE: file,
+        SANDFEST_SAFE_JSON_TEST_INCREMENTS: String(increments)
+      },
+      stdio: ["ignore", "ignore", "pipe"]
+    });
+    let stderr = "";
+    child.stderr.on("data", chunk => { stderr += String(chunk); });
+    child.once("error", reject);
+    child.once("exit", code => code === 0 ? resolve() : reject(new Error(`Safe JSON counter exited ${code}: ${stderr}`)));
+  });
+  await Promise.all(Array.from({ length: 4 }, () => runCounter(25)));
+  const interprocessFinal = JSON.parse(await readFile(file, "utf8"));
+  ok("interprocess file mutex counter", interprocessFinal.n === 100, `got ${interprocessFinal.n}`);
+  await mkdir(`${file}.lock`);
+  await writeFile(path.join(`${file}.lock`, "owner.json"), JSON.stringify({ pid: 2_147_483_647, token: "stale-test" }), "utf8");
+  await updateJsonFile(file, current => ({ n: current.n + 1 }));
+  const recoveredFinal = JSON.parse(await readFile(file, "utf8"));
+  ok("interprocess file mutex recovers a dead owner", recoveredFinal.n === 101, `got ${recoveredFinal.n}`);
   await rm(dir, { recursive: true, force: true });
 }
 
