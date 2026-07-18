@@ -1,5 +1,6 @@
 import { access, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
+import { gzipSync } from "node:zlib";
 import { publicAppBootstrapSafety } from "../lib/public-bootstrap.mjs";
 import { publicMediaManifestSafety } from "../lib/public-media-manifest.mjs";
 import {
@@ -24,6 +25,15 @@ async function exists(file) {
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
+}
+
+async function assetSizeSummary(directory, files) {
+  const buffers = await Promise.all(files.map(file => readFile(path.join(directory, "assets", file))));
+  return {
+    files: files.length,
+    rawBytes: buffers.reduce((sum, buffer) => sum + buffer.length, 0),
+    gzipBytes: buffers.reduce((sum, buffer) => sum + gzipSync(buffer, { level: 9 }).length, 0)
+  };
 }
 
 const publicHtml = await readFile(path.join(publicDir, "index.html"), "utf8");
@@ -53,6 +63,15 @@ const mediaDerivatives = JSON.parse(await readFile(path.join(publicDir, "assets"
 const publicMediaManifest = JSON.parse(await readFile(path.join(publicDir, "assets", "sandfest-media", "media-manifest.json"), "utf8"));
 const robots = await readFile(path.join(publicDir, "robots.txt"), "utf8");
 const publicWorker = await readFile(path.join(publicDir, "sw.js"), "utf8");
+const [publicScripts, publicStyles, publicPreferredFonts, publicOfflineFonts, adminScripts, adminStyles] = await Promise.all([
+  assetSizeSummary(publicDir, publicAssets.filter(file => file.endsWith(".js"))),
+  assetSizeSummary(publicDir, publicAssets.filter(file => file.endsWith(".css"))),
+  assetSizeSummary(publicDir, publicAssets.filter(file => file.endsWith(".woff2"))),
+  assetSizeSummary(publicDir, publicAssets.filter(file => /\.woff2?$/.test(file))),
+  assetSizeSummary(adminDir, adminAssets.filter(file => file.endsWith(".js"))),
+  assetSizeSummary(adminDir, adminAssets.filter(file => file.endsWith(".css")))
+]);
+const KIB = 1024;
 const boardDemoCredentialMarkers = [
   "board-demo-production-leak-sentinel",
   "board-demo-local-admin-token-change-me"
@@ -98,9 +117,26 @@ assert(!adminHtml.includes("Content-Security-Policy"), "Admin artifact must rely
 assert(!publicHtml.includes("fonts.googleapis.com") && !publicHtml.includes("fonts.gstatic.com"), "Public artifact still depends on Google-hosted fonts.");
 assert(publicStylesheets.includes("font-family:Inter") && publicStylesheets.includes("font-family:\"Instrument Serif\""), "Public artifact is missing its self-hosted brand fonts.");
 assert(publicAssets.some(file => file.endsWith(".woff2")), "Public artifact is missing bundled font files.");
+assert(Buffer.byteLength(publicHtml) <= 8 * KIB, "Public entry HTML exceeds the 8 KiB delivery budget.");
+assert(publicScripts.gzipBytes <= 105 * KIB, "Public JavaScript exceeds the 105 KiB gzip budget.");
+assert(publicStyles.gzipBytes <= 30 * KIB, "Public CSS exceeds the 30 KiB gzip budget.");
+assert(publicScripts.gzipBytes + publicStyles.gzipBytes <= 135 * KIB, "Public JavaScript and CSS exceed the 135 KiB combined gzip budget.");
+assert(publicPreferredFonts.rawBytes <= 200 * KIB, "Public preferred WOFF2 fonts exceed the 200 KiB delivery budget.");
+assert(publicOfflineFonts.rawBytes <= 450 * KIB, "Public compiled fonts exceed the 450 KiB offline-cache budget.");
+assert(adminScripts.gzipBytes <= 120 * KIB, "Admin JavaScript exceeds the 120 KiB gzip budget.");
+assert(adminStyles.gzipBytes <= 30 * KIB, "Admin CSS exceeds the 30 KiB gzip budget.");
+assert(adminScripts.gzipBytes + adminStyles.gzipBytes <= 150 * KIB, "Admin JavaScript and CSS exceed the 150 KiB combined gzip budget.");
 assert(robots === "User-agent: *\nAllow: /\n", "Public artifact has an invalid or unexpected robots.txt policy.");
 assert(publicHtml.includes("optimized/hero-1440.webp") && publicHtml.includes('fetchpriority="high"'), "Public artifact is missing its optimized hero preload.");
 assert(mediaDerivatives.derivatives?.length >= 30, "Public artifact is missing its optimized media catalog.");
+const heroDerivative = mediaDerivatives.derivatives.find(derivative => derivative.kind === "hero");
+const heroBudgets = new Map([[800, 100 * KIB], [1440, 300 * KIB], [2400, 650 * KIB]]);
+assert(heroDerivative && [...heroBudgets.keys()].every(width => heroDerivative.sources?.some(source => source.width === width)), "Public hero must retain the 800, 1440, and 2400 responsive variants.");
+for (const [width, budget] of heroBudgets) {
+  const source = heroDerivative.sources.find(item => item.width === width);
+  assert(source && source.bytes <= budget, `Public ${width}px hero exceeds its ${Math.round(budget / KIB)} KiB budget.`);
+}
+assert((visitorSource.match(/loading="lazy"/g) || []).length >= 4, "Public offscreen galleries, field media, and sponsor logos must remain lazy-loaded.");
 assert(publicMediaManifestSafety(publicMediaManifest).ready, "Public media manifest exposes internal fields or filesystem paths.");
 const curatedGalleryAssets = selectPublicMediaAssets(publicMediaManifest.assets, PUBLIC_GALLERY_MEDIA);
 const curatedFieldAssets = selectPublicMediaAssets(publicMediaManifest.assets, PUBLIC_FIELD_MEDIA);
@@ -335,4 +371,7 @@ assert(publicAlertLoader && !publicAlertLoader.includes("renderPublicAlert(null)
 assert(visitorSource.includes('loadIslandConditions({ force: true, preserveOnError: true })'), "Manual Island Conditions refresh does not preserve the last known reading on failure.");
 assert(visitorSource.includes('window.addEventListener("online", recoverPublicConnectivity)') && visitorSource.includes("recoveryLoads.push(loadPartnerPortalStatus(portalAccess))"), "Public connectivity recovery does not refresh live data and retained partner access.");
 
-console.log("Static entrypoint isolation verified: visitor entry is 2027-current, CSP-hardened, self-hosted, Turnstile-protected, and public-only; admin entry is OIDC ops-only.");
+console.log(
+  `Static entrypoint isolation verified: visitor entry is 2027-current, CSP-hardened, self-hosted, Turnstile-protected, public-only, and within delivery budgets ` +
+  `(public JS/CSS ${Math.ceil((publicScripts.gzipBytes + publicStyles.gzipBytes) / KIB)} KiB gzip; admin JS/CSS ${Math.ceil((adminScripts.gzipBytes + adminStyles.gzipBytes) / KIB)} KiB gzip).`
+);
