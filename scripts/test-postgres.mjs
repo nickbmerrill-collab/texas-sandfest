@@ -608,12 +608,28 @@ async function main() {
   check("sponsor package config validates and keeps accounting private", postgresInvalidSponsorPatch.status === 400 && postgresSponsorPackagePatch.status === 200 && postgresSponsorPackagePatch.data.sponsorPackage?.quickBooksItemId === "postgres-sponsor-tarpon-item" && postgresPublicTarpon?.amount === 500000 && !Object.hasOwn(postgresPublicTarpon || {}, "quickBooksItemId") && !Object.hasOwn(postgresPublicTarpon || {}, "stripePriceId") && !Object.hasOwn(postgresPublicCommunityChampion || {}, "quickBooksItemId") && !Object.hasOwn(postgresPublicCommunityChampion || {}, "stripePriceId"));
 
   const postgresVendorCatalog = await request(base, "GET", "/api/public/vendors");
+  const postgresVendorOfferingCreateBody = {
+    id: "postgres-premium-marketplace",
+    name: "Postgres premium marketplace",
+    amount: 250000,
+    categories: ["retail", "artisan"],
+    description: "Expanded marketplace booth for larger retail and artisan activations.",
+    inclusions: ["Expanded booth footprint", "Published booth listing"],
+    stripePriceId: "price_postgres_premium_marketplace",
+    quickBooksItemId: "postgres-premium-marketplace-item"
+  };
+  const postgresVendorOfferingCreates = await Promise.all([
+    request(base, "POST", "/api/admin/vendor-offerings", postgresVendorOfferingCreateBody, { auth: true }),
+    request(base, "POST", "/api/admin/vendor-offerings", postgresVendorOfferingCreateBody, { auth: true })
+  ]);
   const postgresVendorOfferingPatch = await request(base, "PATCH", "/api/admin/vendor-offerings/marketplace-booth", {
     quickBooksItemId: "postgres-vendor-marketplace-item"
   }, { auth: true });
   const postgresPublicVendorCatalog = await request(base, "GET", "/api/public/vendors");
+  const postgresPublicPremiumMarketplace = postgresPublicVendorCatalog.data.vendorOfferings?.find(item => item.id === "postgres-premium-marketplace");
   check("vendor offering catalog reads from Postgres", postgresVendorCatalog.status === 200 && postgresVendorCatalog.data.vendorOfferings?.find(item => item.id === "marketplace-booth")?.amount === 125000);
-  check("vendor offering config persists without exposing accounting IDs", postgresVendorOfferingPatch.status === 200 && postgresVendorOfferingPatch.data.vendorOffering?.quickBooksItemId === "postgres-vendor-marketplace-item" && !Object.hasOwn(postgresPublicVendorCatalog.data.vendorOfferings?.find(item => item.id === "marketplace-booth") || {}, "quickBooksItemId"));
+  check("concurrent vendor offering creation is atomic in Postgres", postgresVendorOfferingCreates.map(item => item.status).sort((a, b) => a - b).join(",") === "201,409" && postgresPublicPremiumMarketplace?.amount === 250000);
+  check("vendor offering config persists without exposing accounting IDs", postgresVendorOfferingPatch.status === 200 && postgresVendorOfferingPatch.data.vendorOffering?.quickBooksItemId === "postgres-vendor-marketplace-item" && !Object.hasOwn(postgresPublicVendorCatalog.data.vendorOfferings?.find(item => item.id === "marketplace-booth") || {}, "quickBooksItemId") && !Object.hasOwn(postgresPublicPremiumMarketplace || {}, "quickBooksItemId") && !Object.hasOwn(postgresPublicPremiumMarketplace || {}, "stripePriceId"));
 
   const postgresBoothCsv = `booth_id,event_id,vendor_id,eventeny_id,business_name,category,type,zone,booth_status,vendor_status,public,coi_status,map_x,map_y,fee
 PG-B-01,${EVENT_ID},PG-EV-V-01,PG-EV-V-01,Postgres Booth Vendor,retail,vendor,postgres-row,assigned,approved,,,18,28,1250.00`;

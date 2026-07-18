@@ -223,6 +223,7 @@ test("board workflows operate through the public and staff interfaces", async ({
   const prospectRecipient = `morgan.${runId}@example.com`;
   const campaignName = `Browser geofenced partners ${runId}`;
   const sponsorTierId = `community-champion-${runId}`;
+  const vendorOfferingId = `premium-marketplace-${runId}`;
 
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#sponsors`);
   await expect(page.locator("#network-status")).toHaveText("Demo");
@@ -271,6 +272,21 @@ test("board workflows operate through the public and staff interfaces", async ({
   expect((await sponsorTierCreateResponse.json()).sponsorPackage.publicLabel).toBe("$7,500 sponsorship");
   await expect(page.locator("#admin-api-status")).toContainText("Added Community Champion");
   await expect(page.locator(`[data-admin-sponsor="${sponsorTierId}"]`)).toContainText("$7,500.00");
+  const vendorOfferingForm = page.locator("#admin-create-vendor-offering");
+  await vendorOfferingForm.locator('[name="name"]').fill(`Premium marketplace ${runId}`);
+  await vendorOfferingForm.locator('[name="id"]').fill(vendorOfferingId);
+  await vendorOfferingForm.locator('[name="amount"]').fill("2500.00");
+  await vendorOfferingForm.locator('[name="categories"][value="retail"]').check();
+  await vendorOfferingForm.locator('[name="categories"][value="artisan"]').check();
+  await vendorOfferingForm.locator('[name="description"]').fill("Expanded marketplace booth for larger retail and artisan activations.");
+  await vendorOfferingForm.locator('[name="inclusions"]').fill("Expanded booth footprint\nPublished booth listing");
+  const vendorOfferingResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/vendor-offerings" && response.request().method() === "POST");
+  await vendorOfferingForm.locator('button[type="submit"]').click();
+  const vendorOfferingCreateResponse = await vendorOfferingResponse;
+  expect(vendorOfferingCreateResponse.status()).toBe(201);
+  expect((await vendorOfferingCreateResponse.json()).vendorOffering.publicLabel).toBe("$2,500 application fee");
+  await expect(page.locator("#admin-api-status")).toContainText("Added Premium marketplace");
+  await expect(page.locator(`[data-admin-vendor-offering="${vendorOfferingId}"]`)).toContainText("$2,500.00");
   const vendorCard = page.locator("#admin-partner-applications [data-partner-application]").filter({ hasText: vendorName });
   const sponsorCard = page.locator("#admin-partner-applications [data-partner-application]").filter({ hasText: sponsorName });
   await expect(vendorCard).toHaveCount(1);
@@ -417,6 +433,11 @@ test("board workflows operate through the public and staff interfaces", async ({
   await expect(page.locator(`[data-package-id="${sponsorTierId}"]`)).toContainText("Community Champion");
   await page.locator(`[data-package-id="${sponsorTierId}"]`).click();
   await expect(page.locator('#sponsor-inquiry-form [name="packageId"]')).toHaveValue(sponsorTierId);
+  const publicVendorForm = page.locator("#vendor-application-form");
+  await publicVendorForm.locator('[name="category"]').selectOption("artisan");
+  await expect(publicVendorForm.locator(`[name="vendorOfferingId"] option[value="${vendorOfferingId}"]`)).toContainText("Premium marketplace");
+  await publicVendorForm.locator('[name="vendorOfferingId"]').selectOption(vendorOfferingId);
+  await expect(publicVendorForm.locator('[name="vendorOfferingId"]')).toHaveValue(vendorOfferingId);
   await expect(page.locator("#island-camera-grid article")).toHaveCount(8);
   await expect(page.locator("#island-condition-updated")).not.toHaveText("Checking sources");
   expect(pageErrors).toEqual([]);

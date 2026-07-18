@@ -210,6 +210,7 @@ import {
   updateSponsorPackageConfig
 } from "../lib/sponsor-packages.mjs";
 import {
+  createVendorOfferingConfig,
   publicVendorOffering,
   resolveVendorOffering,
   updateVendorOfferingConfig,
@@ -483,6 +484,7 @@ const patchableVendorOfferingFields = new Set([
   "stripePriceId",
   "quickBooksItemId"
 ]);
+const creatableVendorOfferingFields = new Set(["id", ...patchableVendorOfferingFields]);
 
 const fulfillmentStatuses = new Set([
   "queued",
@@ -3100,6 +3102,41 @@ async function handleAdminVendorOfferingPatch(request, response, offeringId) {
     changedFields: Object.keys(patch)
   });
   sendJson(request, response, 200, {
+    vendorOffering: result.offering,
+    readiness: {
+      ready: result.catalog.ready,
+      activeOfferings: result.catalog.activeOfferings.length,
+      missingCategories: result.catalog.missingCategories
+    },
+    lastUpdated: result.config.lastUpdated
+  });
+}
+
+async function handleAdminVendorOfferingCreate(request, response) {
+  if (!(await requirePermission(request, response, "finance:write"))) return;
+  const input = filterPatch(await readBody(request), creatableVendorOfferingFields);
+  let result;
+  await storage.config.update("admin-config", async config => {
+    result = createVendorOfferingConfig(config, input);
+    if (!result.ok) return undefined;
+    result.config.lastUpdated = new Date().toISOString();
+    await writeConfigSnapshot(request, { type: "adminConfig", id: "admin-config" }, config, `Before vendor offering creation: ${result.offering.id}`);
+    return result.config;
+  });
+  if (!result.ok) {
+    sendJson(request, response, result.conflict ? 409 : 400, {
+      error: result.error,
+      errors: result.errors
+    });
+    return;
+  }
+  await writeAuditRecord(request, "vendor-offering.create", {
+    type: "vendorOffering",
+    id: result.offering.id
+  }, null, result.offering, {
+    changedFields: Object.keys(input)
+  });
+  sendJson(request, response, 201, {
     vendorOffering: result.offering,
     readiness: {
       ready: result.catalog.ready,
@@ -6749,6 +6786,11 @@ async function handleRequest(request, response) {
     const sponsorMatch = pathname.match(/^\/api\/admin\/sponsor-packages\/([^/]+)$/);
     if (method === "PATCH" && sponsorMatch) {
       await handleAdminSponsorPatch(request, response, decodeURIComponent(sponsorMatch[1]));
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/admin/vendor-offerings") {
+      await handleAdminVendorOfferingCreate(request, response);
       return;
     }
 

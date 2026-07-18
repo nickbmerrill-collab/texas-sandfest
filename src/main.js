@@ -1701,6 +1701,38 @@ app.innerHTML = `
             <p class="eyebrow">Vendor offerings</p>
             <h2>Categories, fees, and accounting mapping</h2>
           </div>
+          <form id="admin-create-vendor-offering" class="admin-edit-card admin-vendor-offering-create" data-requires-permission="finance:write">
+            <div class="admin-edit-title">
+              <strong>Add vendor offering</strong>
+              <span>New application package</span>
+            </div>
+            <div class="admin-form-grid">
+              <label><span>Name</span><input name="name" required maxlength="120" autocomplete="off" placeholder="Premium marketplace booth" /></label>
+              <label><span>Offering ID</span><input name="id" required maxlength="100" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" autocomplete="off" placeholder="premium-marketplace-booth" /></label>
+              <label><span>Amount</span><input name="amount" required type="number" min="0" max="1000000" step="0.01" inputmode="decimal" placeholder="2500.00" /></label>
+              <label><span>Public label</span><input name="publicLabel" maxlength="120" placeholder="Generated from amount" /></label>
+              <label><span>Stripe ID</span><input name="stripePriceId" maxlength="160" autocomplete="off" placeholder="Optional" /></label>
+              <label><span>QBO item</span><input name="quickBooksItemId" maxlength="160" autocomplete="off" placeholder="Optional" /></label>
+            </div>
+            <fieldset class="admin-vendor-categories">
+              <legend>Eligible categories</legend>
+              <label class="admin-check"><input name="categories" type="checkbox" value="food" /><span>Food</span></label>
+              <label class="admin-check"><input name="categories" type="checkbox" value="retail" /><span>Retail</span></label>
+              <label class="admin-check"><input name="categories" type="checkbox" value="artisan" /><span>Artisan</span></label>
+              <label class="admin-check"><input name="categories" type="checkbox" value="service" /><span>Service</span></label>
+              <label class="admin-check"><input name="categories" type="checkbox" value="nonprofit" /><span>Nonprofit</span></label>
+            </fieldset>
+            <label><span>Public description</span><textarea name="description" required rows="3" maxlength="500" placeholder="Describe the space and eligible vendor use."></textarea></label>
+            <label><span>Inclusions</span><textarea name="inclusions" required rows="3" maxlength="4000" placeholder="One inclusion per line"></textarea></label>
+            <div class="admin-check-row">
+              <label class="admin-check"><input name="active" type="checkbox" checked /><span>Publicly active</span></label>
+              <label class="admin-check"><input name="requiresApproval" type="checkbox" checked /><span>Approval required</span></label>
+            </div>
+            <div class="admin-edit-actions">
+              <span></span>
+              <button class="button primary" type="submit">Add offering</button>
+            </div>
+          </form>
           <div id="admin-vendor-offering-editor" class="admin-editor-list admin-vendor-offering-editor">
             <article class="empty-state">
               <strong>No vendor offering config loaded</strong>
@@ -7192,6 +7224,50 @@ adminCreateSponsorPackageForm?.addEventListener("submit", async event => {
     setAdminStatus(error.message, "error");
   } finally {
     button.disabled = !adminCan("sponsor:write");
+  }
+});
+const adminCreateVendorOfferingForm = document.querySelector("#admin-create-vendor-offering");
+adminCreateVendorOfferingForm?.elements.name.addEventListener("input", event => {
+  const idInput = adminCreateVendorOfferingForm.elements.id;
+  if (idInput.dataset.manuallyEdited === "true") return;
+  idInput.value = event.currentTarget.value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+});
+adminCreateVendorOfferingForm?.elements.id.addEventListener("input", event => {
+  event.currentTarget.dataset.manuallyEdited = event.currentTarget.value ? "true" : "false";
+});
+adminCreateVendorOfferingForm?.addEventListener("submit", async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const values = new FormData(form);
+  const button = form.querySelector('button[type="submit"]');
+  button.disabled = true;
+  try {
+    const result = await adminFetch("/api/admin/vendor-offerings", {
+      method: "POST",
+      body: JSON.stringify({
+        id: values.get("id"),
+        name: values.get("name"),
+        amount: centsFromInput(values.get("amount")),
+        publicLabel: values.get("publicLabel"),
+        stripePriceId: values.get("stripePriceId") || null,
+        quickBooksItemId: values.get("quickBooksItemId") || null,
+        categories: values.getAll("categories"),
+        description: values.get("description"),
+        inclusions: values.get("inclusions").split("\n").map(item => item.trim()).filter(Boolean),
+        active: form.elements.active.checked,
+        requiresApproval: form.elements.requiresApproval.checked
+      })
+    });
+    adminConfigState.config.vendorOfferings.push(result.vendorOffering);
+    adminConfigState.config.lastUpdated = result.lastUpdated;
+    form.reset();
+    delete form.elements.id.dataset.manuallyEdited;
+    renderAdminEditors();
+    setAdminStatus(`Added ${result.vendorOffering.name} to vendor applications.`, "ok");
+  } catch (error) {
+    setAdminStatus(error.message, "error");
+  } finally {
+    button.disabled = !adminCan("finance:write");
   }
 });
 document.querySelector("#admin-load-documents")?.addEventListener("click", () => loadAdminDocuments());
