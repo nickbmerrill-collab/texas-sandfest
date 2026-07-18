@@ -272,6 +272,11 @@ test("board workflows operate through the public and staff interfaces", async ({
   await expect(page.locator(".map-media-section")).not.toContainText("should become reviewed records");
   await expect(page.locator("#vendors-map")).not.toContainText("Seed data");
   await expect(page.locator("#booth-pin-count")).toContainText("booths");
+  const vendorApplicationLink = page.locator('#vendors-map a[href="#vendor-application-form"]');
+  await expect(vendorApplicationLink).toHaveText("Apply as a vendor");
+  await vendorApplicationLink.click();
+  await expect(page).toHaveURL(/#vendor-application-form$/);
+  await expect(page.locator("#vendor-application-form")).toBeInViewport({ ratio: 0.1 });
   const galleryImages = page.locator("#media .media-gallery img");
   await expect(galleryImages).toHaveCount(8);
   await expect.poll(() => galleryImages.evaluateAll(images => images.every(image => image.complete && image.naturalWidth > 0))).toBe(true);
@@ -731,6 +736,15 @@ test("critical public and operations views fit a mobile viewport", async ({ page
   await assertNoHorizontalOverflow(page);
 
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#vendors-map`);
+  await expect(page.locator("#vendors-map")).toBeInViewport({ ratio: 0.1 });
+  await expect(page.locator("#vendors-map .booth-apply-link")).toBeVisible();
+  await expect(page.locator("#vendors-map .booth-apply-link")).toBeInViewport();
+  await page.locator("#vendors-map .booth-apply-link").click();
+  await expect(page).toHaveURL(/#vendor-application-form$/);
+  await expect(page.locator("#vendor-application-form")).toBeInViewport({ ratio: 0.1 });
+  await assertNoHorizontalOverflow(page);
+
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#sponsors`);
   await expect(page.locator("#vendor-application-form")).toBeVisible();
   await assertNoHorizontalOverflow(page);

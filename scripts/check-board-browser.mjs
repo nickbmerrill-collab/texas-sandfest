@@ -119,6 +119,7 @@ if (visitorUrl && operationsUrl) {
         network: document.querySelector("#network-status")?.textContent?.trim(),
         sponsorTiers: document.querySelectorAll("#public-sponsor-tiers [data-package-id]").length,
         vendorOfferings: document.querySelectorAll('#vendor-application-form [name="vendorOfferingId"] option[value]').length,
+        vendorApplicationAction: document.querySelector('#vendors-map a[href="#vendor-application-form"]')?.textContent?.trim(),
         vendorSubmitEnabled: !document.querySelector('#vendor-application-form button[type="submit"]')?.disabled,
         sponsorSubmitEnabled: !document.querySelector('#sponsor-inquiry-form button[type="submit"]')?.disabled,
         sponsorCards: document.querySelectorAll("#public-sponsor-showcase .public-sponsor-card").length,
@@ -140,10 +141,10 @@ if (visitorUrl && operationsUrl) {
     });
     await inspect("public_intake", "Vendor and sponsor intake", "Inspect the public catalog API and signup form controls.", async () => {
       const item = observations.visitor;
-      if (item?.sponsorTiers !== 4 || item?.vendorOfferings < 1 || !item?.vendorSubmitEnabled || !item?.sponsorSubmitEnabled) {
+      if (item?.sponsorTiers !== 4 || item?.vendorOfferings < 1 || item?.vendorApplicationAction !== "Apply as a vendor" || !item?.vendorSubmitEnabled || !item?.sponsorSubmitEnabled) {
         throw new Error("The public signup catalogs or submit actions are incomplete.");
       }
-      return `${item.sponsorTiers} sponsor tiers and ${item.vendorOfferings} category-compatible vendor offering${item.vendorOfferings === 1 ? "" : "s"} are actionable.`;
+      return `${item.sponsorTiers} sponsor tiers and ${item.vendorOfferings} category-compatible vendor offering${item.vendorOfferings === 1 ? "" : "s"} are actionable from the public vendor path.`;
     });
     await inspect("sponsor_brand", "Sponsor branding", "Inspect the approved board sponsor asset and showcase projection.", async () => {
       const item = observations.visitor;

@@ -942,7 +942,10 @@ app.innerHTML = `
           <h2>Find booths on the beach corridor</h2>
           <p class="section-copy">Explore food, merchandise, and services by beach location. Published booth assignments appear here as the festival map is finalized.</p>
         </div>
-        <span class="sculptor-count" id="booth-pin-count">— booths</span>
+        <div class="booth-section-actions">
+          <span class="sculptor-count" id="booth-pin-count">— booths</span>
+          <a class="button primary booth-apply-link" href="#vendor-application-form">Apply as a vendor</a>
+        </div>
       </div>
       <div class="booth-map-layout">
         <div class="booth-corridor" id="booth-corridor" aria-label="Vendor booth map"></div>
@@ -8396,7 +8399,8 @@ if (!ADMIN_ENTRY) {
   if (initialOutreachPreferenceAccess) initialPublicLoads.push(loadOutreachPreference(initialOutreachPreferenceAccess, { scroll: true }));
   const initialSponsorInvitationToken = sponsorInvitationTokenFromFragment();
   if (initialSponsorInvitationToken) initialPublicLoads.push(publicSponsorPackagesLoad.then(() => loadSponsorInvitation(initialSponsorInvitationToken, { scroll: true })));
-  Promise.allSettled(initialPublicLoads).then(stabilizeRenderedHashTarget);
+  stabilizeRenderedHashTarget();
+  Promise.allSettled(initialPublicLoads).then(() => scrollToRenderedHashTarget());
   const scheduleIslandConditionsRefresh = () => {
     window.setTimeout(async () => {
       if (!document.hidden) await loadIslandConditions({ preserveOnError: true });
@@ -8875,14 +8879,15 @@ if (ADMIN_ENTRY) {
   document.querySelectorAll('main > section[data-audience="ops"]').forEach(section => section.remove());
 }
 
-function scrollToRenderedHashTarget() {
+function scrollToRenderedHashTarget(options = {}) {
   const fragment = window.location.hash.slice(1).split("?")[0];
   let id = fragment;
   try { id = decodeURIComponent(fragment); } catch { /* keep the raw fragment */ }
   const target = id ? document.getElementById(id) : null;
   if (!target) return;
 
-  const scroll = () => target.scrollIntoView({ block: "start" });
+  const behavior = options?.behavior === "smooth" ? "smooth" : "instant";
+  const scroll = () => target.scrollIntoView({ behavior, block: "start" });
   requestAnimationFrame(() => {
     scroll();
     requestAnimationFrame(scroll);
@@ -8907,6 +8912,6 @@ function stabilizeRenderedHashTarget() {
   }, 1500);
 }
 
-window.addEventListener("hashchange", scrollToRenderedHashTarget);
+window.addEventListener("hashchange", () => scrollToRenderedHashTarget({ behavior: "smooth" }));
 window.addEventListener("load", scrollToRenderedHashTarget);
 scrollToRenderedHashTarget();
