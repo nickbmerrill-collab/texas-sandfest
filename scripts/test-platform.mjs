@@ -1661,6 +1661,23 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   const duplicateApplication = createPartnerApplication(created.doc, applicationInput, { idFactory, now, ...intakeIdempotencyOptions });
   const conflictingApplication = createPartnerApplication(created.doc, { ...applicationInput, organizationName: "Different Bank" }, { idFactory, now, ...intakeIdempotencyOptions, idempotencyFingerprint: "c".repeat(64) });
   ok("partner application", created.ok && created.doc.tasks.length === 1 && created.doc.followups.length === 1 && created.application.portalAccessVersion === 1);
+  let collisionSequence = 0;
+  const collidingIds = ["sapp_1000001", "sapp_2"];
+  const collisionIdFactory = prefix => prefix === "sapp" && collidingIds.length
+    ? collidingIds.shift()
+    : `${prefix}_collision_${++collisionSequence}`;
+  const collisionRecovered = createPartnerApplication(created.doc, {
+    ...applicationInput,
+    organizationName: "Second Coast Bank",
+    contactEmail: "second-coast@example.com"
+  }, { idFactory: collisionIdFactory, portalAccessIdFactory: () => "portal_access_2", now });
+  const collisionExhausted = createPartnerApplication(created.doc, {
+    ...applicationInput,
+    organizationName: "Exhausted Reference Bank",
+    contactEmail: "exhausted-reference@example.com"
+  }, { idFactory: () => "sapp_1", now });
+  ok("partner application reference collision retries inside the transaction", collisionRecovered.ok && collisionRecovered.application.id === "sapp_2" && collisionRecovered.application.reference === "TSF-S-000002" && new Set(collisionRecovered.doc.applications.map(item => item.reference)).size === 2);
+  ok("partner application reference allocation fails closed", !collisionExhausted.ok && collisionExhausted.retryable === true && collisionExhausted.doc === undefined);
   const intakePaymentMilestone = created.doc.milestones.find(item => item.kind === "payment_due");
   ok("partner application idempotency", duplicateApplication.ok && duplicateApplication.duplicate && duplicateApplication.application.id === created.application.id && duplicateApplication.doc.applications.length === 1 && duplicateApplication.doc.tasks.length === 1 && duplicateApplication.doc.milestones.length === 4 && duplicateApplication.doc.followups.length === 1);
   ok("sponsor payment key date is finance owned", intakePaymentMilestone?.label === "Payment due" && intakePaymentMilestone?.assigneeTeam === "finance" && intakePaymentMilestone?.source === "application_intake");
@@ -1673,9 +1690,21 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   });
   const portalToken = issuePartnerPortalToken(created.application, { config: portalConfig });
   const portalUrl = `https://www.texassandfest.org${partnerPortalPath(created.application, portalToken)}`;
+  const legacyCollisionApplication = {
+    ...created.application,
+    id: "sapp_legacy_collision",
+    organizationName: "Legacy Reference Partner",
+    portalAccessId: "portal_access_legacy_collision"
+  };
+  const legacyCollisionToken = issuePartnerPortalToken(legacyCollisionApplication, { config: portalConfig });
+  const legacyCollisionAccess = findPartnerPortalApplication({
+    ...created.doc,
+    applications: [...created.doc.applications, legacyCollisionApplication]
+  }, created.application.reference, legacyCollisionToken, { config: portalConfig });
   ok("partner portal production configuration", portalConfig.ready && portalConfig.publicBaseUrl === "https://www.texassandfest.org");
   ok("partner portal capability token", portalToken?.startsWith("tsfp_") && verifyPartnerPortalToken(created.application, portalToken, { config: portalConfig }) && !verifyPartnerPortalToken(created.application, `${portalToken}x`, { config: portalConfig }));
   ok("partner portal fragment link", partnerPortalPath(created.application, portalToken).startsWith("/#partner-status?") && portalUrl.includes("#partner-status?"));
+  ok("partner portal resolves a legacy duplicate reference by capability", legacyCollisionAccess.ok && legacyCollisionAccess.application.id === legacyCollisionApplication.id);
   const scheduled = generateDuePartnerFollowups(created.doc, { idFactory, now, leadDays: 3, portalUrlForApplication: () => portalUrl });
   const scheduledAgain = generateDuePartnerFollowups(scheduled.doc, { idFactory, now, leadDays: 3 });
   ok("scheduled milestone draft", scheduled.changed && scheduled.generated.length === 1 && scheduled.generated[0].status === "draft_ready" && scheduled.generated[0].sourceVersion === "schedule:1:phase:upcoming" && scheduled.generated[0].body.includes(portalUrl));
