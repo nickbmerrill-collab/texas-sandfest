@@ -166,6 +166,11 @@ if (visitorUrl && operationsUrl) {
       await page.goto(operationsUrl, { waitUntil: "domcontentloaded", timeout: timeoutMs });
       await page.waitForFunction(() => document.querySelector("#admin-api-status")?.textContent?.includes("Loaded"), null, { timeout: timeoutMs });
       await page.waitForFunction(() => document.querySelectorAll("#admin-command-signals [data-command-signal]").length === 8, null, { timeout: timeoutMs });
+      await page.waitForFunction(() => {
+        const delivered = [...document.querySelectorAll('#admin-partner-followups [data-delivery-status="delivered"]')];
+        return delivered.some(item => item.textContent?.includes("transactional automation"))
+          && delivered.some(item => item.textContent?.includes("campaign-approved automation"));
+      }, null, { timeout: timeoutMs });
       observations.operations = await page.evaluate(() => ({
         title: document.title,
         heading: document.querySelector("#admin-config h1")?.textContent?.trim(),
@@ -174,10 +179,40 @@ if (visitorUrl && operationsUrl) {
         apiStatus: document.querySelector("#admin-api-status")?.textContent?.trim(),
         deployment: document.querySelector("#admin-deployment-summary")?.textContent?.trim(),
         commandSignals: document.querySelectorAll("#admin-command-signals [data-command-signal]").length,
+        commandSignalText: Object.fromEntries([...document.querySelectorAll("#admin-command-signals [data-command-signal]")]
+          .map(item => [item.dataset.commandSignal, item.textContent?.replace(/\s+/g, " ").trim()])),
         partnerApplications: document.querySelectorAll("#admin-partner-applications [data-partner-application]").length,
         tasks: document.querySelectorAll("#admin-partner-tasks [data-task]").length,
         taskSummary: document.querySelector("#admin-task-board-summary")?.textContent?.trim(),
+        taskAssignmentTypes: [...new Set([...document.querySelectorAll('#admin-partner-tasks [data-task] [name="assigneeType"]')].map(item => item.value))],
+        milestones: document.querySelectorAll("#admin-partner-milestones [data-admin-milestone]").length,
+        keyDateSummary: document.querySelector("#admin-key-date-summary")?.textContent?.trim(),
+        receivablesSummary: document.querySelector("#admin-receivables-summary")?.textContent?.trim(),
+        openReceivables: document.querySelectorAll("#admin-receivables-accounts [data-reconciliation]").length,
+        followups: document.querySelectorAll("#admin-partner-followups [data-followup]").length,
+        deliveredFollowups: document.querySelectorAll('#admin-partner-followups [data-delivery-status="delivered"]').length,
+        deliveredTransactionalMessages: [...document.querySelectorAll('#admin-partner-followups [data-delivery-status="delivered"]')]
+          .filter(item => item.textContent?.includes("transactional automation")).length,
+        deliveredCampaignMessages: [...document.querySelectorAll('#admin-partner-followups [data-delivery-status="delivered"]')]
+          .filter(item => item.textContent?.includes("campaign-approved automation")).length,
         documents: document.querySelectorAll("#admin-document-list [data-admin-document]").length,
+        extractionReady: document.querySelectorAll('#admin-document-list .admin-document-extraction[data-state="ready"]').length,
+        extractedPreviews: document.querySelectorAll("#admin-document-list .admin-document-preview").length,
+        sponsorAccounts: document.querySelectorAll("#admin-sponsor-fulfillment [data-sponsor-fulfillment]").length,
+        approvedBrandAssets: document.querySelectorAll('#admin-sponsor-fulfillment [data-admin-brand-asset] [data-status="approved"]').length,
+        sponsorDeliverables: document.querySelectorAll("#admin-sponsor-fulfillment [data-admin-deliverable]").length,
+        vendorAccounts: document.querySelectorAll("#admin-vendor-readiness [data-admin-vendor]").length,
+        readyVendors: document.querySelectorAll('#admin-vendor-readiness [data-admin-vendor][data-status="ready"]').length,
+        blockedVendors: document.querySelectorAll('#admin-vendor-readiness [data-admin-vendor][data-status="blocked"]').length,
+        outreachProspects: document.querySelectorAll("#admin-outreach-prospects [data-outreach-prospect]").length,
+        locatedProspects: [...document.querySelectorAll("#admin-outreach-prospects [data-outreach-prospect]")].filter(item => (
+          item.querySelector('[name="postalCode"]')?.value
+          && item.querySelector('[name="latitude"]')?.value
+          && item.querySelector('[name="longitude"]')?.value
+        )).length,
+        outreachCampaigns: document.querySelectorAll("#admin-outreach-campaigns [data-outreach-campaign]").length,
+        geofencedCampaigns: [...document.querySelectorAll("#admin-outreach-campaigns [data-outreach-campaign]")]
+          .filter(item => item.textContent?.includes("mi around")).length,
         quickBooksState: document.querySelector("#admin-quickbooks-connection")?.dataset?.state,
         partnerActivity: document.querySelectorAll("#admin-partner-activity [data-partner-activity]").length,
         partnerActivityCategories: [...new Set([...document.querySelectorAll("#admin-partner-activity [data-category]")].map(item => item.dataset.category))],
@@ -211,10 +246,6 @@ if (visitorUrl && operationsUrl) {
       const requiredActivityCategories = ["intake", "finance", "schedule", "messaging", "work", "branding", "vendor", "outreach"];
       if (
         item?.partnerApplications < 4
-        || item?.tasks < 9
-        || !item?.taskSummary?.includes("active")
-        || item?.documents < 4
-        || item?.quickBooksState !== "deferred"
         || item?.partnerActivity < 15
         || requiredActivityCategories.some(category => !item.partnerActivityCategories?.includes(category))
         || !item.partnerActivityText?.includes("Payment recorded")
@@ -223,7 +254,65 @@ if (visitorUrl && operationsUrl) {
       ) {
         throw new Error("One or more board workflow queues did not render their prepared records.");
       }
-      return `${item.partnerApplications} applications, ${item.tasks} active task cards, ${item.documents} documents, and ${item.partnerActivity} grouped workflow updates rendered; live accounting remains deferred.`;
+      return `${item.partnerApplications} applications and ${item.partnerActivity} grouped updates render every operating category without internal record IDs.`;
+    });
+    await inspect("finance_dates", "Payment and key-date tracking", "Inspect receivables, payment totals, and partner milestone controls.", async () => {
+      const item = observations.operations;
+      if (
+        item?.milestones < 8
+        || !item?.keyDateSummary?.includes("open")
+        || item?.openReceivables < 1
+        || !item?.receivablesSummary?.includes("outstanding")
+        || !item?.commandSignalText?.receivables?.includes("received of")
+        || !item?.commandSignalText?.["key-dates"]?.includes("upcoming")
+        || item?.quickBooksState !== "deferred"
+      ) {
+        throw new Error("Receivables or partner key-date proof is incomplete.");
+      }
+      return `${item.openReceivables} tracked receivable accounts and ${item.milestones} editable key dates rendered; live QuickBooks remains explicitly deferred.`;
+    });
+    await inspect("messaging_delegation", "Automated messages and delegation", "Inspect local delivery proof and staff, volunteer, and team assignments.", async () => {
+      const item = observations.operations;
+      const requiredAssignmentTypes = ["staff", "volunteer", "team"];
+      if (
+        item?.followups < 4
+        || item?.deliveredFollowups < 2
+        || item?.deliveredTransactionalMessages < 1
+        || item?.deliveredCampaignMessages < 1
+        || item?.tasks < 9
+        || !item?.taskSummary?.includes("active")
+        || requiredAssignmentTypes.some(type => !item.taskAssignmentTypes?.includes(type))
+        || !item?.commandSignalText?.messages?.includes("transactional auto")
+        || !item?.commandSignalText?.assignments?.includes("staff / volunteer / team")
+      ) {
+        throw new Error("Local message automation or three-way assignment proof is incomplete.");
+      }
+      return `${item.deliveredFollowups} loopback messages include transactional and campaign-approved delivery proof; ${item.tasks} tasks cover staff, volunteer, and team owners.`;
+    });
+    await inspect("fulfillment_outreach", "Fulfillment and geofenced outreach", "Inspect sponsor branding, vendor readiness, and targeted campaign records.", async () => {
+      const item = observations.operations;
+      if (
+        item?.sponsorAccounts < 1
+        || item?.approvedBrandAssets < 2
+        || item?.sponsorDeliverables < 5
+        || item?.vendorAccounts < 2
+        || item?.readyVendors < 1
+        || item?.blockedVendors < 1
+        || item?.outreachProspects < 1
+        || item?.locatedProspects < 1
+        || item?.outreachCampaigns < 1
+        || item?.geofencedCampaigns < 1
+      ) {
+        throw new Error("Sponsor, vendor, or geofenced outreach proof is incomplete.");
+      }
+      return `${item.approvedBrandAssets} approved brand assets, ${item.sponsorDeliverables} sponsor benefits, ready and blocked vendor paths, and a located prospect in a geofenced campaign rendered.`;
+    });
+    await inspect("document_ingestion", "Private document ingestion", "Inspect governed files, extraction states, and staff-only previews.", async () => {
+      const item = observations.operations;
+      if (item?.documents < 4 || item?.extractionReady < 1 || item?.extractedPreviews < 1) {
+        throw new Error("The private document queue lacks extracted, reviewable presentation proof.");
+      }
+      return `${item.documents} governed documents rendered with ${item.extractionReady} completed extraction and ${item.extractedPreviews} staff-only previews.`;
     });
     await inspect("browser_health", "Browser render health", "Inspect browser errors and page-width layout on both presentation surfaces.", async () => {
       if (pageErrors.length || consoleErrors.length) {
@@ -245,6 +334,10 @@ if (visitorUrl && operationsUrl) {
       ["island_conditions", "Island Conditions"],
       ["operations_shell", "Operations command center"],
       ["operations_workflows", "Operations workflow queues"],
+      ["finance_dates", "Payment and key-date tracking"],
+      ["messaging_delegation", "Automated messages and delegation"],
+      ["fulfillment_outreach", "Fulfillment and geofenced outreach"],
+      ["document_ingestion", "Private document ingestion"],
       ["browser_health", "Browser render health"]
     ];
     for (const [id, label] of pending) {
@@ -261,6 +354,10 @@ if (visitorUrl && operationsUrl) {
     ["island_conditions", "Island Conditions"],
     ["operations_shell", "Operations command center"],
     ["operations_workflows", "Operations workflow queues"],
+    ["finance_dates", "Payment and key-date tracking"],
+    ["messaging_delegation", "Automated messages and delegation"],
+    ["fulfillment_outreach", "Fulfillment and geofenced outreach"],
+    ["document_ingestion", "Private document ingestion"],
     ["browser_health", "Browser render health"]
   ]) record(id, label, false, "The active presentation session is unavailable.", "Start the board stack with npm run board:demo.");
 }

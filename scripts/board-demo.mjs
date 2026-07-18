@@ -24,6 +24,7 @@ const TWILIO_AUTH_TOKEN = "board-demo-local-twilio-auth-token-change-me";
 const TWILIO_FROM_NUMBER = "+13615550100";
 const DEFAULT_PORTS = { web: 5175, api: 8806, email: 8807, sms: 8808 };
 const SERVICE_ORDER = ["email", "sms", "api", "web", "worker", "cameras"];
+const PRESENTATION_MESSAGE_MODE = "local_automation";
 const RESTART_LIMIT = 3;
 const RESTART_WINDOW_MS = 60_000;
 const RESTART_DELAYS_MS = [500, 1_000, 2_000];
@@ -114,6 +115,9 @@ async function prepareRuntime(runtimeRoot, { reset }) {
   const marker = await runtimeMarker(runtimeRoot);
   const eventId = eventContextConfig(process.env).eventId;
   if (!reset && marker?.kind === "synthetic-board-demonstration" && marker.eventId === eventId) {
+    if (marker.messageMode !== PRESENTATION_MESSAGE_MODE) {
+      throw new Error("The existing board runtime does not include local automation proof. Re-run with --reset.");
+    }
     return { reused: true, targetRoot: runtimeRoot, eventId };
   }
   if (!reset && marker) {
@@ -127,7 +131,13 @@ async function prepareRuntime(runtimeRoot, { reset }) {
       if (error?.code !== "ENOENT") throw error;
     }
   }
-  return prepareBoardRuntime({ sourceRoot: ROOT, targetRoot: runtimeRoot, eventId, replace: reset });
+  return prepareBoardRuntime({
+    sourceRoot: ROOT,
+    targetRoot: runtimeRoot,
+    eventId,
+    replace: reset,
+    messageMode: PRESENTATION_MESSAGE_MODE
+  });
 }
 
 function processEnvironment(runtimeRoot, endpoints) {
