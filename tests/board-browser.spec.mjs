@@ -392,8 +392,10 @@ test("board workflows operate through the public and staff interfaces", async ({
   await expect(vendorPortal.locator("[data-vendor-requirement]")).toHaveCount(7);
   await vendorPortal.close();
   await expect(page.locator("#admin-quickbooks-connection")).toBeVisible();
-  await expect(page.locator("#admin-quickbooks-status")).toContainText("Ready to connect");
-  await expect(page.locator("#admin-connect-quickbooks")).toBeEnabled();
+  await expect(page.locator("#admin-quickbooks-connection")).toHaveAttribute("data-state", "deferred");
+  await expect(page.locator("#admin-quickbooks-status")).toContainText("deferred until post-presentation setup");
+  await expect(page.locator("#admin-quickbooks-status")).toContainText("invoices, payments, aging, and reconciliation remain active");
+  await expect(page.locator("#admin-connect-quickbooks")).toBeHidden();
   await expect(page.locator("#admin-refresh-quickbooks")).toBeEnabled();
   await expect(page.locator("#admin-disconnect-quickbooks")).toBeHidden();
   const launchTaskSyncResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/deployment/tasks/sync" && response.request().method() === "POST");
@@ -675,7 +677,7 @@ test("critical public and operations views fit a mobile viewport", async ({ page
   await expect(page.locator("#admin-create-task")).toBeVisible();
   await expect(page.locator("#admin-import-staff")).toBeVisible();
   await expect(page.locator("#admin-quickbooks-connection")).toBeVisible();
-  await expect(page.locator("#admin-quickbooks-status")).toContainText("Ready to connect");
+  await expect(page.locator("#admin-quickbooks-status")).toContainText("deferred until post-presentation setup");
   await assertNoHorizontalOverflow(page);
 });
 
@@ -746,6 +748,12 @@ test("WCAG A and AA checks cover public intake, partner status, concierge, and o
   await page.locator('#admin-discover-businesses button[type="submit"]').click();
   expect((await discoveryPreviewResponse).status()).toBe(200);
   await expect(page.locator(".admin-discovery-candidates")).toHaveAttribute("tabindex", "0");
+  const discoveryCategoryTargets = page.locator('#admin-discover-businesses input[name="categories"]');
+  for (let index = 0; index < await discoveryCategoryTargets.count(); index += 1) {
+    const targetBox = await discoveryCategoryTargets.nth(index).boundingBox();
+    expect(targetBox?.width).toBeGreaterThanOrEqual(24);
+    expect(targetBox?.height).toBeGreaterThanOrEqual(24);
+  }
   await assertNoAccessibilityViolations(page, "Operations workspace");
 
   await page.setViewportSize({ width: 390, height: 844 });

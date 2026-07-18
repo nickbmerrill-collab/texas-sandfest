@@ -276,11 +276,16 @@ assert(visitorSource.includes('<h1>Festival operations command center</h1>'), "A
 for (const marker of [
   "Heyelab admin backend",
   "Seed data until the live CSV/export is wired.",
+  "Seeded until live export is wired.",
   "Start the API to load booth pins",
-  "re-sync Eventeny CSV"
+  "re-sync Eventeny CSV",
+  "Public stamp API:",
+  "Run npm run public:sync",
+  "Use Load config to edit ticket products from the backend."
 ]) {
   assert(!visitorSource.includes(marker), `Visitor source contains unfinished product or implementation language: ${marker}`);
 }
+assert(visitorSource.includes("Provider connection is deferred until post-presentation setup."), "Board operations do not explain the intentionally deferred accounting provider.");
 for (const marker of [
   "operating profile review notes",
   "brand profile review notes",

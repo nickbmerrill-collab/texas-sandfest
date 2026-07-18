@@ -1285,7 +1285,7 @@ app.innerHTML = `
           <h2>Shift fill vs needed by zone</h2>
         </div>
         <button id="admin-load-volunteers" class="button secondary" data-requires-permission="volunteers:read" type="button">Load coverage</button>
-        <p id="admin-volunteers-updated" class="admin-revenue-updated">Mirrors VolunteerLocal roster/shifts/hours into ops. Seeded until live export is wired.</p>
+        <p id="admin-volunteers-updated" class="admin-revenue-updated">Volunteer coverage, shifts, and hours load from the governed scheduling mirror.</p>
         <div id="admin-volunteers-kpis" class="admin-revenue-kpis">
           <article class="empty-state"><span>No volunteer coverage loaded.</span></article>
         </div>
@@ -1337,7 +1337,7 @@ app.innerHTML = `
           <h2>QR stamp completions &amp; finishers</h2>
         </div>
         <button id="admin-load-passport" class="button secondary" data-requires-permission="passport:read" type="button">Load passport stats</button>
-        <p id="admin-passport-updated" class="admin-revenue-updated">Public stamp API: POST /api/public/passport/stamp with attendeeRef + tsf:cp:… or tsf:entry:…</p>
+        <p id="admin-passport-updated" class="admin-revenue-updated">Scans and taps synchronize checkpoint progress, rewards, and attendance totals.</p>
         <div id="admin-passport-kpis" class="admin-revenue-kpis">
           <article class="empty-state"><span>No passport stats loaded.</span></article>
         </div>
@@ -1635,7 +1635,7 @@ app.innerHTML = `
           <div id="admin-ticket-editor" class="admin-editor-list">
             <article class="empty-state">
               <strong>No API config loaded</strong>
-              <span>Use Load config to edit ticket products from the backend.</span>
+              <span>Load the current catalog to manage ticket products.</span>
             </article>
           </div>
         </div>
@@ -6285,20 +6285,29 @@ function renderAdminQuickBooksConnection(quickbooks = {}) {
 
   const canFinance = adminCan("finance:write");
   const canRead = adminCan("partners:read");
+  const deferredForBoard = BOARD_DEMO_ACCESS.enabled
+    && !quickbooks.connected
+    && !quickbooks.canSyncPartnerInvoices;
   const refreshedAt = quickbooks.lastRefreshedAt
     ? new Date(quickbooks.lastRefreshedAt).toLocaleString()
     : null;
-  status.textContent = quickbooks.connected
+  status.textContent = deferredForBoard
+    ? "Provider connection is deferred until post-presentation setup. Site-native invoices, payments, aging, and reconciliation remain active."
+    : quickbooks.connected
     ? `Connected securely · encrypted ${quickbooks.credentialStorage === "postgres" ? "Postgres" : "local"} credential${refreshedAt ? ` · refreshed ${refreshedAt}` : ""}`
     : quickbooks.canSyncPartnerInvoices && quickbooks.credentialSource === "environment"
       ? "Connected through deployment secret"
       : quickbooks.oauthReady
         ? `Ready to connect · ${quickbooks.environment || "sandbox"}`
         : quickbooks.oauthReason || quickbooks.reason || "QuickBooks is not configured.";
-  container.dataset.state = quickbooks.connected || quickbooks.canSyncPartnerInvoices ? "connected" : quickbooks.oauthReady ? "ready" : "unavailable";
+  container.dataset.state = deferredForBoard
+    ? "deferred"
+    : quickbooks.connected || quickbooks.canSyncPartnerInvoices
+      ? "connected"
+      : quickbooks.oauthReady ? "ready" : "unavailable";
 
-  connectButton.hidden = quickbooks.connected === true;
-  connectButton.disabled = !canFinance || !quickbooks.oauthReady || quickbooks.connected === true;
+  connectButton.hidden = deferredForBoard || quickbooks.connected === true;
+  connectButton.disabled = deferredForBoard || !canFinance || !quickbooks.oauthReady || quickbooks.connected === true;
   disconnectButton.hidden = quickbooks.connected !== true;
   disconnectButton.disabled = !canFinance || quickbooks.connected !== true;
   refreshButton.disabled = !canRead;
@@ -6343,7 +6352,7 @@ function renderAdminQuickBooksConnection(quickbooks = {}) {
       if (!popup.closed) popup.close();
       setAdminStatus(error.message, "error");
     } finally {
-      connectButton.disabled = !adminCan("finance:write") || !quickbooks.oauthReady;
+      connectButton.disabled = deferredForBoard || !adminCan("finance:write") || !quickbooks.oauthReady;
     }
   };
 
@@ -7423,7 +7432,7 @@ function bindAdminSaveButtons() {
           body: JSON.stringify(patch)
         });
         Object.assign(source, result.product);
-        setAdminStatus(`Saved ticket config for ${result.product.name}. Run npm run public:sync before rebuilding static assets.`, "ok");
+        setAdminStatus(`Saved ticket config for ${result.product.name}. Public checkout availability is updated; the offline fallback changes with the next site release.`, "ok");
         renderAdminEditors();
       } catch (error) {
         setAdminStatus(error.message, "error");
