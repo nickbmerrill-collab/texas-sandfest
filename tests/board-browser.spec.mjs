@@ -425,6 +425,24 @@ test("board workflows operate through the public and staff interfaces", async ({
   await expect(page.locator("#partner-status-form .partner-form-status")).toContainText("Brand profile submitted for review.");
   await expect(page.locator('#partner-brand-profile-form [data-status="submitted"]')).toHaveText("submitted");
   await expect(page.locator("#partner-brand-preview")).toHaveAttribute("aria-label", new RegExp(`${sponsorName} brand preview.*#0A6570.*#F2C94C`));
+  const sponsorBrandAsset = page.locator("#partner-brand-asset-form");
+  await sponsorBrandAsset.locator('[name="kind"]').selectOption("primary_logo");
+  await sponsorBrandAsset.locator('[name="label"]').fill("Primary community health logo");
+  await sponsorBrandAsset.locator('[name="file"]').setInputFiles({
+    name: `browser-coastal-health-${runId}.png`,
+    mimeType: "image/png",
+    buffer: await readFile(path.join(ROOT, "docs", "board-demo-assets", "gulf-shore-credit-union-logo.png"))
+  });
+  const sponsorBrandAssetResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/public/partner-brand-assets/upload" && response.request().method() === "POST");
+  await sponsorBrandAsset.locator('button[type="submit"]').click();
+  const uploadedSponsorBrandAssetResponse = await sponsorBrandAssetResponse;
+  expect(uploadedSponsorBrandAssetResponse.status()).toBe(201);
+  const uploadedSponsorBrandAsset = (await uploadedSponsorBrandAssetResponse.json()).asset;
+  expect(uploadedSponsorBrandAsset.sourceType).toBe("upload");
+  expect(uploadedSponsorBrandAsset).not.toHaveProperty("storageKey");
+  await expect(page.locator("#partner-status-form .partner-form-status")).toContainText("Brand asset submitted for review.");
+  await expect(page.locator(`[data-partner-brand-asset="${uploadedSponsorBrandAsset.id}"]`)).toContainText("Primary community health logo");
+  await expect(page.locator(`[data-partner-brand-asset="${uploadedSponsorBrandAsset.id}"] [data-status="submitted"]`)).toHaveText("submitted");
 
   await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#admin-partners`);
   await expect(page.locator("#admin-api-status")).toContainText("Loaded", { timeout: 25_000 });
@@ -705,6 +723,72 @@ test("board workflows operate through the public and staff interfaces", async ({
   await expect(sponsorCard.locator(`[data-partner-invoice="${createdInvoice.id}"]`)).toContainText("$5,000.00 open");
   await expect(sponsorCard.locator(`[data-partner-payment="${recordedPayment.id}"]`)).toContainText("voided");
   await expect(sponsorPaymentMilestone.locator('[name="status"]')).toHaveValue("open");
+
+  const freshSponsorFulfillment = () => page.locator(`#admin-sponsor-fulfillment [data-sponsor-fulfillment="${sponsorResult.application.id}"]`);
+  await expect(freshSponsorFulfillment()).toHaveCount(1);
+  await expect(freshSponsorFulfillment()).toContainText("Tarpon");
+  await expect(freshSponsorFulfillment()).toContainText("0/6 complete");
+  await expect(freshSponsorFulfillment().locator('[data-brand-profile] [data-status="submitted"]')).toHaveText("submitted");
+  await expect(freshSponsorFulfillment().locator(`[data-admin-brand-asset="${uploadedSponsorBrandAsset.id}"] [data-status="submitted"]`)).toHaveText("submitted");
+
+  const freshSponsorProfileApproval = page.waitForResponse(response => new URL(response.url()).pathname === `/api/admin/partners/applications/${sponsorResult.application.id}/brand-profile/review` && response.request().method() === "POST");
+  await freshSponsorFulfillment().locator('[data-review-brand-profile="approve"]').click();
+  expect((await freshSponsorProfileApproval).status()).toBe(200);
+  await expect(freshSponsorFulfillment().locator('[data-brand-profile] [data-status="approved"]')).toHaveText("approved");
+
+  const freshSponsorAssetRow = () => freshSponsorFulfillment().locator(`[data-admin-brand-asset="${uploadedSponsorBrandAsset.id}"]`);
+  await freshSponsorAssetRow().locator('[name="status"]').selectOption("approved");
+  const freshSponsorAssetApproval = page.waitForResponse(response => new URL(response.url()).pathname === `/api/admin/partners/brand-assets/${uploadedSponsorBrandAsset.id}` && response.request().method() === "PATCH");
+  await freshSponsorAssetRow().locator("[data-save-brand-asset]").click();
+  expect((await freshSponsorAssetApproval).status()).toBe(200);
+  await expect(freshSponsorAssetRow().locator('[data-status="approved"]')).toHaveText("approved");
+
+  const freshSponsorDeliverableId = await freshSponsorFulfillment().locator("[data-admin-deliverable]").first().getAttribute("data-admin-deliverable");
+  expect(freshSponsorDeliverableId).toBeTruthy();
+  const freshSponsorDeliverable = () => freshSponsorFulfillment().locator(`[data-admin-deliverable="${freshSponsorDeliverableId}"]`);
+  await freshSponsorDeliverable().locator('[name="status"]').selectOption("published");
+  await freshSponsorDeliverable().locator('[name="ownerId"]').fill("staff_sponsor");
+  await freshSponsorDeliverable().locator('[name="dueAt"]').fill("2027-03-20T17:00");
+  await freshSponsorDeliverable().locator('[name="proofUrl"]').fill(`https://www.texassandfest.org/sponsors/${runId}`);
+  await freshSponsorDeliverable().locator('[name="proofNotes"]').fill("Benefit placement is published and ready for sponsor review.");
+  const freshSponsorDeliverablePublication = page.waitForResponse(response => new URL(response.url()).pathname === `/api/admin/partners/deliverables/${freshSponsorDeliverableId}` && response.request().method() === "PATCH");
+  await freshSponsorDeliverable().locator("[data-save-deliverable]").click();
+  expect((await freshSponsorDeliverablePublication).status()).toBe(200);
+  await expect(freshSponsorDeliverable().locator('[data-status="pending"]')).toHaveText("pending");
+
+  const freshSponsorPortal = await openPreparedPartnerPortal(sponsorName);
+  await expect(freshSponsorPortal.locator(".partner-brand-center")).toContainText("Brand center");
+  await expect(freshSponsorPortal.locator("[data-partner-brand-asset]")).toHaveCount(1);
+  await expect(freshSponsorPortal.locator("[data-partner-deliverable]")).toHaveCount(6);
+  const freshSponsorPortalDeliverable = freshSponsorPortal.locator(`[data-partner-deliverable="${freshSponsorDeliverableId}"]`);
+  await expect(freshSponsorPortalDeliverable).toContainText("Delivery proof · version 1");
+  await expect(freshSponsorPortalDeliverable.locator('.partner-deliverable-review[data-status="pending"]')).toContainText("Partner review: pending");
+  const freshSponsorSignoff = freshSponsorPortal.waitForResponse(response => new URL(response.url()).pathname === `/api/public/partner-deliverables/${freshSponsorDeliverableId}/review` && response.request().method() === "POST");
+  await freshSponsorPortalDeliverable.locator('[data-deliverable-review="approve"]').click();
+  expect((await freshSponsorSignoff).status()).toBe(200);
+  await expect(freshSponsorPortal.locator(`[data-partner-deliverable="${freshSponsorDeliverableId}"] .partner-deliverable-review[data-status="approved"]`)).toContainText("Partner review: approved");
+  await freshSponsorPortal.close();
+
+  const refreshedSponsorPartners = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/partners" && response.request().method() === "GET");
+  await page.locator("#admin-load-partners").click();
+  await refreshedSponsorPartners;
+  await freshSponsorDeliverable().locator('[name="status"]').selectOption("complete");
+  const freshSponsorDeliverableCompletion = page.waitForResponse(response => new URL(response.url()).pathname === `/api/admin/partners/deliverables/${freshSponsorDeliverableId}` && response.request().method() === "PATCH");
+  await freshSponsorDeliverable().locator("[data-save-deliverable]").click();
+  expect((await freshSponsorDeliverableCompletion).status()).toBe(200);
+  await expect(freshSponsorFulfillment()).toContainText("1/6 complete");
+  await expect(freshSponsorDeliverable().locator('[data-status="approved"]')).toHaveText("approved");
+
+  const sponsorShowcasePage = await page.context().newPage();
+  sponsorShowcasePage.on("pageerror", error => pageErrors.push(`Sponsor showcase: ${error.message}`));
+  await sponsorShowcasePage.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#sponsors`);
+  const freshSponsorShowcase = sponsorShowcasePage.locator("#public-sponsor-showcase .public-sponsor-card").filter({ hasText: sponsorName });
+  await expect(freshSponsorShowcase).toHaveCount(1);
+  await expect(freshSponsorShowcase).toContainText("Tarpon partner");
+  await expect(freshSponsorShowcase).toContainText("Healthier coast, stronger community");
+  await expect(freshSponsorShowcase.locator("img")).toHaveAttribute("src", new RegExp(`/api/public/sponsor-showcase/assets/${uploadedSponsorBrandAsset.id}$`));
+  await expect.poll(() => freshSponsorShowcase.locator("img").evaluate(image => image.complete && image.naturalWidth > 0)).toBe(true);
+  await sponsorShowcasePage.close();
 
   const sponsorFulfillment = page.locator('#admin-sponsor-fulfillment [data-sponsor-fulfillment]').filter({ hasText: "Gulf Shore Credit Union" });
   await expect(sponsorFulfillment).toHaveCount(1);
