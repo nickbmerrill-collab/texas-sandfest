@@ -333,6 +333,35 @@ const BOARD_DEMO_RUNTIME = await (async () => {
     return false;
   }
 })();
+const BOARD_DEMO_FEED_FIXTURE_BASE = (() => {
+  const value = String(process.env.SANDFEST_BOARD_FEED_FIXTURE_BASE_URL || "").trim();
+  if (!value) return null;
+  if (SANDFEST_ENV === "production" || !BOARD_DEMO_RUNTIME) {
+    throw new Error("SANDFEST_BOARD_FEED_FIXTURE_BASE_URL is restricted to an isolated board demo runtime.");
+  }
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error("SANDFEST_BOARD_FEED_FIXTURE_BASE_URL must be an absolute loopback URL.");
+  }
+  if (url.protocol !== "http:" || url.hostname !== "127.0.0.1" || url.username || url.password || url.search || url.hash) {
+    throw new Error("SANDFEST_BOARD_FEED_FIXTURE_BASE_URL must use HTTP on 127.0.0.1 without credentials, query, or fragment.");
+  }
+  return url.toString().replace(/\/+$/, "");
+})();
+const BOARD_DEMO_FEED_FIXTURE_PATHS = new Map([
+  ["https://api.weather.gov/gridpoints/CRP/123,36/forecast/hourly", "/nws/forecast"],
+  ["https://api.weather.gov/alerts/active?point=27.8339,-97.0611", "/nws/alerts"],
+  ["https://its.txdot.gov/its/DistrictIts/GetDmsListByDistrict?districtCode=CRP", "/txdot/ferry"]
+]);
+function boardDemoFeedFetch(input, init) {
+  const fixturePath = BOARD_DEMO_FEED_FIXTURE_PATHS.get(String(input));
+  if (!BOARD_DEMO_FEED_FIXTURE_BASE || !fixturePath) {
+    throw new Error("Board feed fixture received an unexpected upstream URL.");
+  }
+  return fetch(`${BOARD_DEMO_FEED_FIXTURE_BASE}${fixturePath}`, init);
+}
 const API_PREFIX = String(process.env.SANDFEST_API_PREFIX || "").replace(/\/$/, "");
 const RATE_LIMIT_WINDOW_MS = Number(process.env.SANDFEST_RATE_LIMIT_WINDOW_MS || 60_000);
 const ADMIN_RATE_LIMIT = Number(process.env.SANDFEST_ADMIN_RATE_LIMIT || 120);
@@ -1281,9 +1310,10 @@ async function readIslandConditions({ refreshWeather = false, refreshFerry = fal
   if (dueWeather || dueFerry) {
     if (!islandConditionsRefreshPromise) {
       islandConditionsRefreshPromise = (async () => {
+        const fetchImpl = BOARD_DEMO_FEED_FIXTURE_BASE ? boardDemoFeedFetch : fetch;
         const [weatherResult, ferryResult] = await Promise.all([
-          dueWeather ? fetchPortAransasWeather({ now }).then(value => ({ value })).catch(error => ({ error })) : null,
-          dueFerry ? fetchPortAransasFerryStatus({ now }).then(value => ({ value })).catch(error => ({ error })) : null
+          dueWeather ? fetchPortAransasWeather({ now, fetchImpl }).then(value => ({ value })).catch(error => ({ error })) : null,
+          dueFerry ? fetchPortAransasFerryStatus({ now, fetchImpl }).then(value => ({ value })).catch(error => ({ error })) : null
         ]);
         return updatePlatformDoc(ROOT, "islandConditions", current => {
           const next = normalizeIslandConditions(current);

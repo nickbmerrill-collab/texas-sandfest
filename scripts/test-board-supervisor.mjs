@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
-import { createServer } from "node:net";
+import { createServer as createHttpServer } from "node:http";
+import { createServer as createNetServer } from "node:net";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -12,12 +13,13 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 let temporary = null;
 let supervisor = null;
 let occupiedPortServer = null;
+let feedFixtureServer = null;
 let output = "";
 const observedPids = new Set();
 
 function freePort() {
   return new Promise((resolve, reject) => {
-    const server = createServer();
+    const server = createNetServer();
     server.once("error", reject);
     server.listen(0, "127.0.0.1", () => {
       const { port } = server.address();
@@ -28,7 +30,54 @@ function freePort() {
 
 function occupyPort() {
   return new Promise((resolve, reject) => {
-    const server = createServer();
+    const server = createNetServer();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => resolve(server));
+  });
+}
+
+function startFeedFixture() {
+  const ferry = {
+    roadwayDmses: {
+      SH361AransasPass: [
+        {
+          icd_Id: "CRP-SH361 at New Port Golf",
+          name: "SH361 at New Port Golf",
+          hasMessages: true,
+          statusDescription: "Device Online",
+          messagePages: [{ pageNo: 0, lines: ["FERRY WAIT TO", "ARANSAS PASS", "15 MINUTES"] }]
+        },
+        {
+          icd_Id: "CRP-SH361 at Dale Miller Brdg",
+          name: "SH361 at Dale Miller Bridge",
+          hasMessages: true,
+          statusDescription: "Device Online",
+          messagePages: [{ pageNo: 0, lines: ["FERRY WAIT TO", "PORT ARANSAS", "20 MINUTES"] }]
+        }
+      ]
+    }
+  };
+  const server = createHttpServer((request, response) => {
+    const now = Date.now();
+    const payload = request.url === "/nws/forecast"
+      ? { properties: { periods: [{
+        temperature: 84,
+        windSpeed: "9 mph",
+        windDirection: "SE",
+        shortForecast: "Board supervisor fixture",
+        probabilityOfPrecipitation: { value: 10 },
+        startTime: new Date(now - 60_000).toISOString(),
+        endTime: new Date(now + 60 * 60_000).toISOString()
+      }] } }
+      : request.url === "/nws/alerts"
+        ? { features: [] }
+        : request.url === "/txdot/ferry"
+          ? ferry
+          : null;
+    response.writeHead(payload ? 200 : 404, { "content-type": "application/json" });
+    response.end(JSON.stringify(payload || { error: "not_found" }));
+  });
+  return new Promise((resolve, reject) => {
     server.once("error", reject);
     server.listen(0, "127.0.0.1", () => resolve(server));
   });
@@ -127,6 +176,7 @@ try {
   const runtimeRoot = path.join(temporary, "runtime");
   const sessionFile = path.join(temporary, "session.json");
   occupiedPortServer = await occupyPort();
+  feedFixtureServer = await startFeedFixture();
   const webPort = occupiedPortServer.address().port;
   const [apiPort, emailPort, smsPort] = await distinctPorts(3);
   const supervisorEnvironment = {
@@ -139,7 +189,8 @@ try {
     QB_CLIENT_ID: "inherited-test-client",
     QB_CLIENT_SECRET: "inherited-test-secret",
     QB_REALM_ID: "inherited-test-realm",
-    QB_REFRESH_TOKEN: "inherited-test-refresh"
+    QB_REFRESH_TOKEN: "inherited-test-refresh",
+    SANDFEST_BOARD_FEED_FIXTURE_BASE_URL: `http://127.0.0.1:${feedFixtureServer.address().port}`
   };
   supervisor = spawn(process.execPath, [
     "scripts/board-demo.mjs",
@@ -230,5 +281,6 @@ try {
     if (processAlive(pid)) process.kill(pid, "SIGKILL");
   }
   if (occupiedPortServer) await new Promise(resolve => occupiedPortServer.close(resolve));
+  if (feedFixtureServer) await new Promise(resolve => feedFixtureServer.close(resolve));
   if (temporary) await rm(temporary, { recursive: true, force: true });
 }
