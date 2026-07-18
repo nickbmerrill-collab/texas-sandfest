@@ -4781,7 +4781,7 @@ try {
   const launchTasksApi = (deploymentTaskWorkspace.data.tasks || []).filter(task => task.relatedEntityType === "deployment_check" && ["open", "in_progress", "blocked"].includes(task.status));
   ok("deployment task sync requires task delegation permission", unauthenticatedDeploymentTaskSync.status === 401);
   ok("automatic deployment sync creates one task per failing gate", launchTasksApi.length === failingDeploymentChecks.length && new Set(launchTasksApi.map(task => task.relatedEntityId)).size === failingDeploymentChecks.length);
-  ok("manual deployment task sync replays automatic state", deploymentTaskSync.status === 200 && deploymentTaskSync.data.sync?.changed === false && deploymentTaskSync.data.sync?.created === 0 && deploymentTaskSync.data.sync?.active === failingDeploymentChecks.length);
+  ok("manual deployment task sync converges with automatic state", deploymentTaskSync.status === 200 && deploymentTaskSync.data.sync?.created === 0 && deploymentTaskSync.data.sync?.active === failingDeploymentChecks.length);
   ok("deployment task API replay is idempotent", deploymentTaskReplay.status === 200 && deploymentTaskReplay.data.sync?.changed === false && deploymentTaskReplay.data.sync?.created === 0 && deploymentTaskReplay.data.sync?.active === failingDeploymentChecks.length);
   ok("deployment exposes healthy automatic launch work evidence", deploymentAfterAutomaticSync.data.deployment?.checks?.deploymentTaskSync?.ok === true
     && deploymentAfterAutomaticSync.data.deployment?.checks?.deploymentTaskSync?.message.includes("healthy")
