@@ -219,6 +219,9 @@ test("board workflows operate through the public and staff interfaces", async ({
   const taskTitle = `Browser volunteer welcome desk ${runId}`;
   const milestoneLabel = `Browser sponsor artwork due ${runId}`;
   const prospectName = `Browser Port A Hospitality ${runId}`;
+  const prospectIndustry = `browser hospitality ${runId}`;
+  const prospectRecipient = `morgan.${runId}@example.com`;
+  const campaignName = `Browser geofenced partners ${runId}`;
 
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#sponsors`);
   await expect(page.locator("#network-status")).toHaveText("Demo");
@@ -270,6 +273,21 @@ test("board workflows operate through the public and staff interfaces", async ({
   await expect(sponsorFulfillment.locator("[data-admin-deliverable]")).toHaveCount(3);
   await expect(sponsorFulfillment).toContainText("Beach signage");
 
+  const discoveryForm = page.locator("#admin-discover-businesses");
+  await expect(page.locator("#admin-outreach-discovery-readiness")).toHaveText("fixture ready");
+  const discoveryPreviewResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/outreach/discovery/preview" && response.request().method() === "POST");
+  await discoveryForm.locator('button[type="submit"]').click();
+  expect((await discoveryPreviewResponse).status()).toBe(200);
+  await expect(page.locator("#admin-outreach-discovery-result")).toContainText("Seabreeze Resort");
+  const discoveredBusiness = discoveryForm.locator('input[name="discoveredSourceRef"][value="fixture/business/seabreeze-resort"]');
+  await expect(discoveredBusiness).toHaveCount(1);
+  await discoveredBusiness.check();
+  const discoveryImportResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/outreach/discovery/import" && response.request().method() === "POST");
+  await page.locator("#admin-import-discovered-businesses").click();
+  expect((await discoveryImportResponse).status()).toBe(201);
+  await expect(page.locator("#admin-api-status")).toContainText("Imported 1 business candidate; contact research remains required.");
+  await expect(page.locator("#admin-outreach-prospects")).toContainText("Seabreeze Resort");
+
   const taskForm = page.locator("#admin-create-task");
   await taskForm.locator('[name="assigneeType"]').selectOption("volunteer");
   const taskOwner = taskForm.locator('[name="assigneeId"]');
@@ -300,20 +318,61 @@ test("board workflows operate through the public and staff interfaces", async ({
   const prospectForm = page.locator("#admin-create-prospect");
   await prospectForm.locator('[name="organizationName"]').fill(prospectName);
   await prospectForm.locator('[name="contactName"]').fill("Morgan Browser");
-  await prospectForm.locator('[name="industry"]').fill("Hospitality");
+  await prospectForm.locator('[name="industry"]').fill(prospectIndustry);
   await prospectForm.locator('[name="city"]').fill("Port Aransas");
   await prospectForm.locator('[name="postalCode"]').fill("78373");
   await prospectForm.locator('[name="latitude"]').fill("27.8339");
   await prospectForm.locator('[name="longitude"]').fill("-97.0611");
-  await prospectForm.locator('[name="contactEmail"]').fill(`morgan.${runId}@example.com`);
+  await prospectForm.locator('[name="contactEmail"]').fill(prospectRecipient);
   await prospectForm.locator('[name="communityFit"]').check();
   await prospectForm.locator('[name="contactBasis"]').selectOption("business_relevance");
-  await prospectForm.locator('[name="status"]').selectOption("identified");
+  await prospectForm.locator('[name="status"]').selectOption("contact_ready");
   const prospectResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/outreach/prospects" && response.request().method() === "POST");
   await prospectForm.locator('button[type="submit"]').click();
   expect((await prospectResponse).status()).toBe(201);
   await expect(page.locator("#admin-api-status")).toContainText(`Scored ${prospectName} at`);
   await expect(page.locator("#admin-outreach-prospects")).toContainText(prospectName);
+
+  const campaignForm = page.locator("#admin-create-campaign");
+  await campaignForm.locator('[name="name"]').fill(campaignName);
+  await campaignForm.locator('[name="objective"]').fill("Introduce a reviewed sponsor invitation to one qualified Port Aransas business.");
+  await campaignForm.locator('[name="industries"]').fill(prospectIndustry);
+  await campaignForm.locator('[name="cities"]').fill("Port Aransas");
+  await campaignForm.locator('[name="postalCodes"]').fill("78373");
+  await campaignForm.locator('[name="centerLatitude"]').fill("27.8339");
+  await campaignForm.locator('[name="centerLongitude"]').fill("-97.0611");
+  await campaignForm.locator('[name="radiusMiles"]').fill("5");
+  await campaignForm.locator('[name="minFitScore"]').fill("0");
+  await campaignForm.locator('[name="deliveryMode"]').selectOption("approved_sequence");
+  await campaignForm.locator('[name="dailySendLimit"]').fill("3");
+  const campaignResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/outreach/campaigns" && response.request().method() === "POST");
+  await campaignForm.locator('button[type="submit"]').click();
+  const createdCampaignResponse = await campaignResponse;
+  expect(createdCampaignResponse.status()).toBe(201);
+  const createdCampaign = (await createdCampaignResponse.json()).campaign;
+  const campaignCard = page.locator(`[data-outreach-campaign="${createdCampaign.id}"]`);
+  await expect(campaignCard).toContainText(campaignName);
+  await expect(campaignCard).toContainText("1 matched");
+  await expect(campaignCard).toContainText("campaign-approved, 3/day");
+  page.once("dialog", dialog => dialog.accept());
+  await campaignCard.locator('[data-campaign-action="activate"]').click();
+  await expect(page.locator("#admin-api-status")).toContainText("Campaign activated with 1 due message eligible for bounded automation.");
+
+  await expect.poll(async () => {
+    const response = await fetch(`${apiBase}/api/admin/outreach`, { headers: { authorization: `Bearer ${TOKEN}` } });
+    const payload = await response.json();
+    return payload.followups?.some(item => item.campaignId === createdCampaign.id
+      && item.recipient === prospectRecipient
+      && item.automationPolicy === "outreach_campaign_v1"
+      && item.status === "sent"
+      && item.deliveryStatus === "delivered") || false;
+  }, { timeout: 15_000 }).toBe(true);
+  const reloadOutreach = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/outreach" && response.request().method() === "GET");
+  await page.locator("#admin-load-partners").click();
+  await reloadOutreach;
+  const deliveredCampaignMessage = page.locator('#admin-partner-followups [data-delivery-status="delivered"]').filter({ hasText: prospectRecipient });
+  await expect(deliveredCampaignMessage).toHaveCount(1);
+  await expect(deliveredCampaignMessage).toContainText("campaign-approved automation");
 
   const automationForm = page.locator("#admin-partner-automation");
   await automationForm.locator('[name="mode"]').selectOption("transactional_auto");
@@ -335,7 +394,9 @@ test("board workflows operate through the public and staff interfaces", async ({
   const reloadPartners = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/partners" && response.request().method() === "GET");
   await page.locator("#admin-load-partners").click();
   await reloadPartners;
-  const deliveredFollowup = page.locator('#admin-partner-followups [data-delivery-status="delivered"]').filter({ hasText: sponsorRecipient });
+  const deliveredFollowup = page.locator('#admin-partner-followups [data-delivery-status="delivered"]')
+    .filter({ hasText: sponsorRecipient })
+    .filter({ hasText: `Texas SandFest sponsorship application ${sponsorResult.application.reference}` });
   await expect(deliveredFollowup).toHaveCount(1);
   await expect(deliveredFollowup).toContainText("transactional automation");
 
