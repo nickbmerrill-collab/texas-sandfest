@@ -4060,13 +4060,72 @@ function partnerAssetKindOptions(selected = "primary_logo") {
   ].map(([value, label]) => `<option value="${value}" ${selected === value ? "selected" : ""}>${label}</option>`).join("");
 }
 
+function partnerBrandColor(value, fallback) {
+  const color = String(value || "").trim().toUpperCase();
+  return /^#[0-9A-F]{6}$/.test(color) ? color : fallback;
+}
+
+function partnerBrandContrast(color) {
+  const hex = partnerBrandColor(color, "#005B63").slice(1);
+  const channels = [0, 2, 4].map(offset => Number.parseInt(hex.slice(offset, offset + 2), 16) / 255)
+    .map(channel => channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
+  const luminance = 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+  return luminance > 0.179 ? "#000000" : "#FFFFFF";
+}
+
+function bindPartnerBrandPreview() {
+  const form = document.querySelector("#partner-brand-profile-form");
+  const preview = document.querySelector("#partner-brand-preview");
+  if (!form || !preview) return;
+  const primaryText = form.elements.primaryColor;
+  const secondaryText = form.elements.secondaryColor;
+  const primaryPicker = form.querySelector('[data-brand-color-picker="primaryColor"]');
+  const secondaryPicker = form.querySelector('[data-brand-color-picker="secondaryColor"]');
+  const update = () => {
+    const displayName = form.elements.displayName.value.trim() || activePartnerPortalApplication?.organizationName || "Sponsor name";
+    const tagline = form.elements.tagline.value.trim() || "Sponsor tagline";
+    const primary = partnerBrandColor(primaryText.value, primaryPicker.value || "#005B63");
+    const secondary = partnerBrandColor(secondaryText.value, secondaryPicker.value || "#F7B733");
+    if (/^#[0-9A-Fa-f]{6}$/.test(primaryText.value.trim())) primaryPicker.value = primary;
+    if (/^#[0-9A-Fa-f]{6}$/.test(secondaryText.value.trim())) secondaryPicker.value = secondary;
+    preview.style.setProperty("--brand-preview-primary", primary);
+    preview.style.setProperty("--brand-preview-primary-ink", partnerBrandContrast(primary));
+    preview.style.setProperty("--brand-preview-secondary", secondary);
+    preview.style.setProperty("--brand-preview-secondary-ink", partnerBrandContrast(secondary));
+    preview.querySelector("[data-brand-preview-name]").textContent = displayName;
+    preview.querySelector("[data-brand-preview-tagline]").textContent = tagline;
+    preview.querySelector("[data-brand-preview-mark]").textContent = sponsorShowcaseInitials(displayName);
+    preview.querySelector('[data-brand-preview-color="primary"]').title = `Primary ${primary}`;
+    preview.querySelector('[data-brand-preview-color="secondary"]').title = `Secondary ${secondary}`;
+    preview.setAttribute("aria-label", `${displayName} brand preview. Primary ${primary}; secondary ${secondary}.`);
+  };
+  [[primaryPicker, primaryText], [secondaryPicker, secondaryText]].forEach(([picker, text]) => {
+    picker.addEventListener("input", () => {
+      text.value = picker.value.toUpperCase();
+      update();
+    });
+    text.addEventListener("input", update);
+  });
+  form.elements.displayName.addEventListener("input", update);
+  form.elements.tagline.addEventListener("input", update);
+  update();
+}
+
 function renderPartnerBranding(branding) {
   if (!branding) return "";
   const profile = branding.profile || {};
   const assets = Array.isArray(branding.assets) ? branding.assets : [];
   const deliverables = Array.isArray(branding.deliverables) ? branding.deliverables : [];
+  const primaryColor = partnerBrandColor(profile.primaryColor, "#005B63");
+  const secondaryColor = partnerBrandColor(profile.secondaryColor, "#F7B733");
+  const displayName = profile.displayName || activePartnerPortalApplication?.organizationName || "Sponsor name";
   return `<section class="partner-brand-center">
     <header class="partner-brand-heading"><div><span>Sponsor fulfillment</span><h4>Brand center</h4></div><b>${deliverables.filter(item => item.status === "complete").length} / ${deliverables.length} complete</b></header>
+    <div id="partner-brand-preview" class="partner-brand-preview" role="group" aria-label="${escapeAttr(`${displayName} brand preview`)}">
+      <span class="partner-brand-preview-mark" data-brand-preview-mark aria-hidden="true">${escapeHtml(sponsorShowcaseInitials(displayName))}</span>
+      <div class="partner-brand-preview-copy"><span>Brand preview</span><strong data-brand-preview-name>${escapeHtml(displayName)}</strong><p data-brand-preview-tagline>${escapeHtml(profile.tagline || "Sponsor tagline")}</p></div>
+      <div class="partner-brand-preview-colors" aria-label="Brand colors"><span data-brand-preview-color="primary" title="Primary ${escapeAttr(primaryColor)}"></span><span data-brand-preview-color="secondary" title="Secondary ${escapeAttr(secondaryColor)}"></span></div>
+    </div>
     <div class="partner-brand-forms">
       <form id="partner-brand-profile-form" class="partner-brand-form">
         <div class="partner-brand-form-heading"><strong>Brand profile</strong><span data-status="${escapeAttr(profile.status || "draft")}">${escapeHtml(conditionLabel(profile.status || "draft"))}</span></div>
@@ -4075,8 +4134,8 @@ function renderPartnerBranding(branding) {
           <label><span>Display name</span><input name="displayName" required maxlength="160" value="${escapeAttr(profile.displayName || activePartnerPortalApplication?.organizationName || "")}" /></label>
           <label><span>Website</span><input name="website" type="url" maxlength="1000" placeholder="https://" value="${escapeAttr(profile.website || "")}" /></label>
           <label class="partner-brand-wide"><span>Tagline</span><input name="tagline" maxlength="240" value="${escapeAttr(profile.tagline || "")}" /></label>
-          <label><span>Primary color</span><input name="primaryColor" pattern="#[0-9A-Fa-f]{6}" maxlength="7" placeholder="#005B63" value="${escapeAttr(profile.primaryColor || "")}" /></label>
-          <label><span>Secondary color</span><input name="secondaryColor" pattern="#[0-9A-Fa-f]{6}" maxlength="7" placeholder="#F7B733" value="${escapeAttr(profile.secondaryColor || "")}" /></label>
+          <label><span>Primary color</span><div class="partner-brand-color-control"><input type="color" data-brand-color-picker="primaryColor" value="${escapeAttr(primaryColor)}" aria-label="Choose primary color" /><input name="primaryColor" pattern="#[0-9A-Fa-f]{6}" maxlength="7" placeholder="#005B63" value="${escapeAttr(profile.primaryColor || "")}" /></div></label>
+          <label><span>Secondary color</span><div class="partner-brand-color-control"><input type="color" data-brand-color-picker="secondaryColor" value="${escapeAttr(secondaryColor)}" aria-label="Choose secondary color" /><input name="secondaryColor" pattern="#[0-9A-Fa-f]{6}" maxlength="7" placeholder="#F7B733" value="${escapeAttr(profile.secondaryColor || "")}" /></div></label>
           <label><span>Instagram</span><input name="instagramUrl" type="url" maxlength="1000" placeholder="https://" value="${escapeAttr(profile.instagramUrl || "")}" /></label>
           <label><span>LinkedIn</span><input name="linkedinUrl" type="url" maxlength="1000" placeholder="https://" value="${escapeAttr(profile.linkedinUrl || "")}" /></label>
           <label class="partner-brand-wide"><span>Usage requirements</span><textarea name="usageNotes" rows="3" maxlength="2000">${escapeHtml(profile.usageNotes || "")}</textarea></label>
@@ -4218,6 +4277,7 @@ function renderPartnerPortalStatus(application) {
     </div>
     ${renderPartnerBranding(application.branding)}
     ${renderVendorOnboarding(application.vendorOnboarding)}`;
+  bindPartnerBrandPreview();
   bindPartnerBrandingActions();
   bindVendorOnboardingActions();
   bindPartnerPaymentActions();

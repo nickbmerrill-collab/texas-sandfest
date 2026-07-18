@@ -380,6 +380,23 @@ test("board workflows operate through the public and staff interfaces", async ({
   await expect(sponsor.locator(".partner-form-status")).toContainText("Application received.");
   await expect(page.locator("#partner-status-result")).toContainText(sponsorName);
   await expect(page.locator('#partner-status-form [name="reference"]')).toHaveValue(sponsorResult.application.reference);
+  const sponsorBrandProfile = page.locator("#partner-brand-profile-form");
+  const sponsorBrandPreview = page.locator("#partner-brand-preview");
+  await expect(sponsorBrandPreview.locator("[data-brand-preview-name]")).toHaveText(sponsorName);
+  await expect(sponsorBrandPreview.locator("[data-brand-preview-tagline]")).toHaveText("Sponsor tagline");
+  await sponsorBrandProfile.locator('[name="tagline"]').fill("Healthier coast, stronger community");
+  await sponsorBrandProfile.locator('[name="primaryColor"]').fill("#0A6570");
+  await sponsorBrandProfile.locator('[data-brand-color-picker="secondaryColor"]').fill("#F2C94C");
+  await expect(sponsorBrandProfile.locator('[name="secondaryColor"]')).toHaveValue("#F2C94C");
+  await expect(sponsorBrandPreview.locator("[data-brand-preview-tagline]")).toHaveText("Healthier coast, stronger community");
+  await expect(sponsorBrandPreview).toHaveCSS("background-color", "rgb(10, 101, 112)");
+  await expect(sponsorBrandPreview.locator('[data-brand-preview-color="secondary"]')).toHaveCSS("background-color", "rgb(242, 201, 76)");
+  const sponsorBrandProfileResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/public/partner-brand-profile" && response.request().method() === "POST");
+  await sponsorBrandProfile.locator('button[type="submit"]').click();
+  expect((await sponsorBrandProfileResponse).status()).toBe(200);
+  await expect(page.locator("#partner-status-form .partner-form-status")).toContainText("Brand profile submitted for review.");
+  await expect(page.locator('#partner-brand-profile-form [data-status="submitted"]')).toHaveText("submitted");
+  await expect(page.locator("#partner-brand-preview")).toHaveAttribute("aria-label", new RegExp(`${sponsorName} brand preview.*#0A6570.*#F2C94C`));
 
   await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#admin-partners`);
   await expect(page.locator("#admin-api-status")).toContainText("Loaded", { timeout: 25_000 });
