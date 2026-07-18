@@ -76,7 +76,10 @@ import {
   parseEventenyBoothCsv
 } from "../lib/booth-import.mjs";
 import { applyOutreachProspectImport, parseOutreachProspectCsv } from "../lib/outreach-import.mjs";
-import { syncDeploymentCheckTasks } from "../lib/deployment-task-sync.mjs";
+import {
+  deploymentTaskSyncIntervalMs,
+  syncDeploymentCheckTasks
+} from "../lib/deployment-task-sync.mjs";
 import {
   EVENTENY_PARTNER_IMPORT_MAX_ROWS,
   applyEventenyPartnerImport,
@@ -2709,6 +2712,15 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   }, { actorId: "ops_1", idFactory, now: "2026-07-22T12:00:00.000Z" });
   const reopenedBackupTask = launchRegressed.tasks.find(item => item.relatedEntityId === "backupRecovery");
   ok("regressed launch gate reopens its original task", launchRegressed.reopened === 1 && launchRegressed.active === 1 && reopenedBackupTask?.id === backupLaunchTask?.id && reopenedBackupTask?.status === "open" && reopenedBackupTask?.reopenedAt === "2026-07-22T12:00:00.000Z" && reopenedBackupTask?.dueAt === "2026-08-05T12:00:00.000Z");
+  const invalidLaunchSyncIntervals = ["soon", -1, 1_000, 86_400_001].every(value => {
+    try {
+      deploymentTaskSyncIntervalMs(value, { production: true });
+      return false;
+    } catch {
+      return true;
+    }
+  });
+  ok("launch task automation interval is production-safe", deploymentTaskSyncIntervalMs(undefined, { production: false }) === 0 && deploymentTaskSyncIntervalMs(undefined, { production: true }) === 900_000 && deploymentTaskSyncIntervalMs("3600000", { production: true }) === 3_600_000 && deploymentTaskSyncIntervalMs("0", { production: true }) === 0 && invalidLaunchSyncIntervals);
   const prospect = createOutreachProspect(done.doc, {
     organizationName: "Island Hotel",
     industry: "hospitality",
@@ -4246,6 +4258,7 @@ if (!API_BASE) {
       ...process.env,
       NODE_ENV: "test",
       SANDFEST_ENV: "development",
+      SANDFEST_DEPLOYMENT_TASK_SYNC_INTERVAL_MS: "3600000",
       SANDFEST_API_PORT: port,
       SANDFEST_RUNTIME_ROOT: isolatedRuntimeRoot,
       SANDFEST_ADMIN_API_TOKEN: TOKEN,
@@ -4390,15 +4403,29 @@ try {
   ok("deployment exposes data plane gate", deployment.status === 200 && deployment.data.deployment?.checks?.dataPlane?.ok === true);
   const deploymentChecks = Object.values(deployment.data.deployment?.checks || {});
   const deploymentGroups = deployment.data.deployment?.groups || [];
+  const failingDeploymentChecks = deploymentChecks.filter(check => !check.ok);
+  let automaticDeploymentTaskWorkspace = null;
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    automaticDeploymentTaskWorkspace = await hit("GET", "/api/admin/partners", null, true);
+    const activeLaunchTasks = (automaticDeploymentTaskWorkspace.data.tasks || []).filter(task => task.relatedEntityType === "deployment_check" && ["open", "in_progress", "blocked"].includes(task.status));
+    if (activeLaunchTasks.length === failingDeploymentChecks.length) break;
+    await new Promise(resolve => setTimeout(resolve, 25));
+  }
+  const deploymentAfterAutomaticSync = await hit("GET", "/api/admin/deployment", null, true);
   const unauthenticatedDeploymentTaskSync = await hit("POST", "/api/admin/deployment/tasks/sync");
   const deploymentTaskSync = await hit("POST", "/api/admin/deployment/tasks/sync", null, true);
   const deploymentTaskReplay = await hit("POST", "/api/admin/deployment/tasks/sync", null, true);
   const deploymentTaskWorkspace = await hit("GET", "/api/admin/partners", null, true);
-  const failingDeploymentChecks = deploymentChecks.filter(check => !check.ok);
   const launchTasksApi = (deploymentTaskWorkspace.data.tasks || []).filter(task => task.relatedEntityType === "deployment_check" && ["open", "in_progress", "blocked"].includes(task.status));
   ok("deployment task sync requires task delegation permission", unauthenticatedDeploymentTaskSync.status === 401);
-  ok("deployment task sync creates one task per failing gate", deploymentTaskSync.status === 200 && deploymentTaskSync.data.sync?.created === failingDeploymentChecks.length && deploymentTaskSync.data.sync?.active === failingDeploymentChecks.length && launchTasksApi.length === failingDeploymentChecks.length && new Set(launchTasksApi.map(task => task.relatedEntityId)).size === failingDeploymentChecks.length);
+  ok("automatic deployment sync creates one task per failing gate", launchTasksApi.length === failingDeploymentChecks.length && new Set(launchTasksApi.map(task => task.relatedEntityId)).size === failingDeploymentChecks.length);
+  ok("manual deployment task sync replays automatic state", deploymentTaskSync.status === 200 && deploymentTaskSync.data.sync?.changed === false && deploymentTaskSync.data.sync?.created === 0 && deploymentTaskSync.data.sync?.active === failingDeploymentChecks.length);
   ok("deployment task API replay is idempotent", deploymentTaskReplay.status === 200 && deploymentTaskReplay.data.sync?.changed === false && deploymentTaskReplay.data.sync?.created === 0 && deploymentTaskReplay.data.sync?.active === failingDeploymentChecks.length);
+  ok("deployment exposes healthy automatic launch work evidence", deploymentAfterAutomaticSync.data.deployment?.checks?.deploymentTaskSync?.ok === true
+    && deploymentAfterAutomaticSync.data.deployment?.checks?.deploymentTaskSync?.message.includes("healthy")
+    && deploymentAfterAutomaticSync.data.deployment?.checks?.deploymentTaskSync?.message.includes("60 minutes")
+    && deploymentAfterAutomaticSync.data.deployment?.automation?.deploymentTaskSync?.ready === true
+    && Boolean(deploymentAfterAutomaticSync.data.deployment?.automation?.deploymentTaskSync?.lastSuccessAt));
   ok("deployment exposes labeled and grouped launch checks", deploymentChecks.length >= 35
     && deploymentChecks.every(check => check.id && check.label && check.label !== check.id && check.group && check.group !== "Other" && check.message && ["ok", "warning", "error"].includes(check.severity))
     && new Set(deploymentChecks.map(check => check.group)).size >= 6
@@ -4552,6 +4579,7 @@ try {
         env: {
           ...process.env,
           SANDFEST_ENV: "production",
+          SANDFEST_DEPLOYMENT_TASK_SYNC_INTERVAL_MS: "0",
           SANDFEST_AUTH_MODE: "bearer-token",
           SANDFEST_DATABASE_URL: "",
           SANDFEST_API_PORT: productionProbePort,
@@ -4643,6 +4671,7 @@ try {
       ok("production ingest rejects detector bytes outside the approval", mismatchedModelResponse.status === 409 && mismatchedModel.reason === "camera_model_checksum_mismatch");
       ok("production requires partner intake bot verification", data.deployment?.checks?.partnerIntakeBotProtection?.ok === false && data.deployment?.checks?.partnerIntakeBotProtection?.severity === "error");
       ok("production requires current recovery evidence", data.deployment?.checks?.backupRecovery?.ok === false && data.deployment?.checks?.backupRecovery?.severity === "error");
+      ok("production rejects disabled launch work automation", data.deployment?.checks?.deploymentTaskSync?.ok === false && data.deployment?.checks?.deploymentTaskSync?.severity === "error" && data.deployment?.automation?.deploymentTaskSync?.enabled === false);
       ok("production rejects unreadable sponsor package config", data.deployment?.checks?.sponsorPackages?.ok === false && data.deployment?.checks?.sponsorPackages?.severity === "error");
       ok("production requires a shared rate-limit backend", data.deployment?.checks?.rateLimitBackend?.ok === false && data.deployment?.checks?.rateLimitBackend?.severity === "error" && data.deployment?.checks?.rateLimitBackend?.message.includes("memory"));
       ok("production rejects stale operational event context", data.deployment?.checks?.currentEvent?.ok === false && data.deployment?.checks?.currentEvent?.severity === "error");
@@ -5875,6 +5904,7 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
   ok("Twilio webhook audit is aggregate-only", smsAuditApi.some(item => item.record?.action === "sms.delivery.webhook") && smsAuditApi.some(item => item.record?.action === "sms.preference.webhook") && !JSON.stringify(smsAuditApi).includes("+13615550188") && !JSON.stringify(smsAuditApi).includes("platform-twilio-auth-secret"));
   ok("event guide publish is audited", auditApi.data.audit?.some(item => item.record?.action === "content.event-guide.publish"));
   ok("launch task synchronization is aggregate audited", auditApi.data.audit?.some(item => item.record?.action === "deployment.tasks.sync" && item.record?.after?.active === failingDeploymentChecks.length));
+  ok("automatic launch task audit identifies the system actor", auditApi.data.audit?.some(item => item.record?.action === "deployment.tasks.sync" && item.record?.actor?.type === "system" && item.record?.actor?.id === "deployment-readiness" && item.record?.metadata?.automated === true && item.record?.after?.created === failingDeploymentChecks.length));
   const documentAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("document."));
   ok("private document lifecycle is audited without file contents", documentAuditApi.some(item => item.record?.action === "document.upload") && documentAuditApi.some(item => item.record?.action === "document.review") && documentAuditApi.some(item => item.record?.action === "document.download") && documentAuditApi.some(item => item.record?.action === "document.extraction.source_read") && documentAuditApi.some(item => item.record?.action === "document.extraction.retry") && !JSON.stringify(documentAuditApi).includes("Board packet source"));
   ok("revenue settlement commit is audited", auditApi.data.audit?.some(item => item.record?.action === "revenue.import.commit" && item.record?.after?.source === "square" && item.record?.after?.imported === 1));

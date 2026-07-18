@@ -179,7 +179,10 @@ import {
   updateVendorAssignment,
   updateVendorProfile
 } from "../lib/partner-ops.mjs";
-import { syncDeploymentCheckTasks } from "../lib/deployment-task-sync.mjs";
+import {
+  deploymentTaskSyncIntervalMs,
+  syncDeploymentCheckTasks
+} from "../lib/deployment-task-sync.mjs";
 import {
   adminPartnerPortalAccess,
   findPartnerPortalApplication,
@@ -336,6 +339,16 @@ const TURNSTILE = turnstileConfig(process.env);
 const BREVO_WEBHOOK = brevoWebhookConfig(process.env);
 const PORT = Number(process.env.PORT || process.env.SANDFEST_API_PORT || 8788);
 const SANDFEST_ENV = process.env.SANDFEST_ENV || "development";
+const DEPLOYMENT_TASK_SYNC_INTERVAL_MS = deploymentTaskSyncIntervalMs(
+  process.env.SANDFEST_DEPLOYMENT_TASK_SYNC_INTERVAL_MS,
+  { production: SANDFEST_ENV === "production" }
+);
+const deploymentTaskSyncRuntime = {
+  running: false,
+  lastAttemptAt: null,
+  lastSuccessAt: null,
+  lastError: null
+};
 const OUTREACH_DISCOVERY = outreachDiscoveryConfig(process.env, { production: SANDFEST_ENV === "production" });
 const SPONSOR_INVITATIONS = sponsorInvitationConfig(process.env);
 const EVENT_CONTEXT = eventContextConfig(process.env);
@@ -627,6 +640,7 @@ const DEPLOYMENT_CHECK_PRESENTATION = Object.freeze({
   capabilityPolicy: ["Required capabilities", "Platform"],
   dataPlane: ["Durable data plane", "Platform"],
   backupRecovery: ["Backup and recovery", "Platform"],
+  deploymentTaskSync: ["Launch work automation", "Platform"],
   authMode: ["Authentication mode", "Access"],
   authJwks: ["JWKS endpoint", "Access"],
   authIssuer: ["Token issuer", "Access"],
@@ -1300,6 +1314,19 @@ async function syncDeploymentTasks(checks, actorId, now = new Date().toISOString
   return result;
 }
 
+function deploymentTaskSyncAuditView(result) {
+  return {
+    changed: result.changed,
+    created: result.created,
+    updated: result.updated,
+    reopened: result.reopened,
+    completed: result.completed,
+    deduplicated: result.deduplicated,
+    active: result.active,
+    taskIds: result.taskIds
+  };
+}
+
 async function syncDocumentReviewTask(document, actorId, now = new Date().toISOString()) {
   return mutatePartnerOperations(doc => syncIncomingDocumentReviewTask(doc, document, {
     actorId,
@@ -1402,8 +1429,30 @@ async function readIslandConditions({ refreshWeather = false, refreshFerry = fal
   return normalizeIslandConditions(doc);
 }
 
-async function deploymentProfile() {
+function deploymentTaskSyncRuntimeProfile(now = Date.now()) {
+  const lastSuccessMs = deploymentTaskSyncRuntime.lastSuccessAt
+    ? new Date(deploymentTaskSyncRuntime.lastSuccessAt).getTime()
+    : Number.NaN;
+  const successAgeMs = Number.isFinite(lastSuccessMs) ? Math.max(0, now - lastSuccessMs) : null;
+  const maximumSuccessAgeMs = Math.max(5 * 60_000, DEPLOYMENT_TASK_SYNC_INTERVAL_MS * 2);
+  return {
+    enabled: DEPLOYMENT_TASK_SYNC_INTERVAL_MS > 0,
+    intervalMs: DEPLOYMENT_TASK_SYNC_INTERVAL_MS,
+    running: deploymentTaskSyncRuntime.running,
+    ready: DEPLOYMENT_TASK_SYNC_INTERVAL_MS > 0
+      && !deploymentTaskSyncRuntime.lastError
+      && successAgeMs !== null
+      && successAgeMs <= maximumSuccessAgeMs,
+    lastAttemptAt: deploymentTaskSyncRuntime.lastAttemptAt,
+    lastSuccessAt: deploymentTaskSyncRuntime.lastSuccessAt,
+    successAgeSeconds: successAgeMs === null ? null : Math.round(successAgeMs / 1_000),
+    lastError: deploymentTaskSyncRuntime.lastError
+  };
+}
+
+async function deploymentProfile(options = {}) {
   const production = SANDFEST_ENV === "production";
+  const deploymentTaskAutomation = deploymentTaskSyncRuntimeProfile();
   const adminBase = process.env.SANDFEST_ADMIN_BASE_URL || "";
   const publicApiBase = process.env.SANDFEST_API_PUBLIC_BASE_URL || "";
   const corsOrigins = new Set(ALLOWED_ORIGINS);
@@ -1479,6 +1528,21 @@ async function deploymentProfile() {
       recovery.ready
         ? `${recovery.provider} recovery is ready; oldest restore drill ${recovery.oldestRestoreDrillAgeDays} day${recovery.oldestRestoreDrillAgeDays === 1 ? "" : "s"} ago.`
         : recovery.reason,
+      production ? "error" : "warning"
+    ),
+    deploymentTaskSync: checkStatus(
+      !production || deploymentTaskAutomation.ready || options.automaticTaskSyncAttempt === true,
+      DEPLOYMENT_TASK_SYNC_INTERVAL_MS > 0
+        ? deploymentTaskAutomation.ready
+          ? `Launch work automation is healthy; last successful reconciliation ${deploymentTaskAutomation.successAgeSeconds} second${deploymentTaskAutomation.successAgeSeconds === 1 ? "" : "s"} ago and repeats every ${Math.round(DEPLOYMENT_TASK_SYNC_INTERVAL_MS / 60_000)} minute${DEPLOYMENT_TASK_SYNC_INTERVAL_MS === 60_000 ? "" : "s"}.`
+          : options.automaticTaskSyncAttempt === true
+            ? `Launch work automation is performing its startup or scheduled reconciliation and repeats every ${Math.round(DEPLOYMENT_TASK_SYNC_INTERVAL_MS / 60_000)} minutes.`
+            : deploymentTaskAutomation.lastError
+              ? `Automatic launch work reconciliation failed: ${deploymentTaskAutomation.lastError}`
+              : "Automatic launch work reconciliation has not completed successfully since startup."
+        : production
+          ? "Production requires automatic launch work-item reconciliation."
+          : "Launch work-item reconciliation is manual outside production.",
       production ? "error" : "warning"
     ),
     authMode: checkStatus(
@@ -1724,6 +1788,7 @@ async function deploymentProfile() {
     ok: errors.length === 0,
     errors: errors.length,
     warnings: warnings.length,
+    automation: { deploymentTaskSync: deploymentTaskAutomation },
     checks: presentedChecks,
     groups: summarizeDeploymentGroups(presentedChecks)
   };
@@ -2192,6 +2257,32 @@ async function writeAuditRecord(request, action, target, before, after, metadata
     actor: adminActor(request),
     requestId: request.requestId ?? null,
     before: redactAuditValue(before),
+    after: redactAuditValue(after),
+    metadata: redactAuditValue(metadata),
+    createdAt: new Date().toISOString()
+  };
+  await storage.audit.write(record);
+  return record;
+}
+
+async function writeSystemAuditRecord(action, target, after, metadata = {}) {
+  const record = {
+    id: `audit_${randomUUID()}`,
+    eventId: CURRENT_EVENT_ID,
+    action,
+    target,
+    actor: {
+      id: "deployment-readiness",
+      role: "system",
+      permissions: ["partners:write"],
+      type: "system",
+      issuer: null,
+      tokenId: null,
+      ip: null,
+      userAgent: null
+    },
+    requestId: null,
+    before: null,
     after: redactAuditValue(after),
     metadata: redactAuditValue(metadata),
     createdAt: new Date().toISOString()
@@ -4409,16 +4500,14 @@ async function handleRequest(request, response) {
         return;
       }
       const { doc: _doc, tasks: _tasks, ...sync } = result;
-      await writeAuditRecord(request, "deployment.tasks.sync", { type: "deployment", id: deployment.environment }, null, {
-        changed: sync.changed,
-        created: sync.created,
-        updated: sync.updated,
-        reopened: sync.reopened,
-        completed: sync.completed,
-        deduplicated: sync.deduplicated,
-        active: sync.active,
-        taskIds: sync.taskIds
-      });
+      await writeAuditRecord(
+        request,
+        "deployment.tasks.sync",
+        { type: "deployment", id: deployment.environment },
+        null,
+        deploymentTaskSyncAuditView(sync),
+        { automated: false }
+      );
       sendJson(request, response, 200, { deployment, sync });
       return;
     }
@@ -7005,6 +7094,56 @@ async function handleRequest(request, response) {
   }
 }
 
+let deploymentTaskSyncTimer = null;
+let deploymentTaskSyncInFlight = null;
+
+async function runAutomaticDeploymentTaskSync() {
+  if (deploymentTaskSyncInFlight) return null;
+  deploymentTaskSyncRuntime.running = true;
+  deploymentTaskSyncRuntime.lastAttemptAt = new Date().toISOString();
+  deploymentTaskSyncInFlight = (async () => {
+    const deployment = await deploymentProfile({ automaticTaskSyncAttempt: true });
+    const result = await syncDeploymentTasks(deployment.checks, "deployment-readiness");
+    if (!result?.ok) throw new Error(result?.error || "Automatic launch work-item synchronization failed.");
+    if (result.changed) {
+      const audit = deploymentTaskSyncAuditView(result);
+      await writeSystemAuditRecord(
+        "deployment.tasks.sync",
+        { type: "deployment", id: deployment.environment },
+        audit,
+        { automated: true, intervalMs: DEPLOYMENT_TASK_SYNC_INTERVAL_MS }
+      );
+      console.log(JSON.stringify({ event: "deployment.tasks.sync", automated: true, ...audit }));
+    }
+    deploymentTaskSyncRuntime.lastSuccessAt = new Date().toISOString();
+    deploymentTaskSyncRuntime.lastError = null;
+    return result;
+  })();
+  try {
+    return await deploymentTaskSyncInFlight;
+  } catch (error) {
+    deploymentTaskSyncRuntime.lastError = String(error?.message || error).slice(0, 500);
+    console.error(JSON.stringify({
+      event: "deployment.tasks.sync.error",
+      automated: true,
+      error: deploymentTaskSyncRuntime.lastError
+    }));
+    return null;
+  } finally {
+    deploymentTaskSyncRuntime.running = false;
+    deploymentTaskSyncInFlight = null;
+  }
+}
+
+function startAutomaticDeploymentTaskSync() {
+  if (DEPLOYMENT_TASK_SYNC_INTERVAL_MS <= 0) return;
+  void runAutomaticDeploymentTaskSync();
+  deploymentTaskSyncTimer = setInterval(() => {
+    void runAutomaticDeploymentTaskSync();
+  }, DEPLOYMENT_TASK_SYNC_INTERVAL_MS);
+  deploymentTaskSyncTimer.unref?.();
+}
+
 const server = createServer(handleRequest);
 // Festival-scale keep-alive / backlog (tune via env on large hosts).
 server.keepAliveTimeout = Number(process.env.SANDFEST_KEEPALIVE_MS || 65_000);
@@ -7015,12 +7154,16 @@ const listenHost = process.env.SANDFEST_API_HOST || (SANDFEST_ENV === "productio
 server.listen(PORT, listenHost, () => {
   const dataMode = process.env.SANDFEST_DATABASE_URL ? "postgres+platform" : "file-atomic";
   console.log(`SandFest admin API listening on http://${listenHost}:${PORT} (storage: ${storage.kind}, data: ${dataMode}, auth: ${authMode()})`);
+  startAutomaticDeploymentTaskSync();
 });
 
 async function shutdown(signal) {
   console.log(`Received ${signal}, closing SandFest admin API.`);
+  if (deploymentTaskSyncTimer) clearInterval(deploymentTaskSyncTimer);
+  const pendingDeploymentTaskSync = deploymentTaskSyncInFlight;
   server.close(async () => {
     try {
+      await pendingDeploymentTaskSync?.catch(() => null);
       await rateLimiter.close?.();
       await storage.close();
     } finally {

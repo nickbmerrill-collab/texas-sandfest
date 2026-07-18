@@ -102,6 +102,7 @@ check("admin owns the canonical operations domain", admin?.domains?.includes("sa
 check("API is a checks-gated Docker service", api?.type === "web" && api?.runtime === "docker" && api?.branch === "main" && api?.autoDeployTrigger === "checksPass");
 check("API health probe verifies the process and data plane", api?.healthCheckPath === "/health");
 check("API uses the canonical production prefix", apiEnv.get("SANDFEST_ENV")?.value === "production" && apiEnv.get("SANDFEST_API_PREFIX")?.value === "/sandfest");
+check("API continuously reconciles launch work", Number(apiEnv.get("SANDFEST_DEPLOYMENT_TASK_SYNC_INTERVAL_MS")?.value) === 15 * 60_000);
 check("API uses private managed Postgres", apiEnv.get("SANDFEST_DATABASE_URL")?.fromDatabase?.name === "sandfest-db" && apiEnv.get("SANDFEST_DATABASE_URL")?.fromDatabase?.property === "connectionString");
 check("API uses private managed rate limiting", apiEnv.get("REDIS_URL")?.fromService?.type === "keyvalue" && apiEnv.get("REDIS_URL")?.fromService?.name === "sandfest-rate-limit" && apiEnv.get("REDIS_URL")?.fromService?.property === "connectionString");
 check("API private capabilities are generated", apiEnv.get("SANDFEST_PARTNER_PORTAL_SECRET")?.generateValue === true && apiEnv.get("SANDFEST_OUTREACH_PREFERENCES_SECRET")?.generateValue === true && apiEnv.get("SANDFEST_DOCUMENT_EXTRACTION_SECRET")?.generateValue === true);
