@@ -9,8 +9,10 @@ function loopbackBase(value, label) {
 }
 
 function boardDemoCheckConfig(env = process.env) {
+  const webUrl = boardDemoLoopbackUrl(env.SANDFEST_BOARD_WEB_URL || "http://127.0.0.1:5175/?apiBase=http://127.0.0.1:8806&mode=visitor", "SANDFEST_BOARD_WEB_URL");
   return {
-    webUrl: boardDemoLoopbackUrl(env.SANDFEST_BOARD_WEB_URL || "http://127.0.0.1:5175/?apiBase=http://127.0.0.1:8806&mode=visitor", "SANDFEST_BOARD_WEB_URL").toString(),
+    webUrl: webUrl.toString(),
+    webOrigin: webUrl.origin,
     apiBase: loopbackBase(env.SANDFEST_BOARD_API_BASE || "http://127.0.0.1:8806", "SANDFEST_BOARD_API_BASE"),
     emailBase: loopbackBase(env.SANDFEST_BOARD_EMAIL_BASE || "http://127.0.0.1:8807", "SANDFEST_BOARD_EMAIL_BASE"),
     smsBase: loopbackBase(env.SANDFEST_BOARD_SMS_BASE || "http://127.0.0.1:8808", "SANDFEST_BOARD_SMS_BASE")
@@ -24,7 +26,7 @@ try {
   console.error(`[FAIL] Board demo preflight configuration: ${error.message}`);
   process.exit(1);
 }
-const { webUrl, apiBase, emailBase, smsBase } = endpoints;
+const { webUrl, webOrigin, apiBase, emailBase, smsBase } = endpoints;
 const adminToken = process.env.SANDFEST_BOARD_ADMIN_TOKEN || "board-demo-local-admin-token-change-me";
 const configuredTimeoutMs = Number(process.env.SANDFEST_BOARD_CHECK_TIMEOUT_MS || 5000);
 const timeoutMs = Number.isFinite(configuredTimeoutMs) ? Math.max(1000, configuredTimeoutMs) : 5000;
@@ -56,6 +58,7 @@ const report = {
   checkedAt: new Date().toISOString(),
   ...evaluateBoardDemoReadiness({
     web: { ok: web.ok, status: web.status, html: web.body },
+    webOrigin,
     health: health.body,
     ready: ready.body,
     bootstrap: bootstrap.body,
