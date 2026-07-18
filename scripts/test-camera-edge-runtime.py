@@ -34,7 +34,14 @@ def main() -> int:
     model_dir.mkdir(parents=True, exist_ok=True)
     os.chdir(model_dir)
 
-    config = load_config(ROOT / "camera_agent" / "config.example.json")
+    config_path = Path(
+        os.environ.get(
+            "SANDFEST_CAMERA_CONFIG", ROOT / "camera_agent" / "config.example.json"
+        )
+    ).expanduser()
+    if not config_path.is_absolute():
+        config_path = ROOT / config_path
+    config = load_config(config_path)
     camera = selected_camera(config, "north-gate")
     runner = CameraRunner(
         config,

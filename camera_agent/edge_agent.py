@@ -32,6 +32,18 @@ PERSON_CLASS_ID = 0
 VEHICLE_CLASS_IDS = {2, 3, 5, 7}
 TRACKED_CLASS_IDS = {PERSON_CLASS_ID, *VEHICLE_CLASS_IDS}
 SUPPORTED_CAMERA_KINDS = {"traffic", "queue", "crowd", "line"}
+PRODUCTION_CAMERA_IDS = frozenset(
+    {
+        "ferry-loading",
+        "ferry-stacking",
+        "harbor-island-entrance",
+        "harbor-island-stacking",
+        "north-gate",
+        "south-gate",
+        "food-court",
+        "competition-corridor",
+    }
+)
 ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$")
 ENV_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]{1,127}$")
 PLACEHOLDER_PATTERN = re.compile(
@@ -561,6 +573,7 @@ def validate_config(
     *,
     require_runtime: bool = False,
     require_production_approval: bool = False,
+    require_full_fleet: bool = False,
     runtime_camera_id: str | None = None,
     env: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
@@ -720,6 +733,27 @@ def validate_config(
                     f"{stream_env or 'source'} is required for camera {camera_id}."
                 )
         normalized["cameras"].append(camera)
+    if require_full_fleet:
+        enabled_camera_ids = {
+            str(camera["cameraId"])
+            for camera in normalized["cameras"]
+            if camera.get("enabled", True)
+        }
+        missing = sorted(PRODUCTION_CAMERA_IDS - enabled_camera_ids)
+        unexpected = sorted(enabled_camera_ids - PRODUCTION_CAMERA_IDS)
+        if missing or unexpected or len(normalized["cameras"]) != len(PRODUCTION_CAMERA_IDS):
+            details = []
+            if missing:
+                details.append(f"missing or disabled: {', '.join(missing)}")
+            if unexpected:
+                details.append(f"unexpected: {', '.join(unexpected)}")
+            if len(normalized["cameras"]) != len(PRODUCTION_CAMERA_IDS):
+                details.append(
+                    f"configured {len(normalized['cameras'])}, expected {len(PRODUCTION_CAMERA_IDS)}"
+                )
+            raise AgentConfigurationError(
+                f"Production camera config must contain exactly eight enabled SandFest lanes ({'; '.join(details)})."
+            )
     if runtime_camera_id is not None:
         selected = next(
             (camera for camera in normalized["cameras"] if camera["cameraId"] == runtime_camera_id),
@@ -741,6 +775,7 @@ def load_config(
     *,
     require_runtime: bool = False,
     require_production_approval: bool = False,
+    require_full_fleet: bool = False,
     runtime_camera_id: str | None = None,
     env: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
@@ -757,6 +792,7 @@ def load_config(
         config,
         require_runtime=require_runtime,
         require_production_approval=require_production_approval,
+        require_full_fleet=require_full_fleet,
         runtime_camera_id=runtime_camera_id,
         env=env,
     )
@@ -1176,6 +1212,11 @@ class CameraRunner:
 
 def config_summary(config: Mapping[str, Any]) -> dict[str, Any]:
     cameras = config["cameras"]
+    enabled_camera_ids = {
+        str(camera["cameraId"])
+        for camera in cameras
+        if camera.get("enabled", True)
+    }
     model = config.get("model") or {}
     approval = model.get("approval") or {}
     return {
@@ -1186,6 +1227,8 @@ def config_summary(config: Mapping[str, Any]) -> dict[str, Any]:
             1 for camera in cameras if camera.get("enabled", True)
         ),
         "cameraIds": [camera["cameraId"] for camera in cameras],
+        "fullFleetReady": enabled_camera_ids == PRODUCTION_CAMERA_IDS
+        and len(cameras) == len(PRODUCTION_CAMERA_IDS),
         "streamEnvironmentVariables": [
             camera.get("streamEnv") for camera in cameras if camera.get("streamEnv")
         ],
@@ -1257,6 +1300,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.config,
             require_runtime=args.validate_runtime,
             require_production_approval=production_mode,
+            require_full_fleet=production_mode,
             runtime_camera_id=args.camera if args.validate_runtime else None,
         )
         if args.verify_model:
