@@ -208,6 +208,7 @@ import {
 import {
   adminIncomingDocument,
   createIncomingDocument,
+  defaultIncomingDocumentReviewDueAt,
   deleteIncomingDocumentUpload,
   emptyIncomingDocumentIntake,
   incomingDocumentStorageConfig,
@@ -218,6 +219,11 @@ import {
   validateIncomingDocumentUpload,
   verifyIncomingDocumentBytes
 } from "../lib/incoming-documents.mjs";
+import {
+  incomingDocumentReviewTaskView,
+  syncIncomingDocumentReviewTask,
+  syncIncomingDocumentReviewTasks
+} from "../lib/document-review-routing.mjs";
 import {
   incomingDocumentRecoveryReferences,
   partnerAssetRecoveryReferences,
@@ -2065,12 +2071,14 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   const readIncoming = storedIncoming.ok
     ? await readIncomingDocumentUpload(ROOT, storedIncoming.storageKey, { config: incomingConfig })
     : { ok: false };
+  const incomingReviewDueAt = defaultIncomingDocumentReviewDueAt(now);
   const createdIncoming = storedIncoming.ok ? createIncomingDocument(emptyIncomingDocumentIntake(DEFAULT_EVENT_ID), {
     ...storedIncoming,
     id: "incoming_test_1",
     domain: "docs",
     title: "Board packet",
-    ownerTeam: "operations"
+    ownerTeam: "operations",
+    reviewDueAt: incomingReviewDueAt
   }, { eventId: DEFAULT_EVENT_ID, actorId: "ops_1", now }) : { ok: false };
   const duplicateIncoming = createdIncoming.ok ? createIncomingDocument(createdIncoming.doc, {
     ...storedIncoming,
@@ -2079,11 +2087,37 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
     title: "Duplicate packet",
     ownerTeam: "finance"
   }, { eventId: DEFAULT_EVENT_ID, actorId: "finance_1", now }) : { ok: false };
-  const reviewedIncoming = createdIncoming.ok ? updateIncomingDocument(createdIncoming.doc, createdIncoming.document.id, {
+  const routedIncoming = createdIncoming.ok ? syncIncomingDocumentReviewTask(emptyPartnerOperations(DEFAULT_EVENT_ID), createdIncoming.document, {
+    actorId: "ops_1",
+    idFactory,
+    now
+  }) : { ok: false };
+  const changesRequestedIncoming = createdIncoming.ok ? updateIncomingDocument(createdIncoming.doc, createdIncoming.document.id, {
+    status: "changes_requested",
+    ownerTeam: "finance",
+    reviewDueAt: "2026-07-15T12:00:00.000Z",
+    notes: "Confirm the source totals."
+  }, { eventId: DEFAULT_EVENT_ID, actorId: "finance_1", now }) : { ok: false };
+  const reroutedIncoming = routedIncoming.ok && changesRequestedIncoming.ok
+    ? syncIncomingDocumentReviewTask(routedIncoming.doc, changesRequestedIncoming.document, { actorId: "finance_1", idFactory, now })
+    : { ok: false };
+  const incomingAttentionSummary = changesRequestedIncoming.ok
+    ? summarizeIncomingDocuments(changesRequestedIncoming.doc, { eventId: DEFAULT_EVENT_ID, now })
+    : {};
+  const reviewedIncoming = changesRequestedIncoming.ok ? updateIncomingDocument(changesRequestedIncoming.doc, createdIncoming.document.id, {
     status: "approved",
     notes: "Reviewed against the board source packet."
   }, { eventId: DEFAULT_EVENT_ID, actorId: "ops_1", now }) : { ok: false };
-  const incomingSummary = reviewedIncoming.ok ? summarizeIncomingDocuments(reviewedIncoming.doc, { eventId: DEFAULT_EVENT_ID }) : {};
+  const completedIncomingTask = reroutedIncoming.ok && reviewedIncoming.ok
+    ? syncIncomingDocumentReviewTask(reroutedIncoming.doc, reviewedIncoming.document, { actorId: "ops_1", idFactory, now })
+    : { ok: false };
+  const repairedIncomingTasks = createdIncoming.ok
+    ? syncIncomingDocumentReviewTasks(emptyPartnerOperations(DEFAULT_EVENT_ID), createdIncoming.doc.documents, { actorId: "worker", idFactory, now })
+    : { ok: false };
+  const repeatedIncomingRepair = repairedIncomingTasks.ok
+    ? syncIncomingDocumentReviewTasks(repairedIncomingTasks.doc, createdIncoming.doc.documents, { actorId: "worker", idFactory, now })
+    : { ok: false };
+  const incomingSummary = reviewedIncoming.ok ? summarizeIncomingDocuments(reviewedIncoming.doc, { eventId: DEFAULT_EVENT_ID, now }) : {};
   const incomingAdminJson = reviewedIncoming.ok ? JSON.stringify(adminIncomingDocument(reviewedIncoming.document)) : "";
   const verifiedIncoming = readIncoming.ok && reviewedIncoming.ok
     ? verifyIncomingDocumentBytes(reviewedIncoming.document, readIncoming.buffer)
@@ -2145,7 +2179,10 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   ok("document intake storage fails closed in production", incomingConfig.ready && !incomingProductionMissing.ready && incomingProductionMissing.reason.includes("SANDFEST_INCOMING_DOCUMENT_DIR"));
   ok("document intake validates, stores, and previews text", storedIncoming.ok && readIncoming.ok && readIncoming.buffer.equals(incomingText) && storedIncoming.extractionStatus === "preview_ready" && storedIncoming.textPreview.includes("board packet"));
   ok("document intake records and deduplicates checksums", createdIncoming.ok && !createdIncoming.duplicate && duplicateIncoming.ok && duplicateIncoming.duplicate && duplicateIncoming.document.id === createdIncoming.document.id && duplicateIncoming.doc.documents.length === 1);
-  ok("document intake review lifecycle and summary", reviewedIncoming.ok && reviewedIncoming.document.status === "approved" && reviewedIncoming.document.reviewedBy === "ops_1" && incomingSummary.total === 1 && incomingSummary.byStatus.approved === 1);
+  ok("document intake review lifecycle and summary", reviewedIncoming.ok && reviewedIncoming.document.status === "approved" && reviewedIncoming.document.reviewedBy === "ops_1" && incomingSummary.total === 1 && incomingSummary.byStatus.approved === 1 && incomingAttentionSummary.overdue === 1);
+  ok("document intake creates accountable review work", routedIncoming.ok && routedIncoming.created && routedIncoming.task?.assigneeType === "team" && routedIncoming.task?.assigneeId === "operations" && routedIncoming.task?.dueAt === incomingReviewDueAt && incomingDocumentReviewTaskView(routedIncoming.doc, createdIncoming.document.id)?.status === "open");
+  ok("document review state synchronizes task ownership and lifecycle", reroutedIncoming.ok && reroutedIncoming.task?.status === "blocked" && reroutedIncoming.task?.priority === "high" && reroutedIncoming.task?.assigneeId === "finance" && completedIncomingTask.ok && completedIncomingTask.task?.status === "done");
+  ok("document review repair is complete and idempotent", repairedIncomingTasks.ok && repairedIncomingTasks.summary.created === 1 && repeatedIncomingRepair.ok && !repeatedIncomingRepair.changed && repeatedIncomingRepair.summary.unchanged === 1 && repeatedIncomingRepair.doc.tasks.length === 1);
   ok("document intake admin payload hides storage paths", !incomingAdminJson.includes("storageKey") && incomingAdminJson.includes(storedIncoming.checksumSha256));
   ok("document intake download integrity proof", verifiedIncoming.ok && !verifyIncomingDocumentBytes(reviewedIncoming.document, Buffer.from("tampered")).ok);
   ok("document intake is included in the restore manifest", incomingRecovery.ok && incomingRecovery.references[0]?.storageKey === `incoming-documents/${storedIncoming.storageKey}` && platformRecovery.counts.incomingDocuments === 1 && verifiedPlatformRecovery.ok && verifiedPlatformRecovery.counts.incomingDocuments === 1);
@@ -4013,27 +4050,35 @@ try {
   ok("event guide publish updates public and admin readiness", validGuidePublish.status === 200 && validGuidePublish.data.readiness?.ready === true && publishedPublicBootstrap.data.guide?.sourceCheckedAt === sourceCheckedAt && !("publishedBy" in publishedPublicBootstrap.data.guide) && publishedAdminConfig.data.eventGuideReadiness?.ready === true);
 
   const apiDocumentBytes = Buffer.from("Board packet source\nOwner: Operations\n", "utf8");
+  const apiDocumentReviewDueAt = "2027-01-20T18:00:00.000Z";
+  const documentUploadPreflightApi = await hitRaw("OPTIONS", "/api/admin/documents/upload", undefined, {
+    origin: "https://www.texassandfest.org",
+    "access-control-request-method": "POST",
+    "access-control-request-headers": "authorization,content-type,x-document-review-due-at"
+  });
   const unauthenticatedDocumentsApi = await hitRaw("GET", "/api/admin/documents");
   const unauthenticatedDocumentUploadApi = await hitRaw("POST", "/api/admin/documents/upload", apiDocumentBytes, {
     "content-type": "text/plain",
     "x-file-name": "board-source.txt",
     "x-document-domain": "docs",
     "x-document-title": "Board source",
-    "x-owner-team": "operations"
+    "x-owner-team": "operations",
+    "x-document-review-due-at": apiDocumentReviewDueAt
   });
   const documentUploadApi = await hitRaw("POST", "/api/admin/documents/upload", apiDocumentBytes, {
     "content-type": "text/plain",
     "x-file-name": "board-source.txt",
     "x-document-domain": "docs",
     "x-document-title": "Board source",
-    "x-owner-team": "operations"
+    "x-document-review-due-at": apiDocumentReviewDueAt
   }, true);
   const documentReplayApi = await hitRaw("POST", "/api/admin/documents/upload", apiDocumentBytes, {
     "content-type": "text/plain",
     "x-file-name": "board-source-copy.txt",
     "x-document-domain": "finance",
     "x-document-title": "Duplicate board source",
-    "x-owner-team": "finance"
+    "x-owner-team": "finance",
+    "x-document-review-due-at": "2027-02-01T18:00:00.000Z"
   }, true);
   const documentListApi = await hit("GET", "/api/admin/documents", null, true);
   const documentIdApi = documentUploadApi.data.document?.id;
@@ -4042,6 +4087,8 @@ try {
     ownerTeam: "operations",
     notes: "Reviewed against the board packet."
   }, true);
+  const documentTaskWorkspaceApi = await hit("GET", "/api/admin/partners", null, true);
+  const documentReviewTasksApi = documentTaskWorkspaceApi.data.tasks?.filter(item => item.relatedEntityType === "incoming_document" && item.relatedEntityId === documentIdApi) || [];
   const documentDownloadApi = await hitRaw("GET", `/api/admin/documents/${encodeURIComponent(documentIdApi || "missing")}/content`, undefined, {}, true);
   const invalidDocumentUploadApi = await hitRaw("POST", "/api/admin/documents/upload", Buffer.from("not a pdf"), {
     "content-type": "application/pdf",
@@ -4050,9 +4097,11 @@ try {
     "x-document-title": "False packet"
   }, true);
   ok("document intake API requires dedicated staff authentication", unauthenticatedDocumentsApi.status === 401 && unauthenticatedDocumentUploadApi.status === 401);
-  ok("document intake API stores private metadata and preview", documentUploadApi.status === 201 && documentUploadApi.data.document?.textPreview.includes("Board packet source") && !("storageKey" in (documentUploadApi.data.document || {})) && documentUploadApi.data.document?.checksumSha256?.length === 64);
-  ok("document intake API is checksum-idempotent", documentReplayApi.status === 200 && documentReplayApi.data.duplicate === true && documentReplayApi.data.document?.id === documentIdApi && documentListApi.data.summary?.total === 1);
-  ok("document intake API governs review lifecycle", documentReviewApi.status === 200 && documentReviewApi.data.document?.status === "approved" && documentReviewApi.data.document?.reviewedBy === "local-admin" && documentReviewApi.data.summary?.byStatus?.approved === 1);
+  ok("document intake upload CORS permits the review deadline", documentUploadPreflightApi.status === 204 && documentUploadPreflightApi.headers.get("access-control-allow-origin") === "https://www.texassandfest.org" && documentUploadPreflightApi.headers.get("access-control-allow-headers")?.includes("x-document-review-due-at"));
+  ok("document intake API stores private metadata and preview", documentUploadApi.status === 201 && documentUploadApi.data.document?.textPreview.includes("Board packet source") && !("storageKey" in (documentUploadApi.data.document || {})) && documentUploadApi.data.document?.checksumSha256?.length === 64 && documentUploadApi.data.document?.reviewDueAt === apiDocumentReviewDueAt);
+  ok("document intake API is checksum-idempotent", documentReplayApi.status === 200 && documentReplayApi.data.duplicate === true && documentReplayApi.data.document?.id === documentIdApi && documentReplayApi.data.document?.reviewTask?.id === documentUploadApi.data.document?.reviewTask?.id && documentListApi.data.summary?.total === 1);
+  ok("document intake API routes one due-dated work-board task", documentListApi.data.documents?.[0]?.reviewTask?.status === "open" && documentListApi.data.documents?.[0]?.reviewTask?.assigneeId === "operations" && documentListApi.data.documents?.[0]?.reviewTask?.dueAt === apiDocumentReviewDueAt && documentReviewTasksApi.length === 1);
+  ok("document intake API governs review and task lifecycle", documentReviewApi.status === 200 && documentReviewApi.data.document?.status === "approved" && documentReviewApi.data.document?.reviewedBy === "local-admin" && documentReviewApi.data.document?.reviewTask?.status === "done" && documentReviewTasksApi[0]?.status === "done" && documentReviewApi.data.summary?.byStatus?.approved === 1);
   ok("document intake API verifies controlled downloads", documentDownloadApi.status === 200 && documentDownloadApi.data.equals(apiDocumentBytes) && documentDownloadApi.headers.get("content-disposition")?.includes("board-source.txt") && documentDownloadApi.headers.get("cache-control") === "private, no-store");
   ok("document intake API rejects spoofed file types", invalidDocumentUploadApi.status === 400 && invalidDocumentUploadApi.data.error?.includes("do not match"));
 

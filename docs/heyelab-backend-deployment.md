@@ -366,7 +366,9 @@ Staff track benefit owner, due date, lifecycle, proof URL or note, and partner r
 
 ## Private Document Intake Safety
 
-The operations workspace accepts staff-only board packets, provider exports, finance files, runbooks, and communications. Content is validated independently of the filename, size is capped at 20 MB by default, filenames are sanitized, and bytes are written with private permissions. Each annual metadata record stores a SHA-256 checksum, byte count, domain, owner team, review status, and bounded notes. Re-uploading identical bytes returns the original record instead of creating another copy.
+The operations workspace accepts staff-only board packets, provider exports, finance files, runbooks, and communications. Content is validated independently of the filename, size is capped at 20 MB by default, filenames are sanitized, and bytes are written with private permissions. Each annual metadata record stores a SHA-256 checksum, byte count, domain, owner team, review deadline, review status, and bounded notes. Re-uploading identical bytes returns the original record instead of creating another copy.
+
+Each accepted file also creates exactly one `incoming_document` task in the delegated work board. New files default to an Operations owner and a server-calculated three-day deadline unless staff selects another route or date. Review state is authoritative for the task lifecycle: received maps to open, in-review to in-progress, changes requested to blocked/high priority, approved to done, and archived to cancelled. Reassigning or rescheduling the document updates the same task, increments its routing versions, and invalidates stale notices. A checksum replay repairs missing task routing without creating a second file or task.
 
 `documents:write` is limited to operations and super administrators. Finance administrators receive read access for controlled review and download. API responses never expose storage keys, downloads use `no-store` and `nosniff`, and every upload, review, integrity failure, and download is audited without retaining file content or text previews.
 

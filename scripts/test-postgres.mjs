@@ -554,7 +554,8 @@ async function main() {
     "x-file-name": "postgres-board-packet.txt",
     "x-document-domain": "docs",
     "x-document-title": "Postgres board packet",
-    "x-owner-team": "operations"
+    "x-owner-team": "operations",
+    "x-document-review-due-at": "2027-01-20T18:00:00.000Z"
   };
   const [postgresDocumentUploadA, postgresDocumentUploadB] = await Promise.all([
     requestUpload(base, "/api/admin/documents/upload", postgresDocumentBytes, postgresDocumentHeaders),
@@ -567,10 +568,17 @@ async function main() {
     ownerTeam: "operations",
     notes: "Validated through the Postgres metadata plane."
   }, { auth: true });
+  const postgresDocumentWorkspace = await request(base, "GET", "/api/admin/partners", undefined, { auth: true });
+  const postgresDocumentTasks = postgresDocumentWorkspace.data.tasks?.filter(item => item.relatedEntityType === "incoming_document" && item.relatedEntityId === postgresDocument?.id) || [];
   const postgresDocumentDownload = await requestDownload(base, `/api/admin/documents/${encodeURIComponent(postgresDocument?.id || "missing")}/content`);
   check("concurrent document uploads converge in Postgres", [postgresDocumentUploadA, postgresDocumentUploadB].filter(item => item.status === 201).length === 1 && [postgresDocumentUploadA, postgresDocumentUploadB].filter(item => item.status === 200 && item.data.duplicate === true).length === 1 && postgresDocuments.data.summary?.total === 1);
   check("Postgres document metadata excludes private storage paths", postgresDocuments.status === 200 && postgresDocument?.textPreview.includes("Postgres board packet") && !("storageKey" in (postgresDocument || {})) && postgresDocument?.checksumSha256?.length === 64);
+  check("Postgres document review creates one durable task", postgresDocumentTasks.length === 1 && postgresDocumentTasks[0]?.status === "in_progress" && postgresDocumentTasks[0]?.assigneeId === "operations" && postgresDocumentReview.data.document?.reviewTask?.id === postgresDocumentTasks[0]?.id);
   check("Postgres document review and controlled download", postgresDocumentReview.status === 200 && postgresDocumentReview.data.document?.status === "in_review" && postgresDocumentReview.data.document?.reviewedBy === "postgres-test-admin" && postgresDocumentDownload.status === 200 && postgresDocumentDownload.body.equals(postgresDocumentBytes) && postgresDocumentDownload.disposition.includes("postgres-board-packet.txt"));
+  await updatePlatformDoc(ROOT, "partnerOps", current => ({
+    ...current,
+    tasks: current.tasks.filter(task => task.relatedEntityType !== "incoming_document" || task.relatedEntityId !== postgresDocument.id)
+  }), { fallback: emptyPartnerOperations(EVENT_ID) });
 
   const postgresVendorCatalog = await request(base, "GET", "/api/public/vendors");
   const postgresVendorOfferingPatch = await request(base, "PATCH", "/api/admin/vendor-offerings/marketplace-booth", {
@@ -1346,6 +1354,8 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
   const workerStatus = await readPlatformDoc(ROOT, "workerStatus", null);
   check("worker heartbeat persisted", workerStatus?.state === "stopped" && workerStatus?.lastBatchSize === 15);
   const partnerDocAfterWorker = await readPlatformDoc(ROOT, "partnerOps", null);
+  const repairedPostgresDocumentTasks = partnerDocAfterWorker?.tasks?.filter(task => task.relatedEntityType === "incoming_document" && task.relatedEntityId === postgresDocument.id) || [];
+  check("worker repairs missing document review routing", workerStatus?.lastReconciledDocumentReviewTasks === 1 && repairedPostgresDocumentTasks.length === 1 && repairedPostgresDocumentTasks[0]?.status === "in_progress" && repairedPostgresDocumentTasks[0]?.assigneeId === "operations");
   const sponsorAcknowledgment = partnerDocAfterWorker?.followups?.find(item => item.applicationId === sponsorApplication.id && item.kind === "application_received");
   check("worker acknowledgment includes secure portal link", sponsorAcknowledgment?.status === "draft_ready" && sponsorAcknowledgment.body.includes("#partner-status?reference="));
   const sponsorMilestoneReminder = partnerDocAfterWorker?.followups?.find(item => item.milestoneId === defaultSponsorMilestone?.id && item.kind === "milestone_reminder");

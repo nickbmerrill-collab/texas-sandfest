@@ -1586,7 +1586,7 @@ time {
   border: 1px solid var(--line);
   border-radius: 8px;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   overflow: hidden;
 }
 
@@ -1617,7 +1617,7 @@ time {
   align-items: end;
   display: grid;
   gap: 12px;
-  grid-template-columns: minmax(220px, 1.4fr) minmax(150px, 0.8fr) minmax(170px, 0.9fr) minmax(220px, 1.2fr) auto;
+  grid-template-columns: minmax(220px, 1.3fr) minmax(140px, 0.7fr) minmax(170px, 0.8fr) minmax(190px, 0.9fr) minmax(220px, 1.1fr) auto;
 }
 
 .admin-document-upload label,
@@ -1720,7 +1720,7 @@ time {
 .admin-document-fields {
   display: grid;
   gap: 10px;
-  grid-template-columns: 180px 220px minmax(220px, 1fr);
+  grid-template-columns: 160px 200px 210px minmax(220px, 1fr);
 }
 
 .admin-document-preview {
