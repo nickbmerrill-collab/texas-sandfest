@@ -233,11 +233,16 @@ import {
   incomingDocumentStorageConfig,
   normalizeIncomingDocumentIntake,
   readIncomingDocumentUpload,
+  requestIncomingDocumentExtraction,
   saveIncomingDocumentUpload,
   summarizeIncomingDocuments,
   updateIncomingDocument,
   verifyIncomingDocumentBytes
 } from "../lib/incoming-documents.mjs";
+import {
+  documentExtractionSourceConfig,
+  verifyDocumentExtractionSourceAuthorization
+} from "../lib/document-extraction-source.mjs";
 import {
   incomingDocumentReviewTaskView,
   syncIncomingDocumentReviewTask
@@ -323,6 +328,7 @@ const ROOT = resolveRuntimeRoot(CODE_ROOT);
 const RUNTIME_ROOT = runtimeRootProfile(CODE_ROOT, ROOT);
 const PARTNER_ASSET_STORAGE = partnerAssetStorageConfig(ROOT);
 const INCOMING_DOCUMENT_STORAGE = incomingDocumentStorageConfig(ROOT);
+const DOCUMENT_EXTRACTION_SOURCE = documentExtractionSourceConfig();
 const OUTREACH_PREFERENCES = outreachPreferencesConfig();
 const TURNSTILE = turnstileConfig(process.env);
 const BREVO_WEBHOOK = brevoWebhookConfig(process.env);
@@ -1277,6 +1283,21 @@ async function syncDocumentReviewTask(document, actorId, now = new Date().toISOS
   }));
 }
 
+async function enqueueIncomingDocumentExtraction(document) {
+  if (document?.extractionStatus !== "queued") return null;
+  return enqueueJob(ROOT, {
+    type: "document.extract",
+    payload: {
+      documentId: document.id,
+      eventId: document.eventId,
+      checksumSha256: document.checksumSha256,
+      extractionVersion: document.extractionVersion
+    },
+    maxAttempts: 3,
+    idempotencyKey: `${document.eventId}:${document.id}:${document.checksumSha256}:${document.extractionVersion}`
+  });
+}
+
 function publicPartnerStatus(doc, application) {
   const status = publicPartnerPortalStatus(doc, application);
   status.finance.onlinePayment = publicStripePartnerPaymentsReadiness(STRIPE_PARTNER_PAYMENTS);
@@ -1596,13 +1617,15 @@ async function deploymentProfile() {
     ),
     documentIngestion: (() => {
       const required = capabilityPolicy.required.has("document_ingestion");
+      const extractionReady = !production || DOCUMENT_EXTRACTION_SOURCE.secretReady;
+      const ready = INCOMING_DOCUMENT_STORAGE.ready && extractionReady;
       return checkStatus(
-        (!required && !production) || INCOMING_DOCUMENT_STORAGE.ready,
-        INCOMING_DOCUMENT_STORAGE.ready
-          ? `Private document intake is ready (${Math.round(INCOMING_DOCUMENT_STORAGE.maxBytes / 1024 / 1024)} MB per file).`
+        (!required && !production) || ready,
+        ready
+          ? `Private document intake and authenticated worker extraction are ready (${Math.round(INCOMING_DOCUMENT_STORAGE.maxBytes / 1024 / 1024)} MB per file).`
           : required
-            ? `Required document intake is not ready. ${INCOMING_DOCUMENT_STORAGE.reason}`
-            : INCOMING_DOCUMENT_STORAGE.reason,
+            ? `Required document intake is not ready. ${INCOMING_DOCUMENT_STORAGE.reason || "SANDFEST_DOCUMENT_EXTRACTION_SECRET must be shared with the worker."}`
+            : INCOMING_DOCUMENT_STORAGE.reason || "Document extraction authentication is not configured.",
         required || production ? "error" : "warning"
       );
     })(),
@@ -3220,7 +3243,7 @@ async function handleRequest(request, response) {
         backupRecoveryReady: recoveryReadiness(process.env).ready,
         partnerPortalReady: partnerPortalConfig().ready,
         publicSiteUrl: partnerPortalConfig().publicBaseUrl,
-        documentIngestionReady: INCOMING_DOCUMENT_STORAGE.ready,
+        documentIngestionReady: deployment.checks.documentIngestion?.ok === true,
         outreachPreferencesReady: OUTREACH_PREFERENCES.ready,
         stripePartnerPaymentsReady: STRIPE_PARTNER_PAYMENTS.ready,
         rateLimitBackend: rateLimiter.kind,
@@ -4350,6 +4373,52 @@ async function handleRequest(request, response) {
       return;
     }
 
+    const internalDocumentExtractionMatch = pathname.match(/^\/api\/internal\/documents\/([^/]+)\/extraction-source$/);
+    if (method === "GET" && internalDocumentExtractionMatch) {
+      if (!verifyDocumentExtractionSourceAuthorization(request.headers, { config: DOCUMENT_EXTRACTION_SOURCE })) {
+        sendJson(request, response, 401, { error: "Document extraction source authentication failed." });
+        return;
+      }
+      const documentId = decodeURIComponent(internalDocumentExtractionMatch[1]);
+      const eventId = String(url.searchParams.get("eventId") || "");
+      const checksum = String(url.searchParams.get("checksum") || "");
+      const extractionVersion = Math.max(0, Math.round(Number(url.searchParams.get("version")) || 0));
+      const doc = normalizeIncomingDocumentIntake(
+        await readPlatformDoc(ROOT, "incomingDocuments", emptyIncomingDocumentIntake(CURRENT_EVENT_ID)),
+        { eventId: CURRENT_EVENT_ID }
+      );
+      const record = doc.documents.find(item => item.id === documentId);
+      if (!record || record.eventId !== eventId || record.checksumSha256 !== checksum || record.extractionVersion !== extractionVersion) {
+        sendJson(request, response, 404, { error: "Document extraction source is unavailable for this request." });
+        return;
+      }
+      if (!["queued", "extracting"].includes(record.extractionStatus)) {
+        sendJson(request, response, 409, { error: `Document extraction is ${record.extractionStatus}.` });
+        return;
+      }
+      const stored = await readIncomingDocumentUpload(ROOT, record.storageKey, { config: INCOMING_DOCUMENT_STORAGE });
+      if (!stored.ok) {
+        sendJson(request, response, 404, { error: stored.error });
+        return;
+      }
+      const verified = verifyIncomingDocumentBytes(record, stored.buffer);
+      if (!verified.ok) {
+        await writeAuditRecord(request, "document.integrity_failure", { type: "incomingDocument", id: record.id }, null, null, verified);
+        sendJson(request, response, 409, { error: verified.error });
+        return;
+      }
+      await writeAuditRecord(request, "document.extraction.source_read", { type: "incomingDocument", id: record.id }, null, null, {
+        checksumSha256: record.checksumSha256,
+        extractionVersion: record.extractionVersion,
+        sizeBytes: record.sizeBytes
+      });
+      sendBinary(request, response, 200, stored.buffer, {
+        contentType: record.contentType,
+        fileName: incomingDocumentDownloadName(record)
+      });
+      return;
+    }
+
     if (method === "GET" && pathname === "/api/admin/documents") {
       if (!(await requirePermission(request, response, "documents:read"))) return;
       const [incomingDocumentData, partnerOperationsData] = await Promise.all([
@@ -4449,6 +4518,24 @@ async function handleRequest(request, response) {
         });
         return;
       }
+      let extractionJob = null;
+      try {
+        extractionJob = await enqueueIncomingDocumentExtraction(result.document);
+      } catch (error) {
+        await writeAuditRecord(request, "document.extraction.queue_failed", { type: "incomingDocument", id: result.document.id }, null, null, {
+          reason: String(error?.message || error).slice(0, 500),
+          extractionVersion: result.document.extractionVersion
+        });
+        sendJson(request, response, 503, {
+          error: "The document is stored, but text extraction could not be queued. Retry the upload to repair extraction routing.",
+          duplicate: result.duplicate,
+          document: {
+            ...adminIncomingDocument(result.document),
+            reviewTask: incomingDocumentReviewTaskView(reviewTaskResult.doc, result.document.id)
+          }
+        });
+        return;
+      }
       if (!result.duplicate) {
         await writeAuditRecord(request, "document.upload", { type: "incomingDocument", id: result.document.id }, null, incomingDocumentAuditView(result.document), {
           domain: result.document.domain,
@@ -4462,6 +4549,7 @@ async function handleRequest(request, response) {
           ...adminIncomingDocument(result.document),
           reviewTask: incomingDocumentReviewTaskView(reviewTaskResult.doc, result.document.id)
         },
+        extractionJob: extractionJob ? { id: extractionJob.id, status: extractionJob.status } : null,
         summary: summarizeIncomingDocuments(result.doc, { eventId: CURRENT_EVENT_ID, now })
       });
       return;
@@ -4499,6 +4587,49 @@ async function handleRequest(request, response) {
       sendBinary(request, response, 200, stored.buffer, {
         contentType: record.contentType,
         fileName: incomingDocumentDownloadName(record)
+      });
+      return;
+    }
+
+    const adminDocumentExtractionRetryMatch = pathname.match(/^\/api\/admin\/documents\/([^/]+)\/extraction\/retry$/);
+    if (method === "POST" && adminDocumentExtractionRetryMatch) {
+      const session = await requirePermission(request, response, "documents:write");
+      if (!session) return;
+      const documentId = decodeURIComponent(adminDocumentExtractionRetryMatch[1]);
+      const now = new Date().toISOString();
+      let result = null;
+      await updatePlatformDoc(ROOT, "incomingDocuments", current => {
+        result = requestIncomingDocumentExtraction(current, documentId, {
+          eventId: CURRENT_EVENT_ID,
+          actorId: session.id,
+          now,
+          force: true
+        });
+        return result?.ok ? result.doc : normalizeIncomingDocumentIntake(current, { eventId: CURRENT_EVENT_ID });
+      }, { fallback: emptyIncomingDocumentIntake(CURRENT_EVENT_ID) });
+      if (!result?.ok) {
+        sendJson(request, response, result?.error === "Document not found." ? 404 : 400, { error: result?.error || "Document extraction could not be queued." });
+        return;
+      }
+      let extractionJob;
+      try {
+        extractionJob = await enqueueIncomingDocumentExtraction(result.document);
+      } catch (error) {
+        await writeAuditRecord(request, "document.extraction.queue_failed", { type: "incomingDocument", id: result.document.id }, incomingDocumentAuditView(result.before), incomingDocumentAuditView(result.document), {
+          reason: String(error?.message || error).slice(0, 500),
+          extractionVersion: result.document.extractionVersion
+        });
+        sendJson(request, response, 503, { error: "Text extraction could not be queued. Retry this action." });
+        return;
+      }
+      await writeAuditRecord(request, "document.extraction.retry", { type: "incomingDocument", id: result.document.id }, incomingDocumentAuditView(result.before), incomingDocumentAuditView(result.document), {
+        extractionVersion: result.document.extractionVersion,
+        jobId: extractionJob.id
+      });
+      sendJson(request, response, 202, {
+        document: adminIncomingDocument(result.document),
+        extractionJob: { id: extractionJob.id, status: extractionJob.status },
+        summary: summarizeIncomingDocuments(result.doc, { eventId: CURRENT_EVENT_ID, now })
       });
       return;
     }

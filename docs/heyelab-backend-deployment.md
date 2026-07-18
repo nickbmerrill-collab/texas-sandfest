@@ -187,7 +187,7 @@ In Postgres mode (production), the same records live in tables defined by `lib/d
 - `admin_audit_events` — append-only mutation log
 - `config_snapshots` — pre-mutation snapshots for rollback
 
-Partner invoice state and QuickBooks sync proof live in the `partner-operations` platform document, which uses row locking in Postgres mode. Private document metadata lives in the `incoming-documents` platform document; the database never contains the file bytes. Queue attempts live in `platform_jobs`; admin approvals and queue actions live in `admin_audit_events`.
+Partner invoice state and QuickBooks sync proof live in the `partner-operations` platform document, which uses row locking in Postgres mode. Private document metadata and extracted text chunks live in the `incoming-documents` platform document; the database never contains the source file bytes. Queue attempts live in `platform_jobs`; admin approvals and queue actions live in `admin_audit_events`.
 
 ## Postgres Bring-up
 
@@ -374,14 +374,19 @@ The operations workspace accepts staff-only board packets, provider exports, fin
 
 Each accepted file also creates exactly one `incoming_document` task in the delegated work board. New files default to an Operations owner and a server-calculated three-day deadline unless staff selects another route or date. Review state is authoritative for the task lifecycle: received maps to open, in-review to in-progress, changes requested to blocked/high priority, approved to done, and archived to cancelled. Reassigning or rescheduling the document updates the same task, increments its routing versions, and invalidates stale notices. A checksum replay repairs missing task routing without creating a second file or task.
 
-`documents:write` is limited to operations and super administrators. Finance administrators receive read access for controlled review and download. API responses never expose storage keys, downloads use `no-store` and `nosniff`, and every upload, review, integrity failure, and download is audited without retaining file content or text previews.
+`documents:write` is limited to operations and super administrators. Finance administrators receive read access for controlled review and download. API responses never expose storage keys or private chunks, downloads use `no-store` and `nosniff`, and every upload, review, extraction source read, extraction retry, integrity failure, and download is audited without retaining file content or text previews.
+
+PDF, DOCX, XLSX, and PPTX uploads enqueue versioned extraction jobs. The worker disables OCR, macros, attachments, and embedded execution; it stores bounded text and structural chunks only after verifying the source byte count and SHA-256. Empty text becomes `needs_review`, failures remain visible, and staff can explicitly retry as a new extraction version.
 
 Production fails closed unless the intake directory is an explicit private persistent path beneath the shared upload disk:
 
 ```bash
 SANDFEST_INCOMING_DOCUMENT_DIR=/var/data/sandfest-partner-assets/incoming-documents
 SANDFEST_INCOMING_DOCUMENT_MAX_BYTES=20971520
+SANDFEST_DOCUMENT_EXTRACTION_SECRET=<32-or-more-random-characters>
 ```
+
+The API owns the persistent disk. A separately deployed worker must not mount or assume access to that directory. Give the worker the same `SANDFEST_DOCUMENT_EXTRACTION_SECRET` and set `SANDFEST_DOCUMENT_EXTRACTION_SOURCE_URL` to the HTTPS API base. The worker fetches only the exact queued event/checksum/version through the bearer-protected internal source route and verifies the bytes again before parsing. `render.yaml` generates and binds the shared secret automatically.
 
 The `incoming-documents` platform record rolls over with the annual event namespace. A new season resets the queue; the archived prior-season digest remains part of rollover evidence.
 
@@ -424,6 +429,7 @@ Set `SANDFEST_ENV=production` when deploying to Heyelab. In production, these ch
 - `SANDFEST_PARTNER_PORTAL_SECRET` must be at least 32 characters and `SANDFEST_PUBLIC_SITE_URL` must be HTTPS.
 - `SANDFEST_PARTNER_ASSET_DIR` must point to persistent private storage for sponsor assets and vendor compliance documents.
 - `SANDFEST_INCOMING_DOCUMENT_DIR` must point to persistent private storage for staff-only operational source files.
+- `SANDFEST_DOCUMENT_EXTRACTION_SECRET` must be at least 32 characters on the API and worker; a separate production worker also requires an HTTPS `SANDFEST_DOCUMENT_EXTRACTION_SOURCE_URL`.
 - Recovery policy must confirm at least three days of database PITR and seven days of asset snapshots; isolated database and exhaustive asset verification drills must both be no older than `SANDFEST_RESTORE_DRILL_MAX_AGE_DAYS`.
 - CORS must include the Texas SandFest origins and admin base URL.
 - If Stripe ticketing is enabled, Stripe secret, webhook secret, success URL, and cancel URL must be production-safe.

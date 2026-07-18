@@ -2543,6 +2543,16 @@ const adminDocumentOwnerLabels = {
   production: "Production"
 };
 
+const adminDocumentExtractionLabels = {
+  stored: "Stored for review",
+  preview_ready: "Text ready",
+  queued: "Extraction queued",
+  extracting: "Extracting text",
+  ready: "Extraction ready",
+  needs_review: "Text review needed",
+  failed: "Extraction failed"
+};
+
 function adminDocumentBytes(value) {
   const bytes = Number(value || 0);
   if (bytes < 1024) return `${bytes} B`;
@@ -2575,6 +2585,9 @@ function renderAdminDocuments(payload = adminDocumentState) {
     <article><strong>${Number(summary.unassigned || 0)}</strong><span>Unassigned</span></article>
     <article><strong>${Number(summary.overdue || 0)}</strong><span>Overdue</span></article>
     <article><strong>${Number(summary.dueSoon || 0)}</strong><span>Due in 3 days</span></article>
+    <article><strong>${Number(summary.extractionReady || 0)}</strong><span>Text ready</span></article>
+    <article><strong>${Number(summary.extractionQueued || 0)}</strong><span>Extracting</span></article>
+    <article><strong>${Number(summary.extractionNeedsReview || 0)}</strong><span>Text attention</span></article>
     <article><strong>${adminDocumentBytes(summary.bytes)}</strong><span>Private storage</span></article>
   `;
   const documents = adminDocumentState.documents || [];
@@ -2584,7 +2597,10 @@ function renderAdminDocuments(payload = adminDocumentState) {
     <article class="admin-document-row" data-admin-document="${escapeAttr(item.id)}">
       <header>
         <div><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.fileName)} · ${adminDocumentBytes(item.sizeBytes)} · ${escapeHtml(item.domain)}</span></div>
-        <span class="admin-document-state" data-state="${escapeAttr(item.status)}">${escapeHtml(adminDocumentStatusLabels[item.status] || item.status)}</span>
+        <div class="admin-document-states">
+          <span class="admin-document-state" data-state="${escapeAttr(item.status)}">${escapeHtml(adminDocumentStatusLabels[item.status] || item.status)}</span>
+          <span class="admin-document-extraction" data-state="${escapeAttr(item.extractionStatus)}">${escapeHtml(adminDocumentExtractionLabels[item.extractionStatus] || item.extractionStatus)}</span>
+        </div>
       </header>
       <div class="admin-document-fields">
         <label><span>Status</span><select name="status" ${adminCan("documents:write") ? "" : "disabled"}>${adminDocumentStatusOptions(item.status)}</select></label>
@@ -2592,10 +2608,12 @@ function renderAdminDocuments(payload = adminDocumentState) {
         <label><span>Review due</span><input name="reviewDueAt" type="datetime-local" value="${escapeAttr(taskDateTimeInput(item.reviewDueAt))}" ${adminCan("documents:write") ? "" : "disabled"} /></label>
         <label class="admin-document-notes"><span>Review note</span><input name="notes" maxlength="2000" value="${escapeAttr(item.notes || "")}" ${adminCan("documents:write") ? "" : "disabled"} /></label>
       </div>
-      ${item.textPreview ? `<details class="admin-document-preview"><summary>Text preview${item.previewTruncated ? " · shortened" : ""}</summary><pre>${escapeHtml(item.textPreview)}</pre></details>` : ""}
+      ${item.extractionError ? `<p class="admin-document-extraction-error">${escapeHtml(item.extractionError)}</p>` : ""}
+      ${item.textPreview ? `<details class="admin-document-preview"><summary>${item.extractionStatus === "ready" ? `Extracted text · ${Number(item.extractedCharacterCount || 0).toLocaleString()} characters · ${Number(item.extractedChunkCount || 0)} chunks` : "Text preview"}${item.previewTruncated || item.extractionTruncated ? " · shortened" : ""}</summary><pre>${escapeHtml(item.textPreview)}</pre></details>` : ""}
       <footer>
         <span>${item.uploadedAt ? escapeHtml(new Date(item.uploadedAt).toLocaleString()) : "Timestamp unavailable"}${item.ownerTeam ? ` · ${escapeHtml(adminDocumentOwnerLabels[item.ownerTeam] || item.ownerTeam)}` : ""}${reviewTask ? ` · Task ${escapeHtml(conditionLabel(reviewTask.status))}` : " · Task routing pending"}</span>
         <div>
+          ${item.extractionSupported && ["stored", "needs_review", "failed"].includes(item.extractionStatus) ? `<button class="button secondary" type="button" data-retry-admin-document-extraction="${escapeAttr(item.id)}">${item.extractionStatus === "stored" ? "Extract text" : "Retry extraction"}</button>` : ""}
           <button class="button secondary" type="button" data-download-admin-document="${escapeAttr(item.id)}">Download</button>
           <button class="button primary" type="button" data-save-admin-document="${escapeAttr(item.id)}" ${adminCan("documents:write") ? "" : "disabled"}>Save review</button>
         </div>
@@ -2648,6 +2666,23 @@ function renderAdminDocuments(payload = adminDocumentState) {
     } catch (error) {
       setAdminStatus(error.message, "error");
     } finally {
+      button.disabled = false;
+    }
+  }));
+
+  document.querySelectorAll("[data-retry-admin-document-extraction]").forEach(button => button.addEventListener("click", async () => {
+    button.disabled = true;
+    try {
+      const result = await adminFetch(`/api/admin/documents/${encodeURIComponent(button.dataset.retryAdminDocumentExtraction)}/extraction/retry`, {
+        method: "POST"
+      });
+      const index = adminDocumentState.documents.findIndex(item => item.id === result.document.id);
+      if (index >= 0) adminDocumentState.documents[index] = { ...adminDocumentState.documents[index], ...result.document };
+      adminDocumentState.summary = result.summary;
+      renderAdminDocuments();
+      setAdminStatus(`Queued text extraction for ${result.document.title}.`, "ok");
+    } catch (error) {
+      setAdminStatus(error.message, "error");
       button.disabled = false;
     }
   }));
@@ -7318,7 +7353,11 @@ document.querySelector("#admin-document-upload")?.addEventListener("submit", asy
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || `Document upload failed with ${response.status}`);
-    setFormStatus(status, result.duplicate ? "That file is already in the intake queue." : "Document added to the private review queue.", "ok");
+    setFormStatus(status, result.duplicate
+      ? "That file is already in the intake queue."
+      : result.extractionJob
+        ? "Document added and queued for private text extraction."
+        : "Document added to the private review queue.", "ok");
     form.reset();
     form.elements.ownerTeam.value = "operations";
     resetAdminDocumentReviewDue(form);

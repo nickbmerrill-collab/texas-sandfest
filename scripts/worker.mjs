@@ -58,10 +58,21 @@ import {
   resolveIncidentDispatchRecipient
 } from "../lib/island-conditions.mjs";
 import {
+  beginIncomingDocumentExtraction,
+  completeIncomingDocumentExtraction,
   emptyIncomingDocumentIntake,
-  normalizeIncomingDocumentIntake
+  failIncomingDocumentExtraction,
+  incomingDocumentStorageConfig,
+  normalizeIncomingDocumentIntake,
+  readIncomingDocumentUpload,
+  verifyIncomingDocumentBytes
 } from "../lib/incoming-documents.mjs";
 import { syncIncomingDocumentReviewTasks } from "../lib/document-review-routing.mjs";
+import { extractDocumentText } from "../lib/document-extraction.mjs";
+import {
+  documentExtractionSourceConfig,
+  fetchDocumentExtractionSource
+} from "../lib/document-extraction-source.mjs";
 
 await loadDotEnv();
 
@@ -75,6 +86,8 @@ const QUEUE = jobQueueConfig();
 const portalConfig = partnerPortalConfig();
 const outreachPreferenceConfig = outreachPreferencesConfig();
 const sponsorInvitationLinkConfig = sponsorInvitationConfig();
+const incomingDocumentStorage = incomingDocumentStorageConfig(ROOT);
+const extractionSource = documentExtractionSourceConfig();
 
 function currentPartnerOperations(input) {
   const doc = normalizePartnerOperations(input);
@@ -230,6 +243,120 @@ async function handleJob(job) {
     if (!recorded?.ok) throw new Error(recorded?.error || "QuickBooks invoice refreshed but local proof could not be recorded.");
     console.log(`[worker] quickbooks.partner_invoice.reconcile job=${job.id} invoice=${invoice.id} balance=${reconciliation.balanceCents}`);
     return { ok: true, invoiceId: invoice.id, balanceCents: reconciliation.balanceCents, reconciledAt: reconciliation.reconciledAt };
+  }
+  case "document.extract": {
+    const documentId = String(job.payload?.documentId || "");
+    const eventId = String(job.payload?.eventId || "");
+    const checksumSha256 = String(job.payload?.checksumSha256 || "");
+    const extractionVersion = Math.max(0, Math.round(Number(job.payload?.extractionVersion) || 0));
+    if (!documentId || eventId !== CURRENT_EVENT_ID || !checksumSha256 || !extractionVersion) {
+      return { ok: true, canceled: true, reason: "invalid_or_stale_document_extraction_job" };
+    }
+
+    let begun = null;
+    await updatePlatformDoc(ROOT, "incomingDocuments", current => {
+      begun = beginIncomingDocumentExtraction(current, documentId, {
+        extractionVersion,
+        jobId: job.id
+      }, {
+        eventId: CURRENT_EVENT_ID,
+        now: new Date().toISOString()
+      });
+      return begun.ok ? begun.doc : normalizeIncomingDocumentIntake(current, { eventId: CURRENT_EVENT_ID });
+    }, { fallback: emptyIncomingDocumentIntake(CURRENT_EVENT_ID) });
+    if (!begun?.ok) {
+      if (begun?.canceled || begun?.stale) return { ok: true, canceled: true, status: begun.status, documentId };
+      throw new Error(begun?.error || "Document extraction could not begin.");
+    }
+    if (begun.document.checksumSha256 !== checksumSha256) {
+      let failed = null;
+      await updatePlatformDoc(ROOT, "incomingDocuments", current => {
+        failed = failIncomingDocumentExtraction(current, documentId, "Document checksum changed after extraction was queued.", {
+          eventId: CURRENT_EVENT_ID,
+          extractionVersion,
+          terminal: true,
+          now: new Date().toISOString()
+        });
+        return failed.ok ? failed.doc : normalizeIncomingDocumentIntake(current, { eventId: CURRENT_EVENT_ID });
+      }, { fallback: emptyIncomingDocumentIntake(CURRENT_EVENT_ID) });
+      return { ok: true, failed: true, integrityFailure: true, documentId };
+    }
+
+    const stored = extractionSource.remoteReady
+      ? await fetchDocumentExtractionSource(begun.document, { config: extractionSource })
+      : extractionSource.production
+        ? { ok: false, error: "Production document extraction requires an authenticated API source." }
+        : await readIncomingDocumentUpload(ROOT, begun.document.storageKey, { config: incomingDocumentStorage });
+    if (!stored.ok) {
+      const terminal = Number(job.attempts || 1) >= Number(job.maxAttempts || 3);
+      let failed = null;
+      await updatePlatformDoc(ROOT, "incomingDocuments", current => {
+        failed = failIncomingDocumentExtraction(current, documentId, stored.error, {
+          eventId: CURRENT_EVENT_ID,
+          extractionVersion,
+          terminal,
+          now: new Date().toISOString()
+        });
+        return failed.ok ? failed.doc : normalizeIncomingDocumentIntake(current, { eventId: CURRENT_EVENT_ID });
+      }, { fallback: emptyIncomingDocumentIntake(CURRENT_EVENT_ID) });
+      if (terminal) return { ok: true, failed: true, documentId, error: stored.error };
+      throw new Error(stored.error || "Document extraction source is unavailable.");
+    }
+    const verified = verifyIncomingDocumentBytes(begun.document, stored.buffer);
+    if (!verified.ok) {
+      let failed = null;
+      await updatePlatformDoc(ROOT, "incomingDocuments", current => {
+        failed = failIncomingDocumentExtraction(current, documentId, verified.error, {
+          eventId: CURRENT_EVENT_ID,
+          extractionVersion,
+          terminal: true,
+          now: new Date().toISOString()
+        });
+        return failed.ok ? failed.doc : normalizeIncomingDocumentIntake(current, { eventId: CURRENT_EVENT_ID });
+      }, { fallback: emptyIncomingDocumentIntake(CURRENT_EVENT_ID) });
+      return { ok: true, failed: true, integrityFailure: true, documentId };
+    }
+
+    const extracted = await extractDocumentText(stored.buffer, begun.document);
+    if (!extracted.ok) {
+      const terminal = Number(job.attempts || 1) >= Number(job.maxAttempts || 3);
+      let failed = null;
+      await updatePlatformDoc(ROOT, "incomingDocuments", current => {
+        failed = failIncomingDocumentExtraction(current, documentId, extracted.error, {
+          eventId: CURRENT_EVENT_ID,
+          extractionVersion,
+          terminal,
+          now: new Date().toISOString()
+        });
+        return failed.ok ? failed.doc : normalizeIncomingDocumentIntake(current, { eventId: CURRENT_EVENT_ID });
+      }, { fallback: emptyIncomingDocumentIntake(CURRENT_EVENT_ID) });
+      if (terminal) return { ok: true, failed: true, documentId, error: extracted.error };
+      throw new Error(extracted.error || "Document extraction failed.");
+    }
+
+    let completed = null;
+    await updatePlatformDoc(ROOT, "incomingDocuments", current => {
+      completed = completeIncomingDocumentExtraction(current, documentId, {
+        ...extracted,
+        extractionVersion
+      }, {
+        eventId: CURRENT_EVENT_ID,
+        now: new Date().toISOString()
+      });
+      return completed.ok ? completed.doc : normalizeIncomingDocumentIntake(current, { eventId: CURRENT_EVENT_ID });
+    }, { fallback: emptyIncomingDocumentIntake(CURRENT_EVENT_ID) });
+    if (!completed?.ok) {
+      if (completed?.canceled || completed?.stale) return { ok: true, canceled: true, documentId };
+      throw new Error(completed?.error || "Document extraction result could not be recorded.");
+    }
+    console.log(`[worker] document.extract job=${job.id} document=${documentId} status=${completed.document.extractionStatus} chunks=${completed.document.extractedChunkCount}`);
+    return {
+      ok: true,
+      documentId,
+      status: completed.document.extractionStatus,
+      characters: completed.document.extractedCharacterCount,
+      chunks: completed.document.extractedChunkCount
+    };
   }
   case "partner.followup.prepare": {
     let result = null;

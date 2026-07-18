@@ -216,18 +216,26 @@ import {
 } from "../lib/partner-assets.mjs";
 import {
   adminIncomingDocument,
+  beginIncomingDocumentExtraction,
+  completeIncomingDocumentExtraction,
   createIncomingDocument,
   defaultIncomingDocumentReviewDueAt,
   deleteIncomingDocumentUpload,
   emptyIncomingDocumentIntake,
   incomingDocumentStorageConfig,
   readIncomingDocumentUpload,
+  requestIncomingDocumentExtraction,
   saveIncomingDocumentUpload,
   summarizeIncomingDocuments,
   updateIncomingDocument,
   validateIncomingDocumentUpload,
   verifyIncomingDocumentBytes
 } from "../lib/incoming-documents.mjs";
+import { extractDocumentText } from "../lib/document-extraction.mjs";
+import {
+  documentExtractionSourceConfig,
+  verifyDocumentExtractionSourceAuthorization
+} from "../lib/document-extraction-source.mjs";
 import {
   incomingDocumentReviewTaskView,
   syncIncomingDocumentReviewTask,
@@ -360,6 +368,7 @@ const SMOKE_CAMERA_KEYS = JSON.stringify({
   "south-gate-v1": { cameraId: "south-gate", secret: SMOKE_SOUTH_CAMERA_SECRET }
 });
 const SMOKE_STRIPE_WEBHOOK_SECRET = "whsec_platform_partner_smoke";
+const SMOKE_DOCUMENT_EXTRACTION_SECRET = "platform-smoke-document-extraction-secret-0123456789";
 const SMOKE_BREVO_WEBHOOK_TOKEN = "platform-smoke-brevo-webhook-token-0123456789";
 
 let passed = 0;
@@ -2222,6 +2231,46 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   const minimalDocx = minimalOfficeZip(["[Content_Types].xml", "word/document.xml"]);
   const minimalXlsx = minimalOfficeZip(["[Content_Types].xml", "xl/workbook.xml"]);
   const minimalPptx = minimalOfficeZip(["[Content_Types].xml", "ppt/presentation.xml"]);
+  const boardBriefingBytes = await readFile(path.join(ROOT, "docs", "presentations", "SandFest-Board-Platform-Briefing.pptx"));
+  const validatedBoardBriefing = validateIncomingDocumentUpload({
+    fileName: "SandFest-Board-Platform-Briefing.pptx",
+    contentType: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    buffer: boardBriefingBytes
+  }, { maxBytes: 1024 * 1024 });
+  const createdBoardBriefing = validatedBoardBriefing.ok ? createIncomingDocument(emptyIncomingDocumentIntake(DEFAULT_EVENT_ID), {
+    ...validatedBoardBriefing,
+    id: "incoming_board_briefing",
+    domain: "docs",
+    title: "SandFest board platform briefing",
+    ownerTeam: "operations"
+  }, { eventId: DEFAULT_EVENT_ID, actorId: "ops_1", now }) : { ok: false };
+  const begunBoardBriefing = createdBoardBriefing.ok ? beginIncomingDocumentExtraction(createdBoardBriefing.doc, createdBoardBriefing.document.id, {
+    extractionVersion: createdBoardBriefing.document.extractionVersion,
+    jobId: "job_board_briefing"
+  }, { eventId: DEFAULT_EVENT_ID, now }) : { ok: false };
+  const extractedBoardBriefing = await extractDocumentText(boardBriefingBytes, createdBoardBriefing.document || {});
+  const completedBoardBriefing = begunBoardBriefing.ok && extractedBoardBriefing.ok ? completeIncomingDocumentExtraction(begunBoardBriefing.doc, begunBoardBriefing.document.id, {
+    ...extractedBoardBriefing,
+    extractionVersion: begunBoardBriefing.document.extractionVersion
+  }, { eventId: DEFAULT_EVENT_ID, now }) : { ok: false };
+  const retriedBoardBriefing = completedBoardBriefing.ok ? requestIncomingDocumentExtraction(completedBoardBriefing.doc, completedBoardBriefing.document.id, {
+    eventId: DEFAULT_EVENT_ID,
+    actorId: "ops_1",
+    now,
+    force: true
+  }) : { ok: false };
+  const boardBriefingAdminJson = completedBoardBriefing.ok ? JSON.stringify(adminIncomingDocument(completedBoardBriefing.document)) : "";
+  const boardBriefingSummary = completedBoardBriefing.ok ? summarizeIncomingDocuments(completedBoardBriefing.doc, { eventId: DEFAULT_EVENT_ID, now }) : {};
+  const productionExtractionSource = documentExtractionSourceConfig({
+    SANDFEST_ENV: "production",
+    SANDFEST_DOCUMENT_EXTRACTION_SECRET: SMOKE_DOCUMENT_EXTRACTION_SECRET,
+    SANDFEST_DOCUMENT_EXTRACTION_SOURCE_URL: "https://api.example.test/sandfest"
+  });
+  const unsafeProductionExtractionSource = documentExtractionSourceConfig({
+    SANDFEST_ENV: "production",
+    SANDFEST_DOCUMENT_EXTRACTION_SECRET: SMOKE_DOCUMENT_EXTRACTION_SECRET,
+    SANDFEST_DOCUMENT_EXTRACTION_SOURCE_URL: "http://api.example.test/sandfest"
+  });
   ok("document intake storage fails closed in production", incomingConfig.ready && !incomingProductionMissing.ready && incomingProductionMissing.reason.includes("SANDFEST_INCOMING_DOCUMENT_DIR"));
   ok("document intake validates, stores, and previews text", storedIncoming.ok && readIncoming.ok && readIncoming.buffer.equals(incomingText) && storedIncoming.extractionStatus === "preview_ready" && storedIncoming.textPreview.includes("board packet"));
   ok("document intake records and deduplicates checksums", createdIncoming.ok && !createdIncoming.duplicate && duplicateIncoming.ok && duplicateIncoming.duplicate && duplicateIncoming.document.id === createdIncoming.document.id && duplicateIncoming.doc.documents.length === 1);
@@ -2235,6 +2284,9 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   ok("document intake rejects mismatched structured content", !invalidIncomingJson.ok && !validateIncomingDocumentUpload({ fileName: "fake.pdf", contentType: "application/pdf", buffer: Buffer.from("not a pdf") }, { maxBytes: 4096 }).ok);
   ok("document intake rejects generic ZIP files renamed as Office documents", !validateIncomingDocumentUpload({ fileName: "fake.docx", contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", buffer: genericZip }, { maxBytes: 4096 }).ok);
   ok("document intake distinguishes Office package families", validateIncomingDocumentUpload({ fileName: "packet.docx", buffer: minimalDocx }, { maxBytes: 4096 }).ok && validateIncomingDocumentUpload({ fileName: "ledger.xlsx", buffer: minimalXlsx }, { maxBytes: 4096 }).ok && validateIncomingDocumentUpload({ fileName: "briefing.pptx", buffer: minimalPptx }, { maxBytes: 4096 }).ok && !validateIncomingDocumentUpload({ fileName: "renamed.docx", buffer: minimalXlsx }, { maxBytes: 4096 }).ok);
+  ok("binary document extraction is checksum-bound and chunked", validatedBoardBriefing.ok && createdBoardBriefing.document?.extractionStatus === "queued" && begunBoardBriefing.ok && extractedBoardBriefing.ok && extractedBoardBriefing.text.includes("TEXAS SANDFEST") && extractedBoardBriefing.chunkCount > 0 && completedBoardBriefing.document?.extractionStatus === "ready" && completedBoardBriefing.document?.extractedCharacterCount > 5_000 && completedBoardBriefing.document?.extractedChunkCount > 0);
+  ok("document extraction metadata is private and retry-versioned", !boardBriefingAdminJson.includes("extractionChunks") && boardBriefingAdminJson.includes("TEXAS SANDFEST") && boardBriefingSummary.extractionReady === 1 && retriedBoardBriefing.ok && retriedBoardBriefing.document.extractionStatus === "queued" && retriedBoardBriefing.document.extractionVersion === completedBoardBriefing.document.extractionVersion + 1 && retriedBoardBriefing.document.extractedChunkCount === 0);
+  ok("document extraction source requires production HTTPS and a shared secret", productionExtractionSource.remoteReady && !unsafeProductionExtractionSource.remoteReady && verifyDocumentExtractionSourceAuthorization({ authorization: `Bearer ${SMOKE_DOCUMENT_EXTRACTION_SECRET}` }, { config: productionExtractionSource }) && !verifyDocumentExtractionSourceAuthorization({ authorization: "Bearer wrong-secret" }, { config: productionExtractionSource }));
   if (storedIncoming.ok) await deleteIncomingDocumentUpload(ROOT, storedIncoming.storageKey, { config: incomingConfig });
   await rm(incomingDir, { recursive: true, force: true });
   const safeTicketCatalog = publicTicketCatalog({
@@ -4103,6 +4155,7 @@ if (!API_BASE) {
       BREVO_WEBHOOK_TOKEN: SMOKE_BREVO_WEBHOOK_TOKEN,
       SANDFEST_PARTNER_PORTAL_SECRET: "platform-smoke-partner-portal-secret-0123456789",
       SANDFEST_OUTREACH_PREFERENCES_SECRET: "platform-smoke-outreach-preferences-secret-0123456789",
+      SANDFEST_DOCUMENT_EXTRACTION_SECRET: SMOKE_DOCUMENT_EXTRACTION_SECRET,
       OUTREACH_DISCOVERY_ENABLED: "true",
       OUTREACH_DISCOVERY_PROVIDER: "fixture",
       SANDFEST_PUBLIC_SITE_URL: "https://www.texassandfest.org",
@@ -4170,10 +4223,10 @@ async function hitTwilioForm(pathName, params, publicUrl, { signature = null } =
   });
 }
 
-async function runSmokeWorkerOnce() {
+async function runSmokeWorkerOnce(environment = {}) {
   const worker = spawn("node", ["scripts/worker.mjs"], {
     cwd: ROOT,
-    env: { ...apiChildEnv, SANDFEST_WORKER_ONCE: "true", SANDFEST_WORKER_BATCH: "25" },
+    env: { ...apiChildEnv, SANDFEST_WORKER_ONCE: "true", SANDFEST_WORKER_BATCH: "25", ...environment },
     stdio: ["ignore", "pipe", "pipe"]
   });
   let stdout = "";
@@ -4304,6 +4357,43 @@ try {
     "x-document-domain": "docs",
     "x-document-title": "False packet"
   }, true);
+  const apiBoardBriefingBytes = await readFile(path.join(ROOT, "docs", "presentations", "SandFest-Board-Platform-Briefing.pptx"));
+  const boardBriefingUploadApi = await hitRaw("POST", "/api/admin/documents/upload", apiBoardBriefingBytes, {
+    "content-type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "x-file-name": "SandFest-Board-Platform-Briefing.pptx",
+    "x-document-domain": "docs",
+    "x-document-title": "SandFest board platform briefing",
+    "x-owner-team": "operations",
+    "x-document-review-due-at": apiDocumentReviewDueAt
+  }, true);
+  const extractionSourcePathApi = `/api/internal/documents/${encodeURIComponent(boardBriefingUploadApi.data.document?.id || "missing")}/extraction-source?${new URLSearchParams({
+    eventId: boardBriefingUploadApi.data.document?.eventId || "",
+    checksum: boardBriefingUploadApi.data.document?.checksumSha256 || "",
+    version: String(boardBriefingUploadApi.data.document?.extractionVersion || "")
+  })}`;
+  const staleExtractionSourcePathApi = `/api/internal/documents/${encodeURIComponent(boardBriefingUploadApi.data.document?.id || "missing")}/extraction-source?${new URLSearchParams({
+    eventId: boardBriefingUploadApi.data.document?.eventId || "",
+    checksum: "0".repeat(64),
+    version: String(boardBriefingUploadApi.data.document?.extractionVersion || "")
+  })}`;
+  const unauthenticatedExtractionSourceApi = await hitRaw("GET", extractionSourcePathApi);
+  const staleExtractionSourceApi = await hitRaw("GET", staleExtractionSourcePathApi, undefined, {
+    authorization: `Bearer ${SMOKE_DOCUMENT_EXTRACTION_SECRET}`
+  });
+  const extractionSourceApi = await hitRaw("GET", extractionSourcePathApi, undefined, {
+    authorization: `Bearer ${SMOKE_DOCUMENT_EXTRACTION_SECRET}`
+  });
+  const remoteExtractionWorkerEnvironment = {
+    SANDFEST_INCOMING_DOCUMENT_DIR: "",
+    SANDFEST_DOCUMENT_EXTRACTION_SOURCE_URL: API_BASE
+  };
+  const boardBriefingWorkerApi = await runSmokeWorkerOnce(remoteExtractionWorkerEnvironment);
+  const documentsAfterExtractionApi = await hit("GET", "/api/admin/documents", null, true);
+  const extractedBoardBriefingApi = documentsAfterExtractionApi.data.documents?.find(item => item.id === boardBriefingUploadApi.data.document?.id);
+  const boardBriefingRetryApi = await hit("POST", `/api/admin/documents/${encodeURIComponent(extractedBoardBriefingApi?.id || "missing")}/extraction/retry`, null, true);
+  const boardBriefingRetryWorkerApi = await runSmokeWorkerOnce(remoteExtractionWorkerEnvironment);
+  const documentsAfterRetryApi = await hit("GET", "/api/admin/documents", null, true);
+  const retriedBoardBriefingApi = documentsAfterRetryApi.data.documents?.find(item => item.id === extractedBoardBriefingApi?.id);
   ok("document intake API requires dedicated staff authentication", unauthenticatedDocumentsApi.status === 401 && unauthenticatedDocumentUploadApi.status === 401);
   ok("document intake upload CORS permits the review deadline", documentUploadPreflightApi.status === 204 && documentUploadPreflightApi.headers.get("access-control-allow-origin") === "https://www.texassandfest.org" && documentUploadPreflightApi.headers.get("access-control-allow-headers")?.includes("x-document-review-due-at"));
   ok("document intake API stores private metadata and preview", documentUploadApi.status === 201 && documentUploadApi.data.document?.textPreview.includes("Board packet source") && !("storageKey" in (documentUploadApi.data.document || {})) && documentUploadApi.data.document?.checksumSha256?.length === 64 && documentUploadApi.data.document?.reviewDueAt === apiDocumentReviewDueAt);
@@ -4312,6 +4402,10 @@ try {
   ok("document intake API governs review and task lifecycle", documentReviewApi.status === 200 && documentReviewApi.data.document?.status === "approved" && documentReviewApi.data.document?.reviewedBy === "local-admin" && documentReviewApi.data.document?.reviewTask?.status === "done" && documentReviewTasksApi[0]?.status === "done" && documentReviewApi.data.summary?.byStatus?.approved === 1);
   ok("document intake API verifies controlled downloads", documentDownloadApi.status === 200 && documentDownloadApi.data.equals(apiDocumentBytes) && documentDownloadApi.headers.get("content-disposition")?.includes("board-source.txt") && documentDownloadApi.headers.get("cache-control") === "private, no-store");
   ok("document intake API rejects spoofed file types", invalidDocumentUploadApi.status === 400 && invalidDocumentUploadApi.data.error?.includes("do not match"));
+  ok("binary upload queues checksum-bound private extraction", boardBriefingUploadApi.status === 201 && boardBriefingUploadApi.data.document?.extractionStatus === "queued" && boardBriefingUploadApi.data.document?.extractionSupported === true && boardBriefingUploadApi.data.extractionJob?.status === "queued" && !JSON.stringify(boardBriefingUploadApi.data.document).includes("extractionChunks"));
+  ok("worker source route is bearer-protected and request-bound", unauthenticatedExtractionSourceApi.status === 401 && staleExtractionSourceApi.status === 404 && extractionSourceApi.status === 200 && extractionSourceApi.data.equals(apiBoardBriefingBytes) && extractionSourceApi.headers.get("cache-control") === "private, no-store");
+  ok("worker extracts the real board briefing", boardBriefingWorkerApi.exitCode === 0 && extractedBoardBriefingApi?.extractionStatus === "ready" && extractedBoardBriefingApi?.textPreview?.includes("TEXAS SANDFEST") && extractedBoardBriefingApi?.extractedCharacterCount > 5_000 && extractedBoardBriefingApi?.extractedChunkCount > 0 && documentsAfterExtractionApi.data.summary?.extractionReady === 2);
+  ok("admin extraction retry creates a new version", boardBriefingRetryApi.status === 202 && boardBriefingRetryApi.data.document?.extractionStatus === "queued" && boardBriefingRetryApi.data.document?.extractionVersion === 2 && boardBriefingRetryApi.data.extractionJob?.status === "queued" && boardBriefingRetryWorkerApi.exitCode === 0 && retriedBoardBriefingApi?.extractionStatus === "ready" && retriedBoardBriefingApi?.extractionVersion === 2 && retriedBoardBriefingApi?.extractionAttempts === 2);
 
   if (child) {
     const productionProbePort = String(await freePort());
@@ -5651,7 +5745,7 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
   ok("Twilio webhook audit is aggregate-only", smsAuditApi.some(item => item.record?.action === "sms.delivery.webhook") && smsAuditApi.some(item => item.record?.action === "sms.preference.webhook") && !JSON.stringify(smsAuditApi).includes("+13615550188") && !JSON.stringify(smsAuditApi).includes("platform-twilio-auth-secret"));
   ok("event guide publish is audited", auditApi.data.audit?.some(item => item.record?.action === "content.event-guide.publish"));
   const documentAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("document."));
-  ok("private document lifecycle is audited without file contents", documentAuditApi.some(item => item.record?.action === "document.upload") && documentAuditApi.some(item => item.record?.action === "document.review") && documentAuditApi.some(item => item.record?.action === "document.download") && !JSON.stringify(documentAuditApi).includes("Board packet source"));
+  ok("private document lifecycle is audited without file contents", documentAuditApi.some(item => item.record?.action === "document.upload") && documentAuditApi.some(item => item.record?.action === "document.review") && documentAuditApi.some(item => item.record?.action === "document.download") && documentAuditApi.some(item => item.record?.action === "document.extraction.source_read") && documentAuditApi.some(item => item.record?.action === "document.extraction.retry") && !JSON.stringify(documentAuditApi).includes("Board packet source"));
   ok("revenue settlement commit is audited", auditApi.data.audit?.some(item => item.record?.action === "revenue.import.commit" && item.record?.after?.source === "square" && item.record?.after?.imported === 1));
   const eventenyPartnerImportAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action === "partner.application.import");
   ok("Eventeny application import audit is aggregate-only", eventenyPartnerImportAuditApi.length >= 1 && eventenyPartnerImportAuditApi.some(item => item.record?.after?.fileName === "eventeny-applications-api.csv" && item.record?.after?.summary?.imported === 2) && !JSON.stringify(eventenyPartnerImportAuditApi).includes(eventenyPartnerEmailApi) && !JSON.stringify(eventenyPartnerImportAuditApi).includes("Vendor Import Contact"));
