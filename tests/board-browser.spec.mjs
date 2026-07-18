@@ -244,6 +244,13 @@ test("board workflows operate through the public and staff interfaces", async ({
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#sponsors`);
   await expect(page.locator("#network-status")).toHaveText("Demo");
   await expect(page.locator("#public-sponsor-tiers [data-package-id]")).toHaveCount(4);
+  const featuredSponsor = page.locator("#public-sponsor-showcase .public-sponsor-card").filter({ hasText: "Gulf Shore Credit Union" });
+  await expect(featuredSponsor).toHaveCount(1);
+  await expect(featuredSponsor).toContainText("Marlin partner");
+  await expect(featuredSponsor).toContainText("Rooted on the Texas coast");
+  const featuredSponsorLogo = featuredSponsor.locator("img");
+  await expect(featuredSponsorLogo).toHaveAttribute("src", /\/api\/public\/sponsor-showcase\/assets\/demo_brand_asset_gulf_shore_primary$/);
+  await expect.poll(() => featuredSponsorLogo.evaluate(image => image.complete && image.naturalWidth > 0)).toBe(true);
 
   const vendor = page.locator("#vendor-application-form");
   await expect(vendor).toBeVisible();
@@ -342,7 +349,7 @@ test("board workflows operate through the public and staff interfaces", async ({
   await expect(sponsorFulfillment).toHaveCount(1);
   await expect(sponsorFulfillment).toContainText("Marlin");
   await expect(sponsorFulfillment).toContainText("Rooted on the Texas coast");
-  await expect(sponsorFulfillment.locator("[data-admin-brand-asset]")).toHaveCount(1);
+  await expect(sponsorFulfillment.locator("[data-admin-brand-asset]")).toHaveCount(2);
   await expect(sponsorFulfillment.locator("[data-admin-deliverable]")).toHaveCount(3);
   await expect(sponsorFulfillment).toContainText("Beach signage");
 
