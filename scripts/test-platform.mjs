@@ -5363,7 +5363,7 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
   const geoOutreachWorkspaceApi = await hit("GET", "/api/admin/outreach", null, true);
   const geoCampaignWorkspaceApi = geoOutreachWorkspaceApi.data.campaigns?.find(item => item.id === geoCampaignApi.data.campaign?.id);
   const geoDraftApi = geoOutreachWorkspaceApi.data.followups?.find(item => item.campaignId === geoCampaignApi.data.campaign?.id);
-  ok("geofenced outreach API", geoProspectApi.status === 201 && geoCampaignApi.status === 201 && activatedGeoCampaignApi.status === 200 && generatedGeoCampaignApi.data.generated === 1 && geoCampaignWorkspaceApi?.metrics?.matched === 1 && geoCampaignWorkspaceApi?.targeting?.postalCodes?.[0] === "78373");
+  ok("geofenced outreach API", geoProspectApi.status === 201 && geoCampaignApi.status === 201 && activatedGeoCampaignApi.status === 200 && activatedGeoCampaignApi.data.generated === 1 && generatedGeoCampaignApi.data.generated === 0 && geoCampaignWorkspaceApi?.metrics?.matched === 1 && geoCampaignWorkspaceApi?.targeting?.postalCodes?.[0] === "78373");
   ok("outreach accountability API", geoProspectApi.data.prospect?.ownerId === "sponsor_lead" && geoProspectApi.data.prospect?.nextActionAt === "2027-01-15T15:00:00.000Z" && geoOutreachWorkspaceApi.data.summary?.nextActionsScheduled >= 1);
   ok("geofenced outreach API validation", invalidGeoProspectApi.status === 400 && invalidScheduleProspectApi.status === 400 && invalidScheduleProspectApi.data.error?.includes("follow-up date") && invalidGeoCampaignApi.status === 400);
   const invitedSponsorProspectApi = await hit("POST", "/api/admin/outreach/prospects", {
@@ -5399,7 +5399,7 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     targeting: { industries: ["banking"], postalCodes: ["78401"], minFitScore: 0 },
     sequence: [{ delayDays: 0, subjectTemplate: "A SandFest sponsor invitation", bodyTemplate: "Hello {{contactName}}" }]
   }, true);
-  await hit("POST", `/api/admin/outreach/campaigns/${encodeURIComponent(invitedSponsorCampaignApi.data.campaign?.id)}/activate`, {}, true);
+  const activatedInvitedSponsorCampaignApi = await hit("POST", `/api/admin/outreach/campaigns/${encodeURIComponent(invitedSponsorCampaignApi.data.campaign?.id)}/activate`, {}, true);
   const generatedInvitationDraftApi = await hit("POST", `/api/admin/outreach/campaigns/${encodeURIComponent(invitedSponsorCampaignApi.data.campaign?.id)}/generate`, {}, true);
   const invitedWorkspaceBeforeConversionApi = await hit("GET", "/api/admin/outreach", null, true);
   const invitedDraftApi = invitedWorkspaceBeforeConversionApi.data.followups?.find(item => item.campaignId === invitedSponsorCampaignApi.data.campaign?.id && item.prospectId === invitedProspectIdApi);
@@ -5422,7 +5422,7 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
   const convertedInvitedProspectApi = invitedOutreachAfterConversionApi.data.prospects?.find(item => item.id === invitedProspectIdApi);
   const convertedInvitedApplicationApi = invitedWorkspaceAfterConversionApi.data.applications?.find(item => item.id === convertedInvitationIntakeApi.data.application?.id);
   const dismissedInvitedDraftApi = invitedWorkspaceAfterConversionApi.data.followups?.find(item => item.id === invitedDraftApi?.id);
-  ok("sponsor invitation API injects reviewed outreach link", generatedInvitationDraftApi.data.generated === 1 && invitedDraftApi?.status === "draft_ready" && invitedDraftApi?.body.includes(replacedInvitationApi.data.invitation?.url) && invitedDraftApi?.body.includes("#outreach-preferences?"));
+  ok("sponsor invitation API injects reviewed outreach link", activatedInvitedSponsorCampaignApi.data.generated === 1 && generatedInvitationDraftApi.data.generated === 0 && invitedDraftApi?.status === "draft_ready" && invitedDraftApi?.body.includes(replacedInvitationApi.data.invitation?.url) && invitedDraftApi?.body.includes("#outreach-preferences?"));
   ok("sponsor invitation API identity gate", mismatchedInvitationIntakeApi.status === 400 && mismatchedInvitationIntakeApi.data.error?.includes("business email"));
   ok("sponsor invitation API converts into operations", convertedInvitationIntakeApi.status === 201 && convertedInvitationIntakeApi.data.outreachConversion === true && convertedInvitationIntakeApi.data.portalAccess?.token?.startsWith("tsfp_") && convertedInvitedProspectApi?.status === "won" && convertedInvitedProspectApi?.convertedApplicationId === convertedInvitedApplicationApi?.id && convertedInvitedApplicationApi?.outreachProspectId === invitedProspectIdApi && convertedInvitedApplicationApi?.source === "outreach_invitation" && invitedWorkspaceAfterConversionApi.data.brandProfiles?.some(item => item.applicationId === convertedInvitedApplicationApi?.id) && invitedWorkspaceAfterConversionApi.data.deliverables?.some(item => item.applicationId === convertedInvitedApplicationApi?.id) && dismissedInvitedDraftApi?.status === "dismissed");
   ok("converted sponsor invitation recovers private portal", convertedInvitationLookupApi.status === 200 && convertedInvitationLookupApi.data.converted === true && convertedInvitationLookupApi.data.portalAccess?.reference === convertedInvitedApplicationApi?.reference && convertedInvitationLookupApi.data.portalAccess?.token?.startsWith("tsfp_"));

@@ -5502,12 +5502,24 @@ async function handleRequest(request, response) {
       const beforeDoc = await readPartnerOperations();
       const before = beforeDoc.campaigns.find(item => item.id === campaignId) ?? null;
       const outreachAutomationProviderReady = emailConfigFromEnv().ready && BREVO_WEBHOOK.ready;
-      const result = await mutatePartnerOperations(doc => updateOutreachCampaignStatus(doc, campaignId, action, {
-        actorId: session.id,
-        idFactory: prefix => `${prefix}_${randomUUID()}`,
-        now: new Date().toISOString(),
-        providerReady: outreachAutomationProviderReady
-      }));
+      const now = new Date().toISOString();
+      const result = await mutatePartnerOperations(doc => {
+        const lifecycle = updateOutreachCampaignStatus(doc, campaignId, action, {
+          actorId: session.id,
+          idFactory: prefix => `${prefix}_${randomUUID()}`,
+          now,
+          providerReady: outreachAutomationProviderReady
+        });
+        if (!lifecycle.ok || action !== "activate") return lifecycle;
+        const generation = generateDueOutreachFollowups(lifecycle.doc, {
+          campaignId,
+          idFactory: prefix => `${prefix}_${randomUUID()}`,
+          now,
+          preferenceUrlForProspect: prospect => outreachPreferenceUrlForProspect(prospect, { config: OUTREACH_PREFERENCES }),
+          sponsorInvitationUrlForProspect: prospect => sponsorInvitationUrlForProspect(prospect, { config: SPONSOR_INVITATIONS })
+        });
+        return { ...lifecycle, doc: generation.doc, generated: generation.generated };
+      });
       if (!result?.ok) {
         sendJson(request, response, result?.error === "Campaign not found." ? 404 : result?.providerNotReady ? 409 : 400, { error: result?.error || "Campaign status could not be changed." });
         return;
@@ -5516,7 +5528,8 @@ async function handleRequest(request, response) {
         returnedToReview: result.returnedToReview,
         dismissedFollowups: result.dismissedFollowups,
         failedHeldForRetry: result.failedHeldForRetry,
-        inFlightFollowups: result.inFlightFollowups
+        inFlightFollowups: result.inFlightFollowups,
+        generated: result.generated?.length || 0
       });
       sendJson(request, response, 200, {
         campaign: result.campaign,
@@ -5524,6 +5537,7 @@ async function handleRequest(request, response) {
         dismissedFollowups: result.dismissedFollowups,
         failedHeldForRetry: result.failedHeldForRetry,
         inFlightFollowups: result.inFlightFollowups,
+        generated: result.generated?.length || 0,
         automation: outreachCampaignAutomationReadiness(result.doc, result.campaign, { providerReady: outreachAutomationProviderReady })
       });
       return;

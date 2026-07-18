@@ -1214,10 +1214,10 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
   check("outreach campaign persisted", campaign.status === 201 && campaign.data.campaign?.id, `status ${campaign.status}`);
   const campaignId = campaign.data.campaign?.id;
   const activation = await request(base, "POST", `/api/admin/outreach/campaigns/${campaignId}/activate`, {}, { auth: true });
-  check("campaign activation audited", activation.status === 200 && activation.data.campaign?.status === "active", `status ${activation.status}`);
+  check("campaign activation atomically seeds and audits the opening message", activation.status === 200 && activation.data.campaign?.status === "active" && activation.data.generated === 1, `status ${activation.status} generated ${activation.data.generated ?? "missing"}`);
   const generated = await request(base, "POST", `/api/admin/outreach/campaigns/${campaignId}/generate`, {}, { auth: true });
   const repeated = await request(base, "POST", `/api/admin/outreach/campaigns/${campaignId}/generate`, {}, { auth: true });
-  check("campaign draft generated once", generated.data.generated === 1 && repeated.data.generated === 0, `${generated.data.generated}/${repeated.data.generated}`);
+  check("campaign draft generated once", generated.data.generated === 0 && repeated.data.generated === 0, `${generated.data.generated}/${repeated.data.generated}`);
   const outreach = await request(base, "GET", "/api/admin/outreach", undefined, { auth: true });
   const outreachDrafts = outreach.data.followups?.filter(item => item.campaignId === campaignId) || [];
   const persistedGeoCampaign = outreach.data.campaigns?.find(item => item.id === campaignId);
