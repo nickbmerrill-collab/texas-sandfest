@@ -22,62 +22,65 @@
   "vendorOfferings": [
     {
       "id": "food-beverage-booth",
-      "name": "Food and beverage booth",
-      "amount": 175000,
+      "name": "Food vendor interest",
+      "amount": 0,
       "currency": "usd",
-      "publicLabel": "$1,750 application fee",
+      "publicLabel": "Fee confirmed when applications open",
       "active": true,
       "requiresApproval": true,
+      "intakeMode": "interest",
       "categories": [
         "food"
       ],
-      "description": "Festival marketplace space for prepared food and nonalcoholic beverage vendors.",
+      "description": "Join the interest list for future Texas SandFest food and nonalcoholic beverage vendor applications.",
       "inclusions": [
-        "Marketplace booth footprint",
-        "Vendor credentials",
-        "Published booth listing"
+        "Application opening notice",
+        "Program updates",
+        "Staff review when applications open"
       ],
       "stripePriceId": null,
       "quickBooksItemId": null
     },
     {
       "id": "marketplace-booth",
-      "name": "Marketplace booth",
-      "amount": 125000,
+      "name": "Non-food vendor interest",
+      "amount": 0,
       "currency": "usd",
-      "publicLabel": "$1,250 application fee",
+      "publicLabel": "Fee confirmed when applications open",
       "active": true,
       "requiresApproval": true,
+      "intakeMode": "interest",
       "categories": [
         "retail",
         "artisan",
         "service"
       ],
-      "description": "Festival marketplace space for retailers, artists, makers, and service exhibitors.",
+      "description": "Join the interest list for future Texas SandFest retail, artisan, and service vendor applications.",
       "inclusions": [
-        "Marketplace booth footprint",
-        "Vendor credentials",
-        "Published booth listing"
+        "Application opening notice",
+        "Program updates",
+        "Staff review when applications open"
       ],
       "stripePriceId": null,
       "quickBooksItemId": null
     },
     {
       "id": "community-nonprofit-booth",
-      "name": "Community nonprofit booth",
-      "amount": 50000,
+      "name": "Nonprofit vendor interest",
+      "amount": 0,
       "currency": "usd",
-      "publicLabel": "$500 application fee",
+      "publicLabel": "Fee confirmed when applications open",
       "active": true,
       "requiresApproval": true,
+      "intakeMode": "interest",
       "categories": [
         "nonprofit"
       ],
-      "description": "Community marketplace space reserved for eligible nonprofit organizations.",
+      "description": "Join the interest list for future Texas SandFest nonprofit and community vendor applications.",
       "inclusions": [
-        "Community booth footprint",
-        "Vendor credentials",
-        "Published booth listing"
+        "Application opening notice",
+        "Program updates",
+        "Staff review when applications open"
       ],
       "stripePriceId": null,
       "quickBooksItemId": null

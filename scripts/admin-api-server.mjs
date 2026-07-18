@@ -231,6 +231,7 @@ import {
   updateVendorOfferingConfig,
   vendorOfferingCatalog
 } from "../lib/vendor-offerings.mjs";
+import { partnerContactNotice } from "../lib/partner-consent.mjs";
 import {
   deletePartnerAssetUpload,
   partnerAssetDownloadName,
@@ -524,6 +525,7 @@ const patchableVendorOfferingFields = new Set([
   "publicLabel",
   "active",
   "requiresApproval",
+  "intakeMode",
   "categories",
   "description",
   "inclusions",
@@ -4521,9 +4523,13 @@ async function handleRequest(request, response) {
         vendorOffering = resolvedOffering.offering;
         expectedAmountCents = vendorOffering.amount;
       }
+      const now = new Date().toISOString();
+      const intakeMode = type === "vendor" ? vendorOffering.intakeMode : "application";
+      const contactNotice = partnerContactNotice(type, intakeMode);
       const applicationInput = {
         ...body,
         type,
+        intakeMode,
         requestedAmountCents: 0,
         expectedAmountCents,
         packageId: sponsorPackage?.id,
@@ -4531,6 +4537,8 @@ async function handleRequest(request, response) {
         packageBenefits: sponsorPackage?.benefits,
         offeringId: vendorOffering?.id,
         offeringName: vendorOffering?.name,
+        consentNoticeVersion: contactNotice.version,
+        consentCapturedAt: body.consentToContact === true ? now : null,
         source: sponsorInvitationAccess ? "outreach_invitation" : "website"
       };
       delete applicationInput.sponsorInvitationToken;
@@ -4539,7 +4547,7 @@ async function handleRequest(request, response) {
         idFactory: prefix => `${prefix}_${randomUUID()}`,
         idempotencyKeyHash: idempotency.idempotencyKeyHash,
         idempotencyFingerprint: idempotency.idempotencyFingerprint,
-        now: new Date().toISOString()
+        now
       };
       const result = await mutatePartnerOperations(doc => sponsorInvitationAccess
         ? createSponsorApplicationFromOutreachInvitation(doc, sponsorInvitationAccess.prospect.id, applicationInput, {
@@ -4572,6 +4580,7 @@ async function handleRequest(request, response) {
           id: result.application.id,
           reference: result.application.reference,
           type: result.application.type,
+          intakeMode: result.application.intakeMode,
           status: result.application.status,
           organizationName: result.application.organizationName,
           createdAt: result.application.createdAt
@@ -4581,7 +4590,9 @@ async function handleRequest(request, response) {
           path: partnerPortalPath(result.application, portalToken),
           url: partnerPortalUrl(result.application, portalToken, { config: portalConfig })
         },
-        nextStep: "The SandFest team will review the application and follow up using the contact information provided.",
+        nextStep: result.application.type === "vendor" && result.application.intakeMode === "interest"
+          ? "The SandFest team will review this vendor interest and contact you when applications open or more information is available."
+          : "The SandFest team will review the application and follow up using the contact information provided.",
         acknowledgment: result.duplicate ? "already_received" : followupJob ? "draft_queued" : "awaiting_staff_review",
         outreachConversion: Boolean(sponsorInvitationAccess)
       });

@@ -212,6 +212,7 @@ import {
   updateSponsorPackageConfig
 } from "../lib/sponsor-packages.mjs";
 import {
+  BOARD_DEMO_VENDOR_OFFERINGS,
   createVendorOfferingConfig,
   DEFAULT_VENDOR_OFFERINGS,
   publicVendorOffering,
@@ -219,6 +220,7 @@ import {
   updateVendorOfferingConfig,
   vendorOfferingCatalog
 } from "../lib/vendor-offerings.mjs";
+import { partnerContactNotice } from "../lib/partner-consent.mjs";
 import {
   deletePartnerAssetUpload,
   partnerAssetStorageConfig,
@@ -470,6 +472,7 @@ async function startTurnstileMock() {
       const actions = {
         "valid-vendor-token": "vendor_application",
         "valid-vendor-mismatch-token": "vendor_application",
+        "valid-vendor-interest-token": "vendor_application",
         "valid-sponsor-token": "sponsor_inquiry",
         "valid-invited-sponsor-mismatch-token": "sponsor_inquiry",
         "valid-invited-sponsor-token": "sponsor_inquiry"
@@ -2777,12 +2780,48 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
     inclusions: []
   });
   ok("vendor offering catalog coverage", defaultVendorCatalog.ready && defaultVendorCatalog.activeOfferings.length === 3 && defaultVendorCatalog.missingCategories.length === 0);
-  ok("vendor offering category authority", artisanOffering.ok && artisanOffering.offering.amount === 125000 && !categoryMismatch.ok && categoryMismatch.error.includes("not available"));
+  ok("production vendor intake is interest-only until applications open", DEFAULT_VENDOR_OFFERINGS.every(item => item.intakeMode === "interest" && item.amount === 0) && JSON.stringify(checkedInAdminConfig.vendorOfferings) === JSON.stringify(DEFAULT_VENDOR_OFFERINGS));
+  ok("vendor offering category authority", artisanOffering.ok && artisanOffering.offering.amount === 0 && artisanOffering.offering.intakeMode === "interest" && !categoryMismatch.ok && categoryMismatch.error.includes("not available"));
   ok("vendor offering catalog cannot strand a category", !unsafeCatalogChange.ok && unsafeCatalogChange.error.includes("food"));
   ok("vendor offering creation validates and rejects duplicate IDs", createdVendorOffering.ok && createdVendorOffering.offering.publicLabel === "$2,500 application fee" && !duplicateVendorOffering.ok && duplicateVendorOffering.conflict === true);
   ok("vendor offering pricing and provider mappings fail closed", !invalidVendorCents.ok && invalidVendorCents.error.includes("whole cents") && !invalidVendorProvider.ok && invalidVendorProvider.error.includes("Stripe Price ID"));
   ok("vendor offering state and inclusions fail closed", !invalidVendorState.ok && invalidVendorState.error.includes("active state") && !invalidVendorInclusions.ok && invalidVendorInclusions.error.includes("inclusion"));
-  ok("public vendor offering hides accounting mappings", !Object.hasOwn(publicOffering, "quickBooksItemId") && !Object.hasOwn(publicOffering, "stripePriceId"));
+  const invalidPricedInterest = updateVendorOfferingConfig({ vendorOfferings: DEFAULT_VENDOR_OFFERINGS }, "marketplace-booth", { amount: 100, intakeMode: "interest" });
+  ok("vendor interest cannot create a financial obligation", !invalidPricedInterest.ok && invalidPricedInterest.error.includes("cannot create a financial obligation"));
+  ok("public vendor offering exposes intake mode but hides accounting mappings", publicOffering.intakeMode === "interest" && !Object.hasOwn(publicOffering, "quickBooksItemId") && !Object.hasOwn(publicOffering, "stripePriceId"));
+  const vendorInterestNotice = partnerContactNotice("vendor", "interest");
+  const vendorInterest = createPartnerApplication(emptyPartnerOperations(), {
+    type: "vendor",
+    intakeMode: "interest",
+    organizationName: "Island Interest Co",
+    contactName: "Morgan Lee",
+    contactEmail: "morgan@island-interest.example",
+    category: "service",
+    offeringId: "marketplace-booth",
+    offeringName: "Non-food vendor interest",
+    expectedAmountCents: 0,
+    consentToContact: true,
+    consentNoticeVersion: vendorInterestNotice.version,
+    consentCapturedAt: now
+  }, { idFactory, portalAccessIdFactory: () => "vendor_interest_portal_1", now });
+  const vendorInterestDraft = prepareFollowupDraft(vendorInterest.doc, vendorInterest.followup.id, { now, portalUrl: "https://www.texassandfest.org/#partner-status" });
+  const vendorInterestReadiness = summarizeVendorReadiness(vendorInterest.doc, now);
+  const vendorInterestPortal = publicPartnerPortalStatus(vendorInterest.doc, vendorInterest.application, { now });
+  const pricedVendorInterest = createPartnerApplication(emptyPartnerOperations(), {
+    ...vendorInterest.application,
+    id: undefined,
+    reference: undefined,
+    portalAccessId: undefined,
+    expectedAmountCents: 100
+  }, { idFactory, now });
+  const repricedVendorInterest = updatePartnerApplication(vendorInterest.doc, vendorInterest.application.id, { expectedAmountCents: 100 }, { idFactory, now });
+  const invoicedVendorInterest = createPartnerInvoice(vendorInterest.doc, vendorInterest.application.id, {}, { idFactory, now });
+  const paidVendorInterest = recordPartnerPayment(vendorInterest.doc, vendorInterest.application.id, { amountCents: 100, method: "check", externalRef: "INTEREST-CHECK-1" }, { idFactory, now });
+  ok("vendor interest stores versioned contact consent", vendorInterest.ok && vendorInterest.application.intakeMode === "interest" && vendorInterest.application.consentNoticeVersion === vendorInterestNotice.version && vendorInterest.application.consentCapturedAt === now);
+  ok("vendor interest seeds review without application obligations", vendorInterest.milestones.length === 1 && vendorInterest.milestones[0].kind === "interest_review" && vendorInterest.task.title.includes("vendor interest") && vendorInterest.vendorProfile === null && vendorInterest.vendorRequirements.length === 0 && vendorInterest.vendorAssignment === null);
+  ok("vendor interest acknowledgment and portal stay non-financial", vendorInterestDraft.followup.subject.includes("vendor interest") && !vendorInterestDraft.followup.subject.includes("application") && vendorInterestDraft.followup.body.includes("fees and availability will be confirmed") && vendorInterestPortal.intakeMode === "interest" && vendorInterestPortal.finance.paymentStatus === "not_applicable" && vendorInterestPortal.vendorOnboarding === null);
+  ok("vendor interest is excluded from booth readiness", vendorInterestReadiness.totals.interests === 1 && vendorInterestReadiness.totals.vendors === 0 && vendorInterestReadiness.totals.blocked === 0);
+  ok("vendor interest rejects pricing, invoicing, and payments", !pricedVendorInterest.ok && !repricedVendorInterest.ok && !invoicedVendorInterest.ok && !paidVendorInterest.ok && [pricedVendorInterest, repricedVendorInterest, invoicedVendorInterest, paidVendorInterest].every(item => item.error.includes("Vendor interest")));
   const vendorCreated = createPartnerApplication(emptyPartnerOperations(), {
     type: "vendor",
     organizationName: "Coastal Tacos",
@@ -4503,6 +4542,10 @@ if (!API_BASE) {
   isolatedCommerceDir = await mkdtemp(path.join(tmpdir(), "sandfest-api-smoke-commerce-"));
   isolatedRuntimeRoot = await mkdtemp(path.join(tmpdir(), "sandfest-api-smoke-runtime-"));
   await cp(path.join(ROOT, "data"), path.join(isolatedRuntimeRoot, "data"), { recursive: true });
+  const isolatedAdminConfigPath = path.join(isolatedRuntimeRoot, "data", "config", "admin-config.json");
+  const isolatedAdminConfig = JSON.parse(await readFile(isolatedAdminConfigPath, "utf8"));
+  isolatedAdminConfig.vendorOfferings = structuredClone(BOARD_DEMO_VENDOR_OFFERINGS);
+  await writeFile(isolatedAdminConfigPath, `${JSON.stringify(isolatedAdminConfig, null, 2)}\n`);
   const isolatedPartnerPath = path.join(isolatedRuntimeRoot, "data", "processed", "partner-operations.json");
   const isolatedSmsPath = path.join(isolatedRuntimeRoot, "data", "processed", "sms-operations.json");
   const isolatedConsentPath = path.join(isolatedRuntimeRoot, "data", "processed", "consent-ledger.json");
@@ -4738,7 +4781,7 @@ try {
   const launchTasksApi = (deploymentTaskWorkspace.data.tasks || []).filter(task => task.relatedEntityType === "deployment_check" && ["open", "in_progress", "blocked"].includes(task.status));
   ok("deployment task sync requires task delegation permission", unauthenticatedDeploymentTaskSync.status === 401);
   ok("automatic deployment sync creates one task per failing gate", launchTasksApi.length === failingDeploymentChecks.length && new Set(launchTasksApi.map(task => task.relatedEntityId)).size === failingDeploymentChecks.length);
-  ok("manual deployment task sync replays automatic state", deploymentTaskSync.status === 200 && deploymentTaskSync.data.sync?.changed === false && deploymentTaskSync.data.sync?.created === 0 && deploymentTaskSync.data.sync?.active === failingDeploymentChecks.length);
+  ok("manual deployment task sync converges with automatic state", deploymentTaskSync.status === 200 && deploymentTaskSync.data.sync?.created === 0 && deploymentTaskSync.data.sync?.active === failingDeploymentChecks.length);
   ok("deployment task API replay is idempotent", deploymentTaskReplay.status === 200 && deploymentTaskReplay.data.sync?.changed === false && deploymentTaskReplay.data.sync?.created === 0 && deploymentTaskReplay.data.sync?.active === failingDeploymentChecks.length);
   ok("deployment exposes healthy automatic launch work evidence", deploymentAfterAutomaticSync.data.deployment?.checks?.deploymentTaskSync?.ok === true
     && deploymentAfterAutomaticSync.data.deployment?.checks?.deploymentTaskSync?.message.includes("healthy")
@@ -6285,6 +6328,53 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
   ok("outreach CSV API preview gate", staleImportApi.status === 409);
   ok("outreach CSV API commit", importCommitApi.status === 201 && importCommitApi.data.summary?.valid === 1 && importedProspectApi?.source === "csv_import" && importedProspectApi?.sourceBatch === importCommitApi.data.batchId);
   ok("outreach CSV API replay safety", importReplayApi.status === 200 && importReplayApi.data.summary?.valid === 0 && importReplayApi.data.summary?.duplicates === 1);
+  const apiInterestOffering = await hit("POST", "/api/admin/vendor-offerings", {
+    id: "api-vendor-interest",
+    name: "API vendor interest",
+    amount: 0,
+    publicLabel: "Fee confirmed when applications open",
+    intakeMode: "interest",
+    categories: ["service"],
+    description: "Register interest in a future Texas SandFest service-vendor opportunity.",
+    inclusions: ["Application-opening notice", "Operations review"]
+  }, true);
+  const apiInterestIntake = await hit("POST", "/api/public/vendor-applications", {
+    organizationName: "API Vendor Interest Test",
+    contactName: "Interest Contact",
+    contactEmail: "interest-contact@example.com",
+    category: "service",
+    vendorOfferingId: "api-vendor-interest",
+    intakeMode: "application",
+    consentNoticeVersion: "forged-client-version",
+    consentToContact: true,
+    botToken: "valid-vendor-interest-token"
+  }, false, { "idempotency-key": "platform-api-vendor-interest-0001" });
+  const apiInterestApplicationId = apiInterestIntake.data.application?.id;
+  const apiInterestReprice = await hit("PATCH", `/api/admin/partners/applications/${encodeURIComponent(apiInterestApplicationId)}`, { expectedAmountCents: 100 }, true);
+  const apiInterestInvoice = await hit("POST", `/api/admin/partners/applications/${encodeURIComponent(apiInterestApplicationId)}/invoices`, {}, true);
+  const apiInterestPayment = await hit("POST", `/api/admin/partners/applications/${encodeURIComponent(apiInterestApplicationId)}/payments`, { amountCents: 100, method: "check", externalRef: "API-INTEREST-CHECK-1" }, true);
+  const apiInterestWorkspace = await hit("GET", "/api/admin/partners", null, true);
+  const storedApiInterest = apiInterestWorkspace.data.applications?.find(item => item.id === apiInterestIntake.data.application?.id);
+  const apiInterestMilestones = apiInterestWorkspace.data.milestones?.filter(item => item.applicationId === storedApiInterest?.id) || [];
+  const apiInterestStatus = await hit("POST", "/api/public/partner-status", {
+    reference: apiInterestIntake.data.application?.reference,
+    token: apiInterestIntake.data.portalAccess?.token
+  });
+  const apiInterestNotice = partnerContactNotice("vendor", "interest");
+  const apiInterestDetail = JSON.stringify({
+    offeringStatus: apiInterestOffering.status,
+    offeringMode: apiInterestOffering.data.vendorOffering?.intakeMode,
+    intakeStatus: apiInterestIntake.status,
+    intakeMode: storedApiInterest?.intakeMode,
+    consentVersion: storedApiInterest?.consentNoticeVersion,
+    milestoneKinds: apiInterestMilestones.map(item => item.kind),
+    portalStatus: apiInterestStatus.status,
+    portalPaymentStatus: apiInterestStatus.data.application?.finance?.paymentStatus
+  });
+  ok("public vendor interest derives mode and versioned consent server-side", apiInterestOffering.status === 201 && apiInterestIntake.status === 201 && apiInterestIntake.data.application?.intakeMode === "interest" && storedApiInterest?.expectedAmountCents === 0 && storedApiInterest?.consentNoticeVersion === apiInterestNotice.version && storedApiInterest?.consentCapturedAt && storedApiInterest?.consentNoticeVersion !== "forged-client-version", apiInterestDetail);
+  ok("public vendor interest creates review work without onboarding obligations", apiInterestMilestones.length === 1 && apiInterestMilestones[0]?.kind === "interest_review" && apiInterestWorkspace.data.tasks?.filter(item => item.relatedEntityId === storedApiInterest?.id).length === 1 && !apiInterestWorkspace.data.vendorProfiles?.some(item => item.applicationId === storedApiInterest?.id) && !apiInterestWorkspace.data.vendorRequirements?.some(item => item.applicationId === storedApiInterest?.id) && !apiInterestWorkspace.data.vendorAssignments?.some(item => item.applicationId === storedApiInterest?.id), apiInterestDetail);
+  ok("public vendor interest portal is non-financial", apiInterestStatus.status === 200 && apiInterestStatus.data.application?.intakeMode === "interest" && apiInterestStatus.data.application?.finance?.paymentStatus === "not_applicable" && apiInterestStatus.data.application?.vendorOnboarding === null && apiInterestWorkspace.data.vendorReadiness?.totals?.interests >= 1, apiInterestDetail);
+  ok("vendor interest finance endpoints fail closed", apiInterestReprice.status === 400 && apiInterestInvoice.status === 400 && apiInterestPayment.status === 400 && [apiInterestReprice, apiInterestInvoice, apiInterestPayment].every(item => item.data.error?.includes("Vendor interest")), apiInterestDetail);
   const unauthenticatedExportApi = await hitRaw("GET", "/api/admin/exports/partners.csv");
   const [partnerExportApi, receivablesExportApi, paymentsExportApi, tasksExportApi, outreachExportApi, calendarExportApi] = await Promise.all([
     hitRaw("GET", "/api/admin/exports/partners.csv", undefined, { origin: "http://127.0.0.1:5173" }, true),

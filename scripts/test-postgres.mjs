@@ -10,6 +10,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
 import twilio from "twilio";
+import { BOARD_DEMO_VENDOR_OFFERINGS } from "../lib/vendor-offerings.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ADMIN_URL = process.env.SANDFEST_POSTGRES_TEST_ADMIN_URL || "postgresql:///postgres?sslmode=disable";
@@ -389,6 +390,14 @@ async function main() {
   } = await import("../lib/quickbooks/credentials.mjs");
 
   const pool = await getPool();
+  const postgresAdminConfig = JSON.parse(await readFile(path.join(ROOT, "data", "config", "admin-config.json"), "utf8"));
+  postgresAdminConfig.vendorOfferings = structuredClone(BOARD_DEMO_VENDOR_OFFERINGS);
+  await pool.query(
+    `INSERT INTO config_documents (key, data, updated_at)
+     VALUES ($1, $2::jsonb, now())
+     ON CONFLICT (key) DO UPDATE SET data = EXCLUDED.data, updated_at = now()`,
+    ["admin-config", JSON.stringify(postgresAdminConfig)]
+  );
   const quickBooksEnv = {
     ...commonEnv,
     QB_ENVIRONMENT: "sandbox",
