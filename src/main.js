@@ -441,45 +441,6 @@ const adminTasks = [
   ["Publish app feed", "Promote reviewed records into the shared bootstrap payload used by web and iOS."]
 ];
 
-const knowledge = [
-  {
-    q: "tickets",
-    a: () => `Texas SandFest runs ${event.dateRange}, ${event.hours}, on the beach in Port Aransas. Choose an available ticket option below to continue to secure checkout.`
-  },
-  {
-    q: "volunteer",
-    a: "Volunteer registration captures role and shift preferences, waiver status, and captain assignment. Current registration dates and openings are published through the official volunteer application."
-  },
-  {
-    q: "vendor",
-    a: "Vendor flows should split food and non-food applicants, then track permit documents, booth footprint, power needs, load-in window, and final approval."
-  },
-  {
-    q: "sponsor",
-    a: "Sponsor work should track tier, benefit checklist, logo/assets, invoice state, on-site footprint, hospitality needs, and post-event impact reporting."
-  },
-  {
-    q: "parking",
-    a: "Parking should be treated as a live operations workflow: beach access status, shuttle options, ADA routing, weather/traffic alerts, and arrival-time recommendations."
-  },
-  {
-    q: "accessibility",
-    a: "The platform should expose ADA routes, gate assistance, restroom locations, shade/medical points, and a way to request help from staff."
-  },
-  {
-    q: "ios",
-    a: "The iOS app should be native SwiftUI with a shared API/content layer. First release should focus on offline-friendly schedule/map, push alerts, AI concierge, volunteer check-in, QR/ticket handoff, and staff incident capture."
-  },
-  {
-    q: "port a",
-    a: "Port A Local Co should consume SandFest as a local event and destination module: listings, restaurants, lodging, things to do, event guides, offers, and post-event retention. SandFest data should be exposed through versioned APIs, not copied page content."
-  },
-  {
-    q: "quickbooks",
-    a: "QuickBooks should own accounting truth: customers, vendors, invoices, payments, bills, and reports. SandFest should mirror status into sponsor/vendor/finance workflows while keeping operational fulfillment in the SandFest platform."
-  }
-];
-
 const app = document.querySelector("#app");
 
 function formatMoney(cents) {
@@ -1780,17 +1741,17 @@ app.innerHTML = `
 
     <section class="split" id="concierge">
       <div>
-        <p class="eyebrow">AI engine</p>
-        <h2>One assistant for guests, staff, vendors, sponsors, and city partners.</h2>
+        <p class="eyebrow">Visitor concierge</p>
+        <h2>Current answers for planning a day on the beach.</h2>
         <p class="section-copy">Ask about tickets, schedules, accessibility, parking, vendors, sponsorships, and volunteer opportunities.</p>
         <div class="prompt-grid">
           <button data-prompt="Where do I buy tickets?">Tickets</button>
-          <button data-prompt="How do I volunteer?">Volunteer</button>
-          <button data-prompt="What should a sponsor dashboard track?">Sponsors</button>
-          <button data-prompt="What do families need on-site?">Families</button>
-          <button data-prompt="What should the iOS app do first?">iOS app</button>
-          <button data-prompt="How does this integrate with Port A Local Co?">Port A Local Co</button>
-          <button data-prompt="How should QuickBooks fit in?">QuickBooks</button>
+          <button data-prompt="When is SandFest open?">Schedule</button>
+          <button data-prompt="What is the current weather?">Weather</button>
+          <button data-prompt="What is the current ferry wait?">Ferry</button>
+          <button data-prompt="What sponsorship packages are open?">Sponsors</button>
+          <button data-prompt="How do vendors apply?">Vendors</button>
+          <button data-prompt="What accessibility guidance is available?">Accessibility</button>
         </div>
       </div>
       <div class="assistant-panel">
@@ -1799,14 +1760,14 @@ app.innerHTML = `
             <strong>Ask Sandy</strong>
             <span>Trusted SandFest concierge</span>
           </div>
-          <span class="live-pill">Operations preview</span>
+          <span class="live-pill">Reviewed sources</span>
         </div>
         <div id="chat" class="chat-log" role="log" aria-live="polite" aria-relevant="additions">
-          <div class="message ai">Ask me about tickets, volunteering, vendors, sponsors, parking, accessibility, schedules, or operations.</div>
+          <div class="message ai">Ask about tickets, schedules, sponsors, vendors, weather, ferry waits, or live beach conditions.</div>
         </div>
         <form id="ask-form" class="ask-form">
-          <input id="ask-input" name="question" autocomplete="off" placeholder="Ask a SandFest question..." aria-label="Ask Sandy a question" />
-          <button class="button primary" type="submit">Ask</button>
+          <input id="ask-input" name="question" autocomplete="off" maxlength="280" placeholder="Ask a SandFest question..." aria-label="Ask Sandy a question" />
+          <button id="ask-submit" class="button primary" type="submit">Ask</button>
         </form>
       </div>
     </section>
@@ -2156,19 +2117,6 @@ app.innerHTML = `
   </main>
 `;
 
-function answerQuestion(question) {
-  const normalized = question.toLowerCase();
-  const match = knowledge.find(item => normalized.includes(item.q));
-  if (match) return typeof match.a === "function" ? match.a() : match.a;
-  if (normalized.includes("family") || normalized.includes("kids")) {
-    return "Families need clear restroom/shade/medical markers, youth activity timing, lost-child escalation, stroller-friendly paths, and concise gate re-entry guidance.";
-  }
-  if (normalized.includes("schedule") || normalized.includes("time")) {
-    return `The current published event window is ${event.dateRange}, ${event.hours}. Check the schedule for stage, competition, volunteer, and sponsor times.`;
-  }
-  return `I do not have a confirmed answer for that yet. Contact ${event.email} or call ${event.phone} for help.`;
-}
-
 function addMessage(text, type) {
   const chat = document.querySelector("#chat");
   const node = document.createElement("div");
@@ -2176,24 +2124,129 @@ function addMessage(text, type) {
   node.textContent = text;
   chat.append(node);
   chat.scrollTop = chat.scrollHeight;
+  return node;
 }
 
-document.querySelector("#ask-form").addEventListener("submit", event => {
+function conciergeSourceHref(value) {
+  const href = String(value || "");
+  if (/^#[a-z][a-z0-9_-]*$/i.test(href)) return href;
+  const external = safeExternalHref(href);
+  return external?.startsWith("https://") ? external : null;
+}
+
+function addConciergeAnswer(answer) {
+  const chat = document.querySelector("#chat");
+  const node = document.createElement("div");
+  node.className = "message ai concierge-answer";
+  node.dataset.confidence = answer.confidence || "low";
+
+  const copy = document.createElement("p");
+  copy.textContent = String(answer.answer || "Ask Sandy could not find a current answer.");
+  node.append(copy);
+
+  const validSources = (Array.isArray(answer.sources) ? answer.sources : [])
+    .map(item => ({ ...item, href: conciergeSourceHref(item.href) }))
+    .filter(item => item.href && item.label)
+    .slice(0, 4);
+  if (validSources.length) {
+    const sources = document.createElement("div");
+    sources.className = "concierge-sources";
+    const label = document.createElement("span");
+    label.textContent = answer.escalated ? "Confirm with" : "Sources";
+    sources.append(label);
+    validSources.forEach(item => {
+      const link = document.createElement("a");
+      link.href = item.href;
+      link.textContent = item.label;
+      if (!item.href.startsWith("#")) {
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+      }
+      sources.append(link);
+    });
+    node.append(sources);
+  }
+
+  const suggestions = (Array.isArray(answer.suggestions) ? answer.suggestions : []).filter(Boolean).slice(0, 3);
+  if (suggestions.length) {
+    const suggestionRow = document.createElement("div");
+    suggestionRow.className = "concierge-suggestions";
+    suggestions.forEach(suggestion => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.conciergeSuggestion = String(suggestion).slice(0, 120);
+      button.textContent = String(suggestion).slice(0, 120);
+      suggestionRow.append(button);
+    });
+    node.append(suggestionRow);
+  }
+
+  chat.append(node);
+  chat.scrollTop = chat.scrollHeight;
+  return node;
+}
+
+async function requestConciergeAnswer(question) {
+  const response = await fetchWithTimeout(`${publicApiBase()}/api/public/concierge`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ question })
+  }, 12_000);
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "Ask Sandy could not answer that question.");
+  if (!data.answer || !Array.isArray(data.sources)) throw new Error("Ask Sandy returned an incomplete answer.");
+  return data;
+}
+
+let conciergeRequestPending = false;
+
+function setConciergePending(pending) {
+  conciergeRequestPending = pending;
+  const input = document.querySelector("#ask-input");
+  const submit = document.querySelector("#ask-submit");
+  input.disabled = pending;
+  submit.disabled = pending;
+  submit.textContent = pending ? "Checking" : "Ask";
+  document.querySelectorAll("[data-prompt], [data-concierge-suggestion]").forEach(button => {
+    button.disabled = pending;
+  });
+}
+
+async function submitConciergeQuestion(questionInput) {
+  const question = String(questionInput || "").trim();
+  if (!question || conciergeRequestPending) return;
+  addMessage(question, "user");
+  const pending = addMessage("Checking current SandFest sources...", "ai pending");
+  setConciergePending(true);
+  try {
+    const answer = await requestConciergeAnswer(question);
+    pending.remove();
+    addConciergeAnswer(answer);
+  } catch (error) {
+    pending.remove();
+    addMessage(friendlyRequestError(error, `Ask Sandy cannot reach current sources right now. Contact ${event.email} or ${event.phone}.`), "ai error");
+  } finally {
+    setConciergePending(false);
+    document.querySelector("#ask-input")?.focus({ preventScroll: true });
+  }
+}
+
+document.querySelector("#ask-form").addEventListener("submit", async event => {
   event.preventDefault();
   const input = document.querySelector("#ask-input");
   const question = input.value.trim();
   if (!question) return;
-  addMessage(question, "user");
-  addMessage(answerQuestion(question), "ai");
   input.value = "";
+  await submitConciergeQuestion(question);
 });
 
 document.querySelectorAll("[data-prompt]").forEach(button => {
-  button.addEventListener("click", () => {
-    const question = button.dataset.prompt;
-    addMessage(question, "user");
-    addMessage(answerQuestion(question), "ai");
-  });
+  button.addEventListener("click", () => submitConciergeQuestion(button.dataset.prompt));
+});
+
+document.querySelector("#chat").addEventListener("click", event => {
+  const button = event.target.closest("[data-concierge-suggestion]");
+  if (button) submitConciergeQuestion(button.dataset.conciergeSuggestion);
 });
 
 function renderTicketCart() {

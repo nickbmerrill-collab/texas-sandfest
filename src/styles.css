@@ -656,10 +656,72 @@ h3 {
   color: var(--deep);
 }
 
+.message.ai.pending { color: var(--muted); }
+
+.message.ai.error {
+  border-left: 4px solid var(--coral);
+}
+
 .message.user {
   align-self: flex-end;
   background: var(--gulf);
   color: var(--white);
+}
+
+.concierge-answer {
+  display: grid;
+  gap: 10px;
+}
+
+.concierge-answer > p { margin: 0; }
+
+.concierge-sources {
+  align-items: center;
+  border-top: 1px solid rgba(18, 51, 58, 0.16);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  padding-top: 9px;
+}
+
+.concierge-sources span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.concierge-sources a {
+  color: var(--gulf);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.concierge-suggestions {
+  display: grid;
+  gap: 6px;
+}
+
+.concierge-suggestions button {
+  background: var(--white);
+  border: 1px solid rgba(18, 51, 58, 0.18);
+  border-radius: 6px;
+  color: var(--deep);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.concierge-suggestions button:hover { border-color: var(--gulf); }
+
+.concierge-suggestions button:disabled,
+.prompt-grid button:disabled,
+.ask-form button:disabled {
+  cursor: wait;
+  opacity: 0.56;
 }
 
 .ask-form {

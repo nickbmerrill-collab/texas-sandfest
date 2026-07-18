@@ -340,6 +340,12 @@ import {
 import { TURNSTILE_SITEVERIFY_URL, turnstileConfig, verifyTurnstileToken } from "../lib/turnstile.mjs";
 import { eventGuideReadiness, normalizeEventGuide, publicEventGuide, publishEventGuide } from "../lib/event-guide.mjs";
 import { publicAppBootstrap, publicAppBootstrapSafety } from "../lib/public-bootstrap.mjs";
+import {
+  answerPublicConcierge,
+  parsePublicConciergeQuestion,
+  publicConciergeNeedsConditions,
+  publicConciergeResponseSafety
+} from "../lib/public-concierge.mjs";
 import { publicMediaManifest, publicMediaManifestSafety } from "../lib/public-media-manifest.mjs";
 import { DEFAULT_EVENT_ID, eventContextConfig, eventContextReadiness } from "../lib/event-context.mjs";
 import { publicSculptorRosterPublication } from "../lib/public-roster.mjs";
@@ -1049,6 +1055,62 @@ console.log("\n=== Pure library suite ===\n");
   const projected = publicMediaManifest(internalManifest);
   ok("public media manifest omits local and upstream implementation fields", publicMediaManifestSafety(projected).ready && !/(file|originalUrl|failures|\/Users\/)/.test(JSON.stringify(projected)));
   ok("public media manifest policy rejects internal source records", !publicMediaManifestSafety(internalManifest).ready);
+}
+
+// Governed public concierge
+{
+  const context = {
+    bootstrap: {
+      guide: {
+        name: "Texas SandFest",
+        dateRange: "April 16-18, 2027",
+        hours: "9:00 AM - 7:30 PM daily",
+        location: "On the beach, Port Aransas, TX 78373",
+        email: "info@texassandfest.org",
+        phone: "361-267-2474",
+        sourceUrl: "https://www.texassandfest.org/knowbeforeyougo",
+        sourceCheckedAt: "2026-07-18T12:00:00.000Z"
+      },
+      schedule: [{ day: "Friday", time: "9:00 AM", title: "Beach gates open" }]
+    },
+    tickets: {
+      lastUpdated: "2026-07-18T12:00:00.000Z",
+      currency: "usd",
+      products: [
+        { name: "Adult day pass", unitAmount: 1500, availableForCheckout: true },
+        { name: "VIP day pass", unitAmount: null, priceLabel: "Set in Stripe", availableForCheckout: false }
+      ]
+    },
+    sponsors: {
+      lastUpdated: "2026-07-18T12:00:00.000Z",
+      sponsorPackages: [{ name: "Gulf Partner", amount: 500000, currency: "usd" }]
+    },
+    vendors: {
+      lastUpdated: "2026-07-18T12:00:00.000Z",
+      vendorOfferings: [{ name: "Food vendor", amount: 65000, currency: "usd" }]
+    },
+    islandConditions: {
+      lastUpdated: "2026-07-18T12:00:00.000Z",
+      weather: { status: "live", temperatureF: 86, shortForecast: "Sunny", source: "National Weather Service", sourceUrl: "https://weather.gov/", observedAt: "2026-07-18T12:00:00.000Z", alerts: [] },
+      ferry: { status: "normal", source: "TxDOT Ferry Operations", sourceUrl: "https://www.txdot.gov/discover/ferry-boat-schedules/ferry-webcam-harbor-side.html", observedAt: "2026-07-18T12:00:00.000Z", directions: [{ label: "Aransas Pass to Port Aransas", status: "normal", estimatedWaitMinutes: 12 }], operatingFerries: 4 },
+      cameras: [{ name: "North Gate", zone: "North Gate", operationalStatus: "live", level: "moderate", observation: { estimatedWaitMinutes: 6 } }]
+    }
+  };
+  const ticketResult = answerPublicConcierge("Where can I buy tickets?", context);
+  const ferryResult = answerPublicConcierge("How long is the ferry line?", context);
+  const sponsorResult = answerPublicConcierge("What should a sponsor dashboard track?", context);
+  const emergencyResult = answerPublicConcierge("My child is missing. Is this an emergency?", context);
+  const unknownResult = answerPublicConcierge("Can I bring a telescope? private@example.com", context);
+  const { ok: ticketOk, ...ticketPayload } = ticketResult;
+  const { ok: unknownOk, ...unknownPayload } = unknownResult;
+  ok("public concierge validates and bounds questions", !parsePublicConciergeQuestion("x").ok && !parsePublicConciergeQuestion("x".repeat(281)).ok && parsePublicConciergeQuestion("When is SandFest?").topic === "schedule");
+  ok("public concierge routes live-condition topics", publicConciergeNeedsConditions("weather") && publicConciergeNeedsConditions("ferry") && !publicConciergeNeedsConditions("tickets"));
+  ok("public concierge answers ticket questions from current catalog", ticketOk && ticketPayload.topic === "tickets" && ticketPayload.answer.includes("Adult day pass ($15)") && ticketPayload.answer.includes("VIP day pass (price pending)") && !ticketPayload.answer.includes("Stripe") && ticketPayload.sources.some(item => item.href === "#tickets"));
+  ok("public concierge answers ferry questions from current public conditions", ferryResult.ok && ferryResult.topic === "ferry" && ferryResult.answer.includes("about 12 minutes") && ferryResult.sources.some(item => item.href.startsWith("https://www.txdot.gov/")));
+  ok("public concierge replaces internal sponsor roadmap claims with public packages", sponsorResult.ok && sponsorResult.topic === "sponsor" && sponsorResult.answer.includes("Gulf Partner ($5,000)") && !sponsorResult.answer.toLowerCase().includes("dashboard"));
+  ok("public concierge routes urgent safety questions to emergency help", emergencyResult.ok && emergencyResult.topic === "emergency" && emergencyResult.escalated && emergencyResult.answer.includes("Call 911") && emergencyResult.answer.includes("cannot dispatch"));
+  ok("public concierge escalates unsupported questions without echoing input", unknownOk && unknownPayload.escalated && !JSON.stringify(unknownPayload).includes("private@example.com") && publicConciergeResponseSafety(unknownPayload).ready);
+  ok("public concierge safety rejects private implementation fields", !publicConciergeResponseSafety({ ...ticketPayload, storageRoot: "/private/runtime" }).ready);
 }
 
 // Annual event context and archive-first rollover
@@ -4529,6 +4591,25 @@ try {
   ok("event guide publish requires staff authentication", unauthenticatedGuidePublish.status === 401);
   ok("event guide publish rejects invalid dates", invalidGuidePublish.status === 400 && invalidGuidePublish.data.errors?.includes("Event end date cannot precede the start date."));
   ok("event guide publish updates public and admin readiness", validGuidePublish.status === 200 && validGuidePublish.data.readiness?.ready === true && publishedPublicBootstrap.data.guide?.sourceCheckedAt === sourceCheckedAt && !("publishedBy" in publishedPublicBootstrap.data.guide) && publishedAdminConfig.data.eventGuideReadiness?.ready === true);
+
+  const conciergeTicketApi = await hitRaw("POST", "/api/public/concierge", JSON.stringify({ question: "Where can I buy tickets?" }), { "content-type": "application/json" });
+  const conciergeSponsorApi = await hit("POST", "/api/public/concierge", { question: "What sponsorship packages are open?" });
+  const conciergeUnsupportedApi = await hit("POST", "/api/public/concierge", { question: "Can I bring a telescope? private@example.com" });
+  const conciergeInvalidApi = await hit("POST", "/api/public/concierge", { question: "x".repeat(281) });
+  ok("public concierge API returns source-cited current ticket data", conciergeTicketApi.status === 200
+    && conciergeTicketApi.data.topic === "tickets"
+    && conciergeTicketApi.data.sources?.some(item => item.href === "#tickets")
+    && publicConciergeResponseSafety(conciergeTicketApi.data).ready
+    && conciergeTicketApi.headers.get("cache-control") === "no-store"
+    && conciergeTicketApi.headers.get("x-ratelimit-limit"));
+  ok("public concierge API uses public sponsor packages instead of internal workflow claims", conciergeSponsorApi.status === 200
+    && conciergeSponsorApi.data.topic === "sponsor"
+    && conciergeSponsorApi.data.sources?.some(item => item.href === "#sponsors")
+    && !/invoiceStatus|quickBooksItemId|stripePriceId/i.test(JSON.stringify(conciergeSponsorApi.data)));
+  ok("public concierge API neither stores nor echoes unsupported questions", conciergeUnsupportedApi.status === 200
+    && conciergeUnsupportedApi.data.escalated === true
+    && !JSON.stringify(conciergeUnsupportedApi.data).includes("private@example.com"));
+  ok("public concierge API rejects oversized questions", conciergeInvalidApi.status === 400 && conciergeInvalidApi.data.error?.includes("280"));
 
   const apiDocumentBytes = Buffer.from("Board packet source\nOwner: Operations\n", "utf8");
   const apiDocumentReviewDueAt = "2027-01-20T18:00:00.000Z";

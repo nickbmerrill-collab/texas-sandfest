@@ -39,6 +39,7 @@ Public APIs should be cacheable and safe to serve from the edge:
 - `GET /api/public/alert`
 - `GET /api/public/tickets`
 - `GET /api/public/sponsors`
+- `POST /api/public/concierge` (rate-limited, `no-store`; answers may cite the cacheable public projections)
 - public FAQ/policy/search payloads when added
 
 The public bootstrap and media catalog are projections, not internal processed documents. Build checks and `npm run deployment:verify` reject staff schedule categories, operational zone status, private workflow collections, board-runtime metadata in production, unapproved bootstrap fields, local filesystem paths, and internal media-fetch details.
@@ -49,6 +50,7 @@ Recommended cache profile:
 - `stale-while-revalidate=300`
 - versioned payloads for event-day changes
 - emergency alert endpoint with a shorter 15-second TTL
+- concierge requests and responses are never edge-cached because question text may contain personal details
 
 ### Emergency Alerts
 

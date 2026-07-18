@@ -107,7 +107,15 @@ const routes = new Map([
   [new URL("api/public/tickets", config.apiUrl).toString(), () => jsonResponse({ products: [{ availableForCheckout: true }] })],
   [new URL("api/public/sponsors", config.apiUrl).toString(), () => jsonResponse({ sponsorPackages: [{ id: "whale", name: "Whale", amount: 2500000, currency: "usd", publicLabel: "$25k+", active: true, requiresApproval: true, benefits: ["Main-stage recognition"] }] })],
   [new URL("api/public/vendors", config.apiUrl).toString(), () => jsonResponse({ vendorOfferings: [{ id: "food" }] })],
-  [new URL("api/public/island-conditions", config.apiUrl).toString(), () => jsonResponse(liveConditionsBody)]
+  [new URL("api/public/island-conditions", config.apiUrl).toString(), () => jsonResponse(liveConditionsBody)],
+  [new URL("api/public/concierge", config.apiUrl).toString(), () => jsonResponse({
+    answer: "Current ticket options are available in the Tickets section.",
+    topic: "tickets",
+    confidence: "high",
+    escalated: false,
+    sources: [{ id: "tickets", label: "Current ticket options", href: "#tickets", updatedAt: "2026-07-17T12:40:00.000Z" }],
+    suggestions: ["When is SandFest?"]
+  })]
 ]);
 const fetchImpl = async (url, options = {}) => {
   const factory = routes.get(String(url));
@@ -157,6 +165,24 @@ const unsafeMediaFetch = async (url, options = {}) => {
 const unsafeMedia = await verifyLiveDeployment({ config, artifacts: { publicHtml, adminHtml, publicWorker }, fetchImpl: unsafeMediaFetch });
 check("public media manifest filesystem paths fail closed", !unsafeMedia.ok
   && unsafeMedia.checks.some(item => item.id === "public.media_manifest_privacy" && !item.ok));
+
+const unsafeConciergeFetch = async (url, options = {}) => {
+  if (String(url) === new URL("api/public/concierge", config.apiUrl).toString()) {
+    return jsonResponse({
+      answer: "Internal answer",
+      topic: "tickets",
+      confidence: "high",
+      escalated: false,
+      sources: [{ id: "private", label: "Runtime", href: "#tickets", updatedAt: null }],
+      suggestions: [],
+      storageRoot: "/private/runtime"
+    });
+  }
+  return fetchImpl(url, options);
+};
+const unsafeConcierge = await verifyLiveDeployment({ config, artifacts: { publicHtml, adminHtml, publicWorker }, fetchImpl: unsafeConciergeFetch });
+check("public concierge private fields fail closed", !unsafeConcierge.ok
+  && unsafeConcierge.checks.some(item => item.id === "api.public_concierge" && !item.ok));
 
 const staleConditionsFetch = async (url, options = {}) => {
   if (String(url) === new URL("api/public/island-conditions", config.apiUrl).toString()) {

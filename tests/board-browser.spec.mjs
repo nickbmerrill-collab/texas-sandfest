@@ -252,6 +252,21 @@ test("board workflows operate through the public and staff interfaces", async ({
   await expect(featuredSponsorLogo).toHaveAttribute("src", /\/api\/public\/sponsor-showcase\/assets\/demo_brand_asset_gulf_shore_primary$/);
   await expect.poll(() => featuredSponsorLogo.evaluate(image => image.complete && image.naturalWidth > 0)).toBe(true);
 
+  const conciergeResponsePromise = page.waitForResponse(response => {
+    const url = new URL(response.url());
+    return url.origin === apiBase && url.pathname === "/api/public/concierge" && response.request().method() === "POST";
+  });
+  await page.locator("#ask-input").fill("Where can I buy tickets?");
+  await page.locator("#ask-submit").click();
+  const conciergeResponse = await conciergeResponsePromise;
+  expect(conciergeResponse.status()).toBe(200);
+  const conciergePayload = await conciergeResponse.json();
+  expect(conciergePayload.topic).toBe("tickets");
+  await expect(page.locator("#chat .concierge-answer")).toHaveCount(1);
+  await expect(page.locator("#chat .concierge-answer")).toContainText("Current ticket options include");
+  await expect(page.locator('#chat .concierge-sources a[href="#tickets"]')).toHaveText("Current ticket options");
+  await expect(page.locator("#ask-submit")).toBeEnabled();
+
   const vendor = page.locator("#vendor-application-form");
   await expect(vendor).toBeVisible();
   await vendor.locator('[name="organizationName"]').fill(vendorName);
@@ -509,6 +524,11 @@ test("board workflows operate through the public and staff interfaces", async ({
 });
 
 test("critical public and operations views fit a mobile viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 740 });
+  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#island-conditions`);
+  await expect(page.locator("#refresh-island-conditions")).toBeVisible();
+  await assertNoHorizontalOverflow(page);
+
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#sponsors`);
   await expect(page.locator("#vendor-application-form")).toBeVisible();
