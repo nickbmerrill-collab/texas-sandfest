@@ -128,6 +128,13 @@ directly to application intake, receivables, message review, assignments, key
 dates, sponsor fulfillment, vendor readiness, and sponsor outreach. Attention
 states remain visible in the summary instead of being hidden for the demo.
 
+In the board-only runtime, each application card includes **Open demo portal**
+beside its status controls. The action rotates the application's audited private
+access, opens the prepared sponsor brand center or vendor onboarding workspace
+against the active loopback API, removes the capability token from browser
+history, and invalidates the previous link. Production builds do not expose this
+shortcut; staff can still use **Copy new portal link** for the governed handoff.
+
 The document queue contains three private synthetic source files. Each has an accountable team, review deadline, and synchronized work-board task: received files are open, in-review files are in progress, requested changes block the task, approval completes it, and archive cancels it. Changing the owner or deadline updates the same task and invalidates stale unsent task notices. Uploading the board briefing PPTX queues a checksum-bound worker job; the portal then exposes its extraction status, bounded staff-only preview, and explicit retry control without publishing the source or extracted text.
 
 After loading the partner workspace, use the export menu beside the workspace controls to download the synthetic partner directory, receivables, payment ledger, delegated tasks, outreach pipeline, or key-date calendar. The task export includes notification status and timing without volunteer or staff email addresses. The workspace shows all seven synthetic team routes as ready, but the `board_demo` directory source is deliberately ineligible for production. The outreach export includes owner, next action, and next-action due timestamp. CSV files are neutralized against spreadsheet formulas, calendar files are importable by Outlook and Google Calendar, and every download is recorded in the admin audit log.
@@ -203,8 +210,9 @@ npm run test:browser
 
 This lane starts a fresh temporary board API and web server on random loopback
 ports. It submits vendor and sponsor applications through the rendered public
-forms, opens both private partner portals, verifies trusted amounts in the staff
-accounting view, delegates a roster-backed volunteer task, adds a partner key
+forms, opens both prepared private partner portals through the board-only
+launcher, verifies trusted amounts in the staff accounting view, delegates a
+roster-backed volunteer task, adds a partner key
 date, scores a geolocated outreach target, verifies approved sponsor branding
 and package deliverables, enables bounded transactional automation, observes an
 authenticated delivered event through the local email sandbox, imports a

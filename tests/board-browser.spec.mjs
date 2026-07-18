@@ -335,6 +335,42 @@ test("board workflows operate through the public and staff interfaces", async ({
   await commandSignals.locator('[data-command-signal="vendors"]').click();
   await expect(page).toHaveURL(/#admin-vendor-readiness$/);
   await expect(page.locator("#admin-vendor-readiness")).toBeInViewport({ ratio: 0.1 });
+  async function openPreparedPartnerPortal(organizationName) {
+    const application = page.locator("#admin-partner-applications [data-partner-application]").filter({ hasText: organizationName });
+    await expect(application).toHaveCount(1);
+    const popupPromise = page.waitForEvent("popup");
+    const rotationPromise = page.waitForResponse(response => {
+      const url = new URL(response.url());
+      return url.origin === apiBase && /\/api\/admin\/partners\/applications\/[^/]+\/portal-access$/.test(url.pathname) && response.request().method() === "POST";
+    });
+    await application.locator("[data-open-demo-portal]").click();
+    const [portal, rotation] = await Promise.all([popupPromise, rotationPromise]);
+    expect(rotation.status()).toBe(200);
+    await expect(portal.locator("#partner-status-result")).toContainText(organizationName);
+    await expect(portal.locator("#partner-status")).toBeInViewport({ ratio: 0.1 });
+    await expect.poll(() => portal.url()).not.toContain("token=");
+    const sanitizedUrl = new URL(portal.url());
+    expect(sanitizedUrl.hash).toBe("#partner-status");
+    expect(sanitizedUrl.searchParams.get("apiBase")).toBe(apiBase);
+    return portal;
+  }
+
+  const sponsorPortal = await openPreparedPartnerPortal("Gulf Shore Credit Union");
+  await expect(sponsorPortal.locator(".partner-brand-center")).toContainText("Brand center");
+  await expect(sponsorPortal.locator('#partner-brand-profile-form [name="tagline"]')).toHaveValue(/Rooted on the Texas coast/);
+  await expect(sponsorPortal.locator("[data-partner-brand-asset]")).toHaveCount(2);
+  await expect(sponsorPortal.locator("[data-partner-deliverable]")).toHaveCount(3);
+  await sponsorPortal.setViewportSize({ width: 390, height: 844 });
+  await assertNoHorizontalOverflow(sponsorPortal);
+  await assertNoAccessibilityViolations(sponsorPortal, "prepared sponsor portal");
+  await sponsorPortal.close();
+
+  const vendorPortal = await openPreparedPartnerPortal("Coastal Bites");
+  await expect(vendorPortal.locator(".partner-vendor-center")).toContainText("7 / 7 requirements cleared");
+  await expect(vendorPortal.locator(".partner-vendor-assignment")).toContainText("F-14");
+  await expect(vendorPortal.locator(".partner-vendor-assignment")).toContainText("confirmed");
+  await expect(vendorPortal.locator("[data-vendor-requirement]")).toHaveCount(7);
+  await vendorPortal.close();
   await expect(page.locator("#admin-quickbooks-connection")).toBeVisible();
   await expect(page.locator("#admin-quickbooks-status")).toContainText("Ready to connect");
   await expect(page.locator("#admin-connect-quickbooks")).toBeEnabled();

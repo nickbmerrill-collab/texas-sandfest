@@ -4544,7 +4544,10 @@ async function loadPartnerPortalStatus(access, options = {}) {
     renderPartnerPortalStatus(data.application);
     if (forgetButton) forgetButton.hidden = false;
     setFormStatus(status, `Secure status loaded for ${data.application.reference}.`, "ok");
-    if (options.scroll) document.querySelector("#partner-status")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (options.scroll) document.querySelector("#partner-status")?.scrollIntoView({
+      behavior: options.scrollBehavior === "auto" ? "auto" : "smooth",
+      block: "start"
+    });
   } catch (error) {
     if (loadVersion !== partnerPortalLoadVersion) return;
     const accessRejected = shouldForgetPartnerPortalAccess(responseStatus);
@@ -6607,6 +6610,10 @@ function renderAdminPartners(payload, outreach) {
         <select name="status" aria-label="${escapeAttr(`${application.organizationName} application status`)}">${partnerStatusOptions(application.status)}</select>
         <button type="button" class="button secondary" data-save-application="${escapeAttr(application.id)}">Save</button>
       </div>
+      <div class="admin-portal-actions">
+        ${BOARD_DEMO_ACCESS.enabled ? `<button type="button" class="button primary" data-open-demo-portal="${escapeAttr(application.id)}" ${adminCan("partners:write") ? "" : "disabled"}>Open demo portal</button>` : ""}
+        <button type="button" class="button secondary" data-rotate-portal="${escapeAttr(application.id)}" ${adminCan("partners:write") ? "" : "disabled"}>Copy new portal link</button>
+      </div>
       <div class="admin-payment-entry">
         <input name="paymentAmount" inputmode="decimal" placeholder="Payment $" aria-label="Payment amount" />
         <select name="paymentMethod" aria-label="Payment method"><option value="check">Check</option><option value="ach">ACH</option><option value="cash">Cash</option><option value="card">Card</option><option value="stripe">Stripe</option><option value="eventeny">Eventeny</option><option value="quickbooks">QuickBooks</option><option value="bank_transfer">Bank transfer</option><option value="manual">Manual</option><option value="other">Other</option></select>
@@ -6633,7 +6640,6 @@ function renderAdminPartners(payload, outreach) {
         <small>${escapeHtml(new Date(payment.receivedAt).toLocaleString())} · ${adminMoney(payment.appliedAmountCents || 0, "$0.00")} applied${payment.unappliedAmountCents ? ` · ${adminMoney(payment.unappliedAmountCents, "$0.00")} unapplied` : ""}${payment.refundedAmountCents ? ` · ${adminMoney(payment.refundedAmountCents, "$0.00")} refunded` : ""}</small>
         ${["succeeded", "partially_refunded"].includes(payment.status) ? `<div class="admin-payment-reversal"><select name="reversalAction" aria-label="Reversal action"><option value="refund">Mark refunded</option><option value="void">Mark void</option></select><input name="reversalReason" maxlength="500" placeholder="Required reason" aria-label="Reversal reason" /><button type="button" class="button secondary" data-reverse-payment="${escapeAttr(payment.id)}" ${canFinance ? "" : "disabled"}>Record reversal</button></div>` : payment.reversalReason ? `<small>${escapeHtml(payment.reversalReason)}</small>` : ""}
       </div>`).join("")}</div>` : ""}
-      <button type="button" class="button secondary admin-portal-access" data-rotate-portal="${escapeAttr(application.id)}" ${adminCan("partners:write") ? "" : "disabled"}>Copy new portal link</button>
     </article>`;
   }).join("") || '<article class="empty-state"><span>No applications yet.</span></article>';
   followups.innerHTML = (payload.followups || []).map(item => {
@@ -6771,10 +6777,40 @@ function renderAdminPartners(payload, outreach) {
       setAdminStatus("Application status saved.", "ok");
     } catch (error) { setAdminStatus(error.message, "error"); } finally { button.disabled = false; }
   }));
+  async function createFreshPartnerPortalAccess(applicationId) {
+    const result = await adminFetch(`/api/admin/partners/applications/${encodeURIComponent(applicationId)}/portal-access`, { method: "POST", body: "{}" });
+    let url = result.portalAccess.url;
+    if (BOARD_DEMO_ACCESS.enabled) {
+      const boardUrl = new URL(url);
+      boardUrl.searchParams.set("apiBase", adminApiBase());
+      url = boardUrl.toString();
+    }
+    return { ...result, portalAccess: { ...result.portalAccess, url } };
+  }
+  applications.querySelectorAll("[data-open-demo-portal]").forEach(button => button.addEventListener("click", async () => {
+    const popup = window.open("about:blank", "_blank");
+    if (!popup) {
+      setAdminStatus("The partner portal window could not be opened.", "error");
+      return;
+    }
+    popup.opener = null;
+    button.disabled = true;
+    try {
+      const result = await createFreshPartnerPortalAccess(button.dataset.openDemoPortal);
+      popup.location.replace(result.portalAccess.url);
+      await loadAdminPartners({ quiet: true });
+      setAdminStatus(`Opened a fresh private demo portal for ${result.application.reference}. The previous link no longer works.`, "ok");
+    } catch (error) {
+      if (!popup.closed) popup.close();
+      setAdminStatus(error.message, "error");
+    } finally {
+      button.disabled = false;
+    }
+  }));
   applications.querySelectorAll("[data-rotate-portal]").forEach(button => button.addEventListener("click", async () => {
     button.disabled = true;
     try {
-      const result = await adminFetch(`/api/admin/partners/applications/${encodeURIComponent(button.dataset.rotatePortal)}/portal-access`, { method: "POST", body: "{}" });
+      const result = await createFreshPartnerPortalAccess(button.dataset.rotatePortal);
       await navigator.clipboard.writeText(result.portalAccess.url);
       await loadAdminPartners({ quiet: true });
       setAdminStatus(`A new private portal link for ${result.application.reference} is on the clipboard. The previous link no longer works.`, "ok");
@@ -8363,7 +8399,10 @@ if (!ADMIN_ENTRY) {
   if (sculptorRosterVisible) initialPublicLoads.push(loadVoting());
   armPartnerBotProtection();
   const initialPartnerPortalAccess = partnerPortalAccessFromFragment() || savedPartnerPortalAccess();
-  if (initialPartnerPortalAccess) initialPublicLoads.push(loadPartnerPortalStatus(initialPartnerPortalAccess));
+  if (initialPartnerPortalAccess) initialPublicLoads.push(loadPartnerPortalStatus(initialPartnerPortalAccess, {
+    scroll: true,
+    scrollBehavior: "auto"
+  }));
   const initialOutreachPreferenceAccess = outreachPreferenceAccessFromFragment();
   if (initialOutreachPreferenceAccess) initialPublicLoads.push(loadOutreachPreference(initialOutreachPreferenceAccess, { scroll: true }));
   const initialSponsorInvitationToken = sponsorInvitationTokenFromFragment();
