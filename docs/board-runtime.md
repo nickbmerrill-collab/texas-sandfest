@@ -177,6 +177,13 @@ completion, and the public sponsor showcase. Its $5,000 invoice, payment,
 reversal, and reopened key date stay attached to that record, so branding,
 fulfillment, and finance are verified as one lifecycle instead of separate seed
 examples.
+It also delegates one new due-dated task to a governed volunteer, waits for the
+loopback mailbox and authenticated delivery webhook to prove the assignment
+notice, advances the same task through in-progress and done states, and verifies
+the recorded lifecycle timestamps. The worker must retain exactly one delivered
+assignment notice and no active overdue escalation after completion. Weekly
+overdue reminders remain enabled for tasks that stay open, in progress, or
+blocked; the 24-hour assignment grace period prevents an immediate double send.
 
 The seeded Island Harbor Hotel prospect is already qualified, geolocated, and
 assigned. Choose a sponsor package and use **Issue invitation**, then **Open
