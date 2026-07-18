@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-04-30T21:29:11.601Z",
+  "lastUpdated": "2026-07-18T16:42:45.000Z",
   "deployment": {
     "ownerSite": "Heyelab",
     "apiSubdomain": "sandfest-api.heyelab.com",
@@ -85,50 +85,37 @@
   ],
   "sponsorPackages": [
     {
-      "id": "whale",
-      "name": "Whale",
-      "amount": 2500000,
+      "id": "flounder",
+      "name": "Flounder",
+      "amount": 125000,
       "currency": "usd",
-      "publicLabel": "$25k+",
+      "publicLabel": "$1,250 sponsorship",
       "active": true,
       "requiresApproval": true,
       "stripePriceId": null,
       "quickBooksItemId": null,
       "benefits": [
-        "Top visibility",
-        "Main-stage recognition",
-        "VIP footprint"
+        "8 three-day general admission wristbands",
+        "Company logo on the Texas SandFest website and printed materials"
       ]
     },
     {
-      "id": "marlin",
-      "name": "Marlin",
-      "amount": 1500000,
+      "id": "trout",
+      "name": "Trout",
+      "amount": 250000,
       "currency": "usd",
-      "publicLabel": "$15k",
+      "publicLabel": "$2,500 sponsorship",
       "active": true,
       "requiresApproval": true,
       "stripePriceId": null,
       "quickBooksItemId": null,
       "benefits": [
-        "Beach signage",
-        "Digital placement",
-        "Hospitality support"
-      ]
-    },
-    {
-      "id": "sailfish",
-      "name": "Sailfish",
-      "amount": 1000000,
-      "currency": "usd",
-      "publicLabel": "$10k",
-      "active": true,
-      "requiresApproval": true,
-      "stripePriceId": null,
-      "quickBooksItemId": null,
-      "benefits": [
-        "Category sponsorship",
-        "Social media package"
+        "4 VIP wristbands",
+        "6 three-day general admission wristbands",
+        "2 one-day VIP parking passes",
+        "Name on a sand wall",
+        "Company logo on the Texas SandFest website",
+        "Sponsor gift bag"
       ]
     },
     {
@@ -136,14 +123,190 @@
       "name": "Tarpon",
       "amount": 500000,
       "currency": "usd",
-      "publicLabel": "$5k",
+      "publicLabel": "$5,000 sponsorship",
       "active": true,
       "requiresApproval": true,
       "stripePriceId": null,
       "quickBooksItemId": null,
       "benefits": [
-        "On-site logo placement",
-        "Web listing"
+        "8 VIP wristbands",
+        "10 three-day general admission wristbands",
+        "4 one-day VIP parking passes",
+        "Simplified logo on the west side of the Gallery near the Semi-Pro Sculptors",
+        "Company logo on the Texas SandFest website",
+        "Sponsor gift bag"
+      ]
+    },
+    {
+      "id": "sailfish",
+      "name": "Sailfish",
+      "amount": 1000000,
+      "currency": "usd",
+      "publicLabel": "$10,000 sponsorship",
+      "active": true,
+      "requiresApproval": true,
+      "stripePriceId": null,
+      "quickBooksItemId": null,
+      "benefits": [
+        "15 VIP wristbands",
+        "20 three-day general admission wristbands",
+        "6 one-day VIP parking passes",
+        "Logo on the south side of Logo Mountain",
+        "Company logo on the Texas SandFest website",
+        "Sponsor gift bag"
+      ]
+    },
+    {
+      "id": "marlin",
+      "name": "Marlin",
+      "amount": 1500000,
+      "currency": "usd",
+      "publicLabel": "$15,000 sponsorship",
+      "active": true,
+      "requiresApproval": true,
+      "stripePriceId": null,
+      "quickBooksItemId": null,
+      "benefits": [
+        "25 VIP wristbands",
+        "30 three-day general admission wristbands",
+        "10 one-day VIP parking passes",
+        "Logo on the mid-tier of Logo Mountain",
+        "Company logo on the Texas SandFest website",
+        "Sponsor gift bag"
+      ]
+    },
+    {
+      "id": "shark",
+      "name": "Shark",
+      "amount": 2500000,
+      "currency": "usd",
+      "publicLabel": "$25,000 sponsorship",
+      "active": true,
+      "requiresApproval": true,
+      "stripePriceId": null,
+      "quickBooksItemId": null,
+      "benefits": [
+        "36 VIP wristbands",
+        "50 three-day general admission wristbands",
+        "18 one-day VIP parking passes",
+        "Logo on the top tier of Logo Mountain",
+        "Company logo on the website, promotional materials, and event signage",
+        "Half-page ad in the Texas SandFest magazine",
+        "Sponsor gift bag"
+      ]
+    },
+    {
+      "id": "vip-tent-sponsor",
+      "name": "VIP Tent Sponsor",
+      "amount": 2500000,
+      "currency": "usd",
+      "publicLabel": "$25,000 sponsorship",
+      "active": true,
+      "requiresApproval": true,
+      "stripePriceId": null,
+      "quickBooksItemId": null,
+      "benefits": [
+        "Company signage in the VIP area",
+        "36 VIP wristbands",
+        "50 three-day general admission wristbands",
+        "18 one-day VIP parking passes",
+        "Logo on the top tier of Logo Mountain",
+        "Company logo on VIP wristbands",
+        "Company logo on the website, promotional materials, and event signage",
+        "Half-page ad in the Texas SandFest magazine",
+        "Logo on sponsor gift bags"
+      ]
+    },
+    {
+      "id": "whale",
+      "name": "Whale",
+      "amount": 5000000,
+      "currency": "usd",
+      "publicLabel": "$50,000 sponsorship",
+      "active": true,
+      "requiresApproval": true,
+      "stripePriceId": null,
+      "quickBooksItemId": null,
+      "benefits": [
+        "72 VIP wristbands",
+        "100 three-day general admission wristbands",
+        "36 one-day VIP parking passes",
+        "Logo on the lower half of the east side of Logo Mountain",
+        "Prominent display on the website, promotional materials, and event signage",
+        "Full-page ad in the Texas SandFest magazine",
+        "5 social media posts",
+        "Premium sponsor gift bag"
+      ]
+    },
+    {
+      "id": "giant-squid",
+      "name": "Giant Squid",
+      "amount": 7500000,
+      "currency": "usd",
+      "publicLabel": "$75,000 sponsorship",
+      "active": true,
+      "requiresApproval": true,
+      "stripePriceId": null,
+      "quickBooksItemId": null,
+      "benefits": [
+        "100 VIP wristbands",
+        "125 three-day general admission wristbands",
+        "45 one-day VIP parking passes",
+        "Logo on the top half of the east side of Logo Mountain",
+        "Prominent display on the website, promotional materials, and event signage",
+        "Full-page ad in the Texas SandFest magazine",
+        "7 social media posts",
+        "Premium sponsor gift bag"
+      ]
+    },
+    {
+      "id": "megalodon",
+      "name": "Megalodon",
+      "amount": 12500000,
+      "currency": "usd",
+      "publicLabel": "$125,000 sponsorship",
+      "active": true,
+      "requiresApproval": true,
+      "stripePriceId": null,
+      "quickBooksItemId": null,
+      "benefits": [
+        "150 VIP wristbands",
+        "175 three-day general admission wristbands",
+        "60 one-day VIP parking passes",
+        "One 30-by-30-foot booth space with tent provided",
+        "Logo on the full west side of Logo Mountain",
+        "Prominent display on the website, promotional materials, and event signage",
+        "Full-page ad in the Texas SandFest magazine",
+        "10 social media posts",
+        "Premium sponsor gift bag"
+      ]
+    },
+    {
+      "id": "the-kraken",
+      "name": "The Kraken",
+      "amount": 25000000,
+      "currency": "usd",
+      "publicLabel": "$250,000 sponsorship",
+      "active": true,
+      "requiresApproval": true,
+      "stripePriceId": null,
+      "quickBooksItemId": null,
+      "benefits": [
+        "Presenting sponsor recognition",
+        "225 VIP wristbands",
+        "250 three-day general admission wristbands",
+        "100 one-day VIP parking passes",
+        "Two 30-by-30-foot booth spaces with tents provided",
+        "One billboard, location to be determined",
+        "Logo on the full north side of Logo Mountain",
+        "Music Stage naming recognition",
+        "Logo on Big Checks",
+        "Prominent display on the website, promotional materials, and event signage",
+        "Two full-page ads in the Texas SandFest magazine",
+        "Full-page ad in the Port Aransas South Jetty SandFest guide",
+        "15 social media posts",
+        "Logo on sponsor gift bags",
+        "Premium sponsor gift bag"
       ]
     }
   ],
