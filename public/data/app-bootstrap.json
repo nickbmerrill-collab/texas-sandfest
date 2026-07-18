@@ -16,22 +16,7 @@
     "address": "200 S. Alister Street, Suite E, Port Aransas, TX 78373",
     "sourceUrl": "https://www.texassandfest.org/knowbeforeyougo",
     "sourceCheckedAt": "2026-07-17T00:00:00.000Z",
-    "status": "published",
-    "publishedAt": "2026-07-17T00:00:00.000Z",
-    "publishedBy": "content-import:official-site",
     "lastUpdated": "2026-07-17T00:00:00.000Z"
-  },
-  "alert": {
-    "id": "alert_none",
-    "active": false,
-    "severity": "info",
-    "title": "",
-    "message": "",
-    "audience": [
-      "public"
-    ],
-    "updatedAt": "2026-04-30T00:00:00Z",
-    "expiresAt": null
   },
   "schedule": [
     {
@@ -51,14 +36,6 @@
       "category": "Competition"
     },
     {
-      "id": "sat-brief",
-      "day": "Saturday",
-      "time": "8:15 AM",
-      "title": "Volunteer captain briefing",
-      "zone": "Command",
-      "category": "Staff"
-    },
-    {
       "id": "sun-awards",
       "day": "Sunday",
       "time": "10:30 AM",
@@ -72,143 +49,31 @@
       "id": "north-gate",
       "name": "North Gate",
       "marker": "12.5",
-      "summary": "Guest Relations, ticket scan, ADA parking, wristbands.",
-      "status": "busy"
+      "summary": "Guest Relations, ticket scan, ADA parking, wristbands."
     },
     {
       "id": "competition",
       "name": "Competition Corridor",
       "marker": "13",
-      "summary": "Master, duo, semi-pro, advanced amateur, and amateur sculpture areas.",
-      "status": "normal"
+      "summary": "Master, duo, semi-pro, advanced amateur, and amateur sculpture areas."
     },
     {
       "id": "south-gate",
       "name": "South Entrance",
       "marker": "Access Road 1A",
-      "summary": "Shuttle drop-off, south beer tent, food and vendor access.",
-      "status": "attention"
+      "summary": "Shuttle drop-off, south beer tent, food and vendor access."
     }
   ],
-  "ticketOptions": [
-    {
-      "id": "ga",
-      "name": "General Admission",
-      "price": "Stripe price TBD",
-      "detail": "Stripe Checkout and Apple Pay handoff. Keep final prices synced from approved ticket products."
-    },
-    {
-      "id": "vip",
-      "name": "VIP Wristbands",
-      "price": "Stripe price TBD",
-      "detail": "VIP checkout handoff, menus, parking pass exclusions, and will-call instructions."
-    },
-    {
-      "id": "raffle",
-      "name": "Golf Cart Raffle",
-      "price": "$50 review gated",
-      "detail": "Raffle purchase remains disabled until compliance, receipt text, and finance reconciliation rules are approved."
-    }
-  ],
-  "sponsors": [
-    {
-      "id": "thomas-j-henry",
-      "name": "Thomas J. Henry",
-      "tier": "Whale+",
-      "invoiceStatus": "Needs QBO match",
-      "fulfillmentStatus": "Assets pending",
-      "nextAction": "Confirm logo package"
-    },
-    {
-      "id": "heb",
-      "name": "H-E-B",
-      "tier": "Marlin",
-      "invoiceStatus": "Draft invoice",
-      "fulfillmentStatus": "Benefits mapped",
-      "nextAction": "Assign signage owner"
-    },
-    {
-      "id": "local-partner",
-      "name": "Local Partner",
-      "tier": "Tarpon",
-      "invoiceStatus": "Paid",
-      "fulfillmentStatus": "On-site pending",
-      "nextAction": "Prepare impact report"
-    }
-  ],
-  "vendors": [
-    {
-      "id": "food-1",
-      "name": "Food Vendor",
-      "category": "Food",
-      "status": "Docs needed",
-      "booth": "Unassigned"
-    },
-    {
-      "id": "retail-1",
-      "name": "Coastal Retail",
-      "category": "Non-food",
-      "status": "Approved",
-      "booth": "V-14"
-    },
-    {
-      "id": "beverage-1",
-      "name": "Beverage Partner",
-      "category": "Beverage",
-      "status": "Inspection pending",
-      "booth": "B-2"
-    }
-  ],
-  "coverage": [
-    {
-      "id": "north",
-      "zone": "North Gate",
-      "filled": 18,
-      "needed": 22
-    },
-    {
-      "id": "south",
-      "zone": "South Entrance",
-      "filled": 14,
-      "needed": 16
-    },
-    {
-      "id": "kids",
-      "zone": "Kids Corner",
-      "filled": 7,
-      "needed": 10
-    },
-    {
-      "id": "ops",
-      "zone": "Command",
-      "filled": 6,
-      "needed": 6
-    }
-  ],
-  "financeSignals": [
-    {
-      "id": "qb",
-      "label": "QuickBooks",
-      "value": "Not connected",
-      "detail": "Ready for OAuth credentials, realm ID, and refresh token."
-    },
-    {
-      "id": "sponsors",
-      "label": "Sponsor invoices",
-      "value": "3 staged",
-      "detail": "Mirror payment state after QBO access is connected."
-    },
-    {
-      "id": "vendors",
-      "label": "Vendor finance",
-      "value": "2 review",
-      "detail": "Keep approval/load-in operational, accounting in QuickBooks."
-    },
-    {
-      "id": "impact",
-      "label": "Impact report",
-      "value": "Draft",
-      "detail": "Finance review required before publishing donation/scholarship totals."
-    }
-  ]
+  "alert": {
+    "id": "alert_none",
+    "active": false,
+    "severity": "info",
+    "title": "",
+    "message": "",
+    "audience": [
+      "public"
+    ],
+    "updatedAt": "2026-04-30T00:00:00Z",
+    "expiresAt": null
+  }
 }

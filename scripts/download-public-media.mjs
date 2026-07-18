@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { publicMediaManifest } from "../lib/public-media-manifest.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const imagesPath = path.join(ROOT, "data", "processed", "images.json");
@@ -73,7 +74,7 @@ const manifest = {
 };
 
 await writeFile(processedManifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-await writeFile(publicManifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+await writeFile(publicManifestPath, `${JSON.stringify(publicMediaManifest(manifest), null, 2)}\n`);
 
 console.log(`\nMedia manifest written: ${processedManifestPath}`);
 console.log(`Frontend media manifest written: ${publicManifestPath}`);

@@ -1,5 +1,7 @@
 import { access, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
+import { publicAppBootstrapSafety } from "../lib/public-bootstrap.mjs";
+import { publicMediaManifestSafety } from "../lib/public-media-manifest.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const publicDir = path.join(root, "dist-public");
@@ -36,12 +38,14 @@ const adminJavaScript = (await Promise.all(
   adminAssets.filter(file => file.endsWith(".js")).map(file => readFile(path.join(adminDir, "assets", file), "utf8"))
 )).join("\n");
 const publicBootstrap = JSON.parse(await readFile(path.join(publicDir, "data", "app-bootstrap.json"), "utf8"));
+const publicDataFiles = (await readdir(path.join(publicDir, "data"))).sort();
 const publicTicketCatalog = JSON.parse(await readFile(path.join(publicDir, "data", "ticket-products.json"), "utf8"));
 const publicSculptorRoster = JSON.parse(await readFile(path.join(publicDir, "data", "sculptors.json"), "utf8"));
 const sourceVoting = JSON.parse(await readFile(path.join(root, "data", "processed", "peoples-choice.json"), "utf8"));
 const sourcePassport = JSON.parse(await readFile(path.join(root, "data", "processed", "sculpture-passport.json"), "utf8"));
 const vercelConfig = JSON.parse(await readFile(path.join(root, "vercel.json"), "utf8"));
 const mediaDerivatives = JSON.parse(await readFile(path.join(publicDir, "assets", "sandfest-media", "media-derivatives.json"), "utf8"));
+const publicMediaManifest = JSON.parse(await readFile(path.join(publicDir, "assets", "sandfest-media", "media-manifest.json"), "utf8"));
 const robots = await readFile(path.join(publicDir, "robots.txt"), "utf8");
 const publicWorker = await readFile(path.join(publicDir, "sw.js"), "utf8");
 const boardDemoCredentialMarkers = [
@@ -92,6 +96,7 @@ assert(publicAssets.some(file => file.endsWith(".woff2")), "Public artifact is m
 assert(robots === "User-agent: *\nAllow: /\n", "Public artifact has an invalid or unexpected robots.txt policy.");
 assert(publicHtml.includes("optimized/hero-1440.webp") && publicHtml.includes('fetchpriority="high"'), "Public artifact is missing its optimized hero preload.");
 assert(mediaDerivatives.derivatives?.length >= 30, "Public artifact is missing its optimized media catalog.");
+assert(publicMediaManifestSafety(publicMediaManifest).ready, "Public media manifest exposes internal fields or filesystem paths.");
 const optimizedMediaBytes = mediaDerivatives.derivatives
   .flatMap(derivative => derivative.sources ?? [])
   .reduce((sum, source) => sum + Number(source.bytes || 0), 0);
@@ -188,6 +193,22 @@ assert(visitorSource.includes("if (sculptorRosterVisible) initialPublicLoads.pus
 
 assert(publicBootstrap.guide?.startDate === "2027-04-16" && publicBootstrap.guide?.endDate === "2027-04-18", "Public artifact does not contain the governed 2027 event guide.");
 assert(publicBootstrap.guide?.dailyOpen === "09:00" && publicBootstrap.guide?.dailyClose === "19:30", "Public artifact contains stale event hours.");
+const serializedPublicBootstrap = JSON.stringify(publicBootstrap);
+assert(publicAppBootstrapSafety(publicBootstrap).ready, "Public static bootstrap violates the approved visitor projection.");
+assert(JSON.stringify(Object.keys(publicBootstrap).sort()) === JSON.stringify(["alert", "guide", "schedule", "zones"]), "Public static bootstrap contains an unexpected root collection.");
+assert(publicBootstrap.schedule?.every(item => item.category !== "Staff"), "Public static bootstrap contains a staff-only schedule entry.");
+assert(publicBootstrap.zones?.every(item => !Object.hasOwn(item, "status")), "Public static bootstrap exposes operational zone status.");
+assert(!/(sponsors|vendors|coverage|financeSignals|ticketOptions|publishedBy|invoiceStatus)/.test(serializedPublicBootstrap), "Public static bootstrap exposes private workflow data.");
+assert(JSON.stringify(publicDataFiles) === JSON.stringify(["app-bootstrap.json", "sculptors.json", "ticket-products.json"]), "Public artifact contains an unapproved data manifest.");
+for (const marker of [
+  "/Users/nick/Projects/Teaxs Sandfest",
+  "2026-04-30T20:58:47.426Z",
+  "https://www.eventeny.com/pride/",
+  "Volunteer captain briefing",
+  "Needs QBO match"
+]) {
+  assert(!publicJavaScript.includes(marker), `Public production JavaScript contains internal data marker ${marker}.`);
+}
 assert(!publicJavaScript.includes("April 17-19, 2026") && !publicJavaScript.includes("April 17, 2026"), "Public artifact contains stale 2026 event dates.");
 assert(visitorSource.includes('class="skip-link"') && visitorSource.includes('href="#top"'), "Visitor source is missing its keyboard skip link.");
 assert(visitorSource.includes('aria-label="Ask Sandy a question"'), "Public concierge input is missing an accessible name.");
