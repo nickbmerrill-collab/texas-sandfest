@@ -707,7 +707,9 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   await prospectForm.locator('[name="status"]').selectOption("contact_ready");
   const prospectResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/outreach/prospects" && response.request().method() === "POST");
   await prospectForm.locator('button[type="submit"]').click();
-  expect((await prospectResponse).status()).toBe(201);
+  const createdProspectResponse = await prospectResponse;
+  expect(createdProspectResponse.status()).toBe(201);
+  const createdProspect = (await createdProspectResponse.json()).prospect;
   await expect(page.locator("#admin-api-status")).toContainText(`Scored ${prospectName} at`);
   await expect(page.locator("#admin-outreach-prospects")).toContainText(prospectName);
 
@@ -751,6 +753,64 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   const deliveredCampaignMessage = page.locator('#admin-partner-followups [data-delivery-status="delivered"]').filter({ hasText: prospectRecipient });
   await expect(deliveredCampaignMessage).toHaveCount(1);
   await expect(deliveredCampaignMessage).toContainText("campaign-approved automation");
+
+  const prospectCard = page.locator(`[data-outreach-prospect="${createdProspect.id}"]`);
+  await expect(prospectCard).toContainText("Ready for an invited sponsor application");
+  await prospectCard.locator('[name="sponsorPackageId"]').selectOption(sponsorTierId);
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: async () => { throw new Error("Clipboard denied for acceptance coverage."); } }
+    });
+  });
+  const invitationPath = `/api/admin/outreach/prospects/${createdProspect.id}/sponsor-invitation`;
+  const invitationIssueResponse = page.waitForResponse(response => new URL(response.url()).pathname === invitationPath && response.request().method() === "POST");
+  await prospectCard.locator('[data-sponsor-invitation-action="issue"]').click();
+  const issuedInvitationResponse = await invitationIssueResponse;
+  expect(issuedInvitationResponse.status()).toBe(200);
+  const issuedInvitation = (await issuedInvitationResponse.json()).invitation;
+  expect(issuedInvitation.packageId).toBe(sponsorTierId);
+  expect(issuedInvitation.url).toContain("#sponsor-invitation?token=");
+  await expect(page.locator("#admin-api-status")).toContainText("Sponsor invitation issued. Use Open invitation or Copy link.");
+  await expect(prospectCard.locator('[data-sponsor-invitation-action="open"]')).toBeVisible();
+
+  const invitationPopup = page.waitForEvent("popup");
+  await prospectCard.locator('[data-sponsor-invitation-action="open"]').click();
+  const invitationPage = await invitationPopup;
+  await expect(invitationPage.locator("#sponsor-invitation")).toBeVisible();
+  await expect(invitationPage.locator("#sponsor-invitation-copy")).toContainText(prospectName);
+  await expect(invitationPage.locator("#sponsor-invitation-copy")).toContainText(`Community Champion ${runId}`);
+  await expect(invitationPage).toHaveURL(/#sponsors$/);
+  const invitedSponsorForm = invitationPage.locator("#sponsor-inquiry-form");
+  await expect(invitedSponsorForm.locator('[name="organizationName"]')).toHaveValue(prospectName);
+  await expect(invitedSponsorForm.locator('[name="organizationName"]')).toHaveAttribute("readonly", "");
+  await expect(invitedSponsorForm.locator('[name="contactEmail"]')).toHaveValue(prospectRecipient);
+  await expect(invitedSponsorForm.locator('[name="contactEmail"]')).toHaveAttribute("readonly", "");
+  await expect(invitedSponsorForm.locator('[name="packageId"]')).toHaveValue(sponsorTierId);
+  await expect(invitedSponsorForm.locator('[name="packageId"]')).toBeDisabled();
+  await expect(invitationPage.locator("#sponsor-package-summary")).toContainText("$7,500 sponsorship");
+  await invitedSponsorForm.locator('[name="description"]').fill("A hospitality partnership connecting island visitors with the SandFest community.");
+  await invitedSponsorForm.locator('[name="consentToContact"]').check();
+  const invitedSponsorResult = await submitAndCapture(invitationPage, invitedSponsorForm, "/api/public/sponsor-inquiries");
+  expect(invitedSponsorResult.outreachConversion).toBe(true);
+  await expect(invitationPage.locator("#partner-status-result")).toContainText(prospectName);
+  await expect(invitationPage.locator('#partner-status-form [name="reference"]')).toHaveValue(invitedSponsorResult.application.reference);
+  await expect(invitationPage.locator("#partner-brand-profile-form")).toBeVisible();
+  await invitationPage.close();
+
+  const convertedReload = Promise.all([
+    page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/partners" && response.request().method() === "GET"),
+    page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/outreach" && response.request().method() === "GET")
+  ]);
+  await page.locator("#admin-load-partners").click();
+  await convertedReload;
+  await expect(prospectCard).toContainText(`Linked to ${invitedSponsorResult.application.reference}`);
+  await expect(prospectCard.locator("[data-sponsor-invitation-action]")).toHaveCount(0);
+  const convertedApplication = page.locator("#admin-partner-applications [data-partner-application]").filter({ hasText: prospectName });
+  await expect(convertedApplication).toHaveCount(1);
+  await expect(convertedApplication).toContainText(`Community Champion ${runId}`);
+  await expect(convertedApplication).toContainText("$0.00 / $7,500.00");
+  await expect(page.locator("#admin-partner-activity")).toContainText("Sponsor target converted");
 
   const automationForm = page.locator("#admin-partner-automation");
   await automationForm.locator('[name="mode"]').selectOption("transactional_auto");

@@ -2473,6 +2473,16 @@ function setAdminStatus(message, state = "idle") {
   pill.dataset.state = state;
 }
 
+async function writeClipboardText(value) {
+  if (!value || !navigator.clipboard?.writeText) return false;
+  try {
+    await navigator.clipboard.writeText(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function adminCan(permission) {
   const permissions = adminSessionState?.permissions ?? [];
   return permissions.includes("*") || permissions.includes(permission);
@@ -7046,7 +7056,7 @@ function renderAdminPartners(payload, outreach) {
         <div><strong>Sponsor invitation</strong><span>${escapeHtml(invitationSummary)}</span></div>
         ${convertedApplication ? "" : `<select name="sponsorPackageId" aria-label="${escapeAttr(item.organizationName)} sponsor package" ${invitationEligible && sponsorPackages.length ? "" : "disabled"}>${packageOptions}</select>
         <div class="admin-sponsor-invitation-actions">
-          ${invitation && !invitationExpired ? `<button type="button" class="button secondary" data-sponsor-invitation-action="copy" data-prospect-id="${escapeAttr(item.id)}" ${adminCan("outreach:write") ? "" : "disabled"}>Copy link</button>` : ""}
+          ${invitation && !invitationExpired ? `<button type="button" class="button secondary" data-sponsor-invitation-action="open" data-prospect-id="${escapeAttr(item.id)}" ${adminCan("outreach:write") ? "" : "disabled"}>Open invitation</button><button type="button" class="button secondary" data-sponsor-invitation-action="copy" data-prospect-id="${escapeAttr(item.id)}" ${adminCan("outreach:write") ? "" : "disabled"}>Copy link</button>` : ""}
           <button type="button" class="button primary" data-sponsor-invitation-action="issue" data-prospect-id="${escapeAttr(item.id)}" ${adminCan("outreach:write") && invitationEligible && sponsorPackages.length ? "" : "disabled"}>${invitation ? "Replace invitation" : "Issue invitation"}</button>
           ${invitation ? `<button type="button" class="button secondary" data-sponsor-invitation-action="revoke" data-prospect-id="${escapeAttr(item.id)}" ${adminCan("outreach:write") ? "" : "disabled"}>Revoke</button>` : ""}
         </div>`}
@@ -7126,9 +7136,13 @@ function renderAdminPartners(payload, outreach) {
     button.disabled = true;
     try {
       const result = await createFreshPartnerPortalAccess(button.dataset.rotatePortal);
-      await navigator.clipboard.writeText(result.portalAccess.url);
+      const copied = await writeClipboardText(result.portalAccess.url);
       await loadAdminPartners({ quiet: true });
-      setAdminStatus(`A new private portal link for ${result.application.reference} is on the clipboard. The previous link no longer works.`, "ok");
+      setAdminStatus(copied
+        ? `A new private portal link for ${result.application.reference} is on the clipboard. The previous link no longer works.`
+        : BOARD_DEMO_ACCESS.enabled
+          ? `A new private portal link for ${result.application.reference} was created, but the browser blocked clipboard access. Use Open demo portal to continue.`
+          : `A new private portal link for ${result.application.reference} was created, but the browser blocked clipboard access. Allow clipboard access and rotate the link again before handing it off.`, copied ? "ok" : "warning");
     } catch (error) { setAdminStatus(error.message, "error"); } finally { button.disabled = false; }
   }));
   applications.querySelectorAll("[data-record-payment]").forEach(button => button.addEventListener("click", async () => {
@@ -7256,6 +7270,13 @@ function renderAdminPartners(payload, outreach) {
     const card = button.closest("[data-outreach-prospect]");
     const action = button.dataset.sponsorInvitationAction;
     const prospectId = button.dataset.prospectId;
+    const opensInvitation = action === "open";
+    const popup = opensInvitation ? window.open("about:blank", "_blank") : null;
+    if (opensInvitation && !popup) {
+      setAdminStatus("The sponsor invitation window could not be opened.", "error");
+      return;
+    }
+    if (popup) popup.opener = null;
     if (action === "issue" && card.querySelector('[data-sponsor-invitation-action="revoke"]') && !window.confirm("Replace this invitation? The current link will stop working and any unsent outreach will return to review.")) return;
     if (action === "revoke" && !window.confirm("Revoke this sponsor invitation and dismiss any unsent outreach that contains it?")) return;
     button.disabled = true;
@@ -7263,14 +7284,24 @@ function renderAdminPartners(payload, outreach) {
       const packageId = card.querySelector('[name="sponsorPackageId"]')?.value || null;
       const result = await adminFetch(`/api/admin/outreach/prospects/${encodeURIComponent(prospectId)}/sponsor-invitation`, {
         method: "POST",
-        body: JSON.stringify({ action, packageId: action === "issue" ? packageId : undefined })
+        body: JSON.stringify({ action: opensInvitation ? "copy" : action, packageId: action === "issue" ? packageId : undefined })
       });
-      if (result.invitation?.url) await navigator.clipboard.writeText(result.invitation.url);
+      const invitationUrl = result.invitation?.url || "";
+      const copied = !opensInvitation && invitationUrl ? await writeClipboardText(invitationUrl) : false;
+      if (opensInvitation) {
+        const publicUrl = new URL(invitationUrl);
+        if (BOARD_DEMO_ACCESS.enabled) publicUrl.searchParams.set("apiBase", adminApiBase());
+        popup.location.replace(publicUrl.toString());
+      }
       await loadAdminPartners({ quiet: true });
-      if (action === "copy") setAdminStatus("The current sponsor invitation is on the clipboard.", "ok");
+      if (opensInvitation) setAdminStatus("Opened the sponsor invitation in a new window.", "ok");
+      else if (action === "copy") setAdminStatus(copied ? "The current sponsor invitation is on the clipboard." : "The browser blocked clipboard access. Use Open invitation instead.", copied ? "ok" : "warning");
       else if (action === "revoke") setAdminStatus(`Sponsor invitation revoked${result.dismissedDrafts ? `; ${result.dismissedDrafts} unsent message${result.dismissedDrafts === 1 ? "" : "s"} dismissed` : ""}.`, "ok");
-      else setAdminStatus(`Sponsor invitation issued and copied${result.refreshedDrafts ? `; ${result.refreshedDrafts} message${result.refreshedDrafts === 1 ? "" : "s"} returned to review` : ""}.`, "ok");
-    } catch (error) { setAdminStatus(error.message, "error"); } finally { button.disabled = false; }
+      else setAdminStatus(`Sponsor invitation issued${copied ? " and copied" : ". Use Open invitation or Copy link"}${result.refreshedDrafts ? `; ${result.refreshedDrafts} message${result.refreshedDrafts === 1 ? "" : "s"} returned to review` : ""}.`, "ok");
+    } catch (error) {
+      if (popup && !popup.closed) popup.close();
+      setAdminStatus(error.message, "error");
+    } finally { button.disabled = false; }
   }));
   prospects.querySelectorAll("[data-suppress-prospect]").forEach(button => button.addEventListener("click", async () => {
     const card = button.closest("[data-outreach-prospect]");
