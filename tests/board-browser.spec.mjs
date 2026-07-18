@@ -261,6 +261,10 @@ test("board workflows operate through the public and staff interfaces", async ({
   const sponsorTierId = `community-champion-${runId}`;
   const vendorOfferingId = `premium-marketplace-${runId}`;
   const documentTitle = `Board extraction ${runId}`;
+  const settlementReference = `browser_square_merch_${runId}`;
+  const settlementFileName = `square-browser-${runId}.csv`;
+  const settlementCsv = `transaction_id,date,category,gross_amount,fee_amount,net_amount,quantity,payout_id,payout_date,reconciled,entry_type
+${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${runId},2027-03-03,yes,receipt`;
 
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#sponsors`);
   await expect(page.locator("#network-status")).toHaveText("Demo");
@@ -599,6 +603,81 @@ test("board workflows operate through the public and staff interfaces", async ({
   await expect(page.locator("#admin-connect-quickbooks")).toBeHidden();
   await expect(page.locator("#admin-refresh-quickbooks")).toBeEnabled();
   await expect(page.locator("#admin-disconnect-quickbooks")).toBeHidden();
+  const revenueBeforeResponse = await fetch(`${apiBase}/api/admin/revenue`, { headers: { authorization: `Bearer ${TOKEN}` } });
+  expect(revenueBeforeResponse.status).toBe(200);
+  const revenueBefore = await revenueBeforeResponse.json();
+  const settlementForm = page.locator("#admin-import-revenue");
+  await settlementForm.locator('[name="source"]').selectOption("square");
+  await settlementForm.locator('[name="file"]').setInputFiles({
+    name: settlementFileName,
+    mimeType: "text/csv",
+    buffer: Buffer.from(settlementCsv, "utf8")
+  });
+  await expect(settlementForm.locator('[name="csv"]')).toHaveValue(settlementCsv);
+  const settlementPreviewResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/revenue/import" && response.request().method() === "POST");
+  await settlementForm.locator('button[type="submit"]').click();
+  const settlementPreviewResult = await settlementPreviewResponse;
+  expect(settlementPreviewResult.status()).toBe(200);
+  const settlementPreview = await settlementPreviewResult.json();
+  expect(settlementPreview.summary?.rows).toBe(1);
+  expect(settlementPreview.summary?.importable).toBe(1);
+  expect(settlementPreview.summary?.invalid).toBe(0);
+  expect(settlementPreview.summary?.grossCents).toBe(32500);
+  expect(settlementPreview.summary?.feeCents).toBe(975);
+  expect(settlementPreview.summary?.netCents).toBe(31525);
+  await expect(page.locator("#admin-revenue-import-result")).toContainText("1 importable");
+  await expect(page.locator("#admin-revenue-import-result")).toContainText("$325.00 gross");
+  await expect(page.locator("#admin-commit-revenue-import")).toBeEnabled();
+
+  const settlementCommitResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/revenue/import" && response.request().method() === "POST");
+  await page.locator("#admin-commit-revenue-import").click();
+  const settlementCommitResult = await settlementCommitResponse;
+  expect(settlementCommitResult.status()).toBe(201);
+  const settlementCommit = await settlementCommitResult.json();
+  expect(settlementCommit.summary?.imported).toBe(1);
+  expect(settlementCommit.replay).toBe(false);
+  await expect(page.locator("#admin-api-status")).toContainText("Imported 1 settlement row; 0 duplicates skipped.");
+  const settlementHistory = page.locator("#admin-revenue-import-history article").filter({ hasText: settlementFileName });
+  await expect(settlementHistory).toHaveCount(1);
+  await expect(settlementHistory).toContainText("square");
+  await expect(settlementHistory).toContainText("1 imported");
+  await expect(page.locator("#admin-revenue-sources")).toContainText("square");
+
+  const revenueAfterResponse = await fetch(`${apiBase}/api/admin/revenue`, { headers: { authorization: `Bearer ${TOKEN}` } });
+  expect(revenueAfterResponse.status).toBe(200);
+  const revenueAfter = await revenueAfterResponse.json();
+  const importedSettlement = revenueAfter.entries?.find(item => item.externalRef === settlementReference);
+  expect(importedSettlement).toMatchObject({
+    source: "square",
+    category: "merch",
+    grossCents: 32500,
+    feeCents: 975,
+    netCents: 31525,
+    reconciled: true
+  });
+  expect(revenueAfter.summary.totals.grossCents).toBe(revenueBefore.summary.totals.grossCents + 32500);
+  expect(revenueAfter.summary.totals.feeCents).toBe(revenueBefore.summary.totals.feeCents + 975);
+  expect(revenueAfter.summary.totals.netCents).toBe(revenueBefore.summary.totals.netCents + 31525);
+  expect(revenueAfter.imports?.filter(item => item.fileName === settlementFileName)).toHaveLength(1);
+
+  await settlementForm.locator('[name="source"]').selectOption("square");
+  await settlementForm.locator('[name="file"]').setInputFiles({
+    name: settlementFileName,
+    mimeType: "text/csv",
+    buffer: Buffer.from(settlementCsv, "utf8")
+  });
+  await expect(settlementForm.locator('[name="csv"]')).toHaveValue(settlementCsv);
+  const settlementReplayPreviewResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/revenue/import" && response.request().method() === "POST");
+  await settlementForm.locator('button[type="submit"]').click();
+  const settlementReplayPreviewResult = await settlementReplayPreviewResponse;
+  expect(settlementReplayPreviewResult.status()).toBe(200);
+  const settlementReplayPreview = await settlementReplayPreviewResult.json();
+  expect(settlementReplayPreview.replay).toBe(true);
+  expect(settlementReplayPreview.summary?.importable).toBe(0);
+  expect(settlementReplayPreview.summary?.duplicates).toBe(0);
+  await expect(page.locator("#admin-revenue-import-result")).toContainText("0 importable");
+  await expect(page.locator("#admin-revenue-import-result")).toContainText("This exact settlement was already imported. No ledger entries were added.");
+  await expect(page.locator("#admin-commit-revenue-import")).toBeDisabled();
   const launchTaskSyncResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/deployment/tasks/sync" && response.request().method() === "POST");
   await page.locator("#admin-sync-deployment-tasks").click();
   const launchTaskSyncResult = await launchTaskSyncResponse;

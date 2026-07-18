@@ -204,6 +204,13 @@ The document queue contains four private synthetic source files, including the e
 After loading the partner workspace, use the export menu beside the workspace controls to download the synthetic partner directory, receivables, payment ledger, delegated tasks, outreach pipeline, or key-date calendar. The task export includes notification status and timing without volunteer or staff email addresses. The workspace shows all seven synthetic team routes as ready, but the `board_demo` directory source is deliberately ineligible for production. The outreach export includes owner, next action, and next-action due timestamp. CSV files are neutralized against spreadsheet formulas, calendar files are importable by Outlook and Google Calendar, and every download is recorded in the admin audit log.
 
 The revenue workspace shows the three generated provider batches in Recent settlement imports. Its finance-only import form accepts an Eventeny, Square, Stripe, or manual CSV, previews exact gross/fee/net values and row exceptions without writing, and enables commit only after the preview hash is current. Committed batches are event-scoped, audited, and replay-safe.
+The browser acceptance gate also uploads one new Square merchandise settlement
+through that form, verifies the preview is non-mutating, commits the reconciled
+row into the unified accounting dashboard, and confirms its file provenance and
+exact gross, fee, and net impact. Uploading the same file again must identify
+the exact prior settlement, add no ledger entries, and leave commit disabled,
+proving batch replay safety through the staff UI. Changed files containing a
+known transaction continue to report row-level duplicates separately.
 
 With the manual component fallback, process queued acknowledgments and scheduled reminders without sending them:
 
