@@ -237,7 +237,11 @@ for (const marker of fictionalPublicContentMarkers) {
 }
 assert(publicJavaScript.includes("Event-day monitoring is not active.") && publicJavaScript.includes("No unapproved artist data is shown."), "Production visitor artifact does not fail closed for unavailable Live Beach or sculptor content.");
 assert(visitorSource.includes("publicSculptorRosterPublication") && visitorSource.includes("if (LIVE_BEACH_DEMO_ENABLED) startLiveBeach();"), "Visitor source does not enforce roster publication and local-only Live Beach activation.");
-assert(visitorSource.includes('const boardDemoRuntimeEnabled = LIVE_BEACH_DEMO_ENABLED && runtime?.mode === "board_demo";'), "Board runtime copy is not gated by local demonstration content.");
+assert(
+  visitorSource.includes('const boardDemoRuntimeEnabled = runtime?.mode === "board_demo"')
+    && visitorSource.includes("&& (LIVE_BEACH_DEMO_ENABLED || BOARD_DEMO_ACCESS.enabled);"),
+  "Board runtime copy is not gated by explicit runtime metadata and local demonstration access."
+);
 assert(visitorSource.includes('const DEVELOPMENT_PUBLIC_API = import.meta.env.DEV ? await import("./dev-public-api-base.js") : null;'), "API query overrides are not isolated in a development-only module.");
 assert(!publicJavaScript.includes("sandfest_api_base") && !adminJavaScript.includes("sandfest_api_base"), "A production artifact contains the local API override path.");
 const publicVotingLoader = visitorSource.slice(visitorSource.indexOf("async function loadVoting"), visitorSource.indexOf("async function castVote"));
