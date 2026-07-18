@@ -120,9 +120,9 @@ try {
   ok("wrong encryption key fails closed", !wrongKeyStatus.connected && !wrongKeyStatus.canSyncPartnerInvoices);
 
   const tampered = JSON.parse(concurrentSource);
-  const originalTag = tampered.connection.encryptedRefreshToken.tag;
-  const replacement = originalTag.endsWith("A") ? "B" : "A";
-  tampered.connection.encryptedRefreshToken.tag = `${originalTag.slice(0, -1)}${replacement}`;
+  const tamperedTag = Buffer.from(tampered.connection.encryptedRefreshToken.tag, "base64url");
+  tamperedTag[0] ^= 0x01;
+  tampered.connection.encryptedRefreshToken.tag = tamperedTag.toString("base64url");
   await writeFile(filePath, `${JSON.stringify(tampered, null, 2)}\n`, "utf8");
   const tamperedStatus = await readQuickBooksCredentialStatus(root, env);
   await assert.rejects(() => loadQuickBooksRuntimeCredentials(root, env), /could not be decrypted/);

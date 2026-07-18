@@ -2,7 +2,7 @@
 
 import { spawn } from "node:child_process";
 import { createServer as createNetServer } from "node:net";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -115,6 +115,20 @@ async function preflight(sessionFile) {
   return report;
 }
 
+async function browserRehearsal(sessionFile) {
+  const result = await run(process.execPath, ["scripts/check-board-browser.mjs", "--json"], commandEnvironment(sessionFile), 60_000);
+  let report = null;
+  try {
+    report = JSON.parse(result.stdout);
+  } catch {
+    throw new Error(`Board browser rehearsal returned invalid JSON:\n${result.stderr}\n${result.stdout}`);
+  }
+  if (result.code !== 0 || !report.ok || report.passed !== 8 || report.total !== 8) {
+    throw new Error(`Board browser rehearsal failed ${report.passed}/${report.total}:\n${JSON.stringify(report, null, 2)}`);
+  }
+  return report;
+}
+
 function rememberServicePids(session) {
   for (const service of Object.values(session?.services || {})) {
     if (Number.isInteger(Number(service.pid)) && Number(service.pid) > 0) observedPids.add(Number(service.pid));
@@ -195,6 +209,24 @@ try {
 
   const initialReport = await preflight(sessionFile);
   console.log(`  ok board:check discovers the active session and passes ${initialReport.passed}/${initialReport.total}`);
+  const browserReport = await browserRehearsal(sessionFile);
+  console.log(`  ok board:rehearse renders the active visitor and operations session ${browserReport.passed}/${browserReport.total}`);
+  const unsafeSessionFile = path.join(temporary, "unsafe-session.json");
+  const unsafeApiBase = "https://example.com";
+  await writeFile(unsafeSessionFile, `${JSON.stringify({
+    ...initial,
+    endpoints: { ...initial.endpoints, apiBase: unsafeApiBase },
+    links: {
+      visitor: `${initial.endpoints.webBase}/?apiBase=${encodeURIComponent(unsafeApiBase)}&mode=visitor`,
+      operations: `${initial.endpoints.webBase}/admin.html?apiBase=${encodeURIComponent(unsafeApiBase)}`
+    }
+  }, null, 2)}\n`);
+  const unsafeBrowserResult = await run(process.execPath, ["scripts/check-board-browser.mjs", "--json"], commandEnvironment(unsafeSessionFile), 20_000);
+  const unsafeBrowserReport = JSON.parse(unsafeBrowserResult.stdout);
+  if (unsafeBrowserResult.code === 0 || unsafeBrowserReport.checks?.find(item => item.id === "session")?.ok !== false) {
+    throw new Error("Board browser rehearsal accepted a remote API endpoint.");
+  }
+  console.log("  ok board:rehearse rejects a tampered remote API endpoint before navigation");
 
   const originalApiPid = Number(initial.services.api.pid);
   process.kill(originalApiPid, "SIGKILL");
@@ -219,7 +251,7 @@ try {
   const lingering = [...observedPids].filter(processAlive);
   if (lingering.length) throw new Error(`Board child processes remained alive after shutdown: ${lingering.join(", ")}`);
   console.log(`  ok stop command shuts down the supervisor and all ${observedPids.size} observed child processes`);
-  console.log("\nBoard demo supervisor: 6/6 checks passed.\n");
+  console.log("\nBoard demo supervisor: 8/8 checks passed.\n");
 } catch (error) {
   console.error(`\nBoard demo supervisor test failed: ${error.message}`);
   process.exitCode = 1;

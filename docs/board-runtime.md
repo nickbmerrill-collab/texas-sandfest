@@ -43,6 +43,20 @@ presentation stack does not call NWS or TxDOT: its weather and ferry cards are
 continuously refreshed from a visibly labeled local simulation, so weak venue
 internet cannot block startup or make the conditions panel stale.
 
+Before a rehearsal or the board meeting, run the read-only browser acceptance
+against that exact active session:
+
+```bash
+npm run board:rehearse
+```
+
+The command first repeats the nine service and data checks, then opens the
+session's credential-free Visitor and Operations links in local headless
+Chromium. It rejects remote or mismatched URLs and verifies the rendered signup
+catalogs, approved sponsor branding, eight-camera conditions grid, command
+signals, partner/task/document queues, deferred live-accounting label, browser
+errors, and desktop overflow without submitting a form or changing demo data.
+
 Use an intentional reset when you want to discard demonstration changes and
 restore the synthetic starting state. Stop the stack cleanly from another
 terminal:
@@ -50,7 +64,7 @@ terminal:
 ```bash
 npm run board:stop
 npm run board:demo -- --reset
-npm run board:check
+npm run board:rehearse
 ```
 
 The credential-free session record lives at

@@ -62,6 +62,7 @@
     "board:demo": "node scripts/board-demo.mjs",
     "board:stop": "node scripts/stop-board-demo.mjs",
     "board:check": "node scripts/check-board-demo.mjs",
+    "board:rehearse": "npm run board:check && node scripts/check-board-browser.mjs",
     "board:web": "SANDFEST_BOARD_DEMO_ADMIN_TOKEN=board-demo-local-admin-token-change-me vite --host 127.0.0.1",
     "board:mailbox": "SANDFEST_BOARD_EMAIL_SANDBOX=true SANDFEST_BOARD_EMAIL_PORT=8807 BOARD_BREVO_API_KEY=board-demo-local-brevo-api-key-change-me BREVO_WEBHOOK_TOKEN=board-demo-local-brevo-webhook-token-change-me SANDFEST_BOARD_EMAIL_WEBHOOK_URL=http://127.0.0.1:8806/api/webhooks/brevo node scripts/board-email-sandbox.mjs",
     "board:sms": "SANDFEST_BOARD_SMS_SANDBOX=true SANDFEST_BOARD_SMS_PORT=8808 BOARD_TWILIO_ACCOUNT_SID=AC00000000000000000000000000000001 BOARD_TWILIO_AUTH_TOKEN=board-demo-local-twilio-auth-token-change-me BOARD_TWILIO_FROM_NUMBER=+13615550100 SANDFEST_BOARD_SMS_INBOUND_WEBHOOK_URL=http://127.0.0.1:8806/api/webhooks/twilio/inbound/smsSafety node scripts/board-sms-sandbox.mjs",
