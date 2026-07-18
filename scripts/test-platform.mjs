@@ -3354,8 +3354,12 @@ Research First,construction,Corpus Christi,,78401,,,,Find decision maker,`;
   ok("NWS forecast skips expired periods", nws.temperatureF === 88 && nws.status === "live" && nws.validFrom === "2026-07-16T12:00:00.000Z" && nws.validUntil === "2026-07-16T13:00:00.000Z");
   const staleNws = normalizeNwsForecast({ properties: { periods: [{
     temperature: 84, endTime: "2026-07-16T11:00:00.000Z"
-  }] } }, { features: [{ id: "alert-1", properties: { event: "Heat Advisory", severity: "Moderate" } }] }, "2026-07-16T12:00:00.000Z");
-  ok("NWS expired forecast fails closed while preserving alerts", staleNws.status === "unavailable" && staleNws.alerts[0]?.event === "Heat Advisory");
+  }] } }, { features: [
+    { id: "alert-expired", properties: { event: "Expired Heat Advisory", severity: "Moderate", expires: "2026-07-16T11:59:00.000Z" } },
+    { id: "alert-current", properties: { event: "Current Heat Advisory", severity: "Moderate", expires: "2026-07-16T13:00:00.000Z" } },
+    { id: "alert-no-expiry", properties: { event: "Beach Hazards Statement", severity: "Minor" } }
+  ] }, "2026-07-16T12:00:00.000Z");
+  ok("NWS expired forecast fails closed while preserving active alerts", staleNws.status === "unavailable" && staleNws.alerts.length === 2 && staleNws.alerts[0]?.event === "Current Heat Advisory" && staleNws.alerts[1]?.event === "Beach Hazards Statement");
   ok("expired persisted weather bypasses the refresh interval", weatherForecastNeedsRefresh({ observedAt: "2026-07-16T11:58:00.000Z", validUntil: "2026-07-16T11:59:00.000Z" }, "2026-07-16T12:00:00.000Z") && !weatherForecastNeedsRefresh({ observedAt: "2026-07-16T11:58:00.000Z", validUntil: "2026-07-16T13:00:00.000Z" }, "2026-07-16T12:00:00.000Z") && !weatherForecastNeedsRefresh({ observedAt: "2026-07-16T11:58:00.000Z", validUntil: null }, "2026-07-16T12:00:00.000Z"));
   ok("public condition refresh cadence is cache-aligned and jittered", publicIslandConditionsRefreshDelay(0) === 60_000 && publicIslandConditionsRefreshDelay(0.5) === 67_500 && publicIslandConditionsRefreshDelay(1) === 75_000 && publicIslandConditionsRefreshDelay(2) === 75_000);
   const stalePublicWeather = publicIslandConditions({
@@ -3370,6 +3374,20 @@ Research First,construction,Corpus Christi,,78401,,,,Find decision maker,`;
     }
   }, "2026-07-16T12:00:00.000Z").weather;
   ok("public Island Conditions hides expired weather values", stalePublicWeather.status === "stale" && stalePublicWeather.freshness.state === "stale" && stalePublicWeather.temperatureF == null && stalePublicWeather.shortForecast == null);
+  const publicWeatherAlertFreshness = publicIslandConditions({
+    ...seed,
+    weather: {
+      status: "live",
+      observedAt: "2026-07-16T10:00:00.000Z",
+      validUntil: "2026-07-16T11:00:00.000Z",
+      alerts: [
+        { id: "expired", event: "Expired alert", expiresAt: "2026-07-16T11:59:00.000Z", internal: "not public" },
+        { id: "future", event: "Current alert", expiresAt: "2026-07-16T13:00:00.000Z", internal: "not public" },
+        { id: "unknown-expiry", event: "Old alert without expiry", internal: "not public" }
+      ]
+    }
+  }, "2026-07-16T12:00:00.000Z").weather.alerts;
+  ok("public Island Conditions expires stale NWS alerts independently", publicWeatherAlertFreshness.length === 1 && publicWeatherAlertFreshness[0]?.id === "future" && !("internal" in publicWeatherAlertFreshness[0]));
   const ferryFreshnessFixture = {
     ...seed,
     ferry: {
