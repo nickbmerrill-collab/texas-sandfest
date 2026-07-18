@@ -126,6 +126,8 @@ const sculptorDataPromise = localBoardContentEnabled
 const liveBeachDemoPromise = localBoardContentEnabled
   ? import("./board-demo/live-beach-demo.json").then(module => module.default)
   : Promise.resolve(null);
+const crawlSummaryPromise = Promise.resolve(null);
+const incomingInventoryPromise = Promise.resolve(null);
 
 const [
   mediaManifest,
@@ -139,8 +141,8 @@ const [
 ] = await Promise.all([
   loadPublicJson("assets/sandfest-media/media-manifest.json"),
   loadPublicJson("assets/sandfest-media/media-derivatives.json"),
-  loadPublicJson("data/crawl-summary.json"),
-  loadPublicJson("data/incoming-inventory.json"),
+  crawlSummaryPromise,
+  incomingInventoryPromise,
   loadPublicJson("data/ticket-products.json"),
   sculptorDataPromise,
   loadPublicJson("data/app-bootstrap.json"),
@@ -281,16 +283,11 @@ const quickStats = [
   ["24/7", "AI concierge"]
 ];
 
-const schedule = [
-  { day: "Friday", time: "9:00 AM", title: "Beach gates open", zone: "Entry + ticket exchange", type: "Visitor" },
-  { day: "Friday", time: "10:00 AM", title: "Master sculptor showcase begins", zone: "Competition corridor", type: "Competition" },
-  { day: "Friday", time: "2:00 PM", title: "Youth build activation", zone: "Family sand lab", type: "Family" },
-  { day: "Saturday", time: "8:15 AM", title: "Volunteer captain briefing", zone: "Ops command", type: "Staff" },
-  { day: "Saturday", time: "11:30 AM", title: "Peak crowd heat watch", zone: "Medical + shade", type: "Safety" },
-  { day: "Saturday", time: "4:00 PM", title: "Sponsor reception window", zone: "VIP deck", type: "Sponsor" },
-  { day: "Sunday", time: "10:30 AM", title: "Amateur awards prep", zone: "Main stage", type: "Competition" },
-  { day: "Sunday", time: "6:30 PM", title: "Final beach sweep", zone: "All zones", type: "Operations" }
-];
+const schedule = (appBootstrap?.schedule ?? [
+  { day: "Friday", time: "9:00 AM", title: "Beach gates open", zone: "Entry + ticket exchange", category: "Visitor" },
+  { day: "Friday", time: "10:00 AM", title: "Master sculptor showcase begins", zone: "Competition corridor", category: "Competition" },
+  { day: "Friday", time: "2:00 PM", title: "Youth build activation", zone: "Family sand lab", category: "Family" }
+]).map(item => ({ ...item, type: item.category ?? item.type }));
 
 const zones = [
   { name: "North Gate", detail: "Ticket scan, ADA routing, wristband support", load: 82 },

@@ -99,6 +99,7 @@ const routes = new Map([
   [config.publicUrl, () => textResponse(publicHtml)],
   [new URL("sw.js", config.publicUrl).toString(), () => textResponse(publicWorker)],
   [new URL("data/app-bootstrap.json", config.publicUrl).toString(), () => jsonResponse({ guide: { id: "texas-sandfest-2027" } })],
+  [new URL("assets/sandfest-media/media-manifest.json", config.publicUrl).toString(), () => jsonResponse({ assets: [] })],
   [config.adminUrl, () => textResponse(adminHtml)],
   [new URL("health", config.apiUrl).toString(), () => jsonResponse(healthBody)],
   [new URL("ready", config.apiUrl).toString(), () => jsonResponse(readyBody)],
@@ -128,6 +129,34 @@ const unsafeSponsors = await verifyLiveDeployment({ config, artifacts: { publicH
 check("malformed or provider-exposing sponsor tiers fail closed", !unsafeSponsors.ok
   && unsafeSponsors.checks.some(item => item.id === "api.sponsor_tiers" && !item.ok)
   && unsafeSponsors.checks.some(item => item.id === "api.sponsor_tier_privacy" && !item.ok));
+
+const unsafeBootstrapFetch = async (url, options = {}) => {
+  const target = String(url);
+  const staticBootstrapUrl = new URL("data/app-bootstrap.json", config.publicUrl).toString();
+  const apiBootstrapUrl = new URL("api/public/bootstrap", config.apiUrl).toString();
+  if (target === staticBootstrapUrl || target === apiBootstrapUrl) {
+    return jsonResponse({
+      guide: { id: "texas-sandfest-2027" },
+      schedule: [{ id: "briefing", title: "Volunteer captain briefing", category: "Staff" }],
+      sponsors: [{ invoiceStatus: "overdue" }]
+    }, options?.headers?.origin ? { "access-control-allow-origin": options.headers.origin } : {});
+  }
+  return fetchImpl(url, options);
+};
+const unsafeBootstrap = await verifyLiveDeployment({ config, artifacts: { publicHtml, adminHtml, publicWorker }, fetchImpl: unsafeBootstrapFetch });
+check("private static and API bootstrap fields fail closed", !unsafeBootstrap.ok
+  && unsafeBootstrap.checks.some(item => item.id === "public.static_bootstrap_privacy" && !item.ok)
+  && unsafeBootstrap.checks.some(item => item.id === "api.public_bootstrap_privacy" && !item.ok));
+
+const unsafeMediaFetch = async (url, options = {}) => {
+  if (String(url) === new URL("assets/sandfest-media/media-manifest.json", config.publicUrl).toString()) {
+    return jsonResponse({ assets: [{ id: "hero", publicPath: "/assets/sandfest-media/hero.jpg", file: "/Users/operator/private/hero.jpg" }] });
+  }
+  return fetchImpl(url, options);
+};
+const unsafeMedia = await verifyLiveDeployment({ config, artifacts: { publicHtml, adminHtml, publicWorker }, fetchImpl: unsafeMediaFetch });
+check("public media manifest filesystem paths fail closed", !unsafeMedia.ok
+  && unsafeMedia.checks.some(item => item.id === "public.media_manifest_privacy" && !item.ok));
 
 const staleConditionsFetch = async (url, options = {}) => {
   if (String(url) === new URL("api/public/island-conditions", config.apiUrl).toString()) {

@@ -13,6 +13,7 @@ import { boardEmailSandboxConfig, startBoardEmailSandbox } from "../lib/board-em
 import { boardSmsSandboxConfig, startBoardSmsSandbox } from "../lib/board-sms-sandbox.mjs";
 import { DEFAULT_EVENT_ID } from "../lib/event-context.mjs";
 import { platformDocumentFilePath } from "../lib/platform-data.mjs";
+import { publicAppBootstrapSafety } from "../lib/public-bootstrap.mjs";
 import { resolveRuntimeRoot } from "../lib/runtime-root.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -230,6 +231,10 @@ try {
   const publicVendorCatalog = await request(base, "GET", "/api/public/vendors");
   const publicSponsorCatalog = await request(base, "GET", "/api/public/sponsors");
   check("board runtime is visibly labeled as synthetic", bootstrap.status === 200 && bootstrap.data.runtime?.mode === "board_demo" && bootstrap.data.runtime?.label?.includes("No external messages or payments are sent"));
+  check("board bootstrap preserves the public privacy boundary", publicAppBootstrapSafety(bootstrap.data, { allowBoardRuntime: true }).ready
+    && bootstrap.data.schedule?.every(item => item.category !== "Staff")
+    && bootstrap.data.zones?.every(item => !Object.hasOwn(item, "status"))
+    && !/(sponsors|vendors|coverage|financeSignals|ticketOptions)/.test(JSON.stringify(bootstrap.data)));
   check("board runtime derives a complete synthetic sculpture passport", publicPassport.status === 200 && publicPassport.data.hunt?.active === true && publicPassport.data.checkpoints?.length === 6 && publicPassport.data.checkpoints?.every(item => item.entryId));
   check("board runtime publishes its synthetic ballot only in demo mode", publicVoting.status === 200 && publicVoting.data.votingOpen === true && publicVoting.data.entries?.length === 6 && publicVoting.data.leaderboard?.length === 6);
   check("board runtime publishes vendor offerings", publicVendorCatalog.status === 200 && publicVendorCatalog.data.vendorOfferings?.length === 3 && publicVendorCatalog.data.vendorOfferings?.some(item => item.id === "marketplace-booth" && item.amount === 125000));

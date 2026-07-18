@@ -183,6 +183,7 @@ import {
   deploymentTaskSyncIntervalMs,
   syncDeploymentCheckTasks
 } from "../lib/deployment-task-sync.mjs";
+import { publicAppBootstrap } from "../lib/public-bootstrap.mjs";
 import {
   adminPartnerPortalAccess,
   findPartnerPortalApplication,
@@ -3429,7 +3430,13 @@ async function handleRequest(request, response) {
 
     if (method === "GET" && pathname === "/api/public/bootstrap") {
       const bootstrap = await storage.config.read("app-bootstrap");
-      sendJson(request, response, 200, { ...bootstrap, guide: publicEventGuide(bootstrap.guide) }, publicCacheHeaders(120));
+      sendJson(
+        request,
+        response,
+        200,
+        publicAppBootstrap(bootstrap, { includeBoardRuntime: BOARD_DEMO_RUNTIME }),
+        publicCacheHeaders(120)
+      );
       return;
     }
 

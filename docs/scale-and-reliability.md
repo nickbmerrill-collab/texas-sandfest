@@ -27,6 +27,7 @@ Current offline shell:
 - `public/manifest.webmanifest`
 - `public/sw.js`
 - cached static data under `/data/*`
+- a strict allowlist of three public data files: projected bootstrap, fail-closed ticket catalog, and publication-gated sculptor roster
 - cache-first local media/assets
 - network status and install controls in the top bar
 
@@ -39,6 +40,8 @@ Public APIs should be cacheable and safe to serve from the edge:
 - `GET /api/public/tickets`
 - `GET /api/public/sponsors`
 - public FAQ/policy/search payloads when added
+
+The public bootstrap and media catalog are projections, not internal processed documents. Build checks and `npm run deployment:verify` reject staff schedule categories, operational zone status, private workflow collections, board-runtime metadata in production, unapproved bootstrap fields, local filesystem paths, and internal media-fetch details.
 
 Recommended cache profile:
 
@@ -166,7 +169,7 @@ Before gates open:
 - Confirm service worker registration and offline reload for the public guide.
 - Hit `/health` and `/ready`.
 - Confirm `/api/admin/deployment` has zero blocking errors.
-- Confirm public bootstrap, ticket, sponsor, map, FAQ payloads are healthy.
+- Confirm static and API bootstrap privacy checks pass, then confirm ticket, sponsor, map, and FAQ payloads are healthy.
 - Confirm Stripe dashboard, webhook endpoint, and admin transaction monitor.
 - Confirm fallback public message for checkout unavailable.
 - Confirm emergency alert publish/clear through `/api/admin/alert` and public visibility through `/api/public/alert`.

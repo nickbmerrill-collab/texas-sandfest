@@ -339,6 +339,8 @@ import {
 } from "../lib/operations-export.mjs";
 import { TURNSTILE_SITEVERIFY_URL, turnstileConfig, verifyTurnstileToken } from "../lib/turnstile.mjs";
 import { eventGuideReadiness, normalizeEventGuide, publicEventGuide, publishEventGuide } from "../lib/event-guide.mjs";
+import { publicAppBootstrap, publicAppBootstrapSafety } from "../lib/public-bootstrap.mjs";
+import { publicMediaManifest, publicMediaManifestSafety } from "../lib/public-media-manifest.mjs";
 import { DEFAULT_EVENT_ID, eventContextConfig, eventContextReadiness } from "../lib/event-context.mjs";
 import { publicSculptorRosterPublication } from "../lib/public-roster.mjs";
 import { boardDemoEngagement } from "../lib/board-runtime.mjs";
@@ -991,6 +993,62 @@ console.log("\n=== Pure library suite ===\n");
   ok("event guide rejects an id from a different event year", !wrongYear.ok && wrongYear.errors.includes("Event id and start-date year must match."));
   ok("event guide readiness requires current upcoming facts", ready.ready && ready.sourceAgeDays === 2 && !stale.ready && stale.missing.includes("source") && !past.ready && past.missing.includes("upcoming"));
   ok("public event guide hides publishing identity", !("publishedBy" in publicGuide) && !("status" in publicGuide) && publicGuide.sourceUrl === guide.sourceUrl);
+}
+
+// Public bootstrap projection
+{
+  const internalBootstrap = {
+    guide: {
+      id: "texas-sandfest-2027",
+      publishedBy: "staff-private-id"
+    },
+    schedule: [
+      { id: "gates", day: "Friday", time: "9:00 AM", title: "Beach gates open", zone: "North Gate", category: "Visitor", internalOwner: "operations" },
+      { id: "briefing", day: "Friday", time: "8:15 AM", title: "Volunteer captain briefing", zone: "Command", category: "Staff" }
+    ],
+    zones: [{ id: "north-gate", name: "North Gate", marker: "12.5", summary: "Guest entrance.", status: "busy" }],
+    alert: { id: "none", active: false, audience: ["public", "staff"] },
+    sponsors: [{ invoiceStatus: "overdue" }],
+    vendors: [{ complianceStatus: "blocked" }],
+    coverage: [{ zone: "South", gap: 4 }],
+    financeSignals: [{ quickBooksStatus: "needs_match" }],
+    runtime: { mode: "board_demo", label: "Synthetic board data", storageRoot: "/private/runtime" }
+  };
+  const projected = publicAppBootstrap(internalBootstrap);
+  const boardProjected = publicAppBootstrap(internalBootstrap, { includeBoardRuntime: true });
+  const serialized = JSON.stringify(projected);
+
+  ok("public bootstrap exposes only approved root collections", JSON.stringify(Object.keys(projected).sort()) === JSON.stringify(["alert", "guide", "schedule", "zones"]));
+  ok("public bootstrap excludes staff schedule and operational zone state", projected.schedule.length === 1 && projected.schedule[0].title === "Beach gates open" && !Object.hasOwn(projected.zones[0], "status"));
+  ok("public bootstrap excludes publishing identity and private operations", !Object.hasOwn(projected.guide, "publishedBy") && !/(sponsors|vendors|coverage|financeSignals|invoiceStatus|quickBooksStatus)/.test(serialized));
+  ok("public bootstrap policy rejects unprojected internal data", !publicAppBootstrapSafety(internalBootstrap).ready && publicAppBootstrapSafety(internalBootstrap).errors.some(error => error.includes("Unexpected public bootstrap keys")));
+  ok("board runtime label requires explicit projection and validation", !Object.hasOwn(projected, "runtime") && boardProjected.runtime?.mode === "board_demo" && publicAppBootstrapSafety(boardProjected, { allowBoardRuntime: true }).ready && !publicAppBootstrapSafety(boardProjected).ready);
+}
+
+// Public media manifest projection
+{
+  const internalManifest = {
+    generatedAt: "2026-07-18T12:00:00.000Z",
+    source: "https://www.texassandfest.org/",
+    failures: [{ error: "private fetch detail" }],
+    assets: [{
+      id: "hero",
+      category: "photos",
+      role: "hero",
+      name: "SandFest hero",
+      alt: "Sand sculpture on the beach",
+      sourcePage: "https://www.texassandfest.org/",
+      originalUrl: "https://upstream.example.test/original.jpg",
+      publicPath: "/assets/sandfest-media/photos/hero.jpg",
+      file: "/Users/operator/private/hero.jpg",
+      contentType: "image/jpeg",
+      bytes: 1200,
+      transform: { width: 1200, height: 800 }
+    }]
+  };
+  const projected = publicMediaManifest(internalManifest);
+  ok("public media manifest omits local and upstream implementation fields", publicMediaManifestSafety(projected).ready && !/(file|originalUrl|failures|\/Users\/)/.test(JSON.stringify(projected)));
+  ok("public media manifest policy rejects internal source records", !publicMediaManifestSafety(internalManifest).ready);
 }
 
 // Annual event context and archive-first rollover
@@ -4462,7 +4520,12 @@ try {
   }, true);
   const publishedPublicBootstrap = await hit("GET", "/api/public/bootstrap");
   const publishedAdminConfig = await hit("GET", "/api/admin/config", null, true);
-  ok("public bootstrap exposes governed 2027 facts without staff identity", initialPublicBootstrap.status === 200 && initialPublicBootstrap.data.guide?.dateRange === "April 16-18, 2027" && !("publishedBy" in initialPublicBootstrap.data.guide));
+  ok("public bootstrap exposes only governed visitor data", initialPublicBootstrap.status === 200
+    && initialPublicBootstrap.data.guide?.dateRange === "April 16-18, 2027"
+    && publicAppBootstrapSafety(initialPublicBootstrap.data).ready
+    && JSON.stringify(Object.keys(initialPublicBootstrap.data).sort()) === JSON.stringify(["alert", "guide", "schedule", "zones"])
+    && initialPublicBootstrap.data.schedule?.every(item => item.category !== "Staff")
+    && initialPublicBootstrap.data.zones?.every(item => !Object.hasOwn(item, "status")));
   ok("event guide publish requires staff authentication", unauthenticatedGuidePublish.status === 401);
   ok("event guide publish rejects invalid dates", invalidGuidePublish.status === 400 && invalidGuidePublish.data.errors?.includes("Event end date cannot precede the start date."));
   ok("event guide publish updates public and admin readiness", validGuidePublish.status === 200 && validGuidePublish.data.readiness?.ready === true && publishedPublicBootstrap.data.guide?.sourceCheckedAt === sourceCheckedAt && !("publishedBy" in publishedPublicBootstrap.data.guide) && publishedAdminConfig.data.eventGuideReadiness?.ready === true);
