@@ -3628,6 +3628,9 @@ async function loadSponsorInvitation(token, options = {}) {
   const copy = document.querySelector("#sponsor-invitation-copy");
   const form = document.querySelector("#sponsor-inquiry-form");
   if (!banner || !copy || !form || !token) return;
+  if (window.location.hash.startsWith("#sponsor-invitation?")) {
+    history.replaceState(null, "", `${window.location.pathname}${window.location.search}#sponsors`);
+  }
   banner.hidden = false;
   banner.dataset.state = "loading";
   copy.textContent = "Opening your sponsor invitation...";
@@ -3706,6 +3709,9 @@ async function loadOutreachPreference(access, options = {}) {
   const status = document.querySelector("#outreach-preferences-status");
   const button = document.querySelector("#outreach-preferences-unsubscribe");
   if (!section || !status || !button || !access?.prospectId || !access?.token) return;
+  if (window.location.hash.startsWith("#outreach-preferences?")) {
+    history.replaceState(null, "", `${window.location.pathname}${window.location.search}#outreach-preferences`);
+  }
   section.hidden = false;
   button.hidden = true;
   status.dataset.state = "loading";
@@ -3720,7 +3726,6 @@ async function loadOutreachPreference(access, options = {}) {
     if (!response.ok) throw new Error(data.error || `Preference lookup failed with ${response.status}`);
     activeOutreachPreferenceAccess = access;
     renderOutreachPreference(data.preference);
-    if (window.location.hash.startsWith("#outreach-preferences?")) history.replaceState(null, "", `${window.location.pathname}${window.location.search}#outreach-preferences`);
     if (options.scroll) section.scrollIntoView({ behavior: "smooth", block: "center" });
   } catch {
     activeOutreachPreferenceAccess = null;
@@ -7689,6 +7694,16 @@ if (!ADMIN_ENTRY) {
   };
   scheduleIslandConditionsRefresh();
   window.addEventListener("hashchange", () => {
+    const portalAccess = partnerPortalAccessFromFragment();
+    if (portalAccess) {
+      loadPartnerPortalStatus(portalAccess, { scroll: true });
+      return;
+    }
+    const outreachAccess = outreachPreferenceAccessFromFragment();
+    if (outreachAccess) {
+      loadOutreachPreference(outreachAccess, { scroll: true });
+      return;
+    }
     const token = sponsorInvitationTokenFromFragment();
     if (token) publicSponsorPackagesLoad.then(() => loadSponsorInvitation(token, { scroll: true }));
   });
