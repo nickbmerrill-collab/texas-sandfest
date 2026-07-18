@@ -6598,7 +6598,7 @@ function renderAdminPartners(payload, outreach) {
       <div class="admin-payment-entry">
         <input name="paymentAmount" inputmode="decimal" placeholder="Payment $" aria-label="Payment amount" />
         <select name="paymentMethod" aria-label="Payment method"><option value="check">Check</option><option value="ach">ACH</option><option value="cash">Cash</option><option value="card">Card</option><option value="stripe">Stripe</option><option value="eventeny">Eventeny</option><option value="quickbooks">QuickBooks</option><option value="bank_transfer">Bank transfer</option><option value="manual">Manual</option><option value="other">Other</option></select>
-        <input name="paymentReference" maxlength="160" placeholder="Check / transaction ref" aria-label="Payment reference" />
+        <input name="paymentReference" required maxlength="160" placeholder="Receipt / transaction reference" aria-label="Receipt or transaction reference" />
         <input name="paymentReceivedAt" type="datetime-local" aria-label="Payment received date" />
         <button type="button" class="button secondary" data-record-payment="${escapeAttr(application.id)}" ${canFinance ? "" : "disabled"}>Record payment</button>
       </div>
@@ -6801,6 +6801,13 @@ function renderAdminPartners(payload, outreach) {
     const card = button.closest("[data-partner-application]");
     const amount = Number(card.querySelector('[name="paymentAmount"]').value);
     if (!Number.isFinite(amount) || amount <= 0) { setAdminStatus("Enter a payment amount greater than zero.", "error"); return; }
+    const referenceInput = card.querySelector('[name="paymentReference"]');
+    const externalRef = referenceInput.value.trim();
+    if (!externalRef) {
+      setAdminStatus("Enter a receipt or transaction reference before recording this payment.", "error");
+      referenceInput.focus();
+      return;
+    }
     button.disabled = true;
     try {
       await adminFetch(`/api/admin/partners/applications/${encodeURIComponent(button.dataset.recordPayment)}/payments`, {
@@ -6808,7 +6815,7 @@ function renderAdminPartners(payload, outreach) {
           amountCents: Math.round(amount * 100),
           method: card.querySelector('[name="paymentMethod"]').value,
           status: "succeeded",
-          externalRef: card.querySelector('[name="paymentReference"]').value.trim(),
+          externalRef,
           receivedAt: card.querySelector('[name="paymentReceivedAt"]').value || undefined
         })
       });
