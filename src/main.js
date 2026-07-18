@@ -509,7 +509,7 @@ function defaultPublicApiBase() {
   if (ADMIN_ENTRY && ADMIN_AUTH_MODE === "oidc" && CONFIGURED_ADMIN_API_BASE) {
     return CONFIGURED_ADMIN_API_BASE;
   }
-  return DEVELOPMENT_PUBLIC_API_BASE || CONFIGURED_ADMIN_API_BASE || "https://api.heyelab.com/sandfest";
+  return DEVELOPMENT_PUBLIC_API_BASE || CONFIGURED_ADMIN_API_BASE || "https://sandfest-api.heyelab.com";
 }
 
 // Local development can present both surfaces from the visitor entry. Built
@@ -1032,7 +1032,7 @@ app.innerHTML = `
       <div class="admin-readiness-grid">
         <article>
           <strong>API subdomain</strong>
-          <span>api.heyelab.com/sandfest</span>
+          <span>sandfest-api.heyelab.com</span>
         </article>
         <article>
           <strong>Admin app</strong>

@@ -10,7 +10,7 @@ This scaffold makes SandFest ready for Stripe checkout without enabling live cha
 - Environment placeholders: `.env.example`
 - Future backend endpoint: `POST /api/stripe/create-checkout-session`
 - Future webhook endpoint: `POST /api/stripe/webhook`
-- Admin config API: `https://api.heyelab.com/sandfest/api/admin/config`
+- Admin config API: `https://sandfest-api.heyelab.com/api/admin/config`
 
 The browser must never decide charge amounts. The frontend can submit product IDs and quantities, but the server must load trusted products, enforce limits, create the Checkout Session, and return Stripe's hosted URL.
 

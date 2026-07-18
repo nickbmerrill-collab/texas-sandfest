@@ -1,5 +1,5 @@
 {
-  "apiBase": "https://api.heyelab.com/sandfest",
+  "apiBase": "https://sandfest-api.heyelab.com",
   "agent": {
     "id": "sandfest-edge-a",
     "sampleFps": 3,

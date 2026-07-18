@@ -25,9 +25,9 @@ Twilio signs form webhooks in `X-Twilio-Signature`; the implementation validates
 Configure a safety-specific Messaging Service or sender. Do not share the safety inbound number with promotional SMS unless the resulting channel behavior has been reviewed and approved.
 
 ```text
-Status callback:  https://api.heyelab.com/sandfest/api/webhooks/twilio/status
-Safety inbound:   https://api.heyelab.com/sandfest/api/webhooks/twilio/inbound/smsSafety
-Marketing inbound:https://api.heyelab.com/sandfest/api/webhooks/twilio/inbound/smsMarketing
+Status callback:  https://sandfest-api.heyelab.com/api/webhooks/twilio/status
+Safety inbound:   https://sandfest-api.heyelab.com/api/webhooks/twilio/inbound/smsSafety
+Marketing inbound:https://sandfest-api.heyelab.com/api/webhooks/twilio/inbound/smsMarketing
 ```
 
 Set the same account, auth token, sender, callback URLs, and `SMS_ENABLED` value on the API and worker. Production rejects non-HTTPS callbacks and any API origin other than `https://api.twilio.com`. Prefer `TWILIO_MESSAGING_SERVICE_SID`; `TWILIO_FROM_NUMBER` is the fallback.

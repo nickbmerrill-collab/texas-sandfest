@@ -3,13 +3,13 @@
 # https://render.com/deploy?repo=https://github.com/nickbmerrill-collab/texas-sandfest
 #
 # Stands up:
-#   - Web service: sandfest-api (node, /ready probe, custom domain api.heyelab.com)
+#   - Web service: sandfest-api (node, /ready probe, dedicated custom domain)
 #   - Static site: sandfest-admin (isolated ops bundle, custom domain sandfest-admin.heyelab.com)
 #   - Background worker: sandfest-worker (durable message, SMS, and sync jobs)
 #   - Postgres: sandfest-db (paid, PITR-capable production data plane)
 #
 # After it boots, point heyelab.com DNS:
-#   CNAME api.heyelab.com   → sandfest-api.onrender.com
+#   CNAME sandfest-api.heyelab.com   → sandfest-api.onrender.com
 #   CNAME sandfest-admin.heyelab.com → sandfest-admin.onrender.com
 # See docs/heyelab-backend-deployment.md for the full cutover.
 
@@ -42,9 +42,9 @@ services:
       - key: VITE_SANDFEST_AUTH_SCOPES
         value: openid profile email
       - key: VITE_SANDFEST_AUTH_AUDIENCE
-        value: https://api.heyelab.com/sandfest
+        value: https://sandfest-api.heyelab.com
       - key: VITE_SANDFEST_API_BASE_URL
-        value: https://api.heyelab.com/sandfest
+        value: https://sandfest-api.heyelab.com
     headers:
       - path: /*
         name: X-Frame-Options
@@ -63,7 +63,7 @@ services:
         value: camera=(), microphone=(), geolocation=()
       - path: /*
         name: Content-Security-Policy
-        value: default-src 'self'; connect-src 'self' https://api.heyelab.com https://auth.heyelab.com; img-src 'self' data:; script-src 'self'; style-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'
+        value: default-src 'self'; connect-src 'self' https://sandfest-api.heyelab.com https://auth.heyelab.com; img-src 'self' data:; script-src 'self'; style-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'
       - path: /index.html
         name: Cache-Control
         value: no-store
@@ -76,6 +76,8 @@ services:
     plan: starter
     healthCheckPath: /health
     autoDeployTrigger: checksPass
+    domains:
+      - sandfest-api.heyelab.com
     disk:
       name: sandfest-partner-assets
       mountPath: /var/data/sandfest-partner-assets
@@ -89,8 +91,6 @@ services:
         value: "900000"
       - key: SANDFEST_API_HOST
         value: 0.0.0.0
-      - key: SANDFEST_API_PREFIX
-        value: /sandfest
       # Bearer-token mode is rejected in production (see deployment doc).
       # We pre-wire the JWKS env so that once auth.heyelab.com is live, the
       # API switches to JWT validation automatically — no redeploy needed.
@@ -101,15 +101,15 @@ services:
       - key: SANDFEST_AUTH_ISSUER
         value: https://auth.heyelab.com/
       - key: SANDFEST_AUTH_AUDIENCE
-        value: https://api.heyelab.com/sandfest
+        value: https://sandfest-api.heyelab.com
       - key: SANDFEST_AUTH_ROLE_CLAIM
         value: sandfest_role
       - key: SANDFEST_API_PUBLIC_BASE_URL
-        value: https://api.heyelab.com/sandfest
+        value: https://sandfest-api.heyelab.com
       - key: SANDFEST_ADMIN_BASE_URL
         value: https://sandfest-admin.heyelab.com
       - key: SANDFEST_CORS_ORIGINS
-        value: https://sandfest-admin.heyelab.com,https://www.texassandfest.org,https://texassandfest.org,https://nickbmerrill-collab.github.io
+        value: https://sandfest-admin.heyelab.com,https://sandfest.heyelab.com,https://www.texassandfest.org,https://texassandfest.org,https://nickbmerrill-collab.github.io
       - key: SANDFEST_DATABASE_URL
         fromDatabase:
           name: sandfest-db
@@ -166,7 +166,7 @@ services:
       - key: QB_CLIENT_SECRET
         sync: false
       - key: QB_REDIRECT_URI
-        value: https://api.heyelab.com/sandfest/api/integrations/quickbooks/callback
+        value: https://sandfest-api.heyelab.com/api/integrations/quickbooks/callback
       # Encrypts the rotating OAuth refresh token stored in Postgres. Keep this
       # generated value stable across API and worker deployments.
       - key: QB_TOKEN_ENCRYPTION_KEY
@@ -211,7 +211,7 @@ services:
       - key: SANDFEST_OUTREACH_PREFERENCES_SECRET
         generateValue: true
       - key: SANDFEST_PUBLIC_SITE_URL
-        value: https://www.texassandfest.org
+        value: https://sandfest.heyelab.com
       - key: SANDFEST_JOB_LEASE_MS
         value: "300000"
       - key: SANDFEST_PARTNER_ASSET_DIR
@@ -265,9 +265,9 @@ services:
       - key: STRIPE_WEBHOOK_SECRET
         sync: false
       - key: STRIPE_SUCCESS_URL
-        value: https://www.texassandfest.org/tickets/success?session_id={CHECKOUT_SESSION_ID}
+        value: https://sandfest.heyelab.com/tickets/success?session_id={CHECKOUT_SESSION_ID}
       - key: STRIPE_CANCEL_URL
-        value: https://www.texassandfest.org/#tickets
+        value: https://sandfest.heyelab.com/#tickets
       # Review-first partner acknowledgments. Enable only after sender/domain verification.
       - key: TRANSACTIONAL_EMAIL_ENABLED
         value: "false"
@@ -297,11 +297,11 @@ services:
       - key: TWILIO_API_BASE_URL
         value: https://api.twilio.com
       - key: TWILIO_STATUS_CALLBACK_URL
-        value: https://api.heyelab.com/sandfest/api/webhooks/twilio/status
+        value: https://sandfest-api.heyelab.com/api/webhooks/twilio/status
       - key: TWILIO_SAFETY_INBOUND_WEBHOOK_URL
-        value: https://api.heyelab.com/sandfest/api/webhooks/twilio/inbound/smsSafety
+        value: https://sandfest-api.heyelab.com/api/webhooks/twilio/inbound/smsSafety
       - key: TWILIO_MARKETING_INBOUND_WEBHOOK_URL
-        value: https://api.heyelab.com/sandfest/api/webhooks/twilio/inbound/smsMarketing
+        value: https://sandfest-api.heyelab.com/api/webhooks/twilio/inbound/smsMarketing
       - key: SANDFEST_SMS_MAX_RECIPIENTS
         value: "500"
       - key: SANDFEST_SMS_WEBHOOK_RATE_LIMIT
@@ -339,7 +339,7 @@ services:
           name: sandfest-api
           envVarKey: SANDFEST_OUTREACH_PREFERENCES_SECRET
       - key: SANDFEST_PUBLIC_SITE_URL
-        value: https://www.texassandfest.org
+        value: https://sandfest.heyelab.com
       - key: SANDFEST_JOB_LEASE_MS
         value: "300000"
       - key: SANDFEST_DOCUMENT_EXTRACTION_SECRET
@@ -350,7 +350,7 @@ services:
       # The worker has no shared filesystem; it reads source bytes through the
       # API's authenticated no-store route before verifying the stored checksum.
       - key: SANDFEST_DOCUMENT_EXTRACTION_SOURCE_URL
-        value: https://sandfest-api.onrender.com/sandfest
+        value: https://sandfest-api.onrender.com
       - key: QB_ENVIRONMENT
         fromService:
           type: web

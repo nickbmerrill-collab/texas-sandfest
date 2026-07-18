@@ -158,7 +158,7 @@ npm run api:load-test -- http://127.0.0.1:8788 1000 50
 For staging, run the same script against the Heyelab API subdomain:
 
 ```bash
-npm run api:load-test -- https://api.heyelab.com/sandfest 5000 100
+npm run api:load-test -- https://sandfest-api.heyelab.com 5000 100
 ```
 
 Do not load test the production Stripe checkout create endpoint without a planned test window and Stripe sandbox keys.

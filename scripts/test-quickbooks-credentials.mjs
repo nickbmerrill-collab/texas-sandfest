@@ -120,7 +120,9 @@ try {
   ok("wrong encryption key fails closed", !wrongKeyStatus.connected && !wrongKeyStatus.canSyncPartnerInvoices);
 
   const tampered = JSON.parse(concurrentSource);
-  tampered.connection.encryptedRefreshToken.tag = `${tampered.connection.encryptedRefreshToken.tag.slice(0, -1)}A`;
+  const originalTag = tampered.connection.encryptedRefreshToken.tag;
+  const replacement = originalTag.endsWith("A") ? "B" : "A";
+  tampered.connection.encryptedRefreshToken.tag = `${originalTag.slice(0, -1)}${replacement}`;
   await writeFile(filePath, `${JSON.stringify(tampered, null, 2)}\n`, "utf8");
   const tamperedStatus = await readQuickBooksCredentialStatus(root, env);
   await assert.rejects(() => loadQuickBooksRuntimeCredentials(root, env), /could not be decrypted/);
@@ -163,8 +165,8 @@ try {
   const productionRoot = await runtimeRoot();
   const productionEnv = testEnv({
     SANDFEST_ENV: "production",
-    SANDFEST_API_PUBLIC_BASE_URL: "https://api.heyelab.com/sandfest",
-    QB_REDIRECT_URI: "https://api.heyelab.com/sandfest/api/integrations/quickbooks/callback",
+    SANDFEST_API_PUBLIC_BASE_URL: "https://sandfest-api.heyelab.com",
+    QB_REDIRECT_URI: "https://sandfest-api.heyelab.com/api/integrations/quickbooks/callback",
     QB_TOKEN_URL: "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer"
   });
   const productionAttempt = await beginQuickBooksAuthorization(productionRoot, { actorId: "finance-admin-3" }, productionEnv);

@@ -2,7 +2,7 @@
   "lastUpdated": "2026-04-30T21:29:11.601Z",
   "deployment": {
     "ownerSite": "Heyelab",
-    "apiSubdomain": "api.heyelab.com",
+    "apiSubdomain": "sandfest-api.heyelab.com",
     "adminSubdomain": "sandfest-admin.heyelab.com",
     "publicOrigins": [
       "http://127.0.0.1:4173",

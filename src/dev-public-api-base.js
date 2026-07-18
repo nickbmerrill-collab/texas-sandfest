@@ -1,4 +1,4 @@
-const OFFICIAL_PUBLIC_API_BASE = "https://api.heyelab.com/sandfest";
+const OFFICIAL_PUBLIC_API_BASE = "https://sandfest-api.heyelab.com";
 
 export function persistDevelopmentPublicApiBase(value, { storage = globalThis.localStorage } = {}) {
   try { storage?.setItem("sandfest_api_base", value); } catch { /* ignore */ }
