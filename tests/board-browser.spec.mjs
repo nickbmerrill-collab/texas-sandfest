@@ -756,6 +756,27 @@ test("critical public and operations views fit a mobile viewport", async ({ page
   await expect(page.locator("#admin-import-staff")).toBeVisible();
   await expect(page.locator("#admin-quickbooks-connection")).toBeVisible();
   await expect(page.locator("#admin-quickbooks-status")).toContainText("deferred until post-presentation setup");
+  const workspaceNav = page.locator(".admin-workspace-nav");
+  const workspaceLinks = workspaceNav.locator("a");
+  await expect(workspaceLinks).toHaveCount(7);
+  await expect(workspaceLinks).toHaveText([
+    "Overview",
+    "Documents",
+    "Partners",
+    "Accounting",
+    "Staffing",
+    "Island conditions",
+    "Systems"
+  ]);
+  await expect.poll(() => workspaceNav.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  for (const link of await workspaceLinks.all()) await expect(link).toBeInViewport();
+  await workspaceNav.getByRole("link", { name: "Island conditions", exact: true }).click();
+  await expect(page).toHaveURL(/#admin-island-conditions$/);
+  await expect.poll(() => page.evaluate(() => {
+    const nav = document.querySelector(".admin-workspace-nav");
+    const target = document.querySelector("#admin-island-conditions");
+    return Boolean(nav && target && target.getBoundingClientRect().top >= nav.getBoundingClientRect().bottom - 1);
+  })).toBe(true);
   await assertNoHorizontalOverflow(page);
 });
 
