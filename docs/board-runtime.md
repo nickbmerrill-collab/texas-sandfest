@@ -11,7 +11,7 @@ npm run board:runtime
 The command rebuilds `.sandfest-runtime/board-2027` from governed source data. It uses the same archive-first annual rollover rules as production, then adds clearly fictional 2027 records for:
 
 - current-event Stripe, Eventeny, Square, and site-native partner revenue, with three visibly synthetic settlement-import receipts and older event imports excluded by the API;
-
+- four visibly priced GA/VIP board products whose loopback-only checkout creates a private order, deterministic payment evidence, wristband fulfillment, finance receipt, and full-refund reversal without contacting Stripe;
 - vendor and sponsor applications, including category-compatible vendor offerings whose captured fees flow directly into receivables and invoice drafts;
 - partial sponsor payment and receivables tracking, with one invoice-authoritative payment date shared by the finance ledger, key-date calendar, and follow-up engine;
 - sponsor brand profile, logo review, and package deliverables;
@@ -23,7 +23,7 @@ The command rebuilds `.sandfest-runtime/board-2027` from governed source data. I
 - volunteer coverage, fleet checkout, voting, and Sculpture Passport activity;
 - eight synthetic camera metric lanes plus visibly synthetic weather and ferry snapshots. Optional signed playback continuously exercises source activation, heartbeat, anonymous metric ingestion, freshness, and public/admin condition rendering through the real API contract. Real NWS and TxDOT checks remain a separate post-presentation/live-tool lane.
 
-The generated public bootstrap labels both visitor and operations surfaces as a board demonstration. Every email uses a reserved example domain, the seeded safety subscriber uses a fictional `555-01xx` number, and generation performs no external provider calls. The standalone `board:runtime` command begins in `review_first`. The supervised `board:demo` stack prepares a presentation-specific local-automation seed: consent-backed partner notices and one explicitly approved geofenced campaign run through the loopback mailbox and authenticated webhook before readiness turns green. Site-native receivables, payments, reversals, aging, and exports remain interactive; QuickBooks stays visibly not connected because the board runtime never carries accounting credentials.
+The generated public bootstrap labels both visitor and operations surfaces as a board demonstration. Every ticket price is marked as demo-only, every email uses a reserved example domain, the seeded safety subscriber uses a fictional `555-01xx` number, and generation performs no external provider calls. The standalone `board:runtime` command begins in `review_first`. The supervised `board:demo` stack prepares a presentation-specific local-automation seed: consent-backed partner notices and one explicitly approved geofenced campaign run through the loopback mailbox and authenticated webhook before readiness turns green. Site-native ticket and partner receipts, payments, reversals, aging, and exports remain interactive; QuickBooks stays visibly not connected because the board runtime never carries accounting credentials.
 
 ## Run
 
@@ -55,7 +55,7 @@ npm run board:rehearse
 The command first repeats the nine service and data checks, then opens the
 session's credential-free Visitor and Operations links in local headless
 Chromium. It rejects remote or mismatched URLs and verifies the rendered signup
-catalogs, approved sponsor branding, eight-camera conditions grid, command
+catalogs, local ticket-payment readiness, approved sponsor branding, eight-camera conditions grid, command
 signals, payment and key-date tracking, delivered local automation, staff,
 volunteer, and team assignments, sponsor/vendor fulfillment, geofenced
 outreach with an invitation-ready prospect, private document extraction,
@@ -82,9 +82,12 @@ The credential-free session record lives at
 `.sandfest-runtime/board-demo-session.json`. The supervisor restarts a failed
 component with bounded backoff and returns to ready only after another 9-of-9
 preflight. It stops instead of looping forever when a component repeatedly
-fails. Stripe ticketing, sponsor checkout, and QuickBooks sync are explicitly
-disabled in this synthetic stack even if the parent shell contains provider
-credentials.
+fails. External Stripe ticketing, sponsor checkout, and QuickBooks sync are
+explicitly disabled in this synthetic stack even if the parent shell contains
+provider credentials. Ticket checkout instead uses a signed, four-hour,
+loopback-only board token. Completion and refund endpoints refuse non-board,
+non-loopback, or production requests and are not a substitute for Stripe
+test-mode acceptance.
 
 ### Manual fallback
 
@@ -139,6 +142,7 @@ Open these deterministic presentation links. The visitor URL pins the public
 audience even if the same browser previously viewed Operations mode.
 
 - Visitor: `http://127.0.0.1:5175/?apiBase=http://127.0.0.1:8806&mode=visitor`
+- Ticket checkout: `http://127.0.0.1:5175/?apiBase=http://127.0.0.1:8806&mode=visitor#tickets`
 - Sponsor and vendor signup: `http://127.0.0.1:5175/?apiBase=http://127.0.0.1:8806&mode=visitor#sponsors`
 - Island Conditions: `http://127.0.0.1:5175/?apiBase=http://127.0.0.1:8806&mode=visitor#island-conditions`
 - Operations: `http://127.0.0.1:5175/admin.html?apiBase=http://127.0.0.1:8806`
@@ -157,6 +161,14 @@ groups same-batch lifecycle events and resolves readable organization or task
 names. It demonstrates intake, finance, key-date, messaging, work-board,
 branding, vendor, and outreach automation in one staff-only history without
 rendering raw activity, application, follow-up, or capability identifiers.
+
+For the visitor ticket walkthrough, add a GA or VIP demo product and choose
+**Open demo checkout**. The inline panel repeats the synthetic price and states
+that no external charge will occur. Completing payment creates the same private
+order, reconciliation event, and deterministic fulfillment records used by the
+production workflow. Operations loads those records automatically; use the
+board-only **Refund demo order** action to prove that the order, fulfillment,
+audit trail, ticket revenue reversal, and sold count reconcile together.
 
 In the board-only runtime, each application card includes **Open demo portal**
 beside its status controls. The action rotates the application's audited private

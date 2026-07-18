@@ -105,6 +105,7 @@ if (visitorUrl && operationsUrl) {
       await page.goto(visitorUrl, { waitUntil: "domcontentloaded", timeout: timeoutMs });
       await page.waitForFunction(() => document.querySelector("#network-status")?.textContent?.trim() === "Demo", null, { timeout: timeoutMs });
       await page.waitForFunction(() => document.querySelectorAll("#public-sponsor-tiers [data-package-id]").length === 11, null, { timeout: timeoutMs });
+      await page.waitForFunction(() => document.querySelector("#ticketing-status-pill")?.textContent?.trim() === "Local payment sandbox", null, { timeout: timeoutMs });
       await page.waitForFunction(() => document.querySelectorAll("#island-camera-grid article").length === 8, null, { timeout: timeoutMs });
       await page.locator("#public-sponsor-showcase").scrollIntoViewIfNeeded();
       await page.waitForFunction(() => {
@@ -124,6 +125,9 @@ if (visitorUrl && operationsUrl) {
         vendorApplicationAction: document.querySelector('#vendors-map a[href="#vendor-application-form"]')?.textContent?.trim(),
         vendorSubmitEnabled: !document.querySelector('#vendor-application-form button[type="submit"]')?.disabled,
         sponsorSubmitEnabled: !document.querySelector('#sponsor-inquiry-form button[type="submit"]')?.disabled,
+        checkoutProducts: document.querySelectorAll('#ticket-product-grid [data-ticket-action="increase"]').length,
+        checkoutLabel: document.querySelector("#ticketing-status-pill")?.textContent?.trim(),
+        checkoutButton: document.querySelector("#checkout-btn")?.textContent?.trim(),
         sponsorCards: document.querySelectorAll("#public-sponsor-showcase .public-sponsor-card").length,
         sponsorLogoLoaded: [...document.querySelectorAll("#public-sponsor-showcase img")].some(image => image.complete && image.naturalWidth > 0),
         cameras: document.querySelectorAll("#island-camera-grid article").length,
@@ -144,10 +148,10 @@ if (visitorUrl && operationsUrl) {
     await inspect("public_intake", "Vendor and sponsor intake", "Inspect the public catalog API and signup form controls.", async () => {
       const item = observations.visitor;
       const expectedSponsorPackages = ["flounder", "trout", "tarpon", "sailfish", "marlin", "shark", "vip-tent-sponsor", "whale", "giant-squid", "megalodon", "the-kraken"];
-      if (item?.sponsorTiers !== 11 || item?.sponsorPackageIds?.join(",") !== expectedSponsorPackages.join(",") || item?.sponsorAmounts?.marlin !== "$15,000 sponsorship" || item?.sponsorAmounts?.whale !== "$50,000 sponsorship" || item?.sponsorAmounts?.["the-kraken"] !== "$250,000 sponsorship" || item?.vendorOfferings < 1 || item?.vendorApplicationAction !== "Apply as a vendor" || !item?.vendorSubmitEnabled || !item?.sponsorSubmitEnabled) {
+      if (item?.sponsorTiers !== 11 || item?.sponsorPackageIds?.join(",") !== expectedSponsorPackages.join(",") || item?.sponsorAmounts?.marlin !== "$15,000 sponsorship" || item?.sponsorAmounts?.whale !== "$50,000 sponsorship" || item?.sponsorAmounts?.["the-kraken"] !== "$250,000 sponsorship" || item?.vendorOfferings < 1 || item?.vendorApplicationAction !== "Apply as a vendor" || !item?.vendorSubmitEnabled || !item?.sponsorSubmitEnabled || item?.checkoutProducts < 4 || item?.checkoutLabel !== "Local payment sandbox" || item?.checkoutButton !== "Open demo checkout") {
         throw new Error("The public signup catalogs or submit actions are incomplete.");
       }
-      return `${item.sponsorTiers} current sponsor packages and ${item.vendorOfferings} category-compatible vendor offering${item.vendorOfferings === 1 ? "" : "s"} are actionable from public partner intake.`;
+      return `${item.sponsorTiers} sponsor packages, ${item.vendorOfferings} category-compatible vendor offering${item.vendorOfferings === 1 ? "" : "s"}, and ${item.checkoutProducts} local-checkout ticket products are actionable.`;
     });
     await inspect("sponsor_brand", "Sponsor branding", "Inspect the approved board sponsor asset and showcase projection.", async () => {
       const item = observations.visitor;

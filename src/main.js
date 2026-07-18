@@ -199,6 +199,7 @@ let ticketProducts = publicTicketCatalogState.products ?? [];
 const ticketCart = new Map();
 let ticketCheckoutRetryKey = null;
 let ticketCheckoutRequestFingerprint = null;
+let ticketDemoCheckoutState = null;
 
 const sculptorPublication = publicSculptorRosterPublication(sculptorData, {
   eventId: DEFAULT_EVENT_ID,
@@ -438,14 +439,36 @@ function formatMoney(cents) {
 }
 
 function productPrice(product) {
-  return formatMoney(product.unitAmount) ?? product.priceLabel ?? "Set in Stripe";
+  const amount = formatMoney(product.unitAmount);
+  if (amount && publicTicketCatalogState?.checkoutEnvironment === "board_sandbox") return `${amount} demo`;
+  return amount ?? product.priceLabel ?? "Set in Stripe";
 }
 
 function ticketBadge(product) {
   if (product.requiresReview) return "Review gated";
+  if (product.availableForCheckout && publicTicketCatalogState?.checkoutEnvironment === "board_sandbox") return "Demo checkout";
   if (product.category === "vip") return "VIP";
   if (product.category === "sponsor") return "Sponsor";
   return product.availableForCheckout ? "Secure checkout" : "Sales pending";
+}
+
+function ticketCheckoutPresentation() {
+  const sandbox = publicTicketCatalogState?.checkoutEnvironment === "board_sandbox";
+  const ready = ticketCommerceReady();
+  return {
+    sandbox,
+    heading: sandbox ? "Walk through the ticket purchase lifecycle." : ready ? "Buy official Texas SandFest wristbands securely." : "Plan your Texas SandFest tickets.",
+    copy: sandbox
+      ? "Choose wristbands and walk through a complete local payment, fulfillment, accounting, and refund demonstration. No external charge is sent."
+      : ready
+        ? "Choose wristbands here, then complete payment through secure Stripe Checkout."
+        : "Online sales will open after the current ticket catalog and payment window are approved.",
+    pill: sandbox ? "Local payment sandbox" : ready ? "Secure Stripe checkout" : "Sales configuration pending",
+    button: sandbox ? "Open demo checkout" : "Continue to Stripe",
+    status: sandbox
+      ? "Select tickets to open the local payment sandbox. Demo prices are not approved public prices."
+      : ready ? "Select tickets to continue to secure checkout." : "Online ticket sales are not open yet."
+  };
 }
 
 function ticketCommerceReady() {
@@ -827,10 +850,10 @@ app.innerHTML = `
       <div class="section-heading">
         <div>
           <p class="eyebrow">Ticket ordering</p>
-          <h2 id="ticketing-heading">${ticketCommerceReady() ? "Buy official Texas SandFest wristbands securely." : "Plan your Texas SandFest tickets."}</h2>
-          <p id="ticketing-copy" class="section-copy">${ticketCommerceReady() ? "Choose wristbands here, then complete payment through secure Stripe Checkout." : "Online sales will open after the current ticket catalog and payment window are approved."}</p>
+          <h2 id="ticketing-heading">${ticketCheckoutPresentation().heading}</h2>
+          <p id="ticketing-copy" class="section-copy">${ticketCheckoutPresentation().copy}</p>
         </div>
-        <span id="ticketing-status-pill" class="checkout-status-pill">${ticketCommerceReady() ? "Secure Stripe checkout" : "Sales configuration pending"}</span>
+        <span id="ticketing-status-pill" class="checkout-status-pill">${ticketCheckoutPresentation().pill}</span>
       </div>
       <div class="ticketing-grid">
         <div id="ticket-product-grid" class="ticket-product-grid">
@@ -868,9 +891,21 @@ app.innerHTML = `
               <span>Text me event-day safety &amp; logistics alerts</span>
             </label>
           </fieldset>
-          <button id="checkout-btn" class="button primary" type="button" disabled>Continue to Stripe</button>
-          <p id="checkout-status" class="checkout-status" role="status" aria-live="polite">${ticketCommerceReady() ? "Select tickets to continue to secure checkout." : "Online ticket sales are not open yet."}</p>
-          <div class="payment-rails">
+          <button id="checkout-btn" class="button primary" type="button" disabled>${ticketCheckoutPresentation().button}</button>
+          <p id="checkout-status" class="checkout-status" role="status" aria-live="polite">${ticketCheckoutPresentation().status}</p>
+          <section id="ticket-demo-checkout" class="ticket-demo-checkout" aria-label="Local payment sandbox" hidden>
+            <header>
+              <div><span>Local payment sandbox</span><strong>No external charge</strong></div>
+              <b id="ticket-demo-amount">$0.00 demo</b>
+            </header>
+            <div id="ticket-demo-summary"></div>
+            <div class="ticket-demo-actions">
+              <button id="ticket-demo-pay" class="button primary" type="button">Complete demo payment</button>
+              <button id="ticket-demo-cancel" class="button secondary" type="button">Return to order</button>
+            </div>
+            <p id="ticket-demo-status" class="checkout-status" role="status" aria-live="polite"></p>
+          </section>
+          <div id="ticket-payment-rails" class="payment-rails">
             <span>Stripe Checkout</span>
             <span>Apple Pay</span>
             <span>Webhook fulfillment</span>
@@ -2295,7 +2330,7 @@ function renderTicketCart() {
     </article>
   `).join("");
   subtotal.textContent = hasTbd ? `${formatMoney(knownTotal) ?? "$0.00"} + TBD` : formatMoney(knownTotal);
-  checkout.disabled = false;
+  checkout.disabled = Boolean(ticketDemoCheckoutState);
 }
 
 function resetTicketCheckoutRetry() {
@@ -2314,18 +2349,55 @@ function renderPublicTicketCatalog(catalog) {
   resetTicketCheckoutRetry();
   const grid = document.querySelector("#ticket-product-grid");
   if (grid) grid.innerHTML = ticketProductCardsMarkup();
-  const ready = ticketCommerceReady();
   const heading = document.querySelector("#ticketing-heading");
   const copy = document.querySelector("#ticketing-copy");
   const pill = document.querySelector("#ticketing-status-pill");
   const status = document.querySelector("#checkout-status");
-  if (heading) heading.textContent = ready ? "Buy official Texas SandFest wristbands securely." : "Plan your Texas SandFest tickets.";
-  if (copy) copy.textContent = ready
-    ? "Choose wristbands here, then complete payment through secure Stripe Checkout."
-    : "Online sales will open after the current ticket catalog and payment window are approved.";
-  if (pill) pill.textContent = ready ? "Secure Stripe checkout" : "Sales configuration pending";
-  if (status && ticketCart.size === 0) status.textContent = ready ? "Select tickets to continue to secure checkout." : "Online ticket sales are not open yet.";
+  const button = document.querySelector("#checkout-btn");
+  const rails = document.querySelector("#ticket-payment-rails");
+  const presentation = ticketCheckoutPresentation();
+  if (heading) heading.textContent = presentation.heading;
+  if (copy) copy.textContent = presentation.copy;
+  if (pill) pill.textContent = presentation.pill;
+  if (button) button.textContent = presentation.button;
+  if (status && ticketCart.size === 0) status.textContent = presentation.status;
+  if (rails && presentation.sandbox) {
+    rails.innerHTML = "<span>Local sandbox</span><span>Signed completion</span><span>Fulfillment queue</span><span>Revenue ledger</span>";
+  }
   renderTicketCart();
+}
+
+function closeTicketDemoCheckout() {
+  ticketDemoCheckoutState = null;
+  const panel = document.querySelector("#ticket-demo-checkout");
+  const payButton = document.querySelector("#ticket-demo-pay");
+  const cancelButton = document.querySelector("#ticket-demo-cancel");
+  if (panel) panel.hidden = true;
+  if (payButton) {
+    payButton.hidden = false;
+    payButton.disabled = false;
+  }
+  if (cancelButton) cancelButton.hidden = false;
+  renderTicketCart();
+}
+
+function showTicketDemoCheckout(checkout) {
+  if (checkout?.mode !== "board_sandbox" || checkout.completeEndpoint !== "/api/public/board-ticket-checkout/complete" || typeof checkout.token !== "string") {
+    throw new Error("The local payment sandbox returned an invalid checkout.");
+  }
+  ticketDemoCheckoutState = checkout;
+  const panel = document.querySelector("#ticket-demo-checkout");
+  const amount = document.querySelector("#ticket-demo-amount");
+  const summary = document.querySelector("#ticket-demo-summary");
+  const sandboxStatus = document.querySelector("#ticket-demo-status");
+  if (!panel || !amount || !summary || !sandboxStatus) throw new Error("The local payment sandbox is unavailable.");
+  amount.textContent = `${formatMoney(checkout.amountCents) || "$0.00"} demo`;
+  summary.innerHTML = checkout.lineItems.map(line => `<p><span>${escapeHtml(`${line.quantity} x ${line.name}`)}</span><strong>${escapeHtml(formatMoney(line.unitAmount * line.quantity) || "$0.00")}</strong></p>`).join("");
+  sandboxStatus.textContent = "Ready to simulate an approved payment. This stays on the local board runtime.";
+  sandboxStatus.dataset.state = "idle";
+  panel.hidden = false;
+  renderTicketCart();
+  document.querySelector("#ticket-demo-pay")?.focus();
 }
 
 async function loadPublicTicketCatalog() {
@@ -2351,6 +2423,7 @@ document.querySelector("#ticket-product-grid")?.addEventListener("click", event 
       : Math.max(current - 1, 0);
     if (next === 0) ticketCart.delete(product.id);
     else ticketCart.set(product.id, next);
+    closeTicketDemoCheckout();
     resetTicketCheckoutRetry();
     renderTicketCart();
     return;
@@ -2363,6 +2436,47 @@ document.querySelector("#ticket-product-grid")?.addEventListener("click", event 
       ? "Sponsor and hospitality packages begin with the partnership form below."
       : `${product.name} is not available for online checkout.`, "idle");
     if (product.category === "sponsor") document.querySelector("#sponsor-inquiry-form")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+});
+
+document.querySelector("#ticket-demo-cancel")?.addEventListener("click", () => {
+  closeTicketDemoCheckout();
+  setFormStatus(document.querySelector("#checkout-status"), "Demo checkout closed. Your ticket selection is still here.", "idle");
+});
+
+document.querySelector("#ticket-demo-pay")?.addEventListener("click", async () => {
+  const checkout = ticketDemoCheckoutState;
+  const button = document.querySelector("#ticket-demo-pay");
+  const cancelButton = document.querySelector("#ticket-demo-cancel");
+  const sandboxStatus = document.querySelector("#ticket-demo-status");
+  const checkoutStatus = document.querySelector("#checkout-status");
+  if (!checkout || !button || !sandboxStatus) return;
+  button.disabled = true;
+  if (cancelButton) cancelButton.disabled = true;
+  setFormStatus(sandboxStatus, "Recording the local payment and creating fulfillment...", "loading");
+  try {
+    const response = await fetchWithTimeout(`${publicApiBase()}${checkout.completeEndpoint}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token: checkout.token })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || `Demo payment failed with ${response.status}`);
+    const receipt = data.receipt || {};
+    if (data.order?.status !== "paid" || receipt.environment !== "board_sandbox") throw new Error("The local payment did not return a paid receipt.");
+    ticketDemoCheckoutState = null;
+    ticketCart.clear();
+    resetTicketCheckoutRetry();
+    document.querySelector("#ticket-demo-summary").innerHTML = `<p><span>Order</span><strong>${escapeHtml(receipt.orderId)}</strong></p><p><span>Fulfillment</span><strong>${escapeHtml(`${receipt.fulfillmentCount} wristband${receipt.fulfillmentCount === 1 ? "" : "s"} queued`)}</strong></p>`;
+    button.hidden = true;
+    if (cancelButton) cancelButton.hidden = true;
+    setFormStatus(sandboxStatus, "Demo payment complete. The order, payment event, fulfillment, and ticket revenue are now visible in operations.", "ok");
+    setFormStatus(checkoutStatus, `Demo payment complete for ${receipt.orderId}. No external charge was sent.`, "ok");
+    renderTicketCart();
+  } catch (error) {
+    setFormStatus(sandboxStatus, friendlyRequestError(error), "error");
+    button.disabled = false;
+    if (cancelButton) cancelButton.disabled = false;
   }
 });
 
@@ -2412,6 +2526,11 @@ document.querySelector("#checkout-btn").addEventListener("click", async () => {
       if (checkoutUrl.protocol !== "https:" || checkoutUrl.hostname !== "checkout.stripe.com") throw new Error("Checkout returned an invalid payment address.");
       setFormStatus(status, "Stripe Checkout session created. Redirecting...", "ok");
       window.location.href = checkoutUrl.toString();
+      return;
+    }
+    if (data.demoCheckout) {
+      showTicketDemoCheckout(data.demoCheckout);
+      setFormStatus(status, "Local demo checkout created. Review the sandbox payment below.", "ok");
       return;
     }
     const consentNote = data.order?.consent?.consentId
@@ -3216,13 +3335,19 @@ function renderAdminEditors() {
 function orderRecordCard(item) {
   const order = item.record;
   const lines = order.lineItems?.map(line => `${line.quantity} x ${line.name}`).join(", ") ?? "No line items";
+  const boardRefundReady = BOARD_DEMO_ACCESS.enabled
+    && order.checkoutEnvironment === "board_sandbox"
+    && ["paid", "partially_refunded"].includes(order.status)
+    && adminCan("finance:write");
   return `
-    <article class="admin-record-card">
+    <article class="admin-record-card" data-ticket-order="${escapeAttr(order.id ?? "")}">
       <div>
         <strong>${escapeHtml(order.id ?? item.file)}</strong>
         <span>${escapeHtml(order.status ?? "unknown")}</span>
       </div>
       <p>${escapeHtml(lines)}</p>
+      <p>${escapeHtml(adminMoney(order.totals?.knownAmount, "$0.00"))} · ${escapeHtml(order.customer?.email ?? "No buyer email")}${order.checkoutEnvironment === "board_sandbox" ? " · local sandbox" : ""}</p>
+      ${boardRefundReady ? `<button class="button secondary" data-refund-board-ticket="${escapeAttr(order.id)}" type="button">Refund demo order</button>` : ""}
       <code>${escapeHtml(item.path)}</code>
     </article>
   `;
@@ -5082,11 +5207,13 @@ function renderAdminRevenue(payload) {
     || '<article class="empty-state"><span>No entries.</span></article>';
   const imported = payload.sources?.imported;
   const partner = payload.sources?.partnerOperations;
+  const ticketOrders = payload.sources?.ticketOrders;
   const imports = Array.isArray(payload.imports) ? payload.imports : [];
   const excluded = Number(imported?.excludedEntries || 0) + Number(imported?.unscopedEntries || 0);
   const sourceStatus = [
     `${Number(imported?.entries || 0)} imported`,
-    `${Number(partner?.entries || 0)} site-native`,
+    `${Number(partner?.entries || 0)} partner ledger`,
+    `${Number(ticketOrders?.entries || 0)} ticket ledger`,
     imports.length ? `${imports.length} settlement batch${imports.length === 1 ? "" : "es"}` : null,
     excluded ? `${excluded} out-of-scope excluded` : null
   ].filter(Boolean).join(" · ");
@@ -7724,6 +7851,7 @@ async function loadAdminTransactions() {
       ? snapshots.snapshots.map(snapshotCard).join("")
       : '<article class="empty-state"><span>No config snapshots yet.</span></article>';
     bindFulfillmentButtons();
+    bindBoardTicketRefundButtons();
     bindSnapshotButtons();
     if (adminSessionState) renderAdminSession(adminSessionState);
     setAdminStatus(`Loaded ${orders.pendingOrders.length} order records, ${events.paymentEvents.length} payment events, ${fulfillment.fulfillment.length} fulfillment records, ${audit.audit.length} audit entries, and ${snapshots.snapshots.length} snapshots.`, "ok");
@@ -7732,6 +7860,26 @@ async function loadAdminTransactions() {
   } finally {
     button.disabled = false;
   }
+}
+
+function bindBoardTicketRefundButtons() {
+  document.querySelectorAll("[data-refund-board-ticket]").forEach(button => {
+    button.addEventListener("click", async () => {
+      if (!window.confirm("Refund this local demonstration ticket order? No external payment will be touched.")) return;
+      button.disabled = true;
+      try {
+        const result = await adminFetch(`/api/admin/board-demo/ticket-orders/${encodeURIComponent(button.dataset.refundBoardTicket)}/refund`, {
+          method: "POST",
+          body: JSON.stringify({ reason: "Refunded during the board presentation ticket lifecycle demonstration." })
+        });
+        setAdminStatus(`Refunded demo ticket order ${result.order.id}. Fulfillment and revenue were reversed.`, "ok");
+        await Promise.all([loadAdminTransactions(), loadAdminRevenue({ quiet: true })]);
+      } catch (error) {
+        setAdminStatus(error.message, "error");
+        button.disabled = false;
+      }
+    });
+  });
 }
 
 function bindSnapshotButtons() {
@@ -7897,6 +8045,9 @@ async function loadAdminWorkspace() {
     adminConfigState = await adminFetch("/api/admin/config");
     await loadAdminAlert();
     renderAdminEditors();
+    if (adminCan("orders:read") && adminCan("payments:read") && adminCan("fulfillment:read") && adminCan("audit:read") && adminCan("snapshot:read")) {
+      await loadAdminTransactions().catch(() => {});
+    }
     if (adminCan("documents:read")) {
       await loadAdminDocuments({ quiet: true }).catch(() => {});
     }

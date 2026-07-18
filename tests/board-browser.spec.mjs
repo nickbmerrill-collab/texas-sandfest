@@ -16,6 +16,7 @@ const PORTAL_SECRET = "board-browser-portal-secret-0123456789abcdef";
 const OUTREACH_SECRET = "board-browser-outreach-secret-0123456789abcdef";
 const EMAIL_API_KEY = "board-browser-email-api-key-0123456789abcdef";
 const EMAIL_WEBHOOK_TOKEN = "board-browser-email-webhook-token-0123456789abcdef";
+const BOARD_TICKET_SECRET = "board-browser-ticket-secret-0123456789abcdef";
 let temporaryRoot;
 let apiProcess;
 let webProcess;
@@ -109,11 +110,24 @@ async function submitAndCapture(page, form, pathname) {
 }
 
 async function assertNoHorizontalOverflow(page) {
-  const dimensions = await page.evaluate(() => ({
-    clientWidth: document.documentElement.clientWidth,
-    scrollWidth: document.documentElement.scrollWidth
-  }));
-  expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
+  const dimensions = await page.evaluate(() => {
+    const clientWidth = document.documentElement.clientWidth;
+    const offenders = [...document.querySelectorAll("body *")].map(element => {
+      const rect = element.getBoundingClientRect();
+      return {
+        element: `${element.tagName.toLowerCase()}${element.id ? `#${element.id}` : ""}${element.classList.length ? `.${[...element.classList].slice(0, 3).join(".")}` : ""}`,
+        right: Math.round(rect.right),
+        width: Math.round(rect.width),
+        scrollWidth: element.scrollWidth,
+        clientWidth: element.clientWidth,
+        text: String(element.textContent || "").replace(/\s+/g, " ").trim().slice(0, 80)
+      };
+    }).filter(item => item.right > clientWidth + 1)
+      .sort((a, b) => b.right - a.right)
+      .slice(0, 8);
+    return { clientWidth, scrollWidth: document.documentElement.scrollWidth, offenders };
+  });
+  expect(dimensions.scrollWidth, JSON.stringify(dimensions.offenders, null, 2)).toBeLessThanOrEqual(dimensions.clientWidth + 1);
 }
 
 async function assertNoAccessibilityViolations(page, label) {
@@ -197,6 +211,8 @@ test.beforeAll(async () => {
     SANDFEST_TURNSTILE_ENABLED: "false",
     OUTREACH_DISCOVERY_ENABLED: "true",
     OUTREACH_DISCOVERY_PROVIDER: "fixture",
+    SANDFEST_BOARD_TICKET_SANDBOX: "true",
+    SANDFEST_BOARD_TICKET_SECRET: BOARD_TICKET_SECRET,
     QB_ENVIRONMENT: "sandbox",
     QB_INVOICE_SYNC_ENABLED: "false",
     QB_CLIENT_ID: "board-browser-quickbooks-client",
@@ -341,6 +357,51 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await expect(page.locator("#chat .concierge-answer")).toContainText("Current ticket options include");
   await expect(page.locator('#chat .concierge-sources a[href="#tickets"]')).toHaveText("Current ticket options");
   await expect(page.locator("#ask-submit")).toBeEnabled();
+
+  await expect(page.locator("#ticketing-status-pill")).toHaveText("Local payment sandbox");
+  await expect(page.locator("#ticketing-copy")).toContainText("No external charge is sent");
+  const demoGaCard = page.locator(".ticket-card").filter({ has: page.locator('[data-ticket-id="general-admission-3-day"]') });
+  await expect(demoGaCard).toContainText("$30.00 demo");
+  await expect(demoGaCard).toContainText("Demo checkout");
+  await demoGaCard.locator('[data-ticket-action="increase"]').click();
+  await demoGaCard.locator('[data-ticket-action="increase"]').click();
+  await expect(page.locator("#ticket-subtotal")).toHaveText("$60.00");
+  const ticketBuyerEmail = `tickets.${runId}@example.com`;
+  await page.locator("#checkout-email").fill(ticketBuyerEmail);
+  const ticketCheckoutResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/stripe/create-checkout-session" && response.request().method() === "POST");
+  await page.locator("#checkout-btn").click();
+  const ticketCheckoutResult = await ticketCheckoutResponse;
+  expect(ticketCheckoutResult.status()).toBe(200);
+  const ticketCheckout = await ticketCheckoutResult.json();
+  expect(ticketCheckout.demoCheckout).toMatchObject({
+    mode: "board_sandbox",
+    amountCents: 6000,
+    currency: "usd",
+    completeEndpoint: "/api/public/board-ticket-checkout/complete"
+  });
+  expect(ticketCheckout.demoCheckout.lineItems).toHaveLength(1);
+  expect(ticketCheckout.demoCheckout.lineItems[0]).toMatchObject({ productId: "general-admission-3-day", quantity: 2, unitAmount: 3000 });
+  const demoTicketOrderId = ticketCheckout.orderId;
+  await expect(page.locator("#ticket-demo-checkout")).toBeVisible();
+  await expect(page.locator("#ticket-demo-amount")).toHaveText("$60.00 demo");
+  await expect(page.locator("#ticket-demo-status")).toContainText("local board runtime");
+  const ticketPaymentResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/public/board-ticket-checkout/complete" && response.request().method() === "POST");
+  await page.locator("#ticket-demo-pay").click();
+  const ticketPaymentResult = await ticketPaymentResponse;
+  expect(ticketPaymentResult.status()).toBe(200);
+  const ticketPayment = await ticketPaymentResult.json();
+  expect(ticketPayment.order.status).toBe("paid");
+  expect(ticketPayment.receipt).toMatchObject({
+    orderId: demoTicketOrderId,
+    amountCents: 6000,
+    currency: "usd",
+    fulfillmentCount: 2,
+    environment: "board_sandbox"
+  });
+  await expect(page.locator("#ticket-demo-status")).toContainText("Demo payment complete");
+  await expect(page.locator("#checkout-status")).toContainText("No external charge was sent");
+  await expect(page.locator("#ticket-demo-pay")).toBeHidden();
+  await expect(page.locator("#ticket-subtotal")).toHaveText("$0.00");
 
   const vendorConciergeResponsePromise = page.waitForResponse(response => {
     const url = new URL(response.url());
@@ -494,6 +555,57 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await expect(deferredRecovery).toContainText("Managed backup provisioning and provider restore drills are scheduled after the presentation.");
   await expect(deferredRecovery).toContainText("Isolated database and upload recovery verification remains in the release gate.");
   await expect(deferredRecovery).not.toContainText("configure a supported managed backup provider");
+  const paidTicketOrderCard = () => page.locator(`#admin-order-list [data-ticket-order="${demoTicketOrderId}"]`);
+  await expect(paidTicketOrderCard()).toHaveCount(1);
+  await expect(paidTicketOrderCard()).toContainText("paid");
+  await expect(paidTicketOrderCard()).toContainText("$60.00");
+  await expect(paidTicketOrderCard()).toContainText(ticketBuyerEmail);
+  await expect(paidTicketOrderCard()).toContainText("local sandbox");
+  await expect(paidTicketOrderCard().locator("[data-refund-board-ticket]")).toHaveText("Refund demo order");
+  const paidTicketFulfillment = page.locator("#admin-fulfillment-list [data-fulfillment-id]").filter({ hasText: demoTicketOrderId });
+  await expect(paidTicketFulfillment).toHaveCount(2);
+  expect(await paidTicketFulfillment.locator("select").evaluateAll(selects => selects.map(select => select.value))).toEqual(["queued", "queued"]);
+  const paidTicketEvent = page.locator("#admin-payment-event-list .admin-record-card").filter({ hasText: "checkout.session.completed" });
+  await expect(paidTicketEvent).toHaveCount(1);
+  await expect(paidTicketEvent).toContainText("isolated_board_payment_sandbox");
+  const paidTicketRevenueResponse = await fetch(`${apiBase}/api/admin/revenue`, { headers: { authorization: `Bearer ${TOKEN}` } });
+  expect(paidTicketRevenueResponse.status).toBe(200);
+  const paidTicketRevenue = await paidTicketRevenueResponse.json();
+  const paidTicketRevenueEntries = paidTicketRevenue.entries?.filter(item => item.sourceRecordId === demoTicketOrderId) || [];
+  expect(paidTicketRevenueEntries).toHaveLength(1);
+  expect(paidTicketRevenueEntries[0]).toMatchObject({
+    category: "ticket",
+    source: "manual",
+    grossCents: 6000,
+    netCents: 6000,
+    quantity: 2,
+    origin: "board_ticket_sandbox",
+    entryType: "receipt"
+  });
+  expect(paidTicketRevenue.summary.tickets.sold).toBeGreaterThanOrEqual(2);
+  await expect(page.locator("#admin-revenue-updated")).toContainText("ticket ledger");
+  page.once("dialog", dialog => dialog.accept());
+  const ticketRefundResponse = page.waitForResponse(response => new URL(response.url()).pathname === `/api/admin/board-demo/ticket-orders/${demoTicketOrderId}/refund` && response.request().method() === "POST");
+  await paidTicketOrderCard().locator("[data-refund-board-ticket]").click();
+  const ticketRefundResult = await ticketRefundResponse;
+  expect(ticketRefundResult.status()).toBe(200);
+  expect((await ticketRefundResult.json()).order.status).toBe("refunded");
+  await expect(paidTicketOrderCard()).toContainText("refunded");
+  await expect(paidTicketOrderCard().locator("[data-refund-board-ticket]")).toHaveCount(0);
+  const refundedTicketFulfillment = page.locator("#admin-fulfillment-list [data-fulfillment-id]").filter({ hasText: demoTicketOrderId });
+  await expect(refundedTicketFulfillment).toHaveCount(2);
+  expect(await refundedTicketFulfillment.locator("select").evaluateAll(selects => selects.map(select => select.value))).toEqual(["refunded", "refunded"]);
+  const refundTicketEvent = page.locator("#admin-payment-event-list .admin-record-card").filter({ hasText: "charge.refunded" });
+  await expect(refundTicketEvent).toHaveCount(1);
+  await expect(refundTicketEvent).toContainText("isolated_board_payment_sandbox");
+  const refundedTicketRevenueResponse = await fetch(`${apiBase}/api/admin/revenue`, { headers: { authorization: `Bearer ${TOKEN}` } });
+  expect(refundedTicketRevenueResponse.status).toBe(200);
+  const refundedTicketRevenue = await refundedTicketRevenueResponse.json();
+  const refundedTicketRevenueEntries = refundedTicketRevenue.entries?.filter(item => item.sourceRecordId === demoTicketOrderId) || [];
+  expect(refundedTicketRevenueEntries).toHaveLength(2);
+  expect(refundedTicketRevenueEntries.find(item => item.entryType === "refund")).toMatchObject({ grossCents: -6000, netCents: -6000, quantity: -2 });
+  expect(refundedTicketRevenue.summary.tickets.sold).toBe(paidTicketRevenue.summary.tickets.sold - 2);
+  expect(refundedTicketRevenue.summary.totals.refundCents).toBe(paidTicketRevenue.summary.totals.refundCents + 6000);
   await expect(commandSignals.locator('[data-command-signal="receivables"]')).toHaveAttribute("href", "#admin-receivables-accounts");
   await expect(commandSignals.locator('[data-command-signal="vendors"]')).toHaveAttribute("href", "#admin-vendor-readiness");
   await commandSignals.locator('[data-command-signal="vendors"]').click();

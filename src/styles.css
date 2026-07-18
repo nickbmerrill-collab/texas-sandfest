@@ -1067,6 +1067,64 @@ time {
   top: 86px;
 }
 
+.ticket-demo-checkout {
+  background: #eef7f5;
+  border-bottom: 1px solid #9ccdc7;
+  border-top: 1px solid #9ccdc7;
+  display: grid;
+  gap: 12px;
+  margin: 0 -20px;
+  padding: 16px 20px;
+}
+
+.ticket-demo-checkout[hidden] {
+  display: none;
+}
+
+.ticket-demo-checkout header,
+.ticket-demo-checkout header > div,
+.ticket-demo-checkout #ticket-demo-summary {
+  display: grid;
+  gap: 6px;
+}
+
+.ticket-demo-checkout header {
+  align-items: start;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.ticket-demo-checkout header span {
+  color: var(--gulf);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.ticket-demo-checkout header b {
+  color: var(--coral);
+  font-size: 18px;
+  white-space: nowrap;
+}
+
+.ticket-demo-checkout #ticket-demo-summary p {
+  align-items: baseline;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  margin: 0;
+}
+
+.ticket-demo-checkout #ticket-demo-summary span {
+  color: var(--muted);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ticket-demo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .ticket-cart-lines {
   border-bottom: 1px solid var(--line);
   border-top: 1px solid var(--line);
@@ -2159,6 +2217,7 @@ time {
 .admin-order-grid > div {
   display: grid;
   gap: 10px;
+  min-width: 0;
 }
 
 .admin-order-grid > div > strong {
@@ -2173,6 +2232,7 @@ time {
 .admin-record-card {
   display: grid;
   gap: 9px;
+  min-width: 0;
   padding: 14px;
 }
 
@@ -2183,14 +2243,23 @@ time {
   justify-content: space-between;
 }
 
+.admin-record-card > div > strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .admin-record-card > div span {
   background: rgba(0, 109, 119, 0.12);
   border-radius: 999px;
   color: var(--gulf);
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   font-size: 12px;
   font-weight: 900;
+  max-width: 65%;
+  min-width: 0;
+  overflow-wrap: anywhere;
   padding: 6px 9px;
+  text-align: right;
 }
 
 .admin-record-card p {
@@ -2226,7 +2295,9 @@ time {
   color: var(--deep);
   font: inherit;
   min-height: 40px;
+  min-width: 0;
   padding: 8px 10px;
+  width: 100%;
 }
 
 .editor-heading h2,
@@ -3005,6 +3076,14 @@ time {
 }
 
 @media (max-width: 620px) {
+  .fulfillment-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .fulfillment-actions .button {
+    justify-self: start;
+  }
+
   .topbar {
     gap: 8px;
     height: 64px;

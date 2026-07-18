@@ -7,7 +7,7 @@ import { loadDotEnv } from "../lib/load-env.mjs";
 import { resolveRuntimeRoot, runtimeRootProfile } from "../lib/runtime-root.mjs";
 import { createStorage } from "../lib/storage.mjs";
 import { authMode, authModeIsJwt, resolveSession } from "../lib/auth.mjs";
-import { buildRevenueLedgerView, partnerRevenueEntries, summarizeLedger } from "../lib/revenue.mjs";
+import { buildRevenueLedgerView, partnerRevenueEntries, summarizeLedger, ticketRevenueEntries } from "../lib/revenue.mjs";
 import {
   applyRevenueImport,
   parseRevenueCsv,
@@ -499,6 +499,19 @@ const STRIPE_WEBHOOK_TOLERANCE_SECONDS = Math.max(30, Number(process.env.STRIPE_
 const STRIPE_SUCCESS_URL = process.env.STRIPE_SUCCESS_URL || "http://127.0.0.1:4173/tickets/success?session_id={CHECKOUT_SESSION_ID}";
 const STRIPE_CANCEL_URL = process.env.STRIPE_CANCEL_URL || "http://127.0.0.1:4173/#tickets";
 const STRIPE_API_BASE_URL = String(process.env.STRIPE_API_BASE_URL || "https://api.stripe.com").replace(/\/+$/, "");
+const BOARD_TICKET_SANDBOX = (() => {
+  const enabled = process.env.SANDFEST_BOARD_TICKET_SANDBOX === "true";
+  const secret = String(process.env.SANDFEST_BOARD_TICKET_SECRET || "");
+  if (!enabled) return { enabled: false, secret: "" };
+  if (SANDFEST_ENV === "production" || !BOARD_DEMO_RUNTIME) {
+    throw new Error("The board ticket sandbox is restricted to an isolated non-production board runtime.");
+  }
+  if (String(process.env.SANDFEST_API_HOST || "127.0.0.1") !== "127.0.0.1") {
+    throw new Error("The board ticket sandbox requires SANDFEST_API_HOST=127.0.0.1.");
+  }
+  if (secret.length < 32) throw new Error("SANDFEST_BOARD_TICKET_SECRET must contain at least 32 characters.");
+  return { enabled: true, secret };
+})();
 const STRIPE_PARTNER_PAYMENTS = stripePartnerPaymentsConfig();
 const ALLOWED_ORIGINS = (process.env.SANDFEST_CORS_ORIGINS || [
   "http://127.0.0.1:4173",
@@ -2114,7 +2127,9 @@ function rateLimitProfile(pathname, method) {
   if (method === "GET" && pathname === "/api/integrations/quickbooks/callback") return { name: "quickbooks-oauth", limit: PUBLIC_WRITE_RATE_LIMIT };
   if (method === "POST" && pathname === "/api/webhooks/brevo") return { name: "brevo-webhook", limit: PUBLIC_RATE_LIMIT };
   if (method === "POST" && pathname.startsWith("/api/webhooks/twilio/")) return { name: "twilio-webhook", limit: SMS_WEBHOOK_RATE_LIMIT };
-  if (pathname === "/api/stripe/create-checkout-session") return { name: "checkout", limit: CHECKOUT_RATE_LIMIT };
+  if (["/api/stripe/create-checkout-session", "/api/public/board-ticket-checkout/complete"].includes(pathname)) {
+    return { name: "checkout", limit: CHECKOUT_RATE_LIMIT };
+  }
   if (method === "POST" && pathname === "/api/public/concierge") return { name: "concierge", limit: PUBLIC_RATE_LIMIT };
   if (method === "POST" && ["/api/public/partner-status", "/api/public/partner-payment-checkout", "/api/public/outreach-preferences"].includes(pathname)) {
     return { name: "partner-status", limit: PARTNER_STATUS_RATE_LIMIT };
@@ -2535,6 +2550,77 @@ function stripeReady() {
     && (SANDFEST_ENV !== "production" || STRIPE_API_BASE_URL === "https://api.stripe.com");
 }
 
+function ticketCheckoutReady() {
+  return stripeReady() || BOARD_TICKET_SANDBOX.enabled;
+}
+
+function boardTicketSessionId(orderId) {
+  return `cs_board_${createHash("sha256").update(orderId).digest("hex").slice(0, 24)}`;
+}
+
+function boardTicketPaymentIntentId(orderId) {
+  return `pi_board_${createHash("sha256").update(`paid:${orderId}`).digest("hex").slice(0, 24)}`;
+}
+
+function boardTicketToken(order) {
+  const expiresAt = order.checkoutExpiresAt || new Date(new Date(order.createdAt).getTime() + 4 * 60 * 60_000).toISOString();
+  const payload = Buffer.from(JSON.stringify({
+    version: 1,
+    eventId: order.eventId,
+    orderId: order.id,
+    checkoutSessionId: order.stripeCheckoutSessionId,
+    expiresAt
+  })).toString("base64url");
+  const signature = createHmac("sha256", BOARD_TICKET_SANDBOX.secret).update(payload).digest("base64url");
+  return `${payload}.${signature}`;
+}
+
+function boardTicketCheckout(order) {
+  return {
+    mode: "board_sandbox",
+    orderId: order.id,
+    checkoutSessionId: order.stripeCheckoutSessionId,
+    amountCents: order.totals.knownAmount,
+    currency: order.totals.currency,
+    lineItems: order.lineItems.map(line => ({
+      productId: line.productId,
+      name: line.name,
+      quantity: line.quantity,
+      unitAmount: line.unitAmount
+    })),
+    completeEndpoint: "/api/public/board-ticket-checkout/complete",
+    token: boardTicketToken(order),
+    expiresAt: order.checkoutExpiresAt
+  };
+}
+
+function verifyBoardTicketToken(token) {
+  if (!BOARD_TICKET_SANDBOX.enabled || typeof token !== "string") return { ok: false, error: "Board checkout token is invalid." };
+  const [payload, signature, extra] = token.split(".");
+  if (!payload || !signature || extra || !/^[A-Za-z0-9_-]+$/.test(payload) || !/^[A-Za-z0-9_-]+$/.test(signature)) {
+    return { ok: false, error: "Board checkout token is invalid." };
+  }
+  const expected = createHmac("sha256", BOARD_TICKET_SANDBOX.secret).update(payload).digest("base64url");
+  const expectedBuffer = Buffer.from(expected);
+  const receivedBuffer = Buffer.from(signature);
+  if (expectedBuffer.length !== receivedBuffer.length || !timingSafeEqual(expectedBuffer, receivedBuffer)) {
+    return { ok: false, error: "Board checkout token is invalid." };
+  }
+  let value;
+  try {
+    value = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+  } catch {
+    return { ok: false, error: "Board checkout token is invalid." };
+  }
+  if (value.version !== 1 || value.eventId !== CURRENT_EVENT_ID || !value.orderId || !value.checkoutSessionId) {
+    return { ok: false, error: "Board checkout token is invalid." };
+  }
+  if (!Number.isFinite(new Date(value.expiresAt).getTime()) || new Date(value.expiresAt).getTime() < Date.now()) {
+    return { ok: false, error: "Board checkout token has expired." };
+  }
+  return { ok: true, value };
+}
+
 async function createStripeCheckoutSession(lines, order, idempotencyKeyHash) {
   const body = new URLSearchParams();
   body.set("mode", "payment");
@@ -2572,6 +2658,10 @@ async function createStripeCheckoutSession(lines, order, idempotencyKeyHash) {
 }
 
 async function handleCreateCheckoutSession(request, response) {
+  if (BOARD_TICKET_SANDBOX.enabled && !requestSocketIsLoopback(request)) {
+    sendJson(request, response, 404, { error: "Not found." });
+    return;
+  }
   const body = await readBody(request);
   const idempotency = ticketCheckoutIdempotency(request, body);
   if (!idempotency.ok) {
@@ -2598,13 +2688,18 @@ async function handleCreateCheckoutSession(request, response) {
     sendJson(request, response, 409, { error: "Idempotency-Key was already used for a different ticket order." });
     return;
   }
-  if (existing?.stripeCheckoutSessionId && existing?.checkoutUrl) {
+  if (existing?.checkoutEnvironment === "board_sandbox" && !BOARD_TICKET_SANDBOX.enabled) {
+    sendJson(request, response, 503, { error: "The local board ticket sandbox is not enabled." });
+    return;
+  }
+  if (existing?.stripeCheckoutSessionId && (existing?.checkoutUrl || existing?.checkoutEnvironment === "board_sandbox")) {
     sendJson(request, response, 200, {
       ok: true,
       duplicate: true,
       orderId: existing.id,
       checkoutSessionId: existing.stripeCheckoutSessionId,
-      checkoutUrl: existing.checkoutUrl
+      ...(existing.checkoutUrl ? { checkoutUrl: existing.checkoutUrl } : {}),
+      ...(existing.checkoutEnvironment === "board_sandbox" ? { demoCheckout: boardTicketCheckout(existing) } : {})
     });
     return;
   }
@@ -2634,8 +2729,9 @@ async function handleCreateCheckoutSession(request, response) {
   const order = {
     id: orderId,
     eventId: CURRENT_EVENT_ID,
-    status: stripeReady() ? "creating_checkout_session" : "checkout_not_configured",
+    status: ticketCheckoutReady() ? "creating_checkout_session" : "checkout_not_configured",
     provider: "stripe",
+    checkoutEnvironment: BOARD_TICKET_SANDBOX.enabled ? "board_sandbox" : "stripe",
     idempotencyKeyHash: idempotency.idempotencyKeyHash,
     idempotencyFingerprint: idempotency.idempotencyFingerprint,
     lineItems: validation.lines,
@@ -2659,13 +2755,29 @@ async function handleCreateCheckoutSession(request, response) {
 
   await storage.orders.write(order, { prefix: "ticket-order" });
 
-  if (!stripeReady()) {
+  if (!ticketCheckoutReady()) {
     await storage.orders.write(order, { prefix: "ticket-order" });
     sendJson(request, response, 202, {
       ok: false,
       code: "stripe_not_configured",
       message: "Stripe checkout is validated but not enabled. Add sandbox keys, real Stripe Price IDs, and STRIPE_TICKETING_ENABLED=true.",
       order: publicTicketOrder(order)
+    });
+    return;
+  }
+
+  if (BOARD_TICKET_SANDBOX.enabled) {
+    order.status = "checkout_session_created";
+    order.stripeCheckoutSessionId = boardTicketSessionId(order.id);
+    order.checkoutExpiresAt = new Date(Date.now() + 4 * 60 * 60_000).toISOString();
+    order.updatedAt = new Date().toISOString();
+    await storage.orders.write(order, { prefix: "ticket-order" });
+    sendJson(request, response, 200, {
+      ok: true,
+      duplicate: false,
+      orderId,
+      checkoutSessionId: order.stripeCheckoutSessionId,
+      demoCheckout: boardTicketCheckout(order)
     });
     return;
   }
@@ -2910,6 +3022,163 @@ async function reconcileTicketStripeEvent(event, eventRecord) {
   }
 
   return { status: "not_required", fulfillmentRecordIds: [] };
+}
+
+function boardTicketPaymentEvent(event) {
+  const object = event.data?.object || {};
+  return {
+    id: event.id,
+    provider: "board_sandbox",
+    type: event.type,
+    verified: true,
+    verificationReason: "isolated_board_payment_sandbox",
+    receivedAt: new Date().toISOString(),
+    objectId: object.id ?? null,
+    checkoutSessionId: event.type.startsWith("checkout.session") ? object.id ?? null : null,
+    paymentIntentId: typeof object.payment_intent === "string" ? object.payment_intent : null,
+    fulfillmentStatus: "not_required",
+    objectSummary: stripeObjectSummary(object),
+    partnerReconciliation: null,
+    ticketReconciliation: null,
+    fulfillmentRecordIds: []
+  };
+}
+
+async function applyBoardTicketEvent(event) {
+  const existing = await storage.paymentEvents.findById(event.id);
+  if (existing) {
+    const orderId = existing.record?.ticketReconciliation?.orderId;
+    return {
+      duplicate: true,
+      record: existing.record,
+      order: orderId ? (await storage.orders.findById(orderId))?.record || null : null
+    };
+  }
+  const record = boardTicketPaymentEvent(event);
+  const result = await reconcileTicketStripeEvent(event, record);
+  record.fulfillmentStatus = result.status;
+  record.fulfillmentRecordIds = result.fulfillmentRecordIds || [];
+  record.ticketReconciliation = {
+    status: result.status,
+    orderId: result.order?.id || null,
+    error: result.error || null
+  };
+  await storage.paymentEvents.write(record);
+  return { duplicate: false, record, order: result.order || null };
+}
+
+async function handleBoardTicketCompletion(request, response) {
+  if (!BOARD_TICKET_SANDBOX.enabled || !requestSocketIsLoopback(request)) {
+    sendJson(request, response, 404, { error: "Not found." });
+    return;
+  }
+  const body = await readBody(request);
+  const verified = verifyBoardTicketToken(body.token);
+  if (!verified.ok) {
+    sendJson(request, response, 400, { error: verified.error });
+    return;
+  }
+  const found = await storage.orders.findById(verified.value.orderId);
+  const order = found?.record;
+  if (!order || order.eventId !== CURRENT_EVENT_ID || order.checkoutEnvironment !== "board_sandbox" || order.stripeCheckoutSessionId !== verified.value.checkoutSessionId) {
+    sendJson(request, response, 404, { error: "Board ticket order was not found." });
+    return;
+  }
+  if (order.status === "refunded") {
+    sendJson(request, response, 409, { error: "This demonstration order has already been refunded." });
+    return;
+  }
+  if (!new Set(["checkout_session_created", "paid"]).has(order.status)) {
+    sendJson(request, response, 409, { error: `This demonstration order cannot be paid from status ${order.status}.` });
+    return;
+  }
+  const paymentIntentId = boardTicketPaymentIntentId(order.id);
+  const event = {
+    id: `evt_board_paid_${createHash("sha256").update(order.id).digest("hex").slice(0, 24)}`,
+    type: "checkout.session.completed",
+    livemode: false,
+    data: { object: {
+      id: order.stripeCheckoutSessionId,
+      client_reference_id: order.id,
+      metadata: { order_id: order.id, event_id: order.eventId },
+      payment_intent: paymentIntentId,
+      amount_total: order.totals.knownAmount,
+      currency: order.totals.currency,
+      payment_status: "paid",
+      customer_details: { email: order.customer?.email || null, name: "Board demo attendee" }
+    } }
+  };
+  const result = await applyBoardTicketEvent(event);
+  if (!result.order || !new Set(["fulfilled", "already_fulfilled"]).has(result.record.fulfillmentStatus)) {
+    sendJson(request, response, 409, { error: result.record.ticketReconciliation?.error || "The demonstration payment requires review." });
+    return;
+  }
+  sendJson(request, response, 200, {
+    ok: true,
+    duplicate: result.duplicate,
+    order: publicTicketOrder(result.order),
+    receipt: {
+      orderId: result.order.id,
+      amountCents: result.order.totals.knownAmount,
+      currency: result.order.totals.currency,
+      paidAt: result.order.paidAt,
+      fulfillmentCount: result.record.fulfillmentRecordIds.length,
+      environment: "board_sandbox"
+    }
+  });
+}
+
+async function handleBoardTicketRefund(request, response, orderId) {
+  if (!BOARD_TICKET_SANDBOX.enabled || !requestSocketIsLoopback(request)) {
+    sendJson(request, response, 404, { error: "Not found." });
+    return;
+  }
+  if (!(await requirePermission(request, response, "finance:write"))) return;
+  const body = await readBody(request);
+  const reason = String(body.reason || "Board presentation refund demonstration").trim().slice(0, 500);
+  const found = await storage.orders.findById(orderId);
+  const order = found?.record;
+  if (!order || order.eventId !== CURRENT_EVENT_ID || order.checkoutEnvironment !== "board_sandbox") {
+    sendJson(request, response, 404, { error: "Board ticket order was not found." });
+    return;
+  }
+  if (order.status === "refunded") {
+    sendJson(request, response, 200, { ok: true, duplicate: true, order: publicTicketOrder(order) });
+    return;
+  }
+  if (!new Set(["paid", "partially_refunded"]).has(order.status) || !order.paymentIntentId) {
+    sendJson(request, response, 409, { error: `This demonstration order cannot be refunded from status ${order.status}.` });
+    return;
+  }
+  const event = {
+    id: `evt_board_refund_${createHash("sha256").update(order.id).digest("hex").slice(0, 24)}`,
+    type: "charge.refunded",
+    livemode: false,
+    data: { object: {
+      id: `ch_board_${createHash("sha256").update(order.id).digest("hex").slice(0, 24)}`,
+      payment_intent: order.paymentIntentId,
+      amount: order.totals.knownAmount,
+      amount_refunded: order.totals.knownAmount,
+      currency: order.totals.currency,
+      metadata: { order_id: order.id, event_id: order.eventId }
+    } }
+  };
+  const result = await applyBoardTicketEvent(event);
+  if (!result.order || result.order.status !== "refunded") {
+    sendJson(request, response, 409, { error: result.record.ticketReconciliation?.error || "The demonstration refund requires review." });
+    return;
+  }
+  await writeAuditRecord(request, "ticket.refund.board_sandbox", { type: "ticketOrder", id: order.id }, order, result.order, {
+    providerEventId: event.id,
+    reason,
+    synthetic: true
+  });
+  sendJson(request, response, 200, {
+    ok: true,
+    duplicate: result.duplicate,
+    order: publicTicketOrder(result.order),
+    fulfillmentRecordIds: result.record.fulfillmentRecordIds
+  });
 }
 
 function verifyStripeSignature(rawBody, signatureHeader, nowMs = Date.now()) {
@@ -3500,6 +3769,8 @@ async function handleRequest(request, response) {
         adminRole: authModeIsJwt() ? "jwt-claims" : ADMIN_ROLE,
         authMode: authMode(),
         stripeReady: stripeReady(),
+        ticketCheckoutReady: ticketCheckoutReady(),
+        ticketCheckoutEnvironment: BOARD_TICKET_SANDBOX.enabled ? "board_sandbox" : stripeReady() ? "stripe" : "disabled",
         safetySmsReady: smsConfigFromEnv().ready,
         transactionalEmailReady: emailConfigFromEnv().ready && BREVO_WEBHOOK.ready,
         transactionalEmailWebhookReady: BREVO_WEBHOOK.ready,
@@ -3657,7 +3928,10 @@ async function handleRequest(request, response) {
       const vendorCatalog = vendorOfferingCatalog(config);
       const answer = answerPublicConcierge(question.question, {
         bootstrap: publicAppBootstrap(bootstrapInput, { includeBoardRuntime: BOARD_DEMO_RUNTIME }),
-        tickets: publicTicketCatalog(ticketInput, { checkoutEnabled: stripeReady() }),
+        tickets: publicTicketCatalog(ticketInput, {
+          checkoutEnabled: ticketCheckoutReady(),
+          checkoutEnvironment: BOARD_TICKET_SANDBOX.enabled ? "board_sandbox" : undefined
+        }),
         sponsors: {
           lastUpdated: config.lastUpdated || null,
           sponsorPackages: sponsorCatalog.activePackages.map(publicSponsorPackage)
@@ -3678,7 +3952,10 @@ async function handleRequest(request, response) {
     if (method === "GET" && pathname === "/api/public/tickets") {
       sendJson(request, response, 200, publicTicketCatalog(
         await storage.config.read("ticket-products"),
-        { checkoutEnabled: stripeReady() }
+        {
+          checkoutEnabled: ticketCheckoutReady(),
+          checkoutEnvironment: BOARD_TICKET_SANDBOX.enabled ? "board_sandbox" : undefined
+        }
       ), publicCacheHeaders(60));
       return;
     }
@@ -4691,6 +4968,11 @@ async function handleRequest(request, response) {
       return;
     }
 
+    if (method === "POST" && pathname === "/api/public/board-ticket-checkout/complete") {
+      await handleBoardTicketCompletion(request, response);
+      return;
+    }
+
     if (method === "POST" && pathname === "/api/stripe/webhook") {
       await handleStripeWebhook(request, response);
       return;
@@ -5109,11 +5391,12 @@ async function handleRequest(request, response) {
 
     if (method === "GET" && pathname === "/api/admin/revenue") {
       if (!(await requirePermission(request, response, "revenue:read"))) return;
-      const [ledger, partnerOperations] = await Promise.all([
+      const [ledger, partnerOperations, ticketOrders] = await Promise.all([
         readRevenueLedger(),
-        readPartnerOperations()
+        readPartnerOperations(),
+        storage.orders.listByEvent(CURRENT_EVENT_ID, 5_000)
       ]);
-      const view = buildRevenueLedgerView(ledger, partnerOperations, { eventId: CURRENT_EVENT_ID });
+      const view = buildRevenueLedgerView(ledger, partnerOperations, { eventId: CURRENT_EVENT_ID, ticketOrders });
       const summary = summarizeLedger(view.entries, {
         currency: view.currency,
         expectedAttendance: view.expectedAttendance,
@@ -5150,8 +5433,14 @@ async function handleRequest(request, response) {
         return;
       }
       const previewHash = revenueImportPreviewHash(body.csv, defaults);
-      const partnerOperations = await readPartnerOperations();
-      const existingPartnerEntries = partnerRevenueEntries(partnerOperations, { eventId: CURRENT_EVENT_ID });
+      const [partnerOperations, ticketOrders] = await Promise.all([
+        readPartnerOperations(),
+        storage.orders.listByEvent(CURRENT_EVENT_ID, 5_000)
+      ]);
+      const existingSiteNativeEntries = [
+        ...partnerRevenueEntries(partnerOperations, { eventId: CURRENT_EVENT_ID }),
+        ...ticketRevenueEntries(ticketOrders, { eventId: CURRENT_EVENT_ID })
+      ];
       if (mode === "preview") {
         const result = applyRevenueImport(await readRevenueLedger(), parsed, {
           actorId: session.id,
@@ -5160,7 +5449,7 @@ async function handleRequest(request, response) {
           source: parsed.defaults.source,
           previewHash,
           fileName: body.fileName,
-          existingEntries: existingPartnerEntries,
+          existingEntries: existingSiteNativeEntries,
           now: new Date().toISOString(),
           idFactory: (_entry, row) => `preview_revenue_row_${row}`
         });
@@ -5179,7 +5468,7 @@ async function handleRequest(request, response) {
         source: parsed.defaults.source,
         previewHash,
         fileName: body.fileName,
-        existingEntries: existingPartnerEntries,
+        existingEntries: existingSiteNativeEntries,
         now: new Date().toISOString(),
         idFactory: () => `revenue_entry_${randomUUID()}`
       });
@@ -7368,6 +7657,12 @@ async function handleRequest(request, response) {
       sendJson(request, response, 200, {
         pendingOrders: await storage.orders.list(clampLimit(url.searchParams.get("limit")))
       });
+      return;
+    }
+
+    const boardTicketRefundMatch = pathname.match(/^\/api\/admin\/board-demo\/ticket-orders\/([^/]+)\/refund$/);
+    if (method === "POST" && boardTicketRefundMatch) {
+      await handleBoardTicketRefund(request, response, decodeURIComponent(boardTicketRefundMatch[1]));
       return;
     }
 
