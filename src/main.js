@@ -22,6 +22,10 @@ import {
   DEFAULT_VENDOR_OFFERINGS,
   publicVendorOffering
 } from "../lib/vendor-offerings.mjs";
+import {
+  DEFAULT_SPONSOR_PACKAGES,
+  publicSponsorPackage
+} from "../lib/sponsor-packages.mjs";
 import { publicIslandConditionsRefreshDelay } from "../lib/island-conditions.mjs";
 import { DEFAULT_EVENT_ID } from "../lib/event-context.mjs";
 import { publicSculptorRosterPublication } from "../lib/public-roster.mjs";
@@ -246,6 +250,7 @@ let sponsorInvitationLoadVersion = 0;
 let activePartnerPortalAccess = null;
 let activePartnerPortalApplication = null;
 let partnerPortalLoadVersion = 0;
+let publicSponsorPackages = DEFAULT_SPONSOR_PACKAGES.map(publicSponsorPackage);
 let publicVendorOfferings = DEFAULT_VENDOR_OFFERINGS.map(publicVendorOffering);
 const taskBoardFilters = { status: "active", assignment: "all", query: "" };
 let incidentBoardFilter = "active";
@@ -273,7 +278,7 @@ const event = normalizeEventGuide(appBootstrap?.guide ?? defaultEventGuide);
 const quickStats = [
   ["3", "festival days"],
   ["9", "beach zones"],
-  ["4", "featured sponsor tiers"],
+  ["11", "sponsorship packages"],
   ["1", "island celebration"]
 ];
 
@@ -326,15 +331,6 @@ const workflows = [
     detail: "Keeps food/non-food vendors aligned on permits, load-in windows, utilities, inspection state, and urgent notices.",
     actions: ["Load-in map", "Permit status", "Broadcast"]
   }
-];
-
-const sponsorTiers = [
-  ["Whale", "$25k+", "Top visibility, main-stage recognition, VIP footprint"],
-  ["Marlin", "$15k", "Beach signage, digital placement, hospitality support"],
-  ["Sailfish", "$10k", "Category sponsorship and social media package"],
-  ["Tarpon", "$5k", "On-site logo placement and web listing"],
-  ["Trout", "$2.5k", "Community sponsor placement"],
-  ["Flounder", "$1k", "Supporter listing"]
 ];
 
 const surfaces = [
@@ -1918,14 +1914,9 @@ app.innerHTML = `
         <p class="section-copy">Bring your business to the beach or put your brand behind one of the country's largest sand sculpture festivals.</p>
       </div>
       <div class="tier-table partner-tier-table" id="public-sponsor-tiers">
-        ${sponsorTiers.slice(0, 4).map(([tier, amount, promise], index) => `
-          <button type="button" data-package-id="${tier.toLowerCase()}" class="partner-tier ${index === 0 ? "is-featured" : ""}">
-            <strong>${tier}</strong>
-            <span>${amount}</span>
-            <p>${promise}</p>
-          </button>
-        `).join("")}
+        ${sponsorPackageCards(publicSponsorPackages)}
       </div>
+      <p class="partner-program-note"><a href="https://www.texassandfest.org/sponsorship" target="_blank" rel="noopener noreferrer">View the current sponsorship program</a><span>Package availability and final fulfillment details are confirmed during review.</span></p>
       <div class="partner-form-grid">
         <form id="sponsor-inquiry-form" class="partner-form" data-turnstile-action="sponsor_inquiry">
           <div class="partner-form-title"><span>Sponsorship</span><h3>Start a partnership</h3></div>
@@ -1935,10 +1926,11 @@ app.innerHTML = `
             <label>Contact name<input name="contactName" required maxlength="120" autocomplete="name" /></label>
             <label>Email<input name="contactEmail" required type="email" maxlength="254" autocomplete="email" /></label>
             <label>Phone<input name="contactPhone" type="tel" maxlength="40" autocomplete="tel" /></label>
-            <label>Package<select name="packageId" required><option value="whale">Whale - $25k+</option><option value="marlin">Marlin - $15k</option><option value="sailfish">Sailfish - $10k</option><option value="tarpon">Tarpon - $5k</option></select></label>
+            <label>Package<select name="packageId" required>${sponsorPackageOptions(publicSponsorPackages)}</select></label>
             <label>Website<input name="website" type="url" maxlength="500" placeholder="https://" autocomplete="url" /></label>
             <label class="partner-field-wide">Partnership goals<textarea name="description" rows="4" maxlength="2000"></textarea></label>
           </div>
+          <p id="sponsor-package-summary" class="partner-offering-summary" aria-live="polite"></p>
           <label class="partner-consent"><input name="consentToContact" type="checkbox" required /> I agree that Texas SandFest may contact me about this inquiry.</label>
           <div class="partner-verification" data-turnstile-verification hidden><div data-turnstile-widget></div></div>
           <button class="button primary" type="submit">Submit sponsorship inquiry</button>
@@ -1958,7 +1950,7 @@ app.innerHTML = `
             <label>State<input name="state" maxlength="40" value="TX" autocomplete="address-level1" /></label>
             <label class="partner-field-wide">Products and booth needs<textarea name="description" rows="4" maxlength="2000"></textarea></label>
           </div>
-          <p id="vendor-offering-summary" class="vendor-offering-summary" aria-live="polite"></p>
+          <p id="vendor-offering-summary" class="partner-offering-summary" aria-live="polite"></p>
           <label class="partner-consent"><input name="consentToContact" type="checkbox" required /> I agree that Texas SandFest may contact me about this application.</label>
           <div class="partner-verification" data-turnstile-verification hidden><div data-turnstile-widget></div></div>
           <button class="button primary" type="submit">Submit vendor application</button>
@@ -3836,7 +3828,7 @@ async function loadSponsorInvitation(token, options = {}) {
     form.elements.website.value = invitation.website || "";
     form.elements.packageId.value = invitation.packageId || form.elements.packageId.value;
     form.elements.packageId.disabled = true;
-    document.querySelectorAll("[data-package-id]").forEach(item => item.classList.toggle("is-selected", item.dataset.packageId === invitation.packageId));
+    renderSponsorPackageSummary();
     banner.dataset.state = "ok";
     copy.textContent = `${invitation.organizationName} · ${invitation.packageName}${invitation.packageLabel ? ` · ${invitation.packageLabel}` : ""}`;
     if (options.scroll) form.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -4590,6 +4582,8 @@ async function submitPartnerForm(form, endpoint) {
     if (form.id === "vendor-application-form") {
       form.elements.state.value = "TX";
       renderVendorOfferingChoices();
+    } else if (form.id === "sponsor-inquiry-form") {
+      renderSponsorPackageChoices();
     }
     partnerBotProtection.reset(form);
   } catch (error) {
@@ -4608,15 +4602,69 @@ async function submitPartnerForm(form, endpoint) {
   }
 }
 
+function sponsorPackageOptions(packages = publicSponsorPackages, selectedId = "") {
+  return packages.map((item, index) => `<option value="${escapeAttr(item.id)}" ${(selectedId ? item.id === selectedId : index === 0) ? "selected" : ""}>${escapeHtml(item.name)} - ${escapeHtml(item.publicLabel || adminMoney(item.amount))}</option>`).join("");
+}
+
+function sponsorPackageCardSummary(sponsorPackage) {
+  const benefits = Array.isArray(sponsorPackage?.benefits) ? sponsorPackage.benefits.filter(Boolean) : [];
+  const visible = benefits.slice(0, 3);
+  const remaining = Math.max(0, benefits.length - visible.length);
+  return `${visible.join(" · ")}${remaining ? ` · ${remaining} more benefit${remaining === 1 ? "" : "s"}` : ""}`;
+}
+
+function sponsorPackageCards(packages = publicSponsorPackages, selectedId = "") {
+  return packages.map((item, index) => `
+    <button type="button" data-package-id="${escapeAttr(item.id)}" class="partner-tier ${(selectedId ? item.id === selectedId : index === 0) ? "is-selected" : ""}">
+      <strong>${escapeHtml(item.name)}</strong>
+      <span>${escapeHtml(item.publicLabel || adminMoney(item.amount))}</span>
+      <p>${escapeHtml(sponsorPackageCardSummary(item))}</p>
+    </button>
+  `).join("");
+}
+
+function renderSponsorPackageSummary() {
+  const form = document.querySelector("#sponsor-inquiry-form");
+  const summary = document.querySelector("#sponsor-package-summary");
+  if (!form || !summary) return;
+  const selected = publicSponsorPackages.find(item => item.id === form.elements.packageId.value);
+  summary.textContent = selected
+    ? `${selected.publicLabel || adminMoney(selected.amount)}. Includes ${selected.benefits.join("; ")}. Final availability is confirmed during SandFest review.`
+    : "No active sponsorship package is currently available.";
+  summary.dataset.state = selected ? "ready" : "unavailable";
+  document.querySelectorAll("[data-package-id]").forEach(item => item.classList.toggle("is-selected", item.dataset.packageId === selected?.id));
+}
+
+function renderSponsorPackageChoices(selectedId = "") {
+  const tiers = document.querySelector("#public-sponsor-tiers");
+  const form = document.querySelector("#sponsor-inquiry-form");
+  if (!form) return;
+  const select = form.elements.packageId;
+  const preferredId = selectedId || select.value;
+  const selected = publicSponsorPackages.find(item => item.id === preferredId) || publicSponsorPackages[0];
+  select.innerHTML = sponsorPackageOptions(publicSponsorPackages, selected?.id || "");
+  select.disabled = !publicSponsorPackages.length || Boolean(activeSponsorInvitationToken);
+  if (tiers) tiers.innerHTML = sponsorPackageCards(publicSponsorPackages, selected?.id || "");
+  bindSponsorTierButtons();
+  renderSponsorPackageSummary();
+}
+
 function bindSponsorTierButtons() {
   document.querySelectorAll("[data-package-id]").forEach(button => button.addEventListener("click", () => {
-    document.querySelectorAll("[data-package-id]").forEach(item => item.classList.toggle("is-selected", item === button));
     const form = document.querySelector("#sponsor-inquiry-form");
-    if (form) {
+    if (form && !form.elements.packageId.disabled) {
       form.elements.packageId.value = button.dataset.packageId;
+      renderSponsorPackageSummary();
       form.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   }));
+}
+
+function bindSponsorPackageChoices() {
+  const form = document.querySelector("#sponsor-inquiry-form");
+  if (!form) return;
+  form.elements.packageId.addEventListener("change", renderSponsorPackageSummary);
+  renderSponsorPackageSummary();
 }
 
 function sponsorShowcaseInitials(name) {
@@ -4678,19 +4726,8 @@ async function loadPublicSponsorPackages() {
     if (!response.ok) return;
     renderPublicSponsorShowcase(data.sponsors);
     if (!Array.isArray(data.sponsorPackages) || !data.sponsorPackages.length) return;
-    const packages = data.sponsorPackages;
-    const tiers = document.querySelector("#public-sponsor-tiers");
-    const select = document.querySelector('#sponsor-inquiry-form [name="packageId"]');
-    if (tiers) {
-      tiers.innerHTML = packages.map((item, index) => `<button type="button" data-package-id="${escapeAttr(item.id)}" class="partner-tier ${index === 0 ? "is-featured" : ""}">
-        <strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(item.publicLabel || adminMoney(item.amount))}</span>
-        <p>${escapeHtml((item.benefits || []).join(", "))}</p>
-      </button>`).join("");
-    }
-    if (select) {
-      select.innerHTML = packages.map(item => `<option value="${escapeAttr(item.id)}">${escapeHtml(item.name)} - ${escapeHtml(item.publicLabel || adminMoney(item.amount))}</option>`).join("");
-    }
-    bindSponsorTierButtons();
+    publicSponsorPackages = data.sponsorPackages.map(publicSponsorPackage);
+    renderSponsorPackageChoices();
   } catch {
     // Static launch-safe tiers remain available when the API is offline.
   }
@@ -8371,6 +8408,7 @@ document.querySelector("#partner-status-form")?.addEventListener("submit", event
 document.querySelector("#partner-status-forget")?.addEventListener("click", clearPartnerPortalView);
 document.querySelector("#outreach-preferences-unsubscribe")?.addEventListener("click", unsubscribeOutreachPreference);
 bindSponsorTierButtons();
+bindSponsorPackageChoices();
 bindVendorOfferingChoices();
 document.querySelector("#refresh-island-conditions")?.addEventListener("click", () => loadIslandConditions({ force: true, preserveOnError: true }));
 

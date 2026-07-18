@@ -205,6 +205,7 @@ import {
 } from "../lib/sponsor-invitations.mjs";
 import {
   createSponsorPackageConfig,
+  DEFAULT_SPONSOR_PACKAGES,
   publicSponsorPackage,
   resolveSponsorPackage,
   sponsorPackageCatalog,
@@ -2711,7 +2712,11 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
     benefits: ["Duplicate benefit"]
   });
   const publicSponsorTier = publicSponsorPackage(updatedSponsorPackage.sponsorPackage);
+  const checkedInAdminConfig = await readJson("data/config/admin-config.json");
+  const defaultSponsorAmounts = Object.fromEntries(DEFAULT_SPONSOR_PACKAGES.map(item => [item.id, item.amount]));
   ok("sponsor package catalog authority", defaultSponsorCatalog.ready && defaultSponsorCatalog.activePackages.length === 2 && resolvedSponsorPackage.ok && resolvedSponsorPackage.sponsorPackage.amount === 500000);
+  ok("current sponsorship program is complete and price-anchored", DEFAULT_SPONSOR_PACKAGES.length === 11 && defaultSponsorAmounts.flounder === 125000 && defaultSponsorAmounts.marlin === 1500000 && defaultSponsorAmounts.whale === 5000000 && defaultSponsorAmounts["the-kraken"] === 25000000);
+  ok("checked-in sponsor config matches the public fallback catalog", JSON.stringify(checkedInAdminConfig.sponsorPackages) === JSON.stringify(DEFAULT_SPONSOR_PACKAGES));
   ok("sponsor package catalog rejects unsafe pricing and fulfillment", !invalidSponsorAmount.ok && invalidSponsorAmount.error.includes("amount") && !invalidSponsorBenefits.ok && invalidSponsorBenefits.error.includes("benefit") && !invalidSponsorStripe.ok && invalidSponsorStripe.error.includes("Stripe Price ID"));
   ok("sponsor package catalog keeps one public tier active", !lastSponsorTierDisabled.ok && lastSponsorTierDisabled.error.includes("At least one active"));
   ok("sponsor package creation validates and rejects duplicate IDs", createdSponsorPackage.ok && createdSponsorPackage.sponsorPackage.publicLabel === "$7,500 sponsorship" && !duplicateSponsorPackage.ok && duplicateSponsorPackage.conflict === true);
@@ -5618,7 +5623,7 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
 
   const publicSponsorCatalogApi = await hit("GET", "/api/public/sponsors");
   const publicTarponPackage = publicSponsorCatalogApi.data.sponsorPackages?.find(item => item.id === "tarpon");
-  ok("GET public sponsor packages", publicSponsorCatalogApi.status === 200 && publicTarponPackage?.amount === 500000 && publicTarponPackage?.benefits?.includes("Web listing") && !Object.hasOwn(publicTarponPackage || {}, "quickBooksItemId") && !Object.hasOwn(publicTarponPackage || {}, "stripePriceId"));
+  ok("GET public sponsor packages", publicSponsorCatalogApi.status === 200 && publicTarponPackage?.amount === 500000 && publicTarponPackage?.benefits?.includes("8 VIP wristbands") && !Object.hasOwn(publicTarponPackage || {}, "quickBooksItemId") && !Object.hasOwn(publicTarponPackage || {}, "stripePriceId"));
   if (child) {
     const sponsorPackageCreateBody = {
       id: "community-champion",
@@ -5945,7 +5950,7 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
   const downloadedAsset = await hitRaw("POST", `/api/public/partner-brand-assets/${encodeURIComponent(uploadedAsset.data.asset?.id)}/content`, Buffer.from(JSON.stringify(sponsorAccess)), { "content-type": "application/json" });
   ok("private sponsor asset download", downloadedAsset.status === 200 && Buffer.isBuffer(downloadedAsset.data) && downloadedAsset.data.equals(apiPng) && downloadedAsset.headers.get("cache-control") === "private, no-store");
   const updatedSponsorWorkspace = await hit("GET", "/api/admin/partners", null, true);
-  ok("sponsor fulfillment API summary", updatedSponsorWorkspace.data.fulfillment?.profiles?.approved === 1 && updatedSponsorWorkspace.data.fulfillment?.assets?.approved === 1 && updatedSponsorWorkspace.data.deliverables?.filter(item => item.applicationId === sponsorApplication?.id).length === 2);
+  ok("sponsor fulfillment API summary", updatedSponsorWorkspace.data.fulfillment?.profiles?.approved === 1 && updatedSponsorWorkspace.data.fulfillment?.assets?.approved === 1 && updatedSponsorWorkspace.data.deliverables?.filter(item => item.applicationId === sponsorApplication?.id).length === 6);
 
   const sponsorMilestone = updatedSponsorWorkspace.data.milestones?.find(item => item.applicationId === sponsorApplication?.id);
   const rescheduledMilestoneApi = await hit("PATCH", `/api/admin/partners/milestones/${encodeURIComponent(sponsorMilestone?.id)}`, {

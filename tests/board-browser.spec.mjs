@@ -282,7 +282,28 @@ test("board workflows operate through the public and staff interfaces", async ({
   await expect.poll(() => galleryImages.evaluateAll(images => images.every(image => image.complete && image.naturalWidth > 0))).toBe(true);
   await expect.poll(() => galleryImages.evaluateAll(images => images.every(image => new URL(image.currentSrc).pathname.includes("/assets/sandfest-media/optimized/gallery-")))).toBe(true);
   await expect.poll(() => galleryImages.evaluateAll(images => images.every(image => image.alt && !/^DSC/i.test(image.alt)))).toBe(true);
-  await expect(page.locator("#public-sponsor-tiers [data-package-id]")).toHaveCount(4);
+  const sponsorPackageCards = page.locator("#public-sponsor-tiers [data-package-id]");
+  await expect(sponsorPackageCards).toHaveCount(11);
+  expect(await sponsorPackageCards.locator("strong").allTextContents()).toEqual([
+    "Flounder",
+    "Trout",
+    "Tarpon",
+    "Sailfish",
+    "Marlin",
+    "Shark",
+    "VIP Tent Sponsor",
+    "Whale",
+    "Giant Squid",
+    "Megalodon",
+    "The Kraken"
+  ]);
+  await expect(page.locator('[data-package-id="marlin"] span')).toHaveText("$15,000 sponsorship");
+  await expect(page.locator('[data-package-id="whale"] span')).toHaveText("$50,000 sponsorship");
+  await expect(page.locator('[data-package-id="the-kraken"] span')).toHaveText("$250,000 sponsorship");
+  await page.locator('[data-package-id="the-kraken"]').click();
+  await expect(page.locator('#sponsor-inquiry-form [name="packageId"]')).toHaveValue("the-kraken");
+  await expect(page.locator("#sponsor-package-summary")).toContainText("Presenting sponsor recognition");
+  await expect(page.locator("#sponsor-package-summary")).toContainText("$250,000 sponsorship");
   const sponsorSubmitBox = await page.locator('#sponsor-inquiry-form button[type="submit"]').boundingBox();
   const vendorSubmitBox = await page.locator('#vendor-application-form button[type="submit"]').boundingBox();
   expect(sponsorSubmitBox?.height).toBeGreaterThanOrEqual(40);
@@ -399,7 +420,7 @@ test("board workflows operate through the public and staff interfaces", async ({
   await expect(sponsorPortal.locator(".partner-brand-center")).toContainText("Brand center");
   await expect(sponsorPortal.locator('#partner-brand-profile-form [name="tagline"]')).toHaveValue(/Rooted on the Texas coast/);
   await expect(sponsorPortal.locator("[data-partner-brand-asset]")).toHaveCount(2);
-  await expect(sponsorPortal.locator("[data-partner-deliverable]")).toHaveCount(3);
+  await expect(sponsorPortal.locator("[data-partner-deliverable]")).toHaveCount(6);
   await sponsorPortal.setViewportSize({ width: 390, height: 844 });
   await assertNoHorizontalOverflow(sponsorPortal);
   await assertNoAccessibilityViolations(sponsorPortal, "prepared sponsor portal");
@@ -548,8 +569,8 @@ test("board workflows operate through the public and staff interfaces", async ({
   await expect(sponsorFulfillment).toContainText("Marlin");
   await expect(sponsorFulfillment).toContainText("Rooted on the Texas coast");
   await expect(sponsorFulfillment.locator("[data-admin-brand-asset]")).toHaveCount(2);
-  await expect(sponsorFulfillment.locator("[data-admin-deliverable]")).toHaveCount(3);
-  await expect(sponsorFulfillment).toContainText("Beach signage");
+  await expect(sponsorFulfillment.locator("[data-admin-deliverable]")).toHaveCount(6);
+  await expect(sponsorFulfillment).toContainText("Logo on the mid-tier of Logo Mountain");
 
   const staffImportCsv = `staff_id,event_id,name,work_email,status,role,team,notification_team
 staff_operations,${DEFAULT_EVENT_ID},Jamie Torres,jamie.torres@staff.example,active,ops_admin,operations,operations

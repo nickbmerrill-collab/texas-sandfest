@@ -104,7 +104,7 @@ if (visitorUrl && operationsUrl) {
     try {
       await page.goto(visitorUrl, { waitUntil: "domcontentloaded", timeout: timeoutMs });
       await page.waitForFunction(() => document.querySelector("#network-status")?.textContent?.trim() === "Demo", null, { timeout: timeoutMs });
-      await page.waitForFunction(() => document.querySelectorAll("#public-sponsor-tiers [data-package-id]").length === 4, null, { timeout: timeoutMs });
+      await page.waitForFunction(() => document.querySelectorAll("#public-sponsor-tiers [data-package-id]").length === 11, null, { timeout: timeoutMs });
       await page.waitForFunction(() => document.querySelectorAll("#island-camera-grid article").length === 8, null, { timeout: timeoutMs });
       await page.locator("#public-sponsor-showcase").scrollIntoViewIfNeeded();
       await page.waitForFunction(() => {
@@ -118,6 +118,8 @@ if (visitorUrl && operationsUrl) {
         heading: document.querySelector("h1")?.textContent?.trim(),
         network: document.querySelector("#network-status")?.textContent?.trim(),
         sponsorTiers: document.querySelectorAll("#public-sponsor-tiers [data-package-id]").length,
+        sponsorPackageIds: [...document.querySelectorAll("#public-sponsor-tiers [data-package-id]")].map(item => item.dataset.packageId),
+        sponsorAmounts: Object.fromEntries([...document.querySelectorAll("#public-sponsor-tiers [data-package-id]")].map(item => [item.dataset.packageId, item.querySelector("span")?.textContent?.trim()])),
         vendorOfferings: document.querySelectorAll('#vendor-application-form [name="vendorOfferingId"] option[value]').length,
         vendorApplicationAction: document.querySelector('#vendors-map a[href="#vendor-application-form"]')?.textContent?.trim(),
         vendorSubmitEnabled: !document.querySelector('#vendor-application-form button[type="submit"]')?.disabled,
@@ -141,10 +143,11 @@ if (visitorUrl && operationsUrl) {
     });
     await inspect("public_intake", "Vendor and sponsor intake", "Inspect the public catalog API and signup form controls.", async () => {
       const item = observations.visitor;
-      if (item?.sponsorTiers !== 4 || item?.vendorOfferings < 1 || item?.vendorApplicationAction !== "Apply as a vendor" || !item?.vendorSubmitEnabled || !item?.sponsorSubmitEnabled) {
+      const expectedSponsorPackages = ["flounder", "trout", "tarpon", "sailfish", "marlin", "shark", "vip-tent-sponsor", "whale", "giant-squid", "megalodon", "the-kraken"];
+      if (item?.sponsorTiers !== 11 || item?.sponsorPackageIds?.join(",") !== expectedSponsorPackages.join(",") || item?.sponsorAmounts?.marlin !== "$15,000 sponsorship" || item?.sponsorAmounts?.whale !== "$50,000 sponsorship" || item?.sponsorAmounts?.["the-kraken"] !== "$250,000 sponsorship" || item?.vendorOfferings < 1 || item?.vendorApplicationAction !== "Apply as a vendor" || !item?.vendorSubmitEnabled || !item?.sponsorSubmitEnabled) {
         throw new Error("The public signup catalogs or submit actions are incomplete.");
       }
-      return `${item.sponsorTiers} sponsor tiers and ${item.vendorOfferings} category-compatible vendor offering${item.vendorOfferings === 1 ? "" : "s"} are actionable from the public vendor path.`;
+      return `${item.sponsorTiers} current sponsor packages and ${item.vendorOfferings} category-compatible vendor offering${item.vendorOfferings === 1 ? "" : "s"} are actionable from public partner intake.`;
     });
     await inspect("sponsor_brand", "Sponsor branding", "Inspect the approved board sponsor asset and showcase projection.", async () => {
       const item = observations.visitor;
