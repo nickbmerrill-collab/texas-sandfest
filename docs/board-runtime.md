@@ -132,6 +132,17 @@ recipient details, or message content. Use
 `npm run --silent board:check -- --json` for a machine-readable preflight
 artifact without npm's command banner.
 
+Continuous camera playback survives transient loopback network failures, API
+rate limits, and API 5xx responses. It retries the same cycle with bounded
+exponential backoff, re-verifies that the API still identifies the isolated
+`board_demo` runtime, and re-applies the idempotent eight-source configuration
+before publishing again. Authentication failures, invalid camera credentials,
+missing source definitions, and a non-demo runtime remain fatal. Optional
+operator tuning is available through
+`SANDFEST_BOARD_CAMERA_REQUEST_TIMEOUT_MS`,
+`SANDFEST_BOARD_CAMERA_RETRY_BASE_MS`, and
+`SANDFEST_BOARD_CAMERA_RETRY_MAX_MS`; defaults are 5, 1, and 30 seconds.
+
 ```bash
 npm run test:board-runtime
 ```

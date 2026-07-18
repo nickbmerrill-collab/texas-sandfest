@@ -288,9 +288,12 @@ import {
 } from "../lib/camera-ingest.mjs";
 import {
   BOARD_CAMERA_PROFILES,
+  boardCameraPlaybackRetryDelay,
   boardCameraHeartbeat,
   boardCameraObservation,
   boardCameraSourceId,
+  retryableBoardCameraPlaybackError,
+  runBoardCameraPlayback,
   verifyBoardCameraPlaybackTarget
 } from "../lib/board-camera-playback.mjs";
 import {
@@ -3323,9 +3326,50 @@ Research First,construction,Corpus Christi,,78401,,,,Find decision maker,`;
     fetchImpl: async () => new Response(JSON.stringify({ runtime: { mode: "production" } }), { status: 200, headers: { "content-type": "application/json" } })
   }).then(() => false, () => true);
   const refusesRemote = await verifyBoardCameraPlaybackTarget({ apiBase: "https://api.example.com" }).then(() => false, () => true);
+  const transientPlaybackError = await verifyBoardCameraPlaybackTarget({
+    apiBase: "http://127.0.0.1:8806",
+    fetchImpl: async () => new Response(JSON.stringify({ error: "temporarily unavailable" }), { status: 503, headers: { "content-type": "application/json" } })
+  }).then(() => null, error => error);
+  const playbackCalls = [];
+  const playbackSleeps = [];
+  const playbackRetries = [];
+  const playbackVerifications = [];
+  let playbackSuccessfulTicks = 0;
+  const resilientPlayback = await runBoardCameraPlayback({
+    apiBase: "http://127.0.0.1:8806",
+    adminToken: "board-test-token",
+    ingestSecret: "board-test-camera-secret-0123456789abcdef",
+    runId: "resilience-test",
+    intervalMs: 2_000,
+    retryBaseMs: 250,
+    retryMaxMs: 1_000,
+    shouldStop: () => playbackSuccessfulTicks >= 2,
+    verifyTargetImpl: async ({ apiBase }) => {
+      playbackVerifications.push(apiBase);
+      return { apiBase, runtime: { mode: "board_demo", label: "Synthetic board runtime" } };
+    },
+    tickImpl: async options => {
+      playbackCalls.push({ cycle: options.cycle, configure: options.configure });
+      if (playbackCalls.length === 2) throw new TypeError("fetch failed");
+      return {
+        ok: true,
+        cycle: options.cycle,
+        cameras: 8,
+        heartbeats: options.heartbeat ? 8 : 0,
+        observedAt: "2026-07-16T12:00:00.000Z",
+        observations: BOARD_CAMERA_PROFILES.map(profile => ({ cameraId: profile.id, level: "low" }))
+      };
+    },
+    sleepImpl: async ms => { playbackSleeps.push(ms); },
+    onVerified: async detail => { playbackVerifications.push(detail.recovered ? "recovered" : "initial"); },
+    onRetry: async detail => { playbackRetries.push({ delayMs: detail.delayMs, cycle: detail.cycle }); },
+    onTick: async () => { playbackSuccessfulTicks += 1; }
+  });
   ok("board camera playback covers the production fleet", playbackIds.length === 8 && new Set(playbackIds).size === 8 && playbackIds.includes("ferry-loading") && playbackIds.includes("competition-corridor"));
   ok("board camera playback is metrics-only and retry-stable", playbackObservation.eventId === "board-pure-test-north-gate-3" && playbackObservation.sourceId === boardCameraSourceId("north-gate") && playbackObservation.peopleCount > 0 && !JSON.stringify(playbackObservation).includes("rtsp") && !JSON.stringify(playbackObservation).includes("image") && playbackHeartbeat.heartbeatId === "board-pure-test-north-gate-health-3" && playbackHeartbeat.status === "healthy");
   ok("board camera playback refuses production and remote targets", refusesNonBoard && refusesRemote);
+  ok("board camera playback retries only transient failures", retryableBoardCameraPlaybackError(transientPlaybackError) && transientPlaybackError?.status === 503 && !retryableBoardCameraPlaybackError(new Error("invalid camera secret")) && boardCameraPlaybackRetryDelay(1, { baseMs: 250, maxMs: 1_000 }) === 250 && boardCameraPlaybackRetryDelay(4, { baseMs: 250, maxMs: 1_000 }) === 1_000);
+  ok("board camera playback recovers without advancing the failed cycle", resilientPlayback.successfulTicks === 2 && resilientPlayback.cycle === 2 && playbackCalls.map(item => item.cycle).join(",") === "0,1,1" && playbackCalls.map(item => item.configure).join(",") === "true,false,true" && playbackRetries.length === 1 && playbackRetries[0].delayMs === 250 && playbackRetries[0].cycle === 1 && playbackVerifications.filter(item => item === "http://127.0.0.1:8806").length === 2 && playbackVerifications.includes("recovered") && playbackSleeps.join(",") === "2000,250,2000");
   const low = deriveCameraCondition({ occupancyPct: 20, queueLength: 2, estimatedWaitMinutes: 3 });
   const high = deriveCameraCondition({ occupancyPct: 72, queueLength: 4, estimatedWaitMinutes: 8 });
   ok("camera condition levels", low.level === "low" && high.level === "high");
