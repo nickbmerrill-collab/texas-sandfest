@@ -14,6 +14,7 @@ import twilio from "twilio";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { boardDemoAccessConfig } from "../lib/board-demo-access.mjs";
+import { boardDemoLoopbackUrl, evaluateBoardDemoReadiness } from "../lib/board-demo-readiness.mjs";
 import { boardDemoAccessPlugin } from "../vite.config.js";
 import { buildRevenueLedgerView, partnerRevenueEntries, summarizeLedger } from "../lib/revenue.mjs";
 import {
@@ -544,6 +545,44 @@ console.log("\n=== Pure library suite ===\n");
     && injectedBoardDemoHtml[0]?.children.includes(boardDemoAccess.token)
     && remoteBindRejected
     && boardDemoAccessPlugin({}) === null);
+
+  const readyBoardState = {
+    web: { ok: true, status: 200, html: "<script>globalThis.__SANDFEST_BOARD_ADMIN_TOKEN__ = 'hidden';</script>" },
+    health: { ok: true, service: "sandfest-admin-api" },
+    bootstrap: { runtime: { mode: "board_demo" } },
+    ready: { ok: true, checks: { workerStatus: { healthy: true }, queueStatus: { operational: true, unhandledFailed: 0 } } },
+    emailSandbox: { ok: true, service: "sandfest-board-email-sandbox", mode: "board_demo" },
+    smsSandbox: { ok: true, service: "sandfest-board-sms-sandbox", mode: "board_demo" },
+    partners: {
+      summary: { applications: { total: 4, vendors: 2, sponsors: 2 } },
+      staffDirectory: { ready: true, routedTeams: 7, totalTeams: 7 },
+      email: { ready: true }
+    },
+    conditions: {
+      weather: { status: "live", freshness: { state: "live" } },
+      ferry: { status: "live", freshness: { state: "live" } },
+      cameras: Array.from({ length: 8 }, (_, index) => ({ id: `camera-${index + 1}` })),
+      summary: { configuredCameras: 8, armedCameras: 8, liveCameras: 8, healthyPipelines: 8, offlinePipelines: 0 }
+    }
+  };
+  const readyBoardReport = evaluateBoardDemoReadiness(readyBoardState);
+  const failedBoardReport = evaluateBoardDemoReadiness({
+    ...readyBoardState,
+    web: { ok: true, status: 200, html: "<main>ordinary development server</main>" },
+    conditions: { ...readyBoardState.conditions, summary: { ...readyBoardState.conditions.summary, liveCameras: 0, healthyPipelines: 0, offlinePipelines: 8 } }
+  });
+  ok("board demo readiness accepts the complete local stack", readyBoardReport.ok && readyBoardReport.passed === readyBoardReport.total && readyBoardReport.total === 8);
+  ok("board demo readiness diagnoses ordinary web and stopped playback", !failedBoardReport.ok
+    && failedBoardReport.checks.find(item => item.id === "auto_session")?.ok === false
+    && failedBoardReport.checks.find(item => item.id === "camera_fleet")?.ok === false
+    && !JSON.stringify(failedBoardReport).includes(boardDemoAccess.token));
+  let remoteBoardCheckRejected = false;
+  try {
+    boardDemoLoopbackUrl("http://127.0.0.1.evil.example:8806", "test URL");
+  } catch {
+    remoteBoardCheckRejected = true;
+  }
+  ok("board demo preflight endpoints stay exact-loopback", boardDemoLoopbackUrl("http://127.0.0.1:8806").hostname === "127.0.0.1" && remoteBoardCheckRejected);
 }
 
 // Private portal capabilities leave the URL before network work begins. A
