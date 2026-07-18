@@ -6508,11 +6508,7 @@ function renderAdminPartners(payload, outreach) {
     button.disabled = true;
     try {
       const lifecycle = await adminFetch(`/api/admin/outreach/campaigns/${encodeURIComponent(button.dataset.campaignId)}/${action}`, { method: "POST" });
-      let generated = 0;
-      if (action === "activate") {
-        const result = await adminFetch(`/api/admin/outreach/campaigns/${encodeURIComponent(button.dataset.campaignId)}/generate`, { method: "POST" });
-        generated = result.generated;
-      }
+      const generated = action === "activate" ? Number(lifecycle.generated || 0) : 0;
       await loadAdminPartners({ quiet: true });
       const automated = button.dataset.campaignDeliveryMode === "approved_sequence";
       const inFlightCopy = lifecycle.inFlightFollowups ? ` ${lifecycle.inFlightFollowups} already claimed delivery${lifecycle.inFlightFollowups === 1 ? " is" : "ies are"} still in flight.` : "";

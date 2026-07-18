@@ -91,7 +91,7 @@ Unknown template fields are rejected when the campaign is created.
 - `PATCH /api/admin/outreach/prospects/:id`
 - `POST /api/admin/outreach/prospects/:id/sponsor-invitation` (`action=issue|copy|revoke`; `packageId` is required for issue)
 - `POST /api/admin/outreach/campaigns`
-- `POST /api/admin/outreach/campaigns/:id/activate`
+- `POST /api/admin/outreach/campaigns/:id/activate` (atomically creates every due opening message before the campaign becomes worker-visible)
 - `POST /api/admin/outreach/campaigns/:id/pause`
 - `POST /api/admin/outreach/campaigns/:id/complete`
 - `POST /api/admin/outreach/campaigns/:id/archive`

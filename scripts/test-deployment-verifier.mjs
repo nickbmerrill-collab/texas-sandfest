@@ -104,7 +104,7 @@ const routes = new Map([
   [new URL("ready", config.apiUrl).toString(), () => jsonResponse(readyBody)],
   [new URL("api/public/bootstrap", config.apiUrl).toString(), options => jsonResponse({ guide: { id: "texas-sandfest-2027" } }, options?.headers?.origin ? { "access-control-allow-origin": options.headers.origin } : {})],
   [new URL("api/public/tickets", config.apiUrl).toString(), () => jsonResponse({ products: [{ availableForCheckout: true }] })],
-  [new URL("api/public/sponsors", config.apiUrl).toString(), () => jsonResponse({ sponsorPackages: [{ id: "whale" }] })],
+  [new URL("api/public/sponsors", config.apiUrl).toString(), () => jsonResponse({ sponsorPackages: [{ id: "whale", name: "Whale", amount: 2500000, currency: "usd", publicLabel: "$25k+", active: true, requiresApproval: true, benefits: ["Main-stage recognition"] }] })],
   [new URL("api/public/vendors", config.apiUrl).toString(), () => jsonResponse({ vendorOfferings: [{ id: "food" }] })],
   [new URL("api/public/island-conditions", config.apiUrl).toString(), () => jsonResponse(liveConditionsBody)]
 ]);
@@ -117,6 +117,17 @@ const fetchImpl = async (url, options = {}) => {
 console.log("\n=== Deployment verifier tests ===\n");
 const successful = await verifyLiveDeployment({ config, artifacts: { publicHtml, adminHtml, publicWorker }, fetchImpl });
 check("complete production surface passes", successful.ok && successful.summary.failed === 0);
+
+const unsafeSponsorFetch = async (url, options = {}) => {
+  if (String(url) === new URL("api/public/sponsors", config.apiUrl).toString()) {
+    return jsonResponse({ sponsorPackages: [{ id: "whale", name: "Whale", amount: 0, currency: "usd", publicLabel: "$0", active: true, requiresApproval: true, benefits: [], quickBooksItemId: "77" }] });
+  }
+  return fetchImpl(url, options);
+};
+const unsafeSponsors = await verifyLiveDeployment({ config, artifacts: { publicHtml, adminHtml, publicWorker }, fetchImpl: unsafeSponsorFetch });
+check("malformed or provider-exposing sponsor tiers fail closed", !unsafeSponsors.ok
+  && unsafeSponsors.checks.some(item => item.id === "api.sponsor_tiers" && !item.ok)
+  && unsafeSponsors.checks.some(item => item.id === "api.sponsor_tier_privacy" && !item.ok));
 
 const staleConditionsFetch = async (url, options = {}) => {
   if (String(url) === new URL("api/public/island-conditions", config.apiUrl).toString()) {

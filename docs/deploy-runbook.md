@@ -165,8 +165,9 @@ public and admin asset names, the current service-worker cache version, the
 governed 2027 event, document security headers, a production
 JWT/Postgres/shared-rate-limit runtime, every required capability gate, a
 healthy worker and queue, both CORS origins, checkout-ready tickets, sponsor
-tiers, vendor offerings, current weather and ferry data, and eight configured,
-armed, live camera pipelines with fresh observations.
+tiers with trusted amounts and benefits and no public provider mappings, vendor
+offerings, current weather and ferry data, and eight configured, armed, live
+camera pipelines with fresh observations.
 
 To verify the temporary Pages hostname while DNS is being prepared, override
 only the public target. This remains a staging check because Pages cannot prove

@@ -203,6 +203,12 @@ import {
   verifySponsorInvitationToken
 } from "../lib/sponsor-invitations.mjs";
 import {
+  publicSponsorPackage,
+  resolveSponsorPackage,
+  sponsorPackageCatalog,
+  updateSponsorPackageConfig
+} from "../lib/sponsor-packages.mjs";
+import {
   publicVendorOffering,
   resolveVendorOffering,
   updateVendorOfferingConfig,
@@ -621,6 +627,7 @@ const DEPLOYMENT_CHECK_PRESENTATION = Object.freeze({
   eventGuide: ["Published event guide", "Program data"],
   currentEvent: ["Current event context", "Program data"],
   staffDirectory: ["Staff directory and routing", "Program data"],
+  sponsorPackages: ["Sponsor package catalog", "Program data"],
   vendorOfferings: ["Vendor offering catalog", "Program data"],
   rateLimits: ["Request limits", "Platform"],
   rateLimitBackend: ["Shared rate limiter", "Platform"],
@@ -1283,7 +1290,7 @@ function currentPartnerPortalUrl(application) {
 async function quickBooksItemForApplication(application) {
   const config = await storage.config.read("admin-config");
   if (application?.type === "sponsor") {
-    const sponsorPackage = config?.sponsorPackages?.find(item => item.id === application.packageId);
+    const sponsorPackage = sponsorPackageCatalog(config).packages.find(item => item.id === application.packageId);
     return sponsorPackage?.quickBooksItemId || process.env.QB_SPONSOR_ITEM_ID || null;
   }
   const vendorOffering = vendorOfferingCatalog(config).offerings.find(item => item.id === application?.offeringId);
@@ -1400,6 +1407,7 @@ async function deploymentProfile() {
     && (!production || STRIPE_API_BASE_URL === "https://api.stripe.com")
     && checkoutProducts.length > 0
     && invalidCheckoutProducts.length === 0;
+  const sponsorCatalog = sponsorPackageCatalog(adminConfigResult.value || {});
   const checks = {
     environment: checkStatus(["development", "staging", "production"].includes(SANDFEST_ENV), `SANDFEST_ENV=${SANDFEST_ENV}`),
     capabilityPolicy: checkStatus(
@@ -1473,6 +1481,13 @@ async function deploymentProfile() {
         ? `${staffReadiness.activeStaff} active staff and ${staffReadiness.routedTeams}/${staffReadiness.totalTeams} team notification routes are ready.`
         : staffReadiness.reason,
       production || capabilityPolicy.required.has("staff_directory") ? "error" : "warning"
+    ),
+    sponsorPackages: checkStatus(
+      sponsorCatalog.ready,
+      sponsorCatalog.ready
+        ? `${sponsorCatalog.activePackages.length} active sponsor packages have trusted pricing and fulfillment benefits.`
+        : sponsorCatalog.errors.join(" "),
+      production ? "error" : "warning"
     ),
     vendorOfferings: checkStatus(
       vendorCatalog.ready,
@@ -2994,25 +3009,31 @@ async function handleAdminSponsorPatch(request, response, sponsorId) {
   if (!(await requirePermission(request, response, "sponsor:write"))) return;
   const patch = filterPatch(await readBody(request), patchableSponsorFields);
   const config = await storage.config.read("admin-config");
-  const before = config.sponsorPackages.find(item => item.id === sponsorId);
-  const sponsorPackage = updateById(config.sponsorPackages, sponsorId, patch);
-  if (!sponsorPackage) {
-    sendJson(request, response, 404, { error: `Sponsor package not found: ${sponsorId}` });
+  const result = updateSponsorPackageConfig(config, sponsorId, patch);
+  if (!result.ok) {
+    sendJson(request, response, result.error === "Sponsor package not found." ? 404 : 400, {
+      error: result.error,
+      errors: result.errors
+    });
     return;
   }
-  config.lastUpdated = new Date().toISOString();
-  await writeConfigSnapshot(request, { type: "adminConfig", id: "admin-config" }, {
-    ...config,
-    sponsorPackages: config.sponsorPackages.map(item => item.id === sponsorId ? before : item)
-  }, `Before sponsor package update: ${sponsorId}`);
-  await storage.config.write("admin-config", config);
+  result.config.lastUpdated = new Date().toISOString();
+  await writeConfigSnapshot(request, { type: "adminConfig", id: "admin-config" }, config, `Before sponsor package update: ${sponsorId}`);
+  await storage.config.write("admin-config", result.config);
   await writeAuditRecord(request, "sponsor-package.update", {
     type: "sponsorPackage",
     id: sponsorId
-  }, before, sponsorPackage, {
+  }, result.before, result.sponsorPackage, {
     changedFields: Object.keys(patch)
   });
-  sendJson(request, response, 200, { sponsorPackage, lastUpdated: config.lastUpdated });
+  sendJson(request, response, 200, {
+    sponsorPackage: result.sponsorPackage,
+    readiness: {
+      ready: result.catalog.ready,
+      activePackages: result.catalog.activePackages.length
+    },
+    lastUpdated: result.config.lastUpdated
+  });
 }
 
 async function handleAdminVendorOfferingPatch(request, response, offeringId) {
@@ -3206,9 +3227,10 @@ async function handleRequest(request, response) {
         storage.config.read("admin-config"),
         readPartnerOperations()
       ]);
+      const catalog = sponsorPackageCatalog(config);
       sendJson(request, response, 200, {
         lastUpdated: [config.lastUpdated, partners.lastUpdated].filter(Boolean).sort().at(-1) || null,
-        sponsorPackages: config.sponsorPackages.filter(item => item.active),
+        sponsorPackages: catalog.activePackages.map(publicSponsorPackage),
         sponsors: publicSponsorShowcase(partners)
       }, publicCacheHeaders(120));
       return;
@@ -3254,11 +3276,12 @@ async function handleRequest(request, response) {
         return;
       }
       const config = await storage.config.read("admin-config");
-      const sponsorPackage = config.sponsorPackages.find(item => item.id === access.invitation.packageId && item.active);
-      if (!sponsorPackage) {
+      const resolvedPackage = resolveSponsorPackage(config, access.invitation.packageId);
+      if (!resolvedPackage.ok) {
         sendJson(request, response, 409, { error: "The recommended sponsor package is no longer available. Ask the SandFest team for a new invitation." });
         return;
       }
+      const sponsorPackage = resolvedPackage.sponsorPackage;
       let portalAccess = null;
       if (access.converted && access.prospect.convertedApplicationId) {
         const application = doc.applications.find(item => item.id === access.prospect.convertedApplicationId);
@@ -4044,11 +4067,12 @@ async function handleRequest(request, response) {
             return;
           }
         }
-        sponsorPackage = config.sponsorPackages.find(item => item.id === (sponsorInvitationAccess?.invitation.packageId || body.packageId) && item.active);
-        if (!sponsorPackage) {
+        const resolvedPackage = resolveSponsorPackage(config, sponsorInvitationAccess?.invitation.packageId || body.packageId);
+        if (!resolvedPackage.ok) {
           sendJson(request, response, 400, { error: "Choose an active sponsorship package." });
           return;
         }
+        sponsorPackage = resolvedPackage.sponsorPackage;
         expectedAmountCents = sponsorPackage.amount;
       } else {
         const resolvedOffering = resolveVendorOffering(config, body.vendorOfferingId, body.category);
@@ -4209,9 +4233,16 @@ async function handleRequest(request, response) {
         storage.config.read("ticket-products"),
         storage.config.read("app-bootstrap")
       ]);
+      const sponsorCatalog = sponsorPackageCatalog(config);
       const vendorCatalog = vendorOfferingCatalog(config);
       sendJson(request, response, 200, {
-        config: { ...config, vendorOfferings: vendorCatalog.offerings },
+        config: { ...config, sponsorPackages: sponsorCatalog.packages, vendorOfferings: vendorCatalog.offerings },
+        sponsorPackageReadiness: {
+          ready: sponsorCatalog.ready,
+          source: sponsorCatalog.source,
+          activePackages: sponsorCatalog.activePackages.length,
+          errors: sponsorCatalog.errors
+        },
         vendorOfferingReadiness: {
           ready: vendorCatalog.ready,
           source: vendorCatalog.source,
@@ -5398,11 +5429,12 @@ async function handleRequest(request, response) {
       let sponsorPackage = null;
       if (action === "issue") {
         const config = await storage.config.read("admin-config");
-        sponsorPackage = config.sponsorPackages.find(item => item.id === body.packageId && item.active);
-        if (!sponsorPackage) {
+        const resolvedPackage = resolveSponsorPackage(config, body.packageId);
+        if (!resolvedPackage.ok) {
           sendJson(request, response, 400, { error: "Choose an active sponsorship package." });
           return;
         }
+        sponsorPackage = resolvedPackage.sponsorPackage;
       }
       const result = await mutatePartnerOperations(doc => action === "issue"
         ? createOutreachSponsorInvitation(doc, prospectId, sponsorPackage, {
@@ -5470,12 +5502,24 @@ async function handleRequest(request, response) {
       const beforeDoc = await readPartnerOperations();
       const before = beforeDoc.campaigns.find(item => item.id === campaignId) ?? null;
       const outreachAutomationProviderReady = emailConfigFromEnv().ready && BREVO_WEBHOOK.ready;
-      const result = await mutatePartnerOperations(doc => updateOutreachCampaignStatus(doc, campaignId, action, {
-        actorId: session.id,
-        idFactory: prefix => `${prefix}_${randomUUID()}`,
-        now: new Date().toISOString(),
-        providerReady: outreachAutomationProviderReady
-      }));
+      const now = new Date().toISOString();
+      const result = await mutatePartnerOperations(doc => {
+        const lifecycle = updateOutreachCampaignStatus(doc, campaignId, action, {
+          actorId: session.id,
+          idFactory: prefix => `${prefix}_${randomUUID()}`,
+          now,
+          providerReady: outreachAutomationProviderReady
+        });
+        if (!lifecycle.ok || action !== "activate") return lifecycle;
+        const generation = generateDueOutreachFollowups(lifecycle.doc, {
+          campaignId,
+          idFactory: prefix => `${prefix}_${randomUUID()}`,
+          now,
+          preferenceUrlForProspect: prospect => outreachPreferenceUrlForProspect(prospect, { config: OUTREACH_PREFERENCES }),
+          sponsorInvitationUrlForProspect: prospect => sponsorInvitationUrlForProspect(prospect, { config: SPONSOR_INVITATIONS })
+        });
+        return { ...lifecycle, doc: generation.doc, generated: generation.generated };
+      });
       if (!result?.ok) {
         sendJson(request, response, result?.error === "Campaign not found." ? 404 : result?.providerNotReady ? 409 : 400, { error: result?.error || "Campaign status could not be changed." });
         return;
@@ -5484,7 +5528,8 @@ async function handleRequest(request, response) {
         returnedToReview: result.returnedToReview,
         dismissedFollowups: result.dismissedFollowups,
         failedHeldForRetry: result.failedHeldForRetry,
-        inFlightFollowups: result.inFlightFollowups
+        inFlightFollowups: result.inFlightFollowups,
+        generated: result.generated?.length || 0
       });
       sendJson(request, response, 200, {
         campaign: result.campaign,
@@ -5492,6 +5537,7 @@ async function handleRequest(request, response) {
         dismissedFollowups: result.dismissedFollowups,
         failedHeldForRetry: result.failedHeldForRetry,
         inFlightFollowups: result.inFlightFollowups,
+        generated: result.generated?.length || 0,
         automation: outreachCampaignAutomationReadiness(result.doc, result.campaign, { providerReady: outreachAutomationProviderReady })
       });
       return;

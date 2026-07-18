@@ -580,6 +580,19 @@ async function main() {
     tasks: current.tasks.filter(task => task.relatedEntityType !== "incoming_document" || task.relatedEntityId !== postgresDocument.id)
   }), { fallback: emptyPartnerOperations(EVENT_ID) });
 
+  const postgresSponsorCatalog = await request(base, "GET", "/api/public/sponsors");
+  const postgresInvalidSponsorPatch = await request(base, "PATCH", "/api/admin/sponsor-packages/tarpon", {
+    benefits: []
+  }, { auth: true });
+  const postgresSponsorPackagePatch = await request(base, "PATCH", "/api/admin/sponsor-packages/tarpon", {
+    quickBooksItemId: "postgres-sponsor-tarpon-item",
+    stripePriceId: "price_postgres_sponsor_tarpon"
+  }, { auth: true });
+  const postgresPublicSponsorCatalog = await request(base, "GET", "/api/public/sponsors");
+  const postgresPublicTarpon = postgresPublicSponsorCatalog.data.sponsorPackages?.find(item => item.id === "tarpon");
+  check("sponsor package catalog reads from Postgres", postgresSponsorCatalog.status === 200 && postgresSponsorCatalog.data.sponsorPackages?.find(item => item.id === "tarpon")?.amount === 500000);
+  check("sponsor package config validates and keeps accounting private", postgresInvalidSponsorPatch.status === 400 && postgresSponsorPackagePatch.status === 200 && postgresSponsorPackagePatch.data.sponsorPackage?.quickBooksItemId === "postgres-sponsor-tarpon-item" && postgresPublicTarpon?.amount === 500000 && !Object.hasOwn(postgresPublicTarpon || {}, "quickBooksItemId") && !Object.hasOwn(postgresPublicTarpon || {}, "stripePriceId"));
+
   const postgresVendorCatalog = await request(base, "GET", "/api/public/vendors");
   const postgresVendorOfferingPatch = await request(base, "PATCH", "/api/admin/vendor-offerings/marketplace-booth", {
     quickBooksItemId: "postgres-vendor-marketplace-item"
@@ -811,7 +824,7 @@ PG-B-01,${EVENT_ID},PG-EV-V-01,PG-EV-V-01,Postgres Booth Vendor,retail,vendor,po
   }, { auth: true });
   const persistedReceivables = await request(base, "GET", "/api/admin/partners", undefined, { auth: true });
   const persistedInvoiceBalance = persistedReceivables.data.invoices?.find(item => item.id === postgresInvoice.data.invoice?.id);
-  check("Postgres payment allocation persists", approvedForBilling.status === 200 && postgresInvoice.status === 201 && postgresPayment.status === 201 && persistedInvoiceBalance?.balanceCents === persistedInvoiceBalance?.amountCents - 125000);
+  check("Postgres payment allocation persists", approvedForBilling.status === 200 && postgresInvoice.status === 201 && postgresInvoice.data.invoice?.quickBooksItemId === "postgres-sponsor-tarpon-item" && postgresPayment.status === 201 && persistedInvoiceBalance?.balanceCents === persistedInvoiceBalance?.amountCents - 125000);
   check("Postgres invoice payment key date persists", postgresPaymentMilestone?.dueAt === postgresInvoice.data.invoice?.dueAt && postgresPaymentMilestone?.assigneeTeam === "finance");
   check("Postgres payment idempotency persists", postgresDuplicate.status === 200 && postgresDuplicate.data.duplicate === true && persistedReceivables.data.payments?.filter(item => item.applicationId === sponsorApplication.id).length === 1);
   check("Postgres receivables summary persists", persistedReceivables.data.receivables?.accounts?.some(item => item.applicationId === sponsorApplication.id && item.paidAmountCents === 125000 && item.reconciliationStatus === "matched"));
@@ -1201,10 +1214,10 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
   check("outreach campaign persisted", campaign.status === 201 && campaign.data.campaign?.id, `status ${campaign.status}`);
   const campaignId = campaign.data.campaign?.id;
   const activation = await request(base, "POST", `/api/admin/outreach/campaigns/${campaignId}/activate`, {}, { auth: true });
-  check("campaign activation audited", activation.status === 200 && activation.data.campaign?.status === "active", `status ${activation.status}`);
+  check("campaign activation atomically seeds and audits the opening message", activation.status === 200 && activation.data.campaign?.status === "active" && activation.data.generated === 1, `status ${activation.status} generated ${activation.data.generated ?? "missing"}`);
   const generated = await request(base, "POST", `/api/admin/outreach/campaigns/${campaignId}/generate`, {}, { auth: true });
   const repeated = await request(base, "POST", `/api/admin/outreach/campaigns/${campaignId}/generate`, {}, { auth: true });
-  check("campaign draft generated once", generated.data.generated === 1 && repeated.data.generated === 0, `${generated.data.generated}/${repeated.data.generated}`);
+  check("campaign draft generated once", generated.data.generated === 0 && repeated.data.generated === 0, `${generated.data.generated}/${repeated.data.generated}`);
   const outreach = await request(base, "GET", "/api/admin/outreach", undefined, { auth: true });
   const outreachDrafts = outreach.data.followups?.filter(item => item.campaignId === campaignId) || [];
   const persistedGeoCampaign = outreach.data.campaigns?.find(item => item.id === campaignId);

@@ -347,6 +347,8 @@ The API and worker must receive the same secret. `render.yaml` generates it on t
 
 ## Sponsor Brand And Fulfillment Safety
 
+Sponsor package changes pass through a governed catalog before persistence. IDs, names, whole-cent USD amounts, public labels, benefits, boolean state, and optional Stripe Price IDs are normalized and validated; a change cannot remove the last active tier. Invalid edits return `400` without changing Postgres or the local document. The production readiness profile and live deployment verifier require a valid catalog, while public package responses contain only display, pricing, approval, and benefit fields and never expose Stripe or QuickBooks mappings.
+
 Every sponsor tier benefit is copied into the sponsor's durable fulfillment checklist when the inquiry is accepted. Package changes later do not silently rewrite an existing agreement. Sponsors can submit a display profile, colors, usage requirements, social links, and either private files or HTTPS asset references. Profile and asset approvals are independent, and requested changes require a visible review note.
 
 Private uploads accept only content-validated PNG, JPEG, WebP, and PDF files. The default limit is 10 MB, filenames are sanitized, files are written with private permissions, browser responses use `no-store` and `nosniff`, and download endpoints require either the current partner capability or an authenticated `partners:read` session. Storage keys and checksums are never returned by the public portal.
