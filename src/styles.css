@@ -4914,6 +4914,7 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .admin-partner-automation .button { min-height: 40px; }
 .admin-quickbooks-connection { align-items: center; background: #f2f5f4; border-left: 5px solid var(--coral); display: grid; gap: 12px; grid-template-columns: minmax(240px, 1fr) auto; padding: 12px 14px; }
 .admin-quickbooks-connection[data-state="connected"] { border-left-color: var(--gulf); }
+.admin-quickbooks-connection[data-state="deferred"] { border-left-color: var(--sun); }
 .admin-quickbooks-connection > div:first-child { display: grid; gap: 3px; min-width: 0; }
 .admin-quickbooks-connection span { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
 .admin-quickbooks-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
@@ -5155,7 +5156,7 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .admin-discovery-categories legend { color: var(--muted); font-size: 11px; font-weight: 800; grid-column: 1 / -1; margin-bottom: 7px; text-transform: uppercase; }
 .admin-discovery-categories label { align-items: center; color: var(--deep); display: flex; font-size: 12px; gap: 7px; min-width: 0; }
 .admin-discovery-categories input,
-.admin-discovery-select input { flex: 0 0 16px; height: 16px; margin: 0; width: 16px; }
+.admin-discovery-select input { flex: 0 0 24px; height: 24px; margin: 0; width: 24px; }
 .admin-discovery-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .admin-discovery-result { border-top: 1px solid var(--line); display: grid; gap: 8px; }
 .admin-discovery-result:empty { display: none; }
