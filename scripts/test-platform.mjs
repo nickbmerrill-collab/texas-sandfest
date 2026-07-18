@@ -1392,8 +1392,13 @@ HOURS-100,${DEFAULT_EVENT_ID},VL-100,SHIFT-100,2027-04-09T08:00:00-05:00,2027-04
     publicationStatus: "published",
     source: "reviewed_current_roster"
   });
+  const weakPublishedPublication = publicVotingPublication({
+    ...doc,
+    publicationStatus: "published",
+    source: "placeholder_fixture"
+  });
   ok("repository ballot seed contains no unpublished artists", !closedPublication.visible && closedBallot.votingOpen === false && closedBallot.entries?.length === 0);
-  ok("public voting requires reviewed or board-demo publication", demoPublication.visible && demoPublication.mode === "demo" && publishedPublication.visible && publishedPublication.mode === "published" && !publicVotingPublication(doc).visible);
+  ok("public voting requires reviewed or board-demo publication", demoPublication.visible && demoPublication.mode === "demo" && publishedPublication.visible && publishedPublication.mode === "published" && !weakPublishedPublication.visible && !publicVotingPublication(doc).visible);
   const vote = applyVote(doc, { attendeeRef: "suite_voter", entryId: "ent_tidal_guardian", channel: "web" }, { idFactory: () => "v_suite" });
   ok("voting cast", vote.ok && vote.changed);
   const tally = tallyVotes(doc.entries, vote.votes);
@@ -3729,7 +3734,7 @@ if (!API_BASE) {
     writeFile(isolatedVotingPath, `${JSON.stringify({
       ...apiEngagement.voting,
       publicationStatus: "published",
-      source: "api_test_fixture",
+      source: "reviewed_current_roster",
       votes: []
     }, null, 2)}\n`, "utf8")
   ]);

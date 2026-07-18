@@ -472,6 +472,44 @@ async function main() {
   await writePlatformDoc(ROOT, "incomingDocuments", emptyIncomingDocumentIntake(EVENT_ID));
   const { emptySmsOperations } = await import("../lib/sms-operations.mjs");
   await writePlatformDoc(ROOT, "smsOperations", emptySmsOperations(EVENT_ID));
+  await writePlatformDoc(ROOT, "passportHunt", {
+    lastUpdated: new Date().toISOString(),
+    hunt: {
+      id: "sculpture-passport-2027",
+      eventId: EVENT_ID,
+      name: "Postgres engagement test",
+      type: "passport",
+      startsAt: "2027-04-16T09:00:00-05:00",
+      endsAt: "2027-04-18T19:30:00-05:00",
+      active: true
+    },
+    checkpoints: [{
+      id: "cp_ent_dune_dragon",
+      huntId: "sculpture-passport-2027",
+      label: "Reviewed test sculpture",
+      kind: "sculpture",
+      linkedRecord: { type: "sculptureEntry", id: "ent_dune_dragon" },
+      code: "TSF-PG-0001",
+      points: 10,
+      order: 1,
+      beachMarker: "12.5",
+      entryId: "ent_dune_dragon"
+    }]
+  });
+  await writePlatformDoc(ROOT, "voting", {
+    lastUpdated: new Date().toISOString(),
+    eventId: EVENT_ID,
+    publicationStatus: "published",
+    source: "reviewed_current_roster",
+    votingOpen: true,
+    title: "People's Choice test ballot",
+    description: "Reviewed Postgres workflow fixture.",
+    entries: [
+      { id: "ent_lace_tide", title: "Reviewed entry one", sculptorName: "Reviewed artist one", division: "semi_pro", beachMarker: "14.5", eligible: true },
+      { id: "ent_tidal_guardian", title: "Reviewed entry two", sculptorName: "Reviewed artist two", division: "master_solo", beachMarker: "13", eligible: true }
+    ],
+    votes: []
+  });
   await closePool();
 
   console.log("\n=== Postgres API workflows ===\n");
