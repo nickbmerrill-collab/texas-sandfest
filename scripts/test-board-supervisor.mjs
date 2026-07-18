@@ -15,6 +15,7 @@ let supervisor = null;
 let occupiedPortServer = null;
 let feedFixtureServer = null;
 let output = "";
+let ferryFixtureRequests = 0;
 const observedPids = new Set();
 
 function freePort() {
@@ -58,6 +59,14 @@ function startFeedFixture() {
     }
   };
   const server = createHttpServer((request, response) => {
+    if (request.url === "/txdot/ferry") {
+      ferryFixtureRequests += 1;
+      if (ferryFixtureRequests === 1) {
+        response.writeHead(503, { "content-type": "application/json" });
+        response.end(JSON.stringify({ error: "transient_fixture_failure" }));
+        return;
+      }
+    }
     const now = Date.now();
     const payload = request.url === "/nws/forecast"
       ? { properties: { periods: [{
@@ -219,6 +228,8 @@ try {
     throw new Error("Supervisor did not preserve and move around the occupied web port.");
   }
   console.log(`  ok supervisor preserves an occupied port and starts the complete stack (PID ${initial.pid})`);
+  if (ferryFixtureRequests < 2) throw new Error("Supervisor did not retry the transient TxDOT feed failure.");
+  console.log(`  ok supervisor retries a transient TxDOT failure before reporting readiness (${ferryFixtureRequests} attempts)`);
 
   const serializedSession = JSON.stringify(initial);
   const forbiddenSessionValues = [
@@ -264,7 +275,7 @@ try {
   const lingering = [...observedPids].filter(processAlive);
   if (lingering.length) throw new Error(`Board child processes remained alive after shutdown: ${lingering.join(", ")}`);
   console.log(`  ok stop command shuts down the supervisor and all ${observedPids.size} observed child processes`);
-  console.log("\nBoard demo supervisor: 5/5 checks passed.\n");
+  console.log("\nBoard demo supervisor: 6/6 checks passed.\n");
 } catch (error) {
   console.error(`\nBoard demo supervisor test failed: ${error.message}`);
   process.exitCode = 1;
