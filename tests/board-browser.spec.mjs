@@ -371,6 +371,7 @@ test("board workflows operate through the public and staff interfaces", async ({
   await expect(page.locator("#network-status")).toHaveText("Demo");
   await expect(page.locator("#runtime-data-notice")).toContainText("Synthetic 2027 data");
   await expect(page.locator("#runtime-data-notice")).toContainText("No external messages or payments are sent");
+  await expect(page.locator("#admin-reset-board-demo")).toBeHidden();
   await expect(page.locator("header nav")).toHaveCount(0);
   await expect(page.locator(".admin-workspace-nav")).toBeVisible();
   await expect(page.locator(".admin-api-bar")).toBeHidden();

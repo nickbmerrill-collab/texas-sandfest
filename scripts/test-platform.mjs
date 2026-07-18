@@ -4755,9 +4755,11 @@ try {
   const health = await hit("GET", "/health");
   const invalidRequestId = "x".repeat(200);
   const requestIdProbe = await hitRaw("GET", "/health", undefined, { "x-request-id": invalidRequestId });
+  const unavailableBoardReset = await hit("POST", "/api/admin/board-demo/reset", null, true);
   ok("GET /health", health.status === 200 || health.status === 404 || health.data);
   ok("health exposes the active rate-limit backend", health.status === 200 && health.data.rateLimitBackend === "memory");
   ok("API replaces invalid request IDs", requestIdProbe.status === 200 && /^req_[A-Za-z0-9-]+$/.test(requestIdProbe.headers.get("x-request-id") || "") && requestIdProbe.headers.get("x-request-id") !== invalidRequestId);
+  ok("ordinary development API hides presentation reset", health.data.boardDemoResetReady === false && unavailableBoardReset.status === 404);
   const readiness = await hit("GET", "/ready");
   const deployment = await hit("GET", "/api/admin/deployment", null, true);
   const queueStatus = await hit("GET", "/api/admin/jobs?limit=12", null, true);

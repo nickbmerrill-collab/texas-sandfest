@@ -179,6 +179,7 @@ if (visitorUrl && operationsUrl) {
         taskSummary: document.querySelector("#admin-task-board-summary")?.textContent?.trim(),
         documents: document.querySelectorAll("#admin-document-list [data-admin-document]").length,
         quickBooksState: document.querySelector("#admin-quickbooks-connection")?.dataset?.state,
+        resetReady: document.querySelector("#admin-reset-board-demo")?.hidden === false,
         overflowPixels: Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth)
       }));
     } catch (error) {
@@ -196,10 +197,11 @@ if (visitorUrl && operationsUrl) {
         || !item.runtimeLabel?.includes("No external messages or payments are sent")
         || item.commandSignals !== 8
         || !item.apiStatus?.includes("Loaded")
+        || item.resetReady !== true
       ) {
         throw new Error(observations.operationsError || "The operations command center did not finish loading.");
       }
-      return `${item.commandSignals} operating signals rendered with a persistent synthetic Demo label.`;
+      return `${item.commandSignals} operating signals and the presentation reset control rendered with a persistent synthetic Demo label.`;
     });
     await inspect("operations_workflows", "Operations workflow queues", "Inspect partner, task, document, and accounting board data.", async () => {
       const item = observations.operations;

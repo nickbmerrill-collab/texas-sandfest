@@ -561,6 +561,11 @@ app.innerHTML = `
           <button data-site-mode="ops" type="button" role="tab">Operations</button>
         </div>
       ` : ""}
+      ${ADMIN_ENTRY && BOARD_DEMO_ACCESS.enabled ? `
+        <button id="admin-reset-board-demo" class="board-demo-reset" type="button" aria-label="Reset board demonstration" title="Restore the prepared board demonstration" hidden>
+          <span aria-hidden="true">&#8635;</span>
+        </button>
+      ` : ""}
       <span id="network-status" class="network-status" data-state="online">Online</span>
       <button id="install-app-btn" class="install-app-btn" type="button" hidden>Install</button>
     </div>
@@ -2497,6 +2502,8 @@ function renderAdminSession(session) {
 async function loadAdminSession() {
   const data = await adminFetch("/api/admin/session");
   renderAdminSession(data.session);
+  const resetButton = document.querySelector("#admin-reset-board-demo");
+  if (resetButton) resetButton.hidden = data.capabilities?.boardDemoReset !== true;
   return data.session;
 }
 
@@ -7664,7 +7671,49 @@ async function loadBoardDemoWorkspace() {
   return boardDemoWorkspaceLoad;
 }
 
+async function waitForBoardDemoReset(previousGeneration, timeoutMs = 60_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetchWithTimeout(`${adminApiBase()}/health`, {
+        cache: "no-store"
+      }, 1_500);
+      const health = response.ok ? await response.json() : null;
+      if (health?.boardDemoRuntime === true
+        && health?.boardDemoResetReady === true
+        && health?.boardDemoGeneration
+        && health.boardDemoGeneration !== previousGeneration) {
+        return health;
+      }
+    } catch {
+      // The local API is expected to be briefly unavailable during restoration.
+    }
+    await new Promise(resolve => window.setTimeout(resolve, 250));
+  }
+  throw new Error("The board demonstration did not return to its prepared state in time.");
+}
+
+async function resetBoardDemo(event) {
+  if (!BOARD_DEMO_ACCESS.enabled) return;
+  const button = event.currentTarget;
+  const confirmed = window.confirm("Restore the prepared board demonstration? All changes made in this local demo session will be discarded.");
+  if (!confirmed) return;
+  button.disabled = true;
+  button.dataset.state = "resetting";
+  setAdminStatus("Restoring the prepared board demonstration...", "idle");
+  try {
+    const reset = await adminFetch("/api/admin/board-demo/reset", { method: "POST" });
+    await waitForBoardDemoReset(reset.generation);
+    window.location.reload();
+  } catch (error) {
+    setAdminStatus(error.message, "error");
+    button.disabled = false;
+    delete button.dataset.state;
+  }
+}
+
 document.querySelector("#admin-load-config").addEventListener("click", loadAdminWorkspace);
+document.querySelector("#admin-reset-board-demo")?.addEventListener("click", resetBoardDemo);
 const adminCreateSponsorPackageForm = document.querySelector("#admin-create-sponsor-package");
 adminCreateSponsorPackageForm?.elements.name.addEventListener("input", event => {
   const idInput = adminCreateSponsorPackageForm.elements.id;
