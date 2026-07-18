@@ -848,8 +848,17 @@ test("WCAG A and AA checks cover public intake, partner status, concierge, and o
   const conciergeResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/public/concierge" && response.request().method() === "POST");
   await page.locator("#ask-input").fill("What accessibility services are available?");
   await page.locator("#ask-submit").click();
-  expect((await conciergeResponse).status()).toBe(200);
+  const accessibilityResponse = await conciergeResponse;
+  expect(accessibilityResponse.status()).toBe(200);
+  const accessibilityPayload = await accessibilityResponse.json();
+  expect(accessibilityPayload.topic).toBe("accessibility");
+  expect(accessibilityPayload.confidence).toBe("high");
+  expect(accessibilityPayload.escalated).toBe(false);
+  expect(accessibilityPayload.answer).toContain("North Gate at marker 12.5");
+  expect(accessibilityPayload.answer).toContain("ADA parking");
   await expect(page.locator("#chat .concierge-answer")).toHaveCount(1);
+  await expect(page.locator("#chat .concierge-answer")).toContainText("North Gate at marker 12.5");
+  await expect(page.locator('#chat .concierge-sources a[href="#operations"]')).toHaveText("Published accessibility locations");
 
   const vendor = page.locator("#vendor-application-form");
   await vendor.locator('[name="organizationName"]').fill(`Accessible Boardwalk Arts ${runId}`);
