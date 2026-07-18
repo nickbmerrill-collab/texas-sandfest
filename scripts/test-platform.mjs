@@ -2216,7 +2216,8 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   const accepted = updatePartnerApplication(delivered.doc, created.application.id, { status: "approved" }, { idFactory, now });
   const invalidPaymentMethod = recordPartnerPayment(accepted.doc, created.application.id, { amountCents: 100, method: "crypto" }, { idFactory, now });
   const invalidPaymentDate = recordPartnerPayment(accepted.doc, created.application.id, { amountCents: 100, method: "check", receivedAt: "not-a-date" }, { idFactory, now });
-  ok("partner payment validation", !invalidPaymentMethod.ok && !invalidPaymentDate.ok);
+  const missingPaymentReference = recordPartnerPayment(accepted.doc, created.application.id, { amountCents: 100, method: "check" }, { idFactory, now });
+  ok("partner payment validation", !invalidPaymentMethod.ok && !invalidPaymentDate.ok && !missingPaymentReference.ok && missingPaymentReference.error.includes("reference is required"));
   const prepaid = recordPartnerPayment(accepted.doc, created.application.id, { amountCents: 500000, method: "check", externalRef: "CHECK-100" }, { idFactory, now });
   ok("partner prepayment is unapplied", prepaid.ok && prepaid.payment.unappliedAmountCents === 500000 && prepaid.payment.invoiceId === null);
   const invoiceDraft = createPartnerInvoice(prepaid.doc, created.application.id, { quickBooksItemId: "77", dueAt: now }, { idFactory, actorId: "finance_1", now });
@@ -2335,7 +2336,8 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   const partial = recordPartnerPayment(paymentReminderDrafts.doc, created.application.id, { amountCents: 1000000, method: "ach", externalRef: "ACH-200" }, { idFactory, now });
   ok("partner payment allocation", partial.ok && partial.payment.appliedAmountCents === 1000000 && partial.doc.invoices[0].balanceCents === 1000000 && partial.doc.applications[0].status === "partial");
   const duplicatePayment = recordPartnerPayment(partial.doc, created.application.id, { amountCents: 1000000, method: "ach", externalRef: "ach-200" }, { idFactory, now });
-  ok("partner payment reference idempotency", duplicatePayment.ok && duplicatePayment.duplicate && duplicatePayment.doc.payments.length === 2 && duplicatePayment.totalPaidCents === 1500000);
+  const conflictingPayment = recordPartnerPayment(partial.doc, created.application.id, { amountCents: 900000, method: "ach", externalRef: "ACH-200" }, { idFactory, now });
+  ok("partner payment reference idempotency", duplicatePayment.ok && duplicatePayment.duplicate && duplicatePayment.doc.payments.length === 2 && duplicatePayment.totalPaidCents === 1500000 && !conflictingPayment.ok && conflictingPayment.conflict);
   const overpaid = recordPartnerPayment(partial.doc, created.application.id, { amountCents: 1100000, method: "ach", externalRef: "ACH-201" }, { idFactory, now });
   const overpaidSummary = summarizePartnerReceivables(overpaid.doc, now);
   const overpaidMilestone = overpaid.doc.milestones.find(item => item.kind === "payment_due");
@@ -6004,6 +6006,12 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
   const rejectedQuickBooksDisconnectApi = await hit("POST", "/api/admin/integrations/quickbooks/disconnect", { confirm: false }, true);
   const quickBooksDisconnectApi = await hit("POST", "/api/admin/integrations/quickbooks/disconnect", { confirm: true }, true);
   ok("QuickBooks disconnect is confirmed and clears local credentials", rejectedQuickBooksDisconnectApi.status === 400 && quickBooksDisconnectApi.status === 200 && quickBooksDisconnectApi.data.changed && !quickBooksDisconnectApi.data.quickbooks?.connected);
+  const missingPaymentReferenceApi = await hit("POST", `/api/admin/partners/applications/${encodeURIComponent(sponsorApplication?.id)}/payments`, {
+    amountCents: 100000,
+    method: "check",
+    receivedAt: "2026-07-16T15:00:00.000Z"
+  }, true);
+  ok("payment API requires an accounting reference", missingPaymentReferenceApi.status === 400 && missingPaymentReferenceApi.data.error?.includes("reference is required"));
   const paymentApi = await hit("POST", `/api/admin/partners/applications/${encodeURIComponent(sponsorApplication?.id)}/payments`, {
     amountCents: 100000,
     method: "check",
@@ -6015,9 +6023,14 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     method: "check",
     externalRef: "api-check-100"
   }, true);
+  const conflictingPaymentApi = await hit("POST", `/api/admin/partners/applications/${encodeURIComponent(sponsorApplication?.id)}/payments`, {
+    amountCents: 90000,
+    method: "check",
+    externalRef: "API-CHECK-100"
+  }, true);
   const paidWorkspace = await hit("GET", "/api/admin/partners", null, true);
   const persistedInvoice = paidWorkspace.data.invoices?.find(item => item.id === invoiceApi.data.invoice?.id);
-  ok("payment API allocates and deduplicates", paymentApi.status === 201 && paymentApi.data.payment?.appliedAmountCents === 100000 && duplicatePaymentApi.status === 200 && duplicatePaymentApi.data.duplicate === true && persistedInvoice?.balanceCents === persistedInvoice?.amountCents - 100000);
+  ok("payment API allocates and deduplicates", paymentApi.status === 201 && paymentApi.data.payment?.appliedAmountCents === 100000 && duplicatePaymentApi.status === 200 && duplicatePaymentApi.data.duplicate === true && conflictingPaymentApi.status === 409 && persistedInvoice?.balanceCents === persistedInvoice?.amountCents - 100000);
   ok("receivables API exposes account", paidWorkspace.data.receivables?.accounts?.some(item => item.applicationId === sponsorApplication?.id && item.paidAmountCents === 100000 && item.reconciliationStatus === "matched"));
   const reversedPaymentApi = await hit("POST", `/api/admin/partners/payments/${encodeURIComponent(paymentApi.data.payment?.id)}/reverse`, { action: "void", reason: "API verification reversal" }, true);
   const reversedWorkspace = await hit("GET", "/api/admin/partners", null, true);

@@ -486,6 +486,55 @@ test("board workflows operate through the public and staff interfaces", async ({
   await expect(sponsorCard).toHaveCount(1);
   await expect(sponsorCard).toContainText("$0.00 / $5,000.00");
 
+  const sponsorApprovalResponse = page.waitForResponse(response => new URL(response.url()).pathname === `/api/admin/partners/applications/${sponsorResult.application.id}` && response.request().method() === "PATCH");
+  await sponsorCard.locator('[name="status"]').selectOption("approved");
+  await sponsorCard.locator("[data-save-application]").click();
+  expect((await sponsorApprovalResponse).status()).toBe(200);
+  await expect(sponsorCard.locator("[data-create-invoice]")).toBeVisible();
+
+  const invoiceCreateResponse = page.waitForResponse(response => new URL(response.url()).pathname === `/api/admin/partners/applications/${sponsorResult.application.id}/invoices` && response.request().method() === "POST");
+  await sponsorCard.locator("[data-create-invoice]").click();
+  const createdInvoiceResponse = await invoiceCreateResponse;
+  expect(createdInvoiceResponse.status()).toBe(201);
+  const createdInvoice = (await createdInvoiceResponse.json()).invoice;
+  const sponsorInvoice = sponsorCard.locator(`[data-partner-invoice="${createdInvoice.id}"]`);
+  await expect(sponsorInvoice.locator('[data-action="approve"]')).toBeVisible();
+
+  const invoiceApprovalResponse = page.waitForResponse(response => new URL(response.url()).pathname === `/api/admin/partners/invoices/${createdInvoice.id}/review` && response.request().method() === "POST");
+  await sponsorInvoice.locator('[data-action="approve"]').click();
+  expect((await invoiceApprovalResponse).status()).toBe(200);
+  await expect(sponsorCard.locator(`[data-partner-invoice="${createdInvoice.id}"]`)).toContainText("approved");
+
+  await sponsorCard.locator('[name="paymentAmount"]').fill("5000.00");
+  await sponsorCard.locator('[data-record-payment]').click();
+  await expect(page.locator("#admin-api-status")).toContainText("Enter a receipt or transaction reference");
+  await expect(sponsorCard.locator("[data-partner-payment]")).toHaveCount(0);
+
+  const paymentReference = `BROWSER-CHECK-${runId}`;
+  await sponsorCard.locator('[name="paymentReference"]').fill(paymentReference);
+  await sponsorCard.locator('[name="paymentReceivedAt"]').fill("2027-03-01T10:00");
+  const paymentResponse = page.waitForResponse(response => new URL(response.url()).pathname === `/api/admin/partners/applications/${sponsorResult.application.id}/payments` && response.request().method() === "POST");
+  await sponsorCard.locator('[data-record-payment]').click();
+  const recordedPaymentResponse = await paymentResponse;
+  expect(recordedPaymentResponse.status()).toBe(201);
+  const recordedPayment = (await recordedPaymentResponse.json()).payment;
+  await expect(sponsorCard).toContainText("$5,000.00 / $5,000.00");
+  await expect(sponsorCard.locator(`[data-partner-invoice="${createdInvoice.id}"]`)).toContainText("$0.00 open");
+  const paymentRow = sponsorCard.locator(`[data-partner-payment="${recordedPayment.id}"]`);
+  await expect(paymentRow).toContainText(paymentReference);
+  const sponsorPaymentMilestone = page.locator("#admin-partner-milestones [data-admin-milestone]").filter({ hasText: sponsorName }).filter({ hasText: "Payment due" });
+  await expect(sponsorPaymentMilestone.locator('[name="status"]')).toHaveValue("completed");
+
+  await paymentRow.locator('[name="reversalAction"]').selectOption("void");
+  await paymentRow.locator('[name="reversalReason"]').fill("Browser acceptance reversal");
+  const paymentReversalResponse = page.waitForResponse(response => new URL(response.url()).pathname === `/api/admin/partners/payments/${recordedPayment.id}/reverse` && response.request().method() === "POST");
+  await paymentRow.locator("[data-reverse-payment]").click();
+  expect((await paymentReversalResponse).status()).toBe(200);
+  await expect(sponsorCard).toContainText("$0.00 / $5,000.00");
+  await expect(sponsorCard.locator(`[data-partner-invoice="${createdInvoice.id}"]`)).toContainText("$5,000.00 open");
+  await expect(sponsorCard.locator(`[data-partner-payment="${recordedPayment.id}"]`)).toContainText("voided");
+  await expect(sponsorPaymentMilestone.locator('[name="status"]')).toHaveValue("open");
+
   const sponsorFulfillment = page.locator('#admin-sponsor-fulfillment [data-sponsor-fulfillment]').filter({ hasText: "Gulf Shore Credit Union" });
   await expect(sponsorFulfillment).toHaveCount(1);
   await expect(sponsorFulfillment).toContainText("Marlin");

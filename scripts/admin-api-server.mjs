@@ -6290,7 +6290,7 @@ async function handleRequest(request, response) {
         now: new Date().toISOString()
       }));
       if (!result?.ok) {
-        sendJson(request, response, result?.error === "Application not found." ? 404 : 400, { error: result?.error || "Payment could not be recorded." });
+        sendJson(request, response, result?.error === "Application not found." ? 404 : result?.conflict ? 409 : 400, { error: result?.error || "Payment could not be recorded." });
         return;
       }
       if (!result.duplicate) {
