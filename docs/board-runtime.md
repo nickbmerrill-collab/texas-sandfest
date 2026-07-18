@@ -15,8 +15,8 @@ The command rebuilds `.sandfest-runtime/board-2027` from governed source data. I
 - vendor and sponsor applications, including category-compatible vendor offerings whose captured fees flow directly into receivables and invoice drafts;
 - partial sponsor payment and receivables tracking, with one invoice-authoritative payment date shared by the finance ledger, key-date calendar, and follow-up engine;
 - sponsor brand profile, logo review, and package deliverables;
-- vendor onboarding and compliance requirements;
-- key dates, review-first acknowledgments, and governed volunteer/staff/team tasks that exercise private assignment notification;
+- vendor onboarding with one approved, compliance-cleared, partner-confirmed booth assignment beside one intentionally blocked application;
+- key dates, review-first acknowledgments, and direct volunteer, staff, and team tasks that exercise each private assignment-notification route;
 - geofenced sponsor outreach with an accountable owner, next action, due timestamp, and urgency-sorted follow-up queue;
 - staff-issued sponsor invitations that convert a qualified prospect into the real public sponsor application, brand center, fulfillment plan, key dates, task, finance record, and private portal only after recipient consent;
 - three private source documents in received, review, and approved states, with staff-only text previews and checksum-verified downloads;
@@ -161,8 +161,10 @@ npm run board:check
 This fails closed when the configured board URL is serving an ordinary
 `npm run dev` session, its origin differs from the API's generated public-link
 origin, the isolated API or worker is unavailable, either provider sandbox is
-missing, the seeded partner/staff workspace is incomplete, the visibly synthetic
-weather or ferry snapshot is stale, or fewer than eight camera playback pipelines are live. The report
+missing, the seeded finance, key-date, messaging, staff/volunteer/team delegation,
+sponsor fulfillment, vendor, outreach, document, or branding workflow is incomplete,
+the visibly synthetic weather or ferry snapshot is stale, or fewer than eight
+camera playback pipelines are live. The report
 prints recovery commands but never prints the injected admin credential,
 recipient details, or message content. Use
 `npm run --silent board:check -- --json` for a machine-readable preflight

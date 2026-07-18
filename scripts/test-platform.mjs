@@ -661,7 +661,36 @@ console.log("\n=== Pure library suite ===\n");
     emailSandbox: { ok: true, service: "sandfest-board-email-sandbox", mode: "board_demo" },
     smsSandbox: { ok: true, service: "sandfest-board-sms-sandbox", mode: "board_demo" },
     partners: {
-      summary: { applications: { total: 4, vendors: 2, sponsors: 2 } },
+      automationMode: "review_first",
+      automation: { providerReady: true, active: false },
+      summary: {
+        applications: { total: 4, vendors: 2, sponsors: 2 },
+        finance: { amountExpectedCents: 3_800_000, amountPaidCents: 1_000_000, balanceCents: 2_800_000 },
+        outreach: { prospects: 1, qualified: 1, campaigns: 1, nextActionsScheduled: 1, unassigned: 0 }
+      },
+      invoices: [{ id: "demo_invoice", status: "approved" }],
+      payments: [{ id: "demo_payment", status: "succeeded" }],
+      milestones: Array.from({ length: 8 }, (_, index) => ({
+        id: `demo_milestone_${index + 1}`,
+        applicationId: `demo_application_${index % 4}`,
+        dueAt: `2027-0${(index % 4) + 1}-15T17:00:00.000Z`
+      })),
+      followups: [
+        ...Array.from({ length: 4 }, (_, index) => ({ id: `demo_ack_${index + 1}`, kind: "application_received", status: "draft_ready" })),
+        ...Array.from({ length: 3 }, (_, index) => ({ id: `demo_task_notice_${index + 1}`, kind: "task_assignment", status: "draft_ready" }))
+      ],
+      tasks: [
+        { id: "demo_staff_task", assigneeType: "staff", assigneeId: "staff_operations" },
+        { id: "demo_volunteer_task", assigneeType: "volunteer", assigneeId: "vol_001" },
+        { id: "demo_team_task", assigneeType: "team", assigneeId: "operations" }
+      ],
+      taskBoard: { totals: { active: 3, unassigned: 0 } },
+      fulfillment: {
+        profiles: { approved: 1 },
+        assets: { approved: 2 },
+        deliverables: { total: 5 }
+      },
+      vendorReadiness: { totals: { vendors: 2, ready: 1, blocked: 1 } },
       staffDirectory: { ready: true, routedTeams: 7, totalTeams: 7 },
       email: { ready: true }
     },
@@ -761,6 +790,22 @@ console.log("\n=== Pure library suite ===\n");
   const missingSponsorBrandReport = evaluateBoardDemoReadiness({ ...readyBoardState, sponsors: { sponsors: [] }, sponsorLogo: { ok: false, status: 404 } });
   ok("board demo readiness requires rendered sponsor branding", !missingSponsorBrandReport.ok
     && missingSponsorBrandReport.checks.find(item => item.id === "operations")?.ok === false);
+  const missingWorkflowReports = [
+    state => { state.partners.payments = []; },
+    state => { state.partners.milestones = []; },
+    state => { state.partners.followups = []; },
+    state => { state.partners.tasks = state.partners.tasks.filter(item => item.assigneeType !== "staff"); },
+    state => { state.partners.fulfillment.profiles.approved = 0; },
+    state => { state.partners.vendorReadiness.totals.ready = 0; },
+    state => { state.partners.summary.outreach.prospects = 0; }
+  ].map(mutate => {
+    const state = structuredClone(readyBoardState);
+    mutate(state);
+    return evaluateBoardDemoReadiness(state);
+  });
+  ok("board demo readiness requires finance, key dates, messaging, delegation, fulfillment, vendor, and outreach proof", missingWorkflowReports.every(report => (
+    report.ok === false && report.checks.find(item => item.id === "operations")?.ok === false
+  )));
   let remoteBoardCheckRejected = false;
   try {
     boardDemoLoopbackUrl("http://127.0.0.1.evil.example:8806", "test URL");
