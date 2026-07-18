@@ -368,6 +368,34 @@ test("board workflows operate through the public and staff interfaces", async ({
   await expect(vendor.locator(".partner-form-status")).toContainText("Application received.");
   await expect(page.locator("#partner-status-result")).toContainText(vendorName);
   await expect(page.locator('#partner-status-form [name="reference"]')).toHaveValue(vendorResult.application.reference);
+  const freshVendorProfile = page.locator("#partner-vendor-profile-form");
+  await expect(page.locator(".partner-vendor-center")).toContainText("0 / 5 requirements cleared");
+  await expect(page.locator("[data-vendor-requirement]")).toHaveCount(5);
+  await freshVendorProfile.locator('[name="legalName"]').fill(`${vendorName} LLC`);
+  await freshVendorProfile.locator('[name="boothName"]').fill(vendorName);
+  await freshVendorProfile.locator('[name="website"]').fill(`https://vendors.example.com/${runId}`);
+  await freshVendorProfile.locator('[name="powerNeed"]').selectOption("20a");
+  await freshVendorProfile.locator('[name="vehicleLengthFeet"]').fill("18");
+  await freshVendorProfile.locator('[name="emergencyContactName"]').fill("Jordan Boardwalk");
+  await freshVendorProfile.locator('[name="emergencyContactPhone"]').fill("361-555-0188");
+  await freshVendorProfile.locator('[name="publicDescription"]').fill("Original coastal artwork made in Port Aransas and sold from a standard marketplace booth.");
+  await freshVendorProfile.locator('[name="accessibilityNotes"]').fill("Keep the customer-facing aisle clear for mobility devices.");
+  const vendorProfileResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/public/partner-vendor-profile" && response.request().method() === "POST");
+  await freshVendorProfile.locator('button[type="submit"]').click();
+  expect((await vendorProfileResponse).status()).toBe(200);
+  await expect(page.locator('#partner-vendor-profile-form [data-status="submitted"]')).toHaveText("submitted");
+  await expect(page.locator("#partner-status-form .partner-form-status")).toContainText("Operating profile submitted for review.");
+
+  for (let index = 0; index < 5; index += 1) {
+    const requirementForm = page.locator("[data-submit-vendor-document]").first();
+    await requirementForm.locator('[name="sourceUrl"]').fill(`https://documents.example.com/${runId}/requirement-${index + 1}.pdf`);
+    const vendorDocumentResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/public/partner-vendor-documents" && response.request().method() === "POST");
+    await requirementForm.locator('button[type="submit"]').click();
+    expect((await vendorDocumentResponse).status()).toBe(201);
+    await expect(page.locator("[data-submit-vendor-document]")).toHaveCount(4 - index);
+  }
+  await expect(page.locator('[data-vendor-requirement] [data-status="submitted"]')).toHaveCount(5);
+  await expect(page.locator("#partner-status-form .partner-form-status")).toContainText("Vendor document submitted for staff review.");
 
   await page.locator('[data-package-id="tarpon"]').click();
   const sponsor = page.locator("#sponsor-inquiry-form");
@@ -467,6 +495,67 @@ test("board workflows operate through the public and staff interfaces", async ({
     expect(sanitizedUrl.searchParams.get("apiBase")).toBe(apiBase);
     return portal;
   }
+
+  const freshVendorAccount = () => page.locator(`#admin-vendor-readiness [data-admin-vendor="${vendorResult.application.id}"]`);
+  await expect(freshVendorAccount()).toHaveCount(1);
+  await expect(freshVendorAccount()).toHaveAttribute("data-status", "in_progress");
+  await expect(freshVendorAccount()).toContainText("0/5 compliance");
+  await expect(freshVendorAccount()).toContainText("submitted profile");
+  const profileApprovalResponse = page.waitForResponse(response => new URL(response.url()).pathname === `/api/admin/partners/applications/${vendorResult.application.id}/vendor-profile/review` && response.request().method() === "POST");
+  await freshVendorAccount().locator('[data-review-vendor-profile="approve"]').click();
+  expect((await profileApprovalResponse).status()).toBe(200);
+  await expect(freshVendorAccount().locator('[data-admin-vendor-profile] [data-status="approved"]')).toHaveText("approved");
+
+  const freshRequirementIds = await freshVendorAccount().locator("[data-admin-vendor-requirement]").evaluateAll(rows => rows.map(row => row.dataset.adminVendorRequirement));
+  expect(freshRequirementIds).toHaveLength(5);
+  for (const requirementId of freshRequirementIds) {
+    const requirementRow = () => freshVendorAccount().locator(`[data-admin-vendor-requirement="${requirementId}"]`);
+    await requirementRow().locator('[name="status"]').selectOption("approved");
+    const requirementApprovalResponse = page.waitForResponse(response => new URL(response.url()).pathname === `/api/admin/partners/vendor-requirements/${requirementId}` && response.request().method() === "PATCH");
+    await requirementRow().locator("[data-save-vendor-requirement]").click();
+    expect((await requirementApprovalResponse).status()).toBe(200);
+    await expect(requirementRow().locator('header [data-status="approved"]')).toHaveText("approved");
+  }
+  await expect(freshVendorAccount()).toContainText("5/5 compliance");
+
+  const freshVendorAssignment = () => freshVendorAccount().locator("[data-admin-vendor-assignment]");
+  await freshVendorAssignment().locator('[name="status"]').selectOption("scheduled");
+  await freshVendorAssignment().locator('[name="boothNumber"]').fill("A-27");
+  await freshVendorAssignment().locator('[name="zone"]').fill("Artisan promenade");
+  await freshVendorAssignment().locator('[name="accessGate"]').fill("South access gate");
+  await freshVendorAssignment().locator('[name="loadInStart"]').fill("2027-04-16T08:00");
+  await freshVendorAssignment().locator('[name="loadInEnd"]').fill("2027-04-16T09:00");
+  await freshVendorAssignment().locator('[name="loadOutStart"]').fill("2027-04-18T18:00");
+  await freshVendorAssignment().locator('[name="loadOutEnd"]').fill("2027-04-18T19:00");
+  await freshVendorAssignment().locator('[name="parkingPasses"]').fill("1");
+  await freshVendorAssignment().locator('[name="staffWristbands"]').fill("2");
+  await freshVendorAssignment().locator('[name="instructions"]').fill("Stage at the south access gate 15 minutes before the assigned window.");
+  const assignmentResponse = page.waitForResponse(response => new URL(response.url()).pathname === `/api/admin/partners/applications/${vendorResult.application.id}/vendor-assignment` && response.request().method() === "PATCH");
+  await freshVendorAssignment().locator("[data-save-vendor-assignment]").click();
+  expect((await assignmentResponse).status()).toBe(200);
+  await expect(freshVendorAccount()).toContainText("scheduled load-in");
+  const vendorAssignmentMessage = page.locator("#admin-partner-followups [data-followup]").filter({ hasText: `Texas SandFest booth and load-in assignment - ${vendorResult.application.reference}` });
+  await expect(vendorAssignmentMessage).toHaveCount(1);
+  await expect(vendorAssignmentMessage).toContainText("draft ready");
+
+  const freshVendorPortal = await openPreparedPartnerPortal(vendorName);
+  await expect(freshVendorPortal.locator(".partner-vendor-center")).toContainText("5 / 5 requirements cleared");
+  await expect(freshVendorPortal.locator(".partner-vendor-assignment")).toContainText("A-27");
+  await expect(freshVendorPortal.locator(".partner-vendor-assignment")).toContainText("scheduled");
+  const assignmentConfirmationResponse = freshVendorPortal.waitForResponse(response => new URL(response.url()).pathname === "/api/public/partner-vendor-assignment/confirm" && response.request().method() === "POST");
+  await freshVendorPortal.locator("#partner-confirm-vendor-assignment").click();
+  expect((await assignmentConfirmationResponse).status()).toBe(200);
+  await expect(freshVendorPortal.locator(".partner-vendor-assignment")).toContainText("confirmed");
+  await freshVendorPortal.close();
+
+  const refreshedPartners = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/partners" && response.request().method() === "GET");
+  await page.locator("#admin-load-partners").click();
+  await refreshedPartners;
+  await expect(freshVendorAccount()).toHaveAttribute("data-status", "ready");
+  await expect(freshVendorAccount()).toContainText("5/5 compliance");
+  await expect(freshVendorAccount()).toContainText("approved profile");
+  await expect(freshVendorAccount()).toContainText("confirmed load-in");
+  await expect(vendorAssignmentMessage).toContainText("dismissed");
 
   const sponsorPortal = await openPreparedPartnerPortal("Gulf Shore Credit Union");
   await expect(sponsorPortal.locator(".partner-brand-center")).toContainText("Brand center");
