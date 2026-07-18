@@ -126,12 +126,8 @@ const sculptorDataPromise = localBoardContentEnabled
 const liveBeachDemoPromise = localBoardContentEnabled
   ? import("./board-demo/live-beach-demo.json").then(module => module.default)
   : Promise.resolve(null);
-const crawlSummaryPromise = localBoardContentEnabled
-  ? import("../data/processed/crawl-summary.json").then(module => module.default)
-  : Promise.resolve(null);
-const incomingInventoryPromise = localBoardContentEnabled
-  ? import("../data/processed/incoming-inventory.json").then(module => module.default)
-  : Promise.resolve(null);
+const crawlSummaryPromise = Promise.resolve(null);
+const incomingInventoryPromise = Promise.resolve(null);
 
 const [
   mediaManifest,
