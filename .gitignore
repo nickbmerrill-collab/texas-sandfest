@@ -7,6 +7,7 @@ dist-public/
 dist-admin/
 data/incoming/quickbooks/*.json
 data/incoming/quickbooks/*.token
+data/processed/quickbooks-credentials.json
 
 # Local-only credential/secret staging — never commit secrets.
 # The whole credentials drop folder is ignored except its README.

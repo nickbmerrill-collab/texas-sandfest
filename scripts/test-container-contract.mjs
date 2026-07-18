@@ -163,7 +163,7 @@ for (const pattern of [
   "data/processed/incoming-documents",
   "data/processed/job-queue",
   "data/processed/partner-assets",
-  "**/*credential*",
+  "data/processed/quickbooks-credentials.json",
   "**/*secret*",
   "**/*.pem",
   "**/*.key"

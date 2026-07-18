@@ -267,7 +267,13 @@ import {
   normalizeBrevoWebhookEvents,
   verifyBrevoWebhookAuthorization
 } from "../lib/brevo-webhook.mjs";
-import { quickBooksReadiness } from "../lib/quickbooks/client.mjs";
+import {
+  beginQuickBooksAuthorization,
+  cancelQuickBooksAuthorization,
+  completeQuickBooksAuthorization,
+  disconnectQuickBooks,
+  readQuickBooksCredentialStatus
+} from "../lib/quickbooks/credentials.mjs";
 import {
   createIncidentDispatch,
   createOperationsIncident,
@@ -1482,6 +1488,7 @@ async function deploymentProfile(options = {}) {
       ? operationalDocValues[index]?.hunt?.eventId ?? null
       : operationalDocValues[index]?.eventId ?? null
   }));
+  const quickbooks = await readQuickBooksCredentialStatus(ROOT);
   const guideReadiness = eventGuideReadiness(eventBootstrap.guide, {
     maxSourceAgeDays: EVENT_GUIDE_SOURCE_MAX_AGE_DAYS
   });
@@ -1751,7 +1758,6 @@ async function deploymentProfile(options = {}) {
       );
     })(),
     quickBooksInvoices: (() => {
-      const quickbooks = quickBooksReadiness();
       const required = capabilityPolicy.required.has("quickbooks_invoices");
       return checkStatus(
         (!required && !quickbooks.invoiceSyncEnabled) || quickbooks.canSyncPartnerInvoices,
@@ -1796,6 +1802,7 @@ async function deploymentProfile(options = {}) {
     errors: errors.length,
     warnings: warnings.length,
     automation: { deploymentTaskSync: deploymentTaskAutomation },
+    quickBooksInvoiceSyncReady: quickbooks.canSyncPartnerInvoices,
     checks: presentedChecks,
     groups: summarizeDeploymentGroups(presentedChecks)
   };
@@ -1967,6 +1974,26 @@ function sendJson(request, response, status, payload, headers = {}) {
   response.end(request.method === "HEAD" ? undefined : JSON.stringify(responsePayload, null, 2));
 }
 
+function sendHtml(request, response, status, html) {
+  const requestId = request.requestId || `req_${randomUUID()}`;
+  const headers = {
+    "content-type": "text/html; charset=utf-8",
+    "cache-control": "no-store",
+    "content-security-policy": "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    "cross-origin-opener-policy": "same-origin",
+    "permissions-policy": "camera=(), microphone=(), geolocation=()",
+    "referrer-policy": "no-referrer",
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "DENY",
+    "x-request-id": requestId
+  };
+  if (SANDFEST_ENV === "production") {
+    headers["strict-transport-security"] = "max-age=31536000; includeSubDomains";
+  }
+  response.writeHead(status, headers);
+  response.end(request.method === "HEAD" ? undefined : html);
+}
+
 function sendTwiml(request, response, status = 200) {
   const requestId = request.requestId || `req_${randomUUID()}`;
   response.writeHead(status, {
@@ -2016,6 +2043,7 @@ function requestIp(request) {
 
 function rateLimitProfile(pathname, method) {
   if (method === "OPTIONS") return null;
+  if (method === "GET" && pathname === "/api/integrations/quickbooks/callback") return { name: "quickbooks-oauth", limit: PUBLIC_WRITE_RATE_LIMIT };
   if (method === "POST" && pathname === "/api/webhooks/brevo") return { name: "brevo-webhook", limit: PUBLIC_RATE_LIMIT };
   if (method === "POST" && pathname.startsWith("/api/webhooks/twilio/")) return { name: "twilio-webhook", limit: SMS_WEBHOOK_RATE_LIMIT };
   if (pathname === "/api/stripe/create-checkout-session") return { name: "checkout", limit: CHECKOUT_RATE_LIMIT };
@@ -3342,6 +3370,50 @@ async function handleRequest(request, response) {
   if (!(await checkRateLimit(request, response, pathname, method))) return;
 
   try {
+    if (request.method === "GET" && pathname === "/api/integrations/quickbooks/callback") {
+      if (url.searchParams.get("error")) {
+        try {
+          await cancelQuickBooksAuthorization(ROOT, { state: url.searchParams.get("state") });
+        } catch (error) {
+          console.error(JSON.stringify({
+            event: "quickbooks.oauth.cancel.error",
+            requestId: request.requestId,
+            error: { name: String(error?.name || "Error") }
+          }));
+        }
+        sendHtml(request, response, 400, "<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><title>QuickBooks connection not completed</title><body><main><h1>QuickBooks was not connected</h1><p>The authorization request was canceled or declined. You can close this window and try again from SandFest operations.</p></main></body></html>");
+        return;
+      }
+      let result;
+      try {
+        result = await completeQuickBooksAuthorization(ROOT, {
+          state: url.searchParams.get("state"),
+          code: url.searchParams.get("code"),
+          realmId: url.searchParams.get("realmId")
+        });
+      } catch (error) {
+        console.error(JSON.stringify({
+          event: "quickbooks.oauth.callback.error",
+          requestId: request.requestId,
+          error: { name: String(error?.name || "Error") }
+        }));
+        sendHtml(request, response, 502, "<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><title>QuickBooks connection failed</title><body><main><h1>QuickBooks could not be connected</h1><p>No credentials were saved. Close this window and retry from SandFest operations.</p></main></body></html>");
+        return;
+      }
+      if (!result.ok) {
+        sendHtml(request, response, 400, "<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><title>QuickBooks connection expired</title><body><main><h1>This QuickBooks connection request is no longer valid</h1><p>Close this window and start a new connection from SandFest operations.</p></main></body></html>");
+        return;
+      }
+      await writeSystemAuditRecord(
+        "accounting.quickbooks.connect",
+        { type: "accountingIntegration", id: "quickbooks" },
+        { connected: true, environment: result.quickbooks.environment, credentialStorage: result.quickbooks.credentialStorage },
+        { requestId: request.requestId }
+      );
+      sendHtml(request, response, 200, "<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><title>QuickBooks connected</title><body><main><h1>QuickBooks is connected</h1><p>Your encrypted accounting connection is ready. You can close this window and return to SandFest operations.</p></main></body></html>");
+      return;
+    }
+
     if (method === "GET" && pathname === "/health") {
       const deployment = await deploymentProfile();
       const eventGuideReady = deployment.checks.eventGuide?.ok === true;
@@ -3363,7 +3435,7 @@ async function handleRequest(request, response) {
         safetySmsReady: smsConfigFromEnv().ready,
         transactionalEmailReady: emailConfigFromEnv().ready && BREVO_WEBHOOK.ready,
         transactionalEmailWebhookReady: BREVO_WEBHOOK.ready,
-        quickBooksInvoiceSyncReady: quickBooksReadiness().canSyncPartnerInvoices,
+        quickBooksInvoiceSyncReady: deployment.quickBooksInvoiceSyncReady,
         cameraIngestReady: cameraIngestConfig().ready,
         backupRecoveryReady: recoveryReadiness(process.env).ready,
         partnerPortalReady: partnerPortalConfig().ready,
@@ -3432,6 +3504,54 @@ async function handleRequest(request, response) {
         deployment,
         time: new Date().toISOString()
       });
+      return;
+    }
+
+    if (method === "GET" && pathname === "/api/admin/integrations/quickbooks") {
+      const session = await requirePermission(request, response, "partners:read");
+      if (!session) return;
+      sendJson(request, response, 200, { quickbooks: await readQuickBooksCredentialStatus(ROOT) });
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/admin/integrations/quickbooks/authorize") {
+      const session = await requirePermission(request, response, "finance:write");
+      if (!session) return;
+      const result = await beginQuickBooksAuthorization(ROOT, { actorId: session.id });
+      if (!result.ok) {
+        sendJson(request, response, 409, { error: result.error, quickbooks: result.quickbooks });
+        return;
+      }
+      await writeAuditRecord(
+        request,
+        "accounting.quickbooks.authorize",
+        { type: "accountingIntegration", id: "quickbooks" },
+        null,
+        { authorizationStarted: true, expiresAt: result.expiresAt, environment: result.quickbooks.environment }
+      );
+      sendJson(request, response, 201, result);
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/admin/integrations/quickbooks/disconnect") {
+      const session = await requirePermission(request, response, "finance:write");
+      if (!session) return;
+      const body = await readBody(request);
+      if (body.confirm !== true) {
+        sendJson(request, response, 400, { error: "Confirm with confirm=true before removing the stored QuickBooks connection." });
+        return;
+      }
+      const before = await readQuickBooksCredentialStatus(ROOT);
+      const result = await disconnectQuickBooks(ROOT);
+      await writeAuditRecord(
+        request,
+        "accounting.quickbooks.disconnect",
+        { type: "accountingIntegration", id: "quickbooks" },
+        before,
+        result.quickbooks,
+        { providerGrantRevoked: false }
+      );
+      sendJson(request, response, 200, result);
       return;
     }
 
@@ -5460,7 +5580,7 @@ async function handleRequest(request, response) {
         activity: doc.activity.slice(-200).reverse(),
         email: publicEmailReadiness(email),
         stripePartnerPayments: publicStripePartnerPaymentsReadiness(STRIPE_PARTNER_PAYMENTS),
-        quickbooks: quickBooksReadiness()
+        quickbooks: await readQuickBooksCredentialStatus(ROOT)
       });
       return;
     }
@@ -6320,7 +6440,7 @@ async function handleRequest(request, response) {
         return;
       }
       await writeAuditRecord(request, "partner.invoice.create", { type: "invoice", id: result.invoice.id }, null, result.invoice);
-      sendJson(request, response, 201, { invoice: result.invoice, quickbooks: quickBooksReadiness() });
+      sendJson(request, response, 201, { invoice: result.invoice, quickbooks: await readQuickBooksCredentialStatus(ROOT) });
       return;
     }
 
@@ -6341,7 +6461,7 @@ async function handleRequest(request, response) {
         return;
       }
       await writeAuditRecord(request, `partner.invoice.${body.action}`, { type: "invoice", id: invoiceId }, before, result.invoice);
-      sendJson(request, response, 200, { invoice: result.invoice, quickbooks: quickBooksReadiness() });
+      sendJson(request, response, 200, { invoice: result.invoice, quickbooks: await readQuickBooksCredentialStatus(ROOT) });
       return;
     }
 
@@ -6350,7 +6470,7 @@ async function handleRequest(request, response) {
       const session = await requirePermission(request, response, "finance:write");
       if (!session) return;
       const invoiceId = decodeURIComponent(partnerInvoiceSyncMatch[1]);
-      const readiness = quickBooksReadiness();
+      const readiness = await readQuickBooksCredentialStatus(ROOT);
       if (!readiness.canSyncPartnerInvoices) {
         sendJson(request, response, 409, { error: readiness.reason || "QuickBooks invoice sync is not ready.", quickbooks: readiness });
         return;
@@ -6390,7 +6510,7 @@ async function handleRequest(request, response) {
       const session = await requirePermission(request, response, "finance:write");
       if (!session) return;
       const invoiceId = decodeURIComponent(partnerInvoiceReconcileMatch[1]);
-      const readiness = quickBooksReadiness();
+      const readiness = await readQuickBooksCredentialStatus(ROOT);
       if (!readiness.canSyncPartnerInvoices) {
         sendJson(request, response, 409, { error: readiness.reason || "QuickBooks invoice reconciliation is not ready.", quickbooks: readiness });
         return;

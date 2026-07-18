@@ -197,6 +197,12 @@ test.beforeAll(async () => {
     SANDFEST_TURNSTILE_ENABLED: "false",
     OUTREACH_DISCOVERY_ENABLED: "true",
     OUTREACH_DISCOVERY_PROVIDER: "fixture",
+    QB_ENVIRONMENT: "sandbox",
+    QB_INVOICE_SYNC_ENABLED: "false",
+    QB_CLIENT_ID: "board-browser-quickbooks-client",
+    QB_CLIENT_SECRET: "board-browser-quickbooks-secret",
+    QB_REDIRECT_URI: `${apiBase}/api/integrations/quickbooks/callback`,
+    QB_TOKEN_ENCRYPTION_KEY: "board-browser-quickbooks-encryption-key-0123456789",
     ...emailEnvironment,
     SMS_ENABLED: "false",
     CAMERA_INGEST_ENABLED: "false"
@@ -312,6 +318,11 @@ test("board workflows operate through the public and staff interfaces", async ({
   await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#admin-partners`);
   await expect(page.locator("#admin-api-status")).toContainText("Loaded", { timeout: 25_000 });
   await expect(page.locator("#admin-deployment-summary")).toContainText("development · ready");
+  await expect(page.locator("#admin-quickbooks-connection")).toBeVisible();
+  await expect(page.locator("#admin-quickbooks-status")).toContainText("Ready to connect");
+  await expect(page.locator("#admin-connect-quickbooks")).toBeEnabled();
+  await expect(page.locator("#admin-refresh-quickbooks")).toBeEnabled();
+  await expect(page.locator("#admin-disconnect-quickbooks")).toBeHidden();
   const launchTaskSyncResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/deployment/tasks/sync" && response.request().method() === "POST");
   await page.locator("#admin-sync-deployment-tasks").click();
   const launchTaskSyncResult = await launchTaskSyncResponse;
@@ -551,6 +562,8 @@ test("critical public and operations views fit a mobile viewport", async ({ page
   await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#admin-partners`);
   await expect(page.locator("#admin-api-status")).toContainText("Loaded", { timeout: 25_000 });
   await expect(page.locator("#admin-create-task")).toBeVisible();
+  await expect(page.locator("#admin-quickbooks-connection")).toBeVisible();
+  await expect(page.locator("#admin-quickbooks-status")).toContainText("Ready to connect");
   await assertNoHorizontalOverflow(page);
 });
 
