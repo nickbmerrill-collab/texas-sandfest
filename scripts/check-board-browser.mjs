@@ -210,6 +210,8 @@ if (visitorUrl && operationsUrl) {
           && item.querySelector('[name="latitude"]')?.value
           && item.querySelector('[name="longitude"]')?.value
         )).length,
+        invitationReadyProspects: [...document.querySelectorAll("#admin-outreach-prospects [data-outreach-prospect]")]
+          .filter(item => item.querySelector('[data-sponsor-invitation-action="issue"]:not(:disabled)')).length,
         outreachCampaigns: document.querySelectorAll("#admin-outreach-campaigns [data-outreach-campaign]").length,
         geofencedCampaigns: [...document.querySelectorAll("#admin-outreach-campaigns [data-outreach-campaign]")]
           .filter(item => item.textContent?.includes("mi around")).length,
@@ -300,12 +302,13 @@ if (visitorUrl && operationsUrl) {
         || item?.blockedVendors < 1
         || item?.outreachProspects < 1
         || item?.locatedProspects < 1
+        || item?.invitationReadyProspects < 1
         || item?.outreachCampaigns < 1
         || item?.geofencedCampaigns < 1
       ) {
         throw new Error("Sponsor, vendor, or geofenced outreach proof is incomplete.");
       }
-      return `${item.approvedBrandAssets} approved brand assets, ${item.sponsorDeliverables} sponsor benefits, ready and blocked vendor paths, and a located prospect in a geofenced campaign rendered.`;
+      return `${item.approvedBrandAssets} approved brand assets, ${item.sponsorDeliverables} sponsor benefits, ready and blocked vendor paths, and an invitation-ready located prospect in a geofenced campaign rendered.`;
     });
     await inspect("document_ingestion", "Private document ingestion", "Inspect governed files, extraction states, and staff-only previews.", async () => {
       const item = observations.operations;
