@@ -145,9 +145,9 @@ Every AI-answerable fact needs:
 
 ## AI Rules
 
-- Ask Sandy answers only from the privacy-safe public event, ticket, sponsor, vendor, accessibility-location, weather, ferry, and camera projections.
+- Ask Sandy answers only from the privacy-safe public event, ticket, sponsor, vendor, accessibility, parking/shuttle, weather, ferry, and camera projections.
 - Every answer cites one to four public sources; stale feeds are withheld rather than summarized as current.
-- Urgent medical, missing-person, and security questions state that Ask Sandy cannot dispatch help and direct immediate danger to 911 and on-site staff. Accessibility questions use only approved public zones and otherwise escalate; unsupported policy, payment, media, and contract questions escalate to the public SandFest contact.
+- Urgent medical, missing-person, and security questions state that Ask Sandy cannot dispatch help and direct immediate danger to 911 and on-site staff. Accessibility and parking/shuttle questions use only approved public zones and otherwise escalate; parking permits, remote lots, operating hours, and route changes remain explicit staff or official-guide handoffs. Unsupported policy, payment, media, and contract questions escalate to the public SandFest contact.
 - Public question text is bounded, rate-limited, sent with `cache-control: no-store`, and is not persisted or echoed in unsupported responses. Any future content-gap telemetry requires a separate aggregate privacy review.
 - Web uses `POST /api/public/concierge` today. iOS, SMS, and staff-console clients should reuse that governed contract instead of creating independent answer tables.
 

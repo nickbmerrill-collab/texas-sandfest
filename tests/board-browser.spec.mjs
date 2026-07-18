@@ -861,6 +861,20 @@ test("WCAG A and AA checks cover public intake, partner status, concierge, and o
   await expect(page.locator("#chat .concierge-answer")).toContainText("North Gate at marker 12.5");
   await expect(page.locator('#chat .concierge-sources a[href="#operations"]')).toHaveText("Published accessibility locations");
 
+  const parkingResponsePromise = page.waitForResponse(response => new URL(response.url()).pathname === "/api/public/concierge" && response.request().method() === "POST");
+  await page.getByRole("button", { name: "Is parking information available?" }).click();
+  const parkingResponse = await parkingResponsePromise;
+  expect(parkingResponse.status()).toBe(200);
+  const parkingPayload = await parkingResponse.json();
+  expect(parkingPayload.topic).toBe("parking");
+  expect(parkingPayload.confidence).toBe("medium");
+  expect(parkingPayload.escalated).toBe(true);
+  expect(parkingPayload.answer).toContain("North Gate at marker 12.5");
+  expect(parkingPayload.answer).toContain("South Entrance at marker Access Road 1A");
+  await expect(page.locator("#chat .concierge-answer")).toHaveCount(2);
+  await expect(page.locator("#chat .concierge-answer").last()).toContainText("South Entrance at marker Access Road 1A");
+  await expect(page.locator('#chat .concierge-sources a[href="#operations"]').last()).toHaveText("Published parking and shuttle locations");
+
   const vendor = page.locator("#vendor-application-form");
   await vendor.locator('[name="organizationName"]').fill(`Accessible Boardwalk Arts ${runId}`);
   await vendor.locator('[name="contactName"]').fill("Taylor Access");
