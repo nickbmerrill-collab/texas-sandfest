@@ -71,8 +71,8 @@ assert(vercelConfig.framework === "vite", "Vercel PR previews must use the Vite 
 assert(vercelConfig.buildCommand === "node scripts/verify-vercel-project.mjs && SANDFEST_DEPLOYMENT_ENV=$VERCEL_ENV npm run build:public", "Vercel builds must verify project isolation, inherit the deployment environment, and build only the public surface.");
 assert(vercelConfig.outputDirectory === "dist-public", "Vercel PR previews must publish only the isolated public artifact.");
 assert(publicHtml.includes("Texas SandFest | Port Aransas"), "Public artifact does not contain the visitor entry.");
-assert(!publicHtml.includes("SandFest Ops Console"), "Public artifact contains the admin entry.");
-assert(adminHtml.includes("SandFest Ops Console"), "Admin artifact does not contain the ops entry.");
+assert(!publicHtml.includes("Texas SandFest Operations"), "Public artifact contains the admin entry.");
+assert(adminHtml.includes("Texas SandFest Operations"), "Admin artifact does not contain the ops entry.");
 assert(!adminHtml.includes("Texas SandFest | Port Aransas"), "Admin artifact contains the visitor entry.");
 const cspMatch = publicHtml.match(/<meta[^>]+http-equiv="Content-Security-Policy"[^>]+content="([^"]+)"[^>]*>/i);
 assert(cspMatch, "Public production artifact is missing its Content Security Policy.");
@@ -272,7 +272,15 @@ assert(visitorSource.includes('const observation = camera.freshness?.state === "
 assert(visitorSource.includes('id="admin-volunteer-import-result" class="admin-import-result admin-import-wide" aria-live="polite"'), "VolunteerLocal reconciliation is missing its live preview status.");
 assert(visitorSource.includes('id="admin-booth-import-result" class="admin-import-result admin-import-wide" aria-live="polite"'), "Eventeny booth reconciliation is missing its live preview status.");
 assert(visitorSource.includes('class="site-footer"') && visitorSource.includes('aria-label="Festival contact links"'), "Public source is missing its contact footer landmark.");
-assert(visitorSource.includes('<h1>Pricing, sponsorships, and event controls</h1>'), "Admin source is missing its primary heading.");
+assert(visitorSource.includes('<h1>Festival operations command center</h1>'), "Admin source is missing its primary heading.");
+for (const marker of [
+  "Heyelab admin backend",
+  "Seed data until the live CSV/export is wired.",
+  "Start the API to load booth pins",
+  "re-sync Eventeny CSV"
+]) {
+  assert(!visitorSource.includes(marker), `Visitor source contains unfinished product or implementation language: ${marker}`);
+}
 for (const marker of [
   "operating profile review notes",
   "brand profile review notes",
