@@ -57,9 +57,15 @@ catalogs, approved sponsor branding, eight-camera conditions grid, command
 signals, partner/task/document queues, deferred live-accounting label, browser
 errors, and desktop overflow without submitting a form or changing demo data.
 
-Use an intentional reset when you want to discard demonstration changes and
-restore the synthetic starting state. Stop the stack cleanly from another
-terminal:
+Use the reset icon in the Operations header when you want to discard
+demonstration changes and restore the synthetic starting state. After
+confirmation, the supervisor stops every local component, replaces the runtime,
+starts fresh services, waits for a new 9-of-9 generation, and reloads Operations.
+The control appears only when an authenticated board session is connected
+directly to its loopback supervisor; ordinary development and production APIs
+return no reset capability.
+
+The terminal fallback performs the same intentional reset:
 
 ```bash
 npm run board:stop

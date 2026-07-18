@@ -2,13 +2,14 @@
 
 import { spawn } from "node:child_process";
 import { createServer as createNetServer } from "node:net";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { readBoardDemoSession } from "../lib/board-demo-session.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const ADMIN_TOKEN = "board-demo-local-admin-token-change-me";
 let temporary = null;
 let supervisor = null;
 let occupiedPortServer = null;
@@ -228,7 +229,49 @@ try {
   }
   console.log("  ok board:rehearse rejects a tampered remote API endpoint before navigation");
 
-  const originalApiPid = Number(initial.services.api.pid);
+  const unauthorizedReset = await fetch(`${initial.endpoints.apiBase}/api/admin/board-demo/reset`, { method: "POST" });
+  if (unauthorizedReset.status !== 401) {
+    throw new Error(`Board reset accepted an unauthenticated request with status ${unauthorizedReset.status}.`);
+  }
+  console.log("  ok presentation reset requires the board administrator session");
+
+  const resetProbe = path.join(runtimeRoot, "reset-probe.txt");
+  await writeFile(resetProbe, "must be removed by presentation reset\n", "utf8");
+  const preResetPids = Object.fromEntries(Object.entries(initial.services).map(([name, service]) => [name, Number(service.pid)]));
+  const resetResponse = await fetch(`${initial.endpoints.apiBase}/api/admin/board-demo/reset`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${ADMIN_TOKEN}` }
+  });
+  const resetPayload = await resetResponse.json();
+  if (resetResponse.status !== 202 || resetPayload.accepted !== true || resetPayload.generation !== health.boardDemoGeneration) {
+    throw new Error(`Board reset request was not accepted safely: ${resetResponse.status} ${JSON.stringify(resetPayload)}`);
+  }
+  const resetSession = await waitFor(async () => {
+    const session = await readBoardDemoSession(sessionFile);
+    if (session?.status !== "ready" || session?.resetCount !== 1 || !session?.lastResetAt || session?.lastPreflight?.passed !== 9) return null;
+    const servicesReplaced = Object.entries(session.services || {}).every(([name, service]) => {
+      const pid = Number(service.pid);
+      return pid > 0 && pid !== preResetPids[name] && processAlive(pid);
+    });
+    if (!servicesReplaced) return null;
+    rememberServicePids(session);
+    return session;
+  }, 90_000, "Board presentation reset");
+  const resetHealthResponse = await fetch(`${resetSession.endpoints.apiBase}/health`);
+  const resetHealth = await resetHealthResponse.json();
+  if (!resetHealthResponse.ok || !resetHealth.boardDemoResetReady || resetHealth.boardDemoGeneration === health.boardDemoGeneration) {
+    throw new Error("Board reset did not publish a fresh reset-ready runtime generation.");
+  }
+  try {
+    await access(resetProbe);
+    throw new Error("Board reset retained a runtime file outside the prepared baseline.");
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
+  const resetReport = await preflight(sessionFile);
+  console.log(`  ok presentation reset replaces every service, restores the baseline, and returns to ${resetReport.passed}/${resetReport.total}`);
+
+  const originalApiPid = Number(resetSession.services.api.pid);
   process.kill(originalApiPid, "SIGKILL");
   const recovered = await waitFor(async () => {
     const session = await readBoardDemoSession(sessionFile);
@@ -251,7 +294,7 @@ try {
   const lingering = [...observedPids].filter(processAlive);
   if (lingering.length) throw new Error(`Board child processes remained alive after shutdown: ${lingering.join(", ")}`);
   console.log(`  ok stop command shuts down the supervisor and all ${observedPids.size} observed child processes`);
-  console.log("\nBoard demo supervisor: 8/8 checks passed.\n");
+  console.log("\nBoard demo supervisor: 11/11 checks passed.\n");
 } catch (error) {
   console.error(`\nBoard demo supervisor test failed: ${error.message}`);
   process.exitCode = 1;

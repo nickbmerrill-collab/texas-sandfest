@@ -197,7 +197,8 @@ function processEnvironment(runtimeRoot, endpoints) {
     },
     api: {
       ...shared,
-      SANDFEST_API_PORT: String(new URL(endpoints.apiBase).port)
+      SANDFEST_API_PORT: String(new URL(endpoints.apiBase).port),
+      SANDFEST_BOARD_RESET_SUPERVISOR_PID: String(process.pid)
     },
     web: {
       ...shared,
@@ -332,6 +333,7 @@ function persistState() {
 const children = new Map();
 const restartHistory = new Map();
 let stopping = false;
+let resetting = false;
 let finalExitCode = 0;
 let verificationPromise = null;
 let finishLifetime;
@@ -432,7 +434,7 @@ function handleServiceExit(name, child, code, signal) {
   service.lastExitAt = new Date().toISOString();
   service.lastExitCode = Number.isInteger(code) ? code : null;
   service.lastExitSignal = signal || null;
-  if (stopping) {
+  if (stopping || resetting) {
     service.status = "stopped";
     void persistState();
     return;
@@ -467,6 +469,47 @@ function startService(name) {
 
 process.once("SIGINT", () => void shutdown());
 process.once("SIGTERM", () => void shutdown());
+
+async function resetBoardRuntime() {
+  if (stopping || resetting) return;
+  resetting = true;
+  state.status = "resetting";
+  state.resetStartedAt = new Date().toISOString();
+  delete state.error;
+  await persistState();
+  try {
+    if (verificationPromise) await verificationPromise;
+    for (const name of [...SERVICE_ORDER].reverse()) await stopChild(name);
+    await stateWrites;
+    const refreshedRuntime = await prepareRuntime(options.runtimeRoot, { reset: true });
+    state.runtimeReused = false;
+    state.runtimeGeneratedAt = refreshedRuntime.generatedAt;
+    restartHistory.clear();
+    for (const name of SERVICE_ORDER) {
+      state.services[name] = {
+        pid: null,
+        status: "pending",
+        restartCount: 0,
+        startedAt: null,
+        lastExitAt: null,
+        lastExitCode: null
+      };
+    }
+    for (const name of SERVICE_ORDER) startService(name);
+    await verifyReady("reset", 60_000);
+    state.resetCount = Number(state.resetCount || 0) + 1;
+    state.lastResetAt = new Date().toISOString();
+    delete state.resetStartedAt;
+    await persistState();
+    console.log(`[board-demo] Presentation state restored from the synthetic baseline (${state.resetCount} reset${state.resetCount === 1 ? "" : "s"}).`);
+  } finally {
+    resetting = false;
+  }
+}
+
+process.on("SIGUSR2", () => {
+  void resetBoardRuntime().catch(fatal);
+});
 
 try {
   await persistState();

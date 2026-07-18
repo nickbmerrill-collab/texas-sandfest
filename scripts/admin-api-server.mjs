@@ -372,15 +372,29 @@ const OUTREACH_DISCOVERY = outreachDiscoveryConfig(process.env, { production: SA
 const SPONSOR_INVITATIONS = sponsorInvitationConfig(process.env);
 const EVENT_CONTEXT = eventContextConfig(process.env);
 const CURRENT_EVENT_ID = EVENT_CONTEXT.eventId;
-const BOARD_DEMO_RUNTIME = await (async () => {
-  if (SANDFEST_ENV === "production" || !RUNTIME_ROOT.isolated) return false;
+const BOARD_DEMO_MARKER = await (async () => {
+  if (SANDFEST_ENV === "production" || !RUNTIME_ROOT.isolated) return null;
   try {
     const marker = JSON.parse(await readFile(path.join(ROOT, "board-runtime.json"), "utf8"));
-    return marker.kind === "synthetic-board-demonstration" && marker.eventId === CURRENT_EVENT_ID;
+    return marker.kind === "synthetic-board-demonstration" && marker.eventId === CURRENT_EVENT_ID ? marker : null;
   } catch {
-    return false;
+    return null;
   }
 })();
+const BOARD_DEMO_RUNTIME = Boolean(BOARD_DEMO_MARKER);
+const BOARD_DEMO_RESET_SUPERVISOR_PID = (() => {
+  const raw = String(process.env.SANDFEST_BOARD_RESET_SUPERVISOR_PID || "").trim();
+  if (!raw) return null;
+  if (SANDFEST_ENV === "production" || !BOARD_DEMO_RUNTIME) {
+    throw new Error("Board demo reset is restricted to an isolated non-production board runtime.");
+  }
+  const pid = Number(raw);
+  if (!Number.isInteger(pid) || pid < 2 || pid !== process.ppid) {
+    throw new Error("SANDFEST_BOARD_RESET_SUPERVISOR_PID must identify the direct board supervisor process.");
+  }
+  return pid;
+})();
+const BOARD_DEMO_RESET_READY = Boolean(BOARD_DEMO_RESET_SUPERVISOR_PID);
 const BOARD_DEMO_CONDITIONS_MODE = String(process.env.SANDFEST_BOARD_CONDITIONS_MODE || "").trim().toLowerCase();
 if (BOARD_DEMO_CONDITIONS_MODE && !["official", "synthetic"].includes(BOARD_DEMO_CONDITIONS_MODE)) {
   throw new Error("SANDFEST_BOARD_CONDITIONS_MODE must be official or synthetic.");
@@ -2091,6 +2105,10 @@ function requestIp(request) {
   return request.socket.remoteAddress ?? "unknown";
 }
 
+function requestSocketIsLoopback(request) {
+  return new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]).has(request.socket.remoteAddress);
+}
+
 function rateLimitProfile(pathname, method) {
   if (method === "OPTIONS") return null;
   if (method === "GET" && pathname === "/api/integrations/quickbooks/callback") return { name: "quickbooks-oauth", limit: PUBLIC_WRITE_RATE_LIMIT };
@@ -3495,6 +3513,9 @@ async function handleRequest(request, response) {
         stripePartnerPaymentsReady: STRIPE_PARTNER_PAYMENTS.ready,
         rateLimitBackend: rateLimiter.kind,
         runtimeDataMode: RUNTIME_ROOT.mode,
+        boardDemoRuntime: BOARD_DEMO_RUNTIME,
+        boardDemoGeneration: BOARD_DEMO_MARKER?.generatedAt || null,
+        boardDemoResetReady: BOARD_DEMO_RESET_READY,
         storage: storage.kind === "postgres" ? "postgres" : "local-file-prototype",
         uptimeSeconds: Math.round(process.uptime()),
         time: new Date().toISOString()
@@ -4709,7 +4730,39 @@ async function handleRequest(request, response) {
     if (method === "GET" && pathname === "/api/admin/session") {
       const session = await requireAdmin(request, response);
       if (!session) return;
-      sendJson(request, response, 200, { session });
+      sendJson(request, response, 200, {
+        session,
+        capabilities: {
+          boardDemoReset: BOARD_DEMO_RESET_READY
+            && requestSocketIsLoopback(request)
+            && hasPermission(session, "board-demo:reset")
+        }
+      });
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/admin/board-demo/reset") {
+      if (!BOARD_DEMO_RESET_READY || !requestSocketIsLoopback(request)) {
+        sendJson(request, response, 404, { error: "Not found." });
+        return;
+      }
+      const session = await requirePermission(request, response, "board-demo:reset");
+      if (!session) return;
+      sendJson(request, response, 202, {
+        accepted: true,
+        generation: BOARD_DEMO_MARKER.generatedAt,
+        message: "The isolated board demonstration is restoring its prepared baseline."
+      });
+      setTimeout(() => {
+        try {
+          process.kill(BOARD_DEMO_RESET_SUPERVISOR_PID, "SIGUSR2");
+        } catch (error) {
+          console.error(JSON.stringify({
+            event: "board-demo.reset.signal.error",
+            error: { name: String(error?.name || "Error") }
+          }));
+        }
+      }, 75).unref?.();
       return;
     }
 
