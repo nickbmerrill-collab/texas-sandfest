@@ -27,7 +27,40 @@ The generated public bootstrap labels both visitor and operations surfaces as a 
 
 ## Run
 
-Start the isolated API:
+Start the complete presentation stack in one terminal:
+
+```bash
+npm run board:demo
+```
+
+The supervisor prepares or reuses the isolated runtime, selects unused loopback
+ports without stopping another local service, starts the web, API, worker,
+email, SMS, and eight-camera playback processes, and prints the exact Visitor
+and Operations links only after the same nine readiness checks pass. Keep this
+terminal open during the presentation. `npm run board:check` automatically
+discovers the active session even when the preferred ports were occupied.
+
+Use an intentional reset when you want to discard demonstration changes and
+restore the synthetic starting state. Stop the stack cleanly from another
+terminal:
+
+```bash
+npm run board:demo -- --reset
+npm run board:check
+npm run board:stop
+```
+
+The credential-free session record lives at
+`.sandfest-runtime/board-demo-session.json`. The supervisor restarts a failed
+component with bounded backoff and returns to ready only after another 9-of-9
+preflight. It stops instead of looping forever when a component repeatedly
+fails. Stripe ticketing, sponsor checkout, and QuickBooks sync are explicitly
+disabled in this synthetic stack even if the parent shell contains provider
+credentials.
+
+### Manual fallback
+
+For component-level debugging, start the isolated providers and API manually:
 
 ```bash
 npm run board:mailbox

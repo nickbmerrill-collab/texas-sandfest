@@ -47,6 +47,8 @@ jobs:
         run: npm run test:platform:api
       - name: Isolated board runtime
         run: npm run test:board-runtime
+      - name: Board demo supervisor recovery
+        run: npm run test:board-supervisor
       - name: Board browser acceptance
         run: npm run test:browser
       - name: Upload browser failure evidence

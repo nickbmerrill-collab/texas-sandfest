@@ -1,17 +1,23 @@
 #!/usr/bin/env node
 
 import { boardDemoCheckEndpoints, evaluateBoardDemoReadiness } from "../lib/board-demo-readiness.mjs";
+import { boardDemoEnvironmentFromSession } from "../lib/board-demo-session.mjs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const checkEnvironment = await boardDemoEnvironmentFromSession(process.env, { root: ROOT });
 
 let endpoints;
 try {
-  endpoints = boardDemoCheckEndpoints(process.env);
+  endpoints = boardDemoCheckEndpoints(checkEnvironment);
 } catch (error) {
   console.error(`[FAIL] Board demo preflight configuration: ${error.message}`);
   process.exit(1);
 }
 const { webUrl, webOrigin, apiBase, emailBase, smsBase } = endpoints;
-const adminToken = process.env.SANDFEST_BOARD_ADMIN_TOKEN || "board-demo-local-admin-token-change-me";
-const configuredTimeoutMs = Number(process.env.SANDFEST_BOARD_CHECK_TIMEOUT_MS || 5000);
+const adminToken = checkEnvironment.SANDFEST_BOARD_ADMIN_TOKEN || "board-demo-local-admin-token-change-me";
+const configuredTimeoutMs = Number(checkEnvironment.SANDFEST_BOARD_CHECK_TIMEOUT_MS || 5000);
 const timeoutMs = Number.isFinite(configuredTimeoutMs) ? Math.max(1000, configuredTimeoutMs) : 5000;
 const jsonOutput = process.argv.includes("--json");
 
