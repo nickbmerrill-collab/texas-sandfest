@@ -192,8 +192,8 @@ try {
   });
   const resolved = resolveRuntimeRoot(ROOT, { SANDFEST_RUNTIME_ROOT: targetRoot });
   check("runtime root resolves outside repository data", resolved === targetRoot && resolved !== ROOT);
-  check("board seed covers core operations", prepared.applications === 4 && prepared.invoices === 1 && prepared.payments === 1 && prepared.tasks === 8 && prepared.prospects === 1 && prepared.safetySmsRecipients === 1);
-  check("board seed covers field operations", prepared.cameras === 8 && prepared.volunteerShifts === 12 && prepared.documents === 3);
+  check("board seed covers core operations", prepared.applications === 4 && prepared.invoices === 1 && prepared.payments === 1 && prepared.tasks === 9 && prepared.prospects === 1 && prepared.safetySmsRecipients === 1);
+  check("board seed covers field operations", prepared.cameras === 8 && prepared.volunteerShifts === 12 && prepared.documents === 4);
 
   const port = await freePort();
   const emailPort = await freePort();
@@ -240,10 +240,15 @@ try {
 
   const boardDocuments = await request(base, "GET", "/api/admin/documents", undefined, { auth: true });
   const boardLoadInDocument = boardDocuments.data.documents?.find(item => item.title === "Vendor load-in matrix");
+  const boardBriefing = boardDocuments.data.documents?.find(item => item.title === "SandFest board platform briefing");
   const boardDocumentDownload = await requestRaw(base, `/api/admin/documents/${encodeURIComponent(boardLoadInDocument?.id || "missing")}/content`, { auth: true });
-  check("board document intake shows governed private source files", boardDocuments.status === 200 && boardDocuments.data.summary?.total === 3 && boardDocuments.data.summary?.byStatus?.approved === 1 && boardDocuments.data.summary?.byStatus?.in_review === 1 && boardLoadInDocument?.textPreview.includes("Coastal Bites") && !("storageKey" in (boardLoadInDocument || {})));
+  const boardBriefingDownload = await requestRaw(base, `/api/admin/documents/${encodeURIComponent(boardBriefing?.id || "missing")}/content`, { auth: true });
+  const sourceBoardBriefing = await readFile(path.join(ROOT, "docs", "presentations", "SandFest-Board-Platform-Briefing.pptx"));
+  check("board document intake shows governed private source files", boardDocuments.status === 200 && boardDocuments.data.summary?.total === 4 && boardDocuments.data.summary?.byStatus?.approved === 1 && boardDocuments.data.summary?.byStatus?.in_review === 1 && boardLoadInDocument?.textPreview.includes("Coastal Bites") && !("storageKey" in (boardLoadInDocument || {})));
+  check("board briefing survives clean preparation as extracted private content", boardDocuments.data.summary?.extractionReady === 4 && boardDocuments.data.summary?.extractionQueued === 0 && boardDocuments.data.summary?.extractionNeedsReview === 0 && boardBriefing?.extractionStatus === "ready" && boardBriefing?.extractedCharacterCount > 5_000 && boardBriefing?.extractedChunkCount > 0 && boardBriefing?.textPreview.includes("TEXAS SANDFEST") && !("storageKey" in (boardBriefing || {})) && !("extractionChunks" in (boardBriefing || {})));
   check("board document intake is routed into delegated work", boardLoadInDocument?.reviewTask?.status === "in_progress" && boardLoadInDocument?.reviewTask?.assigneeId === "operations" && boardLoadInDocument?.reviewTask?.dueAt === boardLoadInDocument?.reviewDueAt && boardDocuments.data.documents?.find(item => item.title === "Sponsor benefit approvals")?.reviewTask?.assigneeId === "finance");
   check("board document intake downloads checksum-verified bytes", boardDocumentDownload.status === 200 && boardDocumentDownload.contentType.startsWith("text/csv") && boardDocumentDownload.disposition.includes("vendor-load-in-matrix.csv") && boardDocumentDownload.body.toString("utf8").includes("South"));
+  check("board briefing download preserves the governed source bytes", boardBriefingDownload.status === 200 && boardBriefingDownload.contentType.includes("presentationml.presentation") && boardBriefingDownload.disposition.includes("SandFest-Board-Platform-Briefing.pptx") && boardBriefingDownload.body.equals(sourceBoardBriefing));
 
   const boardConsent = await request(base, "GET", "/api/admin/consent", undefined, { auth: true });
   const boardSmsBefore = await request(base, "GET", "/api/admin/sms", undefined, { auth: true });
@@ -294,7 +299,7 @@ try {
   const revenue = await request(base, "GET", "/api/admin/revenue", undefined, { auth: true });
   check("seeded sponsor and vendor finance is visible", seeded.status === 200 && seeded.data.applications?.length === 4 && seeded.data.summary?.applications?.vendors === 2 && seeded.data.summary?.applications?.sponsors === 2 && seeded.data.applications?.some(item => item.type === "vendor" && item.offeringId === "food-beverage-booth" && item.expectedAmountCents === 175000) && seeded.data.invoices?.length === 1 && seeded.data.payments?.length === 1 && seeded.data.receivables?.totals?.collectedCents === 1000000);
   check("revenue is current-event and includes site-native finance", revenue.status === 200 && revenue.data.eventId === DEFAULT_EVENT_ID && revenue.data.sources?.imported?.entries === 3 && revenue.data.sources?.partnerOperations?.entries === 1 && revenue.data.summary?.totals?.grossCents === 1750000 && revenue.data.summary?.tickets?.sold === 100 && revenue.data.entries?.every(item => item.eventId === DEFAULT_EVENT_ID) && revenue.data.imports?.length === 3 && revenue.data.imports?.every(item => item.fileName?.endsWith("-demo.csv")));
-  check("seeded work and outreach are visible", seeded.data.tasks?.length === 8 && seeded.data.followups?.length >= 4 && outreach.status === 200 && outreach.data.prospects?.length === 1 && outreach.data.campaigns?.length === 1);
+  check("seeded work and outreach are visible", seeded.data.tasks?.length === 9 && seeded.data.followups?.length >= 4 && outreach.status === 200 && outreach.data.prospects?.length === 1 && outreach.data.campaigns?.length === 1);
   check("board staff routing is current and private", seeded.data.staffDirectory?.ready === true && seeded.data.staffDirectory?.activeStaff === 7 && seeded.data.staffDirectory?.routedTeams === 7 && seeded.data.assignmentDirectory?.teams?.every(item => item.notificationReady === true) && seeded.data.assignmentDirectory?.staff?.every(item => !("email" in item)));
   const seededSponsorProspect = outreach.data.prospects?.[0];
   const seededOutreachCampaign = outreach.data.campaigns?.[0];
