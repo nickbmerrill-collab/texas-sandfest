@@ -122,6 +122,12 @@ audience even if the same browser previously viewed Operations mode.
 
 The operations console uses the local-only token `board-demo-local-admin-token-change-me`. This fixed credential is scoped to the development command above, auto-loads the synthetic workspace, is rejected by production readiness, and must never be used in a deployed environment.
 
+Begin the operations walkthrough at the Festival command summary. Its eight
+signals use the same partner API payload as the detailed queues and link
+directly to application intake, receivables, message review, assignments, key
+dates, sponsor fulfillment, vendor readiness, and sponsor outreach. Attention
+states remain visible in the summary instead of being hidden for the demo.
+
 The document queue contains three private synthetic source files. Each has an accountable team, review deadline, and synchronized work-board task: received files are open, in-review files are in progress, requested changes block the task, approval completes it, and archive cancels it. Changing the owner or deadline updates the same task and invalidates stale unsent task notices. Uploading the board briefing PPTX queues a checksum-bound worker job; the portal then exposes its extraction status, bounded staff-only preview, and explicit retry control without publishing the source or extracted text.
 
 After loading the partner workspace, use the export menu beside the workspace controls to download the synthetic partner directory, receivables, payment ledger, delegated tasks, outreach pipeline, or key-date calendar. The task export includes notification status and timing without volunteer or staff email addresses. The workspace shows all seven synthetic team routes as ready, but the `board_demo` directory source is deliberately ineligible for production. The outreach export includes owner, next action, and next-action due timestamp. CSV files are neutralized against spreadsheet formulas, calendar files are importable by Outlook and Google Calendar, and every download is recorded in the admin audit log.
