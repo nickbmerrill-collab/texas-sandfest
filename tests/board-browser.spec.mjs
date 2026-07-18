@@ -848,10 +848,16 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   await taskOwner.selectOption(volunteerId);
   await taskForm.locator('[name="title"]').fill(taskTitle);
   await taskForm.locator('[name="priority"]').selectOption("high");
+  await taskForm.locator('[name="dueAt"]').fill("2027-04-09T10:00");
   await taskForm.locator('[name="description"]').fill("Welcome arriving volunteers and route them to their assigned captain.");
   const taskResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/partners/tasks" && response.request().method() === "POST");
   await taskForm.locator('button[type="submit"]').click();
-  expect((await taskResponse).status()).toBe(201);
+  const createdTaskResponse = await taskResponse;
+  expect(createdTaskResponse.status()).toBe(201);
+  const createdVolunteerTask = (await createdTaskResponse.json()).task;
+  expect(createdVolunteerTask.assigneeType).toBe("volunteer");
+  expect(createdVolunteerTask.assigneeId).toBe(volunteerId);
+  expect(createdVolunteerTask.dueAt).toBeTruthy();
   await expect(page.locator("#admin-api-status")).toContainText("Task delegated.");
   await expect(page.locator("#admin-partner-tasks")).toContainText(taskTitle);
 
@@ -1009,6 +1015,19 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
     deliveredSponsorAcknowledgmentId = acknowledgment?.id || null;
     return Boolean(deliveredSponsorAcknowledgmentId);
   }, { timeout: 15_000 }).toBe(true);
+  let deliveredTaskAssignmentId = null;
+  await expect.poll(async () => {
+    const response = await fetch(`${apiBase}/api/admin/partners`, { headers: { authorization: `Bearer ${TOKEN}` } });
+    const payload = await response.json();
+    const assignment = payload.followups?.find(item => item.taskId === createdVolunteerTask.id
+      && item.kind === "task_assignment"
+      && item.subject === `Texas SandFest task assigned - ${taskTitle}`
+      && item.automationPolicy === "partner_transactional_v1"
+      && item.status === "sent"
+      && item.deliveryStatus === "delivered");
+    deliveredTaskAssignmentId = assignment?.id || null;
+    return Boolean(deliveredTaskAssignmentId);
+  }, { timeout: 15_000 }).toBe(true);
   const reloadPartners = Promise.all([
     page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/partners" && response.request().method() === "GET"),
     page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/outreach" && response.request().method() === "GET")
@@ -1021,6 +1040,53 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   await expect(deliveredFollowup).toContainText(sponsorRecipient);
   await expect(deliveredFollowup).toContainText(sponsorAcknowledgmentSubject);
   await expect(deliveredFollowup).toContainText("transactional automation");
+
+  const deliveredTaskAssignment = page.locator(`#admin-partner-followups [data-followup="${deliveredTaskAssignmentId}"]`);
+  await expect(deliveredTaskAssignment).toHaveCount(1);
+  await expect(deliveredTaskAssignment).toHaveAttribute("data-delivery-status", "delivered");
+  await expect(deliveredTaskAssignment).toContainText(`Texas SandFest task assigned - ${taskTitle}`);
+  await expect(deliveredTaskAssignment).toContainText("transactional automation");
+  const freshVolunteerTask = page.locator(`#admin-partner-tasks [data-task="${createdVolunteerTask.id}"]`);
+  await expect(freshVolunteerTask).toContainText(taskTitle);
+  await expect(freshVolunteerTask).toContainText("Notification · delivered · task assignment");
+  await freshVolunteerTask.locator('[name="status"]').selectOption("in_progress");
+  const startedTaskResponse = page.waitForResponse(response => new URL(response.url()).pathname === `/api/admin/partners/tasks/${createdVolunteerTask.id}` && response.request().method() === "PATCH");
+  await freshVolunteerTask.locator('[data-save-task]').click();
+  const startedTaskResult = await startedTaskResponse;
+  expect(startedTaskResult.status()).toBe(200);
+  const startedTask = (await startedTaskResult.json()).task;
+  expect(startedTask.status).toBe("in_progress");
+  expect(startedTask.startedAt).toBeTruthy();
+  await expect(page.locator("#admin-api-status")).toContainText("Task assignment saved.");
+  await expect(freshVolunteerTask.locator('[name="status"]')).toHaveValue("in_progress");
+
+  await freshVolunteerTask.locator('[name="status"]').selectOption("done");
+  const completedTaskResponse = page.waitForResponse(response => new URL(response.url()).pathname === `/api/admin/partners/tasks/${createdVolunteerTask.id}` && response.request().method() === "PATCH");
+  await freshVolunteerTask.locator('[data-save-task]').click();
+  const completedTaskResult = await completedTaskResponse;
+  expect(completedTaskResult.status()).toBe(200);
+  const completedTask = (await completedTaskResult.json()).task;
+  expect(completedTask.status).toBe("done");
+  expect(completedTask.startedAt).toBe(startedTask.startedAt);
+  expect(completedTask.completedAt).toBeTruthy();
+  await page.locator("#admin-task-status-filter").selectOption("done");
+  await expect(freshVolunteerTask).toContainText(taskTitle);
+  await expect(freshVolunteerTask.locator('[name="status"]')).toHaveValue("done");
+  await expect.poll(async () => {
+    const response = await fetch(`${apiBase}/api/admin/partners`, { headers: { authorization: `Bearer ${TOKEN}` } });
+    const payload = await response.json();
+    const task = payload.tasks?.find(item => item.id === createdVolunteerTask.id);
+    const assignments = payload.followups?.filter(item => item.taskId === createdVolunteerTask.id && item.kind === "task_assignment") || [];
+    const activeOverdue = payload.followups?.filter(item => item.taskId === createdVolunteerTask.id
+      && item.kind === "task_overdue"
+      && !["dismissed", "sent"].includes(item.status)) || [];
+    return task?.status === "done"
+      && Boolean(task.startedAt)
+      && Boolean(task.completedAt)
+      && assignments.length === 1
+      && assignments[0].deliveryStatus === "delivered"
+      && activeOverdue.length === 0;
+  }, { timeout: 15_000 }).toBe(true);
 
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#island-conditions`);
   await expect(page.locator(`[data-package-id="${sponsorTierId}"]`)).toContainText("Community Champion");
