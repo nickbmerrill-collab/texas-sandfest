@@ -124,7 +124,7 @@ async function browserRehearsal(sessionFile) {
   } catch {
     throw new Error(`Board browser rehearsal returned invalid JSON:\n${result.stderr}\n${result.stdout}`);
   }
-  if (result.code !== 0 || !report.ok || report.passed !== 8 || report.total !== 8) {
+  if (result.code !== 0 || !report.ok || report.passed !== 12 || report.total !== 12) {
     throw new Error(`Board browser rehearsal failed ${report.passed}/${report.total}:\n${JSON.stringify(report, null, 2)}`);
   }
   return report;
@@ -207,6 +207,25 @@ try {
     throw new Error("Board API inherited a real payment or accounting provider configuration.");
   }
   console.log("  ok session state is credential-free and inherited payment providers stay disabled");
+
+  const partnerResponse = await fetch(`${initial.endpoints.apiBase}/api/admin/partners`, {
+    headers: { authorization: `Bearer ${ADMIN_TOKEN}` }
+  });
+  const partnerWorkspace = await partnerResponse.json();
+  const emailSandboxResponse = await fetch(`${initial.endpoints.emailBase}/health`);
+  const emailSandbox = await emailSandboxResponse.json();
+  const deliveredMessages = (partnerWorkspace.followups || []).filter(item => item.status === "sent" && item.deliveryStatus === "delivered");
+  const localAutomationReady = partnerResponse.ok
+    && emailSandboxResponse.ok
+    && partnerWorkspace.automationMode === "transactional_auto"
+    && partnerWorkspace.automation?.active === true
+    && deliveredMessages.some(item => item.automationPolicy === "partner_transactional_v1")
+    && deliveredMessages.some(item => item.automationPolicy === "outreach_campaign_v1")
+    && emailSandbox.acceptedMessages >= 2
+    && emailSandbox.deliveryCallbacks >= 2
+    && emailSandbox.callbackFailures === 0;
+  if (!localAutomationReady) throw new Error("Board startup did not produce loopback-only transactional and campaign delivery proof.");
+  console.log(`  ok local automation delivers ${deliveredMessages.length} synthetic messages through the loopback sandbox`);
 
   const initialReport = await preflight(sessionFile);
   console.log(`  ok board:check discovers the active session and passes ${initialReport.passed}/${initialReport.total}`);
@@ -294,7 +313,7 @@ try {
   const lingering = [...observedPids].filter(processAlive);
   if (lingering.length) throw new Error(`Board child processes remained alive after shutdown: ${lingering.join(", ")}`);
   console.log(`  ok stop command shuts down the supervisor and all ${observedPids.size} observed child processes`);
-  console.log("\nBoard demo supervisor: 11/11 checks passed.\n");
+  console.log("\nBoard demo supervisor: 12/12 checks passed.\n");
 } catch (error) {
   console.error(`\nBoard demo supervisor test failed: ${error.message}`);
   process.exitCode = 1;

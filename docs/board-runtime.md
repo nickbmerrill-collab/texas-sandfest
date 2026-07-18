@@ -16,14 +16,14 @@ The command rebuilds `.sandfest-runtime/board-2027` from governed source data. I
 - partial sponsor payment and receivables tracking, with one invoice-authoritative payment date shared by the finance ledger, key-date calendar, and follow-up engine;
 - sponsor brand profile, logo review, and package deliverables;
 - vendor onboarding with one approved, compliance-cleared, partner-confirmed booth assignment beside one intentionally blocked application;
-- key dates, review-first acknowledgments, and direct volunteer, staff, and team tasks that exercise each private assignment-notification route;
+- key dates, consent-backed acknowledgments, and direct volunteer, staff, and team tasks that exercise each private assignment-notification route;
 - geofenced sponsor outreach with an accountable owner, next action, due timestamp, and urgency-sorted follow-up queue;
 - staff-issued sponsor invitations that convert a qualified prospect into the real public sponsor application, brand center, fulfillment plan, key dates, task, finance record, and private portal only after recipient consent;
-- three private source documents in received, review, and approved states, with staff-only text previews and checksum-verified downloads;
+- four private source documents in received, review, and approved states, with staff-only text previews and checksum-verified downloads;
 - volunteer coverage, fleet checkout, voting, and Sculpture Passport activity;
 - eight synthetic camera metric lanes plus visibly synthetic weather and ferry snapshots. Optional signed playback continuously exercises source activation, heartbeat, anonymous metric ingestion, freshness, and public/admin condition rendering through the real API contract. Real NWS and TxDOT checks remain a separate post-presentation/live-tool lane.
 
-The generated public bootstrap labels both visitor and operations surfaces as a board demonstration. Every email uses a reserved example domain, the seeded safety subscriber uses a fictional `555-01xx` number, automation begins in `review_first`, and generation performs no external provider calls. Site-native receivables, payments, reversals, aging, and exports remain interactive; QuickBooks stays visibly not connected because the board runtime never carries accounting credentials.
+The generated public bootstrap labels both visitor and operations surfaces as a board demonstration. Every email uses a reserved example domain, the seeded safety subscriber uses a fictional `555-01xx` number, and generation performs no external provider calls. The standalone `board:runtime` command begins in `review_first`. The supervised `board:demo` stack prepares a presentation-specific local-automation seed: consent-backed partner notices and one explicitly approved geofenced campaign run through the loopback mailbox and authenticated webhook before readiness turns green. Site-native receivables, payments, reversals, aging, and exports remain interactive; QuickBooks stays visibly not connected because the board runtime never carries accounting credentials.
 
 ## Run
 
@@ -36,7 +36,9 @@ npm run board:demo
 The supervisor prepares or reuses the isolated runtime, selects unused loopback
 ports without stopping another local service, starts the web, API, worker,
 email, SMS, and eight-camera playback processes, and prints the exact Visitor
-and Operations links only after the same nine readiness checks pass. Keep this
+and Operations links only after the same nine readiness checks pass. That gate
+requires delivered transactional and campaign-approved messages from the local
+mailbox, not merely a configured worker. Keep this
 terminal open during the presentation. `npm run board:check` automatically
 discovers the active session even when the preferred ports were occupied. The
 presentation stack does not call NWS or TxDOT: its weather and ferry cards are
@@ -54,7 +56,9 @@ The command first repeats the nine service and data checks, then opens the
 session's credential-free Visitor and Operations links in local headless
 Chromium. It rejects remote or mismatched URLs and verifies the rendered signup
 catalogs, approved sponsor branding, eight-camera conditions grid, command
-signals, partner/task/document queues, deferred live-accounting label, browser
+signals, payment and key-date tracking, delivered local automation, staff,
+volunteer, and team assignments, sponsor/vendor fulfillment, geofenced
+outreach, private document extraction, deferred live-accounting label, browser
 errors, and desktop overflow without submitting a form or changing demo data.
 
 Use the reset icon in the Operations header when you want to discard
@@ -160,19 +164,19 @@ against the active loopback API, removes the capability token from browser
 history, and invalidates the previous link. Production builds do not expose this
 shortcut; staff can still use **Copy new portal link** for the governed handoff.
 
-The document queue contains three private synthetic source files. Each has an accountable team, review deadline, and synchronized work-board task: received files are open, in-review files are in progress, requested changes block the task, approval completes it, and archive cancels it. Changing the owner or deadline updates the same task and invalidates stale unsent task notices. Uploading the board briefing PPTX queues a checksum-bound worker job; the portal then exposes its extraction status, bounded staff-only preview, and explicit retry control without publishing the source or extracted text.
+The document queue contains four private synthetic source files, including the extracted board briefing. Each has an accountable team, review deadline, and synchronized work-board task: received files are open, in-review files are in progress, requested changes block the task, approval completes it, and archive cancels it. Changing the owner or deadline updates the same task and invalidates stale unsent task notices. Uploading another PPTX queues a checksum-bound worker job; the portal then exposes its extraction status, bounded staff-only preview, and explicit retry control without publishing the source or extracted text.
 
 After loading the partner workspace, use the export menu beside the workspace controls to download the synthetic partner directory, receivables, payment ledger, delegated tasks, outreach pipeline, or key-date calendar. The task export includes notification status and timing without volunteer or staff email addresses. The workspace shows all seven synthetic team routes as ready, but the `board_demo` directory source is deliberately ineligible for production. The outreach export includes owner, next action, and next-action due timestamp. CSV files are neutralized against spreadsheet formulas, calendar files are importable by Outlook and Google Calendar, and every download is recorded in the admin audit log.
 
 The revenue workspace shows the three generated provider batches in Recent settlement imports. Its finance-only import form accepts an Eventeny, Square, Stripe, or manual CSV, previews exact gross/fee/net values and row exceptions without writing, and enables commit only after the preview hash is current. Committed batches are event-scoped, audited, and replay-safe.
 
-Process queued acknowledgments and scheduled reminders without sending them:
+With the manual component fallback, process queued acknowledgments and scheduled reminders without sending them:
 
 ```bash
 npm run board:worker
 ```
 
-For continuous partner automation during a demonstration, use `npm run board:worker:watch`. In Partner Operations, change **Transactional partner messages** from review-first to automatic. Only consented applicant acknowledgments, key-date reminders, vendor workflow notices, and governed volunteer/staff/team assignment or overdue notices become eligible. Sponsor prospect outreach and incident dispatch remain review-gated. Provider acceptance, message IDs, authenticated delivery events, and automation policy proof are written to the isolated partner ledger while every recipient remains synthetic.
+The supervised `board:demo` command already runs `board:worker:watch`, enables bounded transactional automation, and activates one synthetic, daily-capped outreach sequence. Only consented applicant acknowledgments, key-date reminders, vendor workflow notices, and governed volunteer/staff/team assignment or overdue notices become transactionally eligible; the outreach message is separately authorized by its campaign approval. Other sponsor prospect outreach and incident dispatch remain review-gated. Provider acceptance, message IDs, authenticated delivery events, and automation policy proof are written to the isolated partner ledger while every recipient remains synthetic. The manual component fallback starts review-first and must be enabled from Partner Operations when that behavior is desired.
 
 To demonstrate safety SMS, load **Consent & SMS**, publish a public alert with **Send safety SMS to currently opted-in recipients** checked, then run `npm run board:worker`. The single synthetic campaign advances from queued to delivered through the local signed callback. The operator console exposes only counts and campaign state.
 
@@ -201,6 +205,7 @@ This fails closed when the configured board URL is serving an ordinary
 origin, the isolated API or worker is unavailable, either provider sandbox is
 missing, the seeded finance, key-date, messaging, staff/volunteer/team delegation,
 sponsor fulfillment, vendor, outreach, document, or branding workflow is incomplete,
+the loopback mailbox lacks both transactional and campaign-approved delivery proof,
 the visibly synthetic weather or ferry snapshot is stale, or fewer than eight
 camera playback pipelines are live. The report
 prints recovery commands but never prints the injected admin credential,
