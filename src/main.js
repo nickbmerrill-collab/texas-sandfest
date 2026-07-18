@@ -2541,11 +2541,15 @@ function renderAdminDeployment(deployment) {
     return `<section class="admin-deployment-group">
       <header><strong>${escapeHtml(group)}</strong><span>${passing}/${total} passing</span></header>
       <div>${items.map(check => {
+        const deferredForBoard = BOARD_DEMO_ACCESS.enabled && check.id === "backupRecovery" && !check.ok;
         const tone = check.ok ? "ok" : check.severity === "warning" ? "warning" : "error";
-        const status = check.ok ? "Passing" : check.severity === "warning" ? "Review" : "Blocked";
-        return `<article class="admin-deployment-check" data-state="${tone}">
+        const status = deferredForBoard ? "Post-board" : check.ok ? "Passing" : check.severity === "warning" ? "Review" : "Blocked";
+        const message = deferredForBoard
+          ? "Managed backup provisioning and provider restore drills are scheduled after the presentation. Isolated database and upload recovery verification remains in the release gate."
+          : check.message || "No status detail provided.";
+        return `<article class="admin-deployment-check" data-state="${tone}"${deferredForBoard ? ' data-board-stage="post-presentation"' : ""}>
           <span class="admin-deployment-status">${status}</span>
-          <div><strong>${escapeHtml(check.label || check.id || "Deployment check")}</strong><p>${escapeHtml(check.message || "No status detail provided.")}</p></div>
+          <div><strong>${escapeHtml(check.label || check.id || "Deployment check")}</strong><p>${escapeHtml(message)}</p></div>
         </article>`;
       }).join("")}</div>
     </section>`;

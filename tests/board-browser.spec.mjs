@@ -350,6 +350,13 @@ test("board workflows operate through the public and staff interfaces", async ({
   await expect(commandSignals.locator('[data-command-signal="sponsors"]')).toContainText("assets approved");
   await expect(commandSignals.locator('[data-command-signal="vendors"]')).toContainText("blocked");
   await expect(commandSignals.locator('[data-command-signal="outreach"]')).toContainText("qualified");
+  const deferredRecovery = page.locator('#admin-deployment-checks [data-board-stage="post-presentation"]');
+  await expect(deferredRecovery).toHaveCount(1);
+  await expect(deferredRecovery).toContainText("Post-board");
+  await expect(deferredRecovery).toContainText("Backup and recovery");
+  await expect(deferredRecovery).toContainText("Managed backup provisioning and provider restore drills are scheduled after the presentation.");
+  await expect(deferredRecovery).toContainText("Isolated database and upload recovery verification remains in the release gate.");
+  await expect(deferredRecovery).not.toContainText("configure a supported managed backup provider");
   await expect(commandSignals.locator('[data-command-signal="receivables"]')).toHaveAttribute("href", "#admin-receivables-accounts");
   await expect(commandSignals.locator('[data-command-signal="vendors"]')).toHaveAttribute("href", "#admin-vendor-readiness");
   await commandSignals.locator('[data-command-signal="vendors"]').click();
