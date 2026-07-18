@@ -81,7 +81,8 @@ import {
   applyEventenyPartnerImport,
   eventenyPartnerCatalogFingerprint,
   eventenyPartnerImportPreviewHash,
-  parseEventenyPartnerCsv
+  parseEventenyPartnerCsv,
+  resolveEventenyPartnerSelection
 } from "../lib/partner-import.mjs";
 import {
   applyOutreachDiscoveryImport,
@@ -191,6 +192,12 @@ import {
   sponsorInvitationUrlForProspect,
   verifySponsorInvitationToken
 } from "../lib/sponsor-invitations.mjs";
+import {
+  publicSponsorPackage,
+  resolveSponsorPackage,
+  sponsorPackageCatalog,
+  updateSponsorPackageConfig
+} from "../lib/sponsor-packages.mjs";
 import {
   DEFAULT_VENDOR_OFFERINGS,
   publicVendorOffering,
@@ -1628,6 +1635,11 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   ok("Eventeny application CSV validation", parsed.ok && parsed.totalRows === 4 && parsed.errors.length === 1 && parsed.rows.length === 3);
   ok("Eventeny import requires transactional contact attestation", !parseEventenyPartnerCsv(csv, { eventId }).ok);
   ok("Eventeny import trusts active catalog pricing", imported.summary.imported === 2 && imported.summary.invalid === 2 && importedVendor?.expectedAmountCents === 125000 && importedVendor?.sourceReportedAmountCents === 10000 && importedSponsor?.expectedAmountCents === 500000);
+  const unsafeSponsorSelection = resolveEventenyPartnerSelection({
+    ...config,
+    sponsorPackages: [{ ...config.sponsorPackages[0], amount: 0 }]
+  }, { type: "sponsor", packageName: "Tarpon" });
+  ok("Eventeny sponsor import rejects invalid catalog pricing", unsafeSponsorSelection.ok === false);
   ok("Eventeny import seeds workflows without duplicate acknowledgment", imported.doc.tasks.length === 2 && imported.doc.milestones.length === 7 && imported.doc.followups.length === 0 && imported.doc.vendorProfiles.length === 1 && imported.doc.vendorRequirements.length > 0 && imported.doc.brandProfiles.length === 1);
   ok("Eventeny import preserves review-first provenance", importedVendor?.status === "submitted" && importedVendor?.sourceStatus === "Approved" && importedVendor?.sourceBatch === "eventeny_batch_1" && importedVendor?.sourceRow === 2 && importedVendor?.contactPermissionBasis === "eventeny_application" && imported.doc.activity.every(item => item.actorId === "eventeny_import_admin"));
   ok("Eventeny application replay is idempotent", replayed.summary.imported === 0 && replayed.summary.duplicates === 2 && replayed.doc.applications.length === 2 && replayed.doc.tasks.length === 2);
@@ -2247,6 +2259,24 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
       active: true
     }]
   }).products[0].availableForCheckout === false);
+  const sponsorConfig = {
+    sponsorPackages: [
+      { id: "tarpon", name: "Tarpon", amount: 500000, currency: "usd", publicLabel: "$5k", active: true, requiresApproval: true, benefits: ["Web listing"], stripePriceId: null, quickBooksItemId: "77" },
+      { id: "marlin", name: "Marlin", amount: 1500000, currency: "usd", publicLabel: "$15k", active: true, requiresApproval: true, benefits: ["Beach signage"] }
+    ]
+  };
+  const defaultSponsorCatalog = sponsorPackageCatalog(sponsorConfig);
+  const resolvedSponsorPackage = resolveSponsorPackage(sponsorConfig, "TARPON");
+  const invalidSponsorAmount = updateSponsorPackageConfig(sponsorConfig, "tarpon", { amount: 0 });
+  const invalidSponsorBenefits = updateSponsorPackageConfig(sponsorConfig, "tarpon", { benefits: [] });
+  const invalidSponsorStripe = updateSponsorPackageConfig(sponsorConfig, "tarpon", { stripePriceId: "price_replace_me" });
+  const lastSponsorTierDisabled = updateSponsorPackageConfig({ sponsorPackages: [sponsorConfig.sponsorPackages[0]] }, "tarpon", { active: false });
+  const updatedSponsorPackage = updateSponsorPackageConfig(sponsorConfig, "tarpon", { amount: 550000, stripePriceId: "price_tarpon_2027", quickBooksItemId: "88" });
+  const publicSponsorTier = publicSponsorPackage(updatedSponsorPackage.sponsorPackage);
+  ok("sponsor package catalog authority", defaultSponsorCatalog.ready && defaultSponsorCatalog.activePackages.length === 2 && resolvedSponsorPackage.ok && resolvedSponsorPackage.sponsorPackage.amount === 500000);
+  ok("sponsor package catalog rejects unsafe pricing and fulfillment", !invalidSponsorAmount.ok && invalidSponsorAmount.error.includes("amount") && !invalidSponsorBenefits.ok && invalidSponsorBenefits.error.includes("benefit") && !invalidSponsorStripe.ok && invalidSponsorStripe.error.includes("Stripe Price ID"));
+  ok("sponsor package catalog keeps one public tier active", !lastSponsorTierDisabled.ok && lastSponsorTierDisabled.error.includes("At least one active"));
+  ok("public sponsor package hides accounting mappings", updatedSponsorPackage.ok && publicSponsorTier.amount === 550000 && !Object.hasOwn(publicSponsorTier, "quickBooksItemId") && !Object.hasOwn(publicSponsorTier, "stripePriceId"));
   const defaultVendorCatalog = vendorOfferingCatalog({ vendorOfferings: DEFAULT_VENDOR_OFFERINGS });
   const artisanOffering = resolveVendorOffering({ vendorOfferings: DEFAULT_VENDOR_OFFERINGS }, "marketplace-booth", "artisan");
   const categoryMismatch = resolveVendorOffering({ vendorOfferings: DEFAULT_VENDOR_OFFERINGS }, "food-beverage-booth", "artisan");
@@ -4124,6 +4154,7 @@ try {
     && deploymentGroups.reduce((total, group) => total + group.total, 0) === deploymentChecks.length
     && deploymentGroups.every(group => group.group && group.passing + group.warnings + group.errors === group.total));
   ok("deployment exposes configured outreach discovery gate", deployment.data.deployment?.checks?.outreachDiscovery?.ok === true && deployment.data.deployment?.checks?.outreachDiscovery?.message.includes("fixture"));
+  ok("deployment exposes sponsor package integrity gate", deployment.data.deployment?.checks?.sponsorPackages?.ok === true && deployment.data.deployment?.checks?.sponsorPackages?.message.includes("active sponsor packages"));
   ok("admin queue health summary", queueStatus.status === 200 && queueStatus.data.summary?.operational === true && Array.isArray(queueStatus.data.jobs));
   ok("deployment exposes current event guide gate", health.data.eventGuideReady === true && deployment.data.deployment?.checks?.eventGuide?.ok === true);
   ok("deployment identifies operational documents awaiting 2027 rollover", health.data.currentEventId === DEFAULT_EVENT_ID && health.data.currentEventReady === false && deployment.data.deployment?.checks?.currentEvent?.severity === "warning" && deployment.data.deployment?.checks?.currentEvent?.message.includes("fleet=texas-sandfest-2026"));
@@ -4320,6 +4351,7 @@ try {
       ok("production ingest rejects detector bytes outside the approval", mismatchedModelResponse.status === 409 && mismatchedModel.reason === "camera_model_checksum_mismatch");
       ok("production requires partner intake bot verification", data.deployment?.checks?.partnerIntakeBotProtection?.ok === false && data.deployment?.checks?.partnerIntakeBotProtection?.severity === "error");
       ok("production requires current recovery evidence", data.deployment?.checks?.backupRecovery?.ok === false && data.deployment?.checks?.backupRecovery?.severity === "error");
+      ok("production rejects unreadable sponsor package config", data.deployment?.checks?.sponsorPackages?.ok === false && data.deployment?.checks?.sponsorPackages?.severity === "error");
       ok("production requires a shared rate-limit backend", data.deployment?.checks?.rateLimitBackend?.ok === false && data.deployment?.checks?.rateLimitBackend?.severity === "error" && data.deployment?.checks?.rateLimitBackend?.message.includes("memory"));
       ok("production rejects stale operational event context", data.deployment?.checks?.currentEvent?.ok === false && data.deployment?.checks?.currentEvent?.severity === "error");
       ok("production API hides unexpected error details", productionErrorResponse.status === 500 && productionError.error === "Internal server error." && productionError.requestId === "production-error-probe" && !JSON.stringify(productionError).includes("JSON"));
@@ -4897,6 +4929,21 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
   });
   ok("POST voting", vote.status === 200 || vote.status === 201, `status ${vote.status}`);
 
+  const publicSponsorCatalogApi = await hit("GET", "/api/public/sponsors");
+  const publicTarponPackage = publicSponsorCatalogApi.data.sponsorPackages?.find(item => item.id === "tarpon");
+  ok("GET public sponsor packages", publicSponsorCatalogApi.status === 200 && publicTarponPackage?.amount === 500000 && publicTarponPackage?.benefits?.includes("Web listing") && !Object.hasOwn(publicTarponPackage || {}, "quickBooksItemId") && !Object.hasOwn(publicTarponPackage || {}, "stripePriceId"));
+  if (child) {
+    const invalidSponsorAmountPatch = await hit("PATCH", "/api/admin/sponsor-packages/tarpon", { amount: 0 }, true);
+    const invalidSponsorBenefitPatch = await hit("PATCH", "/api/admin/sponsor-packages/tarpon", { benefits: [] }, true);
+    const sponsorPackagePatch = await hit("PATCH", "/api/admin/sponsor-packages/tarpon", {
+      quickBooksItemId: "api-sponsor-tarpon-item",
+      stripePriceId: "price_api_sponsor_tarpon"
+    }, true);
+    const publicSponsorCatalogAfterPatch = await hit("GET", "/api/public/sponsors");
+    const publicTarponAfterPatch = publicSponsorCatalogAfterPatch.data.sponsorPackages?.find(item => item.id === "tarpon");
+    ok("admin sponsor package validation", invalidSponsorAmountPatch.status === 400 && invalidSponsorAmountPatch.data.error?.includes("amount") && invalidSponsorBenefitPatch.status === 400 && invalidSponsorBenefitPatch.data.error?.includes("benefit") && publicTarponAfterPatch?.amount === 500000);
+    ok("admin sponsor package accounting mapping stays private", sponsorPackagePatch.status === 200 && sponsorPackagePatch.data.readiness?.ready === true && sponsorPackagePatch.data.sponsorPackage?.quickBooksItemId === "api-sponsor-tarpon-item" && !Object.hasOwn(publicTarponAfterPatch || {}, "quickBooksItemId") && !Object.hasOwn(publicTarponAfterPatch || {}, "stripePriceId"));
+  }
   const publicVendorCatalogApi = await hit("GET", "/api/public/vendors");
   const publicMarketplaceOffering = publicVendorCatalogApi.data.vendorOfferings?.find(item => item.id === "marketplace-booth");
   ok("GET public vendor offerings", publicVendorCatalogApi.status === 200 && publicMarketplaceOffering?.amount === 125000 && publicMarketplaceOffering?.categories?.includes("artisan") && !Object.hasOwn(publicMarketplaceOffering || {}, "quickBooksItemId"));
