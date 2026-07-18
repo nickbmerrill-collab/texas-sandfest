@@ -278,6 +278,11 @@ test("board workflows operate through the public and staff interfaces", async ({
   await expect.poll(() => galleryImages.evaluateAll(images => images.every(image => new URL(image.currentSrc).pathname.includes("/assets/sandfest-media/optimized/gallery-")))).toBe(true);
   await expect.poll(() => galleryImages.evaluateAll(images => images.every(image => image.alt && !/^DSC/i.test(image.alt)))).toBe(true);
   await expect(page.locator("#public-sponsor-tiers [data-package-id]")).toHaveCount(4);
+  const sponsorSubmitBox = await page.locator('#sponsor-inquiry-form button[type="submit"]').boundingBox();
+  const vendorSubmitBox = await page.locator('#vendor-application-form button[type="submit"]').boundingBox();
+  expect(sponsorSubmitBox?.height).toBeGreaterThanOrEqual(40);
+  expect(sponsorSubmitBox?.height).toBeLessThanOrEqual(52);
+  expect(vendorSubmitBox?.height).toBe(sponsorSubmitBox?.height);
   const featuredSponsor = page.locator("#public-sponsor-showcase .public-sponsor-card").filter({ hasText: "Gulf Shore Credit Union" });
   await expect(featuredSponsor).toHaveCount(1);
   await expect(featuredSponsor).toContainText("Marlin partner");

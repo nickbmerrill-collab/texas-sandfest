@@ -4661,6 +4661,7 @@ body.mode-ops header nav a[data-audience="public"] {
 .partner-tier p { color: var(--muted); font-size: 13px; line-height: 1.45; margin: 0; }
 .partner-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 .partner-form {
+  align-content: start;
   background: var(--white);
   border: 1px solid var(--line);
   border-radius: 8px;
