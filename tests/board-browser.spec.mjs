@@ -318,6 +318,23 @@ test("board workflows operate through the public and staff interfaces", async ({
   await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#admin-partners`);
   await expect(page.locator("#admin-api-status")).toContainText("Loaded", { timeout: 25_000 });
   await expect(page.locator("#admin-deployment-summary")).toContainText("development · ready");
+  const commandSignals = page.locator("#admin-command-signals");
+  await expect(commandSignals).toHaveAttribute("aria-busy", "false");
+  await expect(commandSignals.locator("[data-command-signal]")).toHaveCount(8);
+  await expect(commandSignals.locator('[data-command-signal="applications"]')).toContainText(/\d+ active/);
+  await expect(commandSignals.locator('[data-command-signal="applications"]')).toContainText(/\d+ vendors/);
+  await expect(commandSignals.locator('[data-command-signal="receivables"]')).toContainText("received of");
+  await expect(commandSignals.locator('[data-command-signal="messages"]')).toContainText("Provider ready");
+  await expect(commandSignals.locator('[data-command-signal="assignments"]')).toContainText("staff / volunteer / team");
+  await expect(commandSignals.locator('[data-command-signal="key-dates"]')).toContainText("upcoming");
+  await expect(commandSignals.locator('[data-command-signal="sponsors"]')).toContainText("assets approved");
+  await expect(commandSignals.locator('[data-command-signal="vendors"]')).toContainText("blocked");
+  await expect(commandSignals.locator('[data-command-signal="outreach"]')).toContainText("qualified");
+  await expect(commandSignals.locator('[data-command-signal="receivables"]')).toHaveAttribute("href", "#admin-receivables-accounts");
+  await expect(commandSignals.locator('[data-command-signal="vendors"]')).toHaveAttribute("href", "#admin-vendor-readiness");
+  await commandSignals.locator('[data-command-signal="vendors"]').click();
+  await expect(page).toHaveURL(/#admin-vendor-readiness$/);
+  await expect(page.locator("#admin-vendor-readiness")).toBeInViewport({ ratio: 0.1 });
   await expect(page.locator("#admin-quickbooks-connection")).toBeVisible();
   await expect(page.locator("#admin-quickbooks-status")).toContainText("Ready to connect");
   await expect(page.locator("#admin-connect-quickbooks")).toBeEnabled();
@@ -598,6 +615,7 @@ test("critical public and operations views fit a mobile viewport", async ({ page
 
   await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#admin-partners`);
   await expect(page.locator("#admin-api-status")).toContainText("Loaded", { timeout: 25_000 });
+  await expect(page.locator("#admin-command-signals [data-command-signal]")).toHaveCount(8);
   await expect(page.locator("#admin-create-task")).toBeVisible();
   await expect(page.locator("#admin-import-staff")).toBeVisible();
   await expect(page.locator("#admin-quickbooks-connection")).toBeVisible();

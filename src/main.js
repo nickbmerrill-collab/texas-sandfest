@@ -1029,6 +1029,18 @@ app.innerHTML = `
         <button id="admin-load-config" class="button primary" type="button" ${ADMIN_AUTH_MODE === "oidc" ? "disabled" : ""}>Load config</button>
       </div>
       <p id="admin-api-status" class="checkout-status" role="status" aria-live="polite">${ADMIN_AUTH_MODE === "oidc" ? "Signed out." : BOARD_DEMO_ACCESS.enabled ? "Local board session ready. Loading operations..." : "Start the local backend, enter its admin token, then load config."}</p>
+      <div class="admin-command-center" id="admin-command-center" aria-labelledby="admin-command-center-title">
+        <div class="admin-command-heading">
+          <div>
+            <p class="eyebrow">Operations pulse</p>
+            <h2 id="admin-command-center-title">Festival command summary</h2>
+          </div>
+          <span id="admin-command-updated">Waiting for operations data</span>
+        </div>
+        <div id="admin-command-signals" class="admin-command-signals" aria-live="polite" aria-busy="true">
+          <article class="empty-state"><span>Loading workflow signals.</span></article>
+        </div>
+      </div>
       <div class="admin-readiness-grid">
         <article>
           <strong>API subdomain</strong>
@@ -6387,6 +6399,118 @@ function renderAdminQuickBooksConnection(quickbooks = {}) {
   };
 }
 
+function renderAdminCommandSummary(payload, outreach) {
+  const target = document.querySelector("#admin-command-signals");
+  const updated = document.querySelector("#admin-command-updated");
+  if (!target || !updated) return;
+  const summary = payload.summary || {};
+  const applications = summary.applications || {};
+  const finance = summary.finance || {};
+  const operations = summary.operations || {};
+  const taskBoard = payload.taskBoard || {};
+  const taskTotals = taskBoard.totals || {};
+  const assignmentTypes = new Set((taskBoard.workload || [])
+    .filter(item => Number(item.open || 0) > 0)
+    .map(item => item.assigneeType));
+  const assignmentCoverage = ["staff", "volunteer", "team"].filter(type => assignmentTypes.has(type));
+  const vendor = payload.vendorReadiness?.totals || summary.vendorReadiness || {};
+  const fulfillment = summary.fulfillment || payload.fulfillment || {};
+  const outreachSummary = outreach?.summary || {};
+  const automationReady = payload.automation?.providerReady === true
+    && (payload.automation?.active === true || payload.automationMode === "review_first");
+  const assignmentsReady = Number(taskTotals.active || 0) > 0
+    && Number(taskTotals.unassigned || 0) === 0
+    && assignmentCoverage.length === 3;
+  const sponsorsReady = Number(fulfillment.profiles?.approved || 0) > 0
+    && Number(fulfillment.assets?.approved || 0) > 0
+    && Number(fulfillment.deliverables?.active || 0) > 0;
+  const outreachReady = Number(outreachSummary.qualified || 0) > 0
+    && Number(outreachSummary.nextActionsScheduled || 0) > 0
+    && Number(outreachSummary.unassigned || 0) === 0;
+  const signals = [
+    {
+      id: "applications",
+      label: "Applications",
+      value: `${Number(applications.total || 0)} active`,
+      detail: `${Number(applications.vendors || 0)} vendors · ${Number(applications.sponsors || 0)} sponsors`,
+      action: "View intake",
+      href: "#admin-partner-applications",
+      state: Number(applications.total || 0) > 0 ? "ready" : "idle"
+    },
+    {
+      id: "receivables",
+      label: "Receivables",
+      value: adminMoney(finance.balanceCents, "$0.00"),
+      detail: `${adminMoney(finance.amountPaidCents, "$0.00")} received of ${adminMoney(finance.amountExpectedCents, "$0.00")}`,
+      action: "Open accounts",
+      href: "#admin-receivables-accounts",
+      state: Number(finance.amountExpectedCents || 0) > 0 ? "tracking" : "idle"
+    },
+    {
+      id: "messages",
+      label: "Messages",
+      value: `${Number(operations.draftsAwaitingReview || 0)} to review`,
+      detail: `${payload.automation?.providerReady ? "Provider ready" : "Provider unavailable"} · ${conditionLabel(payload.automationMode || "review_first")}`,
+      action: "Review queue",
+      href: "#admin-partner-followups",
+      state: automationReady ? Number(operations.draftsAwaitingReview || 0) > 0 ? "attention" : "ready" : "blocked"
+    },
+    {
+      id: "assignments",
+      label: "Assignments",
+      value: `${Number(taskTotals.active || 0)} active`,
+      detail: `${Number(taskTotals.unassigned || 0)} unassigned · ${assignmentCoverage.join(" / ") || "No owners"}`,
+      action: "Open work board",
+      href: "#admin-partner-tasks",
+      state: assignmentsReady ? "ready" : "attention"
+    },
+    {
+      id: "key-dates",
+      label: "Key dates",
+      value: `${Number(operations.upcomingMilestones || 0)} upcoming`,
+      detail: `${Number(operations.overdueMilestones || 0)} overdue · ${Number(operations.dueSoonMilestones || 0)} due soon`,
+      action: "View calendar",
+      href: "#admin-partner-milestones",
+      state: Number(operations.overdueMilestones || 0) > 0 ? "attention" : Number(operations.upcomingMilestones || 0) > 0 ? "ready" : "idle"
+    },
+    {
+      id: "sponsors",
+      label: "Sponsor delivery",
+      value: `${Number(fulfillment.assets?.approved || 0)} assets approved`,
+      detail: `${Number(fulfillment.profiles?.approved || 0)} brand approved · ${Number(fulfillment.deliverables?.active || 0)} active benefits`,
+      action: "View fulfillment",
+      href: "#admin-sponsor-fulfillment",
+      state: sponsorsReady ? "ready" : "attention"
+    },
+    {
+      id: "vendors",
+      label: "Vendor readiness",
+      value: `${Number(vendor.ready || 0)}/${Number(vendor.vendors || 0)} ready`,
+      detail: `${Number(vendor.blocked || 0)} blocked · ${Number(vendor.requirementsMissing || 0)} missing items`,
+      action: "Review vendors",
+      href: "#admin-vendor-readiness",
+      state: Number(vendor.blocked || 0) > 0 ? "attention" : Number(vendor.ready || 0) > 0 ? "ready" : "idle"
+    },
+    {
+      id: "outreach",
+      label: "Sponsor outreach",
+      value: `${Number(outreachSummary.qualified || 0)} qualified`,
+      detail: `${Number(outreachSummary.nextActionsScheduled || 0)} next actions · ${Number(outreachSummary.unassigned || 0)} unassigned`,
+      action: "Open pipeline",
+      href: "#admin-outreach-prospects",
+      state: outreachReady ? "ready" : Number(outreachSummary.nextActionsOverdue || 0) > 0 ? "attention" : "idle"
+    }
+  ];
+  target.innerHTML = signals.map(signal => `<a href="${escapeAttr(signal.href)}" data-command-signal="${escapeAttr(signal.id)}" data-state="${escapeAttr(signal.state)}">
+    <span>${escapeHtml(signal.label)}</span>
+    <strong>${escapeHtml(signal.value)}</strong>
+    <small>${escapeHtml(signal.detail)}</small>
+    <b>${escapeHtml(signal.action)}</b>
+  </a>`).join("");
+  target.setAttribute("aria-busy", "false");
+  updated.textContent = `Updated ${new Date(taskBoard.generatedAt || Date.now()).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+}
+
 function renderAdminPartners(payload, outreach) {
   adminPartnerState = { payload, outreach };
   const summary = payload.summary;
@@ -6420,6 +6544,7 @@ function renderAdminPartners(payload, outreach) {
     revenueKpiCard("Prospects", `${outreach.summary?.prospects || 0}`, `${outreach.summary?.qualified || 0} qualified · ${outreach.summary?.nextActionsOverdue || 0} overdue · ${outreach.summary?.unassigned || 0} unassigned`),
     revenueKpiCard("Campaigns", `${outreach.summary?.activeCampaigns || 0} active`, `${outreach.summary?.draftsAwaitingReview || 0} drafts · ${outreach.summary?.messagesSent || 0} sent · opt-out ${outreach.preferences?.ready ? "ready" : "off"}`)
   ].join("");
+  renderAdminCommandSummary(payload, outreach);
   const staffStatus = document.querySelector("#admin-staff-directory-status");
   if (staffStatus) {
     const directory = payload.staffDirectory || {};
