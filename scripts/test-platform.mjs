@@ -1199,7 +1199,8 @@ console.log("\n=== Pure library suite ===\n");
         sourceUrl: "https://www.texassandfest.org/knowbeforeyougo",
         sourceCheckedAt: "2026-07-18T12:00:00.000Z"
       },
-      schedule: [{ day: "Friday", time: "9:00 AM", title: "Beach gates open" }]
+      schedule: [{ day: "Friday", time: "9:00 AM", title: "Beach gates open" }],
+      zones: [{ id: "north-gate", name: "North Gate", marker: "12.5", summary: "Guest Relations, ticket scan, ADA parking, wristbands." }]
     },
     tickets: {
       lastUpdated: "2026-07-18T12:00:00.000Z",
@@ -1227,6 +1228,11 @@ console.log("\n=== Pure library suite ===\n");
   const ticketResult = answerPublicConcierge("Where can I buy tickets?", context);
   const ferryResult = answerPublicConcierge("How long is the ferry line?", context);
   const sponsorResult = answerPublicConcierge("What should a sponsor dashboard track?", context);
+  const accessibilityResult = answerPublicConcierge("What accessibility guidance is available?", context);
+  const missingAccessibilityResult = answerPublicConcierge("What accessibility guidance is available?", {
+    ...context,
+    bootstrap: { ...context.bootstrap, zones: [] }
+  });
   const vendorResult = answerPublicConcierge("How do vendors apply?", context);
   const vendorInterestResult = answerPublicConcierge("How do vendors apply?", {
     ...context,
@@ -1254,6 +1260,8 @@ console.log("\n=== Pure library suite ===\n");
   ok("public concierge answers ticket questions from current catalog", ticketOk && ticketPayload.topic === "tickets" && ticketPayload.answer.includes("Adult day pass ($15)") && ticketPayload.answer.includes("VIP day pass (price pending)") && !ticketPayload.answer.includes("Stripe") && ticketPayload.sources.some(item => item.href === "#tickets"));
   ok("public concierge answers ferry questions from current public conditions", ferryResult.ok && ferryResult.topic === "ferry" && ferryResult.answer.includes("about 12 minutes") && ferryResult.sources.some(item => item.href.startsWith("https://www.txdot.gov/")));
   ok("public concierge replaces internal sponsor roadmap claims with public packages", sponsorResult.ok && sponsorResult.topic === "sponsor" && sponsorResult.answer.includes("Gulf Partner ($5,000)") && !sponsorResult.answer.toLowerCase().includes("dashboard"));
+  ok("public concierge answers accessibility from approved public zones", accessibilityResult.ok && accessibilityResult.topic === "accessibility" && accessibilityResult.confidence === "high" && !accessibilityResult.escalated && accessibilityResult.answer.includes("North Gate at marker 12.5") && accessibilityResult.answer.includes("ADA parking") && accessibilityResult.sources.some(item => item.href === "#operations"));
+  ok("public concierge escalates accessibility without approved locations", missingAccessibilityResult.ok && missingAccessibilityResult.topic === "accessibility" && missingAccessibilityResult.confidence === "low" && missingAccessibilityResult.escalated && !missingAccessibilityResult.answer.includes("North Gate"));
   ok("public concierge follows application-open vendor catalog wording", vendorResult.ok && vendorResult.topic === "vendor" && vendorResult.answer.includes("vendor application") && !vendorResult.answer.includes("interest list"));
   ok("public concierge follows interest-only vendor catalog wording", vendorInterestResult.ok && vendorInterestResult.topic === "vendor" && vendorInterestResult.answer.includes("join the interest list") && vendorInterestResult.answer.includes("when applications open") && !vendorInterestResult.answer.includes("use the vendor application"));
   ok("public concierge explains mixed vendor intake without overpromising", mixedVendorResult.ok && mixedVendorResult.topic === "vendor" && mixedVendorResult.answer.includes("Some programs are accepting applications while others are collecting interest") && mixedVendorResult.answer.includes("see the current path"));
@@ -4859,6 +4867,7 @@ try {
 
   const conciergeTicketApi = await hitRaw("POST", "/api/public/concierge", JSON.stringify({ question: "Where can I buy tickets?" }), { "content-type": "application/json" });
   const conciergeSponsorApi = await hit("POST", "/api/public/concierge", { question: "What sponsorship packages are open?" });
+  const conciergeAccessibilityApi = await hit("POST", "/api/public/concierge", { question: "What accessibility guidance is available?" });
   const conciergeUnsupportedApi = await hit("POST", "/api/public/concierge", { question: "Can I bring a telescope? private@example.com" });
   const conciergeInvalidApi = await hit("POST", "/api/public/concierge", { question: "x".repeat(281) });
   ok("public concierge API returns source-cited current ticket data", conciergeTicketApi.status === 200
@@ -4871,6 +4880,14 @@ try {
     && conciergeSponsorApi.data.topic === "sponsor"
     && conciergeSponsorApi.data.sources?.some(item => item.href === "#sponsors")
     && !/invoiceStatus|quickBooksItemId|stripePriceId/i.test(JSON.stringify(conciergeSponsorApi.data)));
+  ok("public concierge API cites approved accessibility locations", conciergeAccessibilityApi.status === 200
+    && conciergeAccessibilityApi.data.topic === "accessibility"
+    && conciergeAccessibilityApi.data.confidence === "high"
+    && conciergeAccessibilityApi.data.escalated === false
+    && conciergeAccessibilityApi.data.answer?.includes("North Gate at marker 12.5")
+    && conciergeAccessibilityApi.data.answer?.includes("ADA parking")
+    && conciergeAccessibilityApi.data.sources?.some(item => item.href === "#operations")
+    && publicConciergeResponseSafety(conciergeAccessibilityApi.data).ready);
   ok("public concierge API neither stores nor echoes unsupported questions", conciergeUnsupportedApi.status === 200
     && conciergeUnsupportedApi.data.escalated === true
     && !JSON.stringify(conciergeUnsupportedApi.data).includes("private@example.com"));
