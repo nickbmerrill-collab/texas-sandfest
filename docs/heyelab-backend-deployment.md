@@ -83,6 +83,7 @@ Routes:
 | `POST` | `/api/admin/partners/invoices/:id/sync` | `finance:write` | Queue an approved invoice for idempotent QuickBooks sync |
 | `POST` | `/api/admin/partners/tasks` | `partners:write` | Delegate a validated staff, volunteer, team, or unassigned task |
 | `PATCH` | `/api/admin/partners/tasks/:id` | `partners:write` | Reassign, prioritize, reschedule, block, start, complete, cancel, or reopen a task |
+| `POST` | `/api/admin/staff-directory/import` | `staff:write` | Preview or atomically commit a verified annual staff and notification-routing directory |
 | `POST` | `/api/admin/partners/applications/:id/milestones` | `partners:write` | Add an assigned partner key date with a validated reminder lead time |
 | `PATCH` | `/api/admin/partners/milestones/:id` | `partners:write` | Reassign, reschedule, complete, cancel, or reopen a partner key date |
 | `POST` | `/api/admin/partners/followups/:id/review` | Bearer token | Approve or dismiss a generated message draft |
@@ -137,7 +138,7 @@ Until Heyelab's IdP is live, `/ready` returns 503 and `GET /api/admin/deployment
 | Role | Intent |
 | --- | --- |
 | `super_admin` | Full local access |
-| `ops_admin` | Alerts, orders, payment events, fulfillment, audit |
+| `ops_admin` | Operations, documents, staff and volunteer routing, partner workflows, conditions, fulfillment, and audit |
 | `ticketing_admin` | Ticket config, orders, payment events, fulfillment reads, audit |
 | `sponsor_admin` | Sponsor package config, orders, fulfillment reads, audit |
 | `finance_admin` | Finance reads plus partner payment posting/reversal and reviewed invoice create, approve, void, and sync |
@@ -301,7 +302,7 @@ Production readiness gates use the same governed work board. The API reconciles 
 
 The worker creates one versioned assignment notice for an active task assigned to a governed volunteer, active staff member, or routed team and, once overdue, at most one reminder per overdue week. It re-resolves the current private address before approval and again before provider delivery. Reassignment or reopening increments the assignment and schedule versions; due-date changes increment the schedule version; completion or cancellation dismisses all active notices. A newly assigned overdue task waits 24 hours before an overdue reminder so assignment and escalation do not arrive together. Admin APIs and task exports expose notification state and a privacy-safe label, never the recipient address.
 
-Production staff routing is fail-closed. The directory and every staff row must match `SANDFEST_EVENT_ID`; all active staff need valid email; all seven teams need an active owner; `verifiedAt` must be within 90 days; and the source must be `connecteam`, `manual_verified`, `oidc`, or `hr_import`. Seed, rollover, and board-demo sources cannot satisfy production. Preview and commit an approved JSON or CSV import with `npm run import:staff -- /secure/staff-directory.json --source=manual_verified [--commit]`. Production commits require `SANDFEST_DATABASE_URL`, and annual mismatch requires `npm run event:rollover` first.
+Production staff routing is fail-closed. The directory and every staff row must match `SANDFEST_EVENT_ID`; all active staff need valid email; all seven teams need one active owner; `verifiedAt` must be within 90 days; and the source must be `connecteam`, `manual_verified`, `oidc`, or `hr_import`. Seed, rollover, and board-demo sources cannot satisfy production. An operations administrator can choose a JSON or CSV file in the staff work board, attest its annual scope and source, preview the privacy-minimized result, and commit only while the exact file and current directory still match the preview. The API stores bounded aggregate import provenance and audit evidence without staff names or addresses. The CLI equivalent is `npm run import:staff -- /secure/staff-directory.json --source=manual_verified [--commit]`. Production commits require `SANDFEST_DATABASE_URL`, and an annual mismatch requires `npm run event:rollover` first.
 
 ## Partner Intake Bot Safety
 

@@ -40,6 +40,13 @@ import {
   staffTaskRecipients
 } from "../lib/staff-directory.mjs";
 import {
+  STAFF_DIRECTORY_IMPORT_MAX_ROWS,
+  applyStaffDirectoryImport,
+  parseStaffDirectoryImport,
+  staffDirectoryFingerprint,
+  staffDirectoryImportPreviewHash
+} from "../lib/staff-directory-import.mjs";
+import {
   applySmsConsentKeyword,
   consentFromCheckout,
   mergeConsentRecords,
@@ -1561,6 +1568,60 @@ HOURS-100,${DEFAULT_EVENT_ID},VL-100,SHIFT-100,2027-04-09T08:00:00-05:00,2027-04
   ok("seed staff directory cannot satisfy production", !production.ready && production.errors.some(item => item.includes("not production verified")));
   ok("current verified staff directory satisfies production", verifiedProduction.ready);
   ok("staff directory rejects mixed annual scope", !mismatchedStaffEvent.ready && mismatchedStaffEvent.eventMismatchStaff.includes("staff_operations"));
+
+  const importEventId = "texas-sandfest-2027";
+  const staffCsv = `staff_id,event_id,name,work_email,status,role,team,notification_team
+staff_operations,${importEventId},Jamie Torres,jamie.torres@staff.example,active,ops_admin,operations,operations
+staff_sponsor,${importEventId},Morgan Ellis,morgan.ellis@staff.example,active,sponsor_admin,sponsor,sponsor
+staff_finance,${importEventId},Riley Chen,riley.chen@staff.example,active,finance_admin,finance,finance
+staff_volunteers,${importEventId},Casey Patel,casey.patel@staff.example,active,volunteer_captain,volunteer-captains,volunteer-captains
+staff_traffic,${importEventId},Avery Brooks,avery.brooks@staff.example,on_call,traffic_lead,traffic,traffic
+staff_guest_services,${importEventId},Taylor Nguyen,taylor.nguyen@staff.example,active,guest_services_lead,guest-services,guest-services
+staff_production,${importEventId},Jordan Davis,jordan.davis@staff.example,active,production_lead,production,production`;
+  const importOptions = {
+    eventId: importEventId,
+    source: "manual_verified",
+    fileName: "staff-directory.csv",
+    now: "2027-01-12T00:00:00.000Z"
+  };
+  const parsedImport = parseStaffDirectoryImport(staffCsv, importOptions);
+  const currentImportDirectory = {
+    ...directory,
+    eventId: importEventId,
+    staff: directory.staff.map(item => ({ ...item, eventId: importEventId }))
+  };
+  const preview = applyStaffDirectoryImport(currentImportDirectory, parsedImport, { now: importOptions.now });
+  const committed = applyStaffDirectoryImport(currentImportDirectory, parsedImport, {
+    commit: true,
+    expectedPreviewHash: preview.previewHash,
+    actorId: "staff-import-test",
+    batchId: "staff_import_test",
+    now: importOptions.now
+  });
+  const replay = applyStaffDirectoryImport(committed.doc, parsedImport, {
+    commit: true,
+    expectedPreviewHash: preview.previewHash,
+    actorId: "staff-import-test",
+    now: "2027-01-12T01:00:00.000Z"
+  });
+  const staleCommit = applyStaffDirectoryImport({ ...currentImportDirectory, lastUpdated: "2027-01-11T00:00:00.000Z" }, parsedImport, {
+    commit: true,
+    expectedPreviewHash: preview.previewHash,
+    now: importOptions.now
+  });
+  const rolloverPreview = applyStaffDirectoryImport(directory, parsedImport, { now: importOptions.now });
+  const rolloverCommit = applyStaffDirectoryImport(directory, parsedImport, {
+    commit: true,
+    expectedPreviewHash: rolloverPreview.previewHash,
+    now: importOptions.now
+  });
+  const duplicateRoute = parseStaffDirectoryImport(`${staffCsv}\nstaff_extra,${importEventId},Extra Staff,extra@staff.example,active,ops_admin,operations,operations`, importOptions);
+  const oversizedStaffCsv = `id,name,email,notification_team\n${Array.from({ length: STAFF_DIRECTORY_IMPORT_MAX_ROWS + 1 }, (_, index) => `staff_${index},Staff ${index},staff${index}@staff.example,operations`).join("\n")}`;
+  ok("staff import parses a complete private directory", parsedImport.ok && parsedImport.summary.activeStaff === 7 && parsedImport.summary.routedTeams === 7 && parsedImport.publicDirectory.staff.every(item => !("email" in item)));
+  ok("staff import preview is non-mutating and state-bound", preview.ok && preview.commitAllowed && /^[a-f0-9]{64}$/.test(preview.previewHash) && currentImportDirectory.source === directory.source && staffDirectoryImportPreviewHash(staffCsv, { ...importOptions, directoryFingerprint: staffDirectoryFingerprint(currentImportDirectory, { eventId: importEventId }) }) === preview.previewHash);
+  ok("staff import commit is private, audited, and idempotent", committed.ok && committed.doc.source === "manual_verified" && committed.doc.imports.length === 1 && committed.importRecord.actorId === "staff-import-test" && !JSON.stringify({ publicDirectory: committed.publicDirectory, importRecord: committed.importRecord }).includes("@staff.example") && replay.replay && replay.doc.imports.length === 1);
+  ok("staff import rejects stale previews and annual replacement", staleCommit.previewMismatch && rolloverPreview.commitAllowed === false && rolloverCommit.rolloverRequired);
+  ok("staff import rejects duplicate routing and oversized files", duplicateRoute.ok === false && duplicateRoute.error.includes("exactly one owner") && parseStaffDirectoryImport(oversizedStaffCsv, importOptions).ok === false);
 }
 
 // Consent + SMS
@@ -4945,6 +5006,34 @@ HOURS-API-1,${DEFAULT_EVENT_ID},VL-API-1,SHIFT-API-1,2027-04-09T08:00:00-05:00,2
   ok("VolunteerLocal API commit reconciles roster coverage and hours", volunteerImportCommitApi.status === 201 && importedVolunteerApi?.waiverSigned === true && importedVolunteerApi?.smsConsent === false && importedShiftApi?.filledVolunteerIds.includes(importedVolunteerApi?.id) && volunteersAfterCommitApi.data.hourLogs?.some(item => item.externalId === "HOURS-API-1" && item.volunteerId === importedVolunteerApi?.id) && volunteersAfterCommitApi.data.imports?.[0]?.files?.roster === "volunteerlocal-roster.csv");
   ok("VolunteerLocal API replay is idempotent", volunteerImportReplayApi.status === 200 && volunteerImportReplayApi.data.replay === true && volunteersAfterCommitApi.data.volunteers?.filter(item => item.externalId === "VL-API-1").length === 1 && volunteersAfterCommitApi.data.imports?.length === 1);
   ok("VolunteerLocal import feeds governed task assignment directory", volunteerTaskDirectoryApi.data.assignmentDirectory?.volunteers?.some(item => item.id === importedVolunteerApi?.id && item.name === "API Volunteer Lead" && !("email" in item)) && !volunteerTaskDirectoryApi.data.assignmentDirectory?.volunteers?.some(item => item.id === "vol_006"));
+
+  const staffCsvApi = `staff_id,event_id,name,work_email,status,role,team,notification_team
+staff_operations,${DEFAULT_EVENT_ID},Jamie Torres,jamie.torres@staff.example,active,ops_admin,operations,operations
+staff_sponsor,${DEFAULT_EVENT_ID},Morgan Ellis,morgan.ellis@staff.example,active,sponsor_admin,sponsor,sponsor
+staff_finance,${DEFAULT_EVENT_ID},Riley Chen,riley.chen@staff.example,active,finance_admin,finance,finance
+staff_volunteers,${DEFAULT_EVENT_ID},Casey Patel,casey.patel@staff.example,active,volunteer_captain,volunteer-captains,volunteer-captains
+staff_traffic,${DEFAULT_EVENT_ID},Avery Brooks,avery.brooks@staff.example,on_call,traffic_lead,traffic,traffic
+staff_guest_services,${DEFAULT_EVENT_ID},Taylor Nguyen,taylor.nguyen@staff.example,active,guest_services_lead,guest-services,guest-services
+staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,active,production_lead,production,production`;
+  const staffImportPayloadApi = {
+    contents: staffCsvApi,
+    fileName: "staff-directory-api.csv",
+    source: "manual_verified",
+    currentEventConfirmed: true
+  };
+  const unauthenticatedStaffImportApi = await hit("POST", "/api/admin/staff-directory/import", { ...staffImportPayloadApi, mode: "preview" });
+  const unattestedStaffImportApi = await hit("POST", "/api/admin/staff-directory/import", { ...staffImportPayloadApi, mode: "preview", currentEventConfirmed: false }, true);
+  const staffBeforePreviewApi = await hit("GET", "/api/admin/partners", null, true);
+  const staffImportPreviewApi = await hit("POST", "/api/admin/staff-directory/import", { ...staffImportPayloadApi, mode: "preview" }, true);
+  const staffAfterPreviewApi = await hit("GET", "/api/admin/partners", null, true);
+  const staffRolloverCommitApi = await hit("POST", "/api/admin/staff-directory/import", {
+    ...staffImportPayloadApi,
+    mode: "commit",
+    previewHash: staffImportPreviewApi.data.previewHash
+  }, true);
+  ok("staff directory API requires permission and event attestation", unauthenticatedStaffImportApi.status === 401 && unattestedStaffImportApi.status === 400);
+  ok("staff directory API preview remains private and non-mutating", staffImportPreviewApi.status === 200 && staffImportPreviewApi.data.commitAllowed === false && staffImportPreviewApi.data.summary?.activeStaff === 7 && staffImportPreviewApi.data.summary?.routedTeams === 7 && /^[a-f0-9]{64}$/.test(staffImportPreviewApi.data.previewHash || "") && !JSON.stringify(staffImportPreviewApi.data).includes("@staff.example") && JSON.stringify(staffBeforePreviewApi.data.assignmentDirectory?.staff) === JSON.stringify(staffAfterPreviewApi.data.assignmentDirectory?.staff));
+  ok("staff directory API blocks archive-bypassing annual replacement", staffRolloverCommitApi.status === 409 && staffRolloverCommitApi.data.error?.includes("archive-first rollover"));
 
   const boothCsvApi = `booth_id,event_id,vendor_id,eventeny_id,business_name,category,type,zone,booth_status,vendor_status,public,coi_status,map_x,map_y,fee
 B-API-IMPORT,${DEFAULT_EVENT_ID},EV-V-API-IMPORT,EV-V-API-IMPORT,API Private Vendor,retail,vendor,api-zone,assigned,approved,,,15,25,900.00
