@@ -610,6 +610,17 @@ console.log("\n=== Pure library suite ===\n");
       staffDirectory: { ready: true, routedTeams: 7, totalTeams: 7 },
       email: { ready: true }
     },
+    documents: {
+      summary: { total: 4, extractionReady: 4, extractionQueued: 0, extractionNeedsReview: 0 },
+      documents: [{
+        id: "demo_document_board_platform_briefing",
+        title: "SandFest board platform briefing",
+        extractionStatus: "ready",
+        extractedCharacterCount: 5_507,
+        extractedChunkCount: 6,
+        textPreview: "TEXAS SANDFEST board platform briefing"
+      }]
+    },
     conditions: {
       weather: { status: "live", freshness: { state: "live" } },
       ferry: { status: "live", freshness: { state: "live" } },
@@ -630,6 +641,10 @@ console.log("\n=== Pure library suite ===\n");
     && failedBoardReport.checks.find(item => item.id === "public_links")?.ok === false
     && failedBoardReport.checks.find(item => item.id === "camera_fleet")?.ok === false
     && !JSON.stringify(failedBoardReport).includes(boardDemoAccess.token));
+  const missingBriefingReport = evaluateBoardDemoReadiness({ ...readyBoardState, documents: { summary: {}, documents: [] } });
+  ok("board demo readiness requires the extracted briefing without exposing private metadata", !missingBriefingReport.ok
+    && missingBriefingReport.checks.find(item => item.id === "operations")?.ok === false
+    && !JSON.stringify(readyBoardReport).includes("storageKey"));
   let remoteBoardCheckRejected = false;
   try {
     boardDemoLoopbackUrl("http://127.0.0.1.evil.example:8806", "test URL");

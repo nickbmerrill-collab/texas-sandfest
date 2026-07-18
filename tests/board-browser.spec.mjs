@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { createServer } from "node:net";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -113,6 +113,20 @@ async function assertNoHorizontalOverflow(page) {
     scrollWidth: document.documentElement.scrollWidth
   }));
   expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
+}
+
+function presentationUploadCopy(buffer, comment) {
+  const endOfDirectory = buffer.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+  if (endOfDirectory < 0 || endOfDirectory + 22 > buffer.length) throw new Error("Presentation ZIP directory is invalid.");
+  const originalLength = buffer.readUInt16LE(endOfDirectory + 20);
+  if (endOfDirectory + 22 + originalLength !== buffer.length) throw new Error("Presentation ZIP comment is invalid.");
+  const originalComment = buffer.subarray(endOfDirectory + 22);
+  const addedComment = Buffer.from(comment, "ascii");
+  const commentLength = originalComment.length + addedComment.length;
+  if (commentLength > 65_535) throw new Error("Presentation ZIP comment is too long.");
+  const copy = Buffer.concat([buffer.subarray(0, endOfDirectory + 22), originalComment, addedComment]);
+  copy.writeUInt16LE(commentLength, endOfDirectory + 20);
+  return copy;
 }
 
 test.beforeAll(async () => {
@@ -290,7 +304,12 @@ test("board workflows operate through the public and staff interfaces", async ({
   await expect(page.locator("#admin-api-status")).toContainText("Added Premium marketplace");
   await expect(page.locator(`[data-admin-vendor-offering="${vendorOfferingId}"]`)).toContainText("$2,500.00");
   const documentUploadForm = page.locator("#admin-document-upload");
-  await documentUploadForm.locator('[name="file"]').setInputFiles(path.join(ROOT, "docs", "presentations", "SandFest-Board-Platform-Briefing.pptx"));
+  const presentation = await readFile(path.join(ROOT, "docs", "presentations", "SandFest-Board-Platform-Briefing.pptx"));
+  await documentUploadForm.locator('[name="file"]').setInputFiles({
+    name: "SandFest-Board-Platform-Briefing.pptx",
+    mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    buffer: presentationUploadCopy(presentation, `browser-${runId}`)
+  });
   await documentUploadForm.locator('[name="title"]').fill(documentTitle);
   const documentUploadResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/documents/upload" && response.request().method() === "POST");
   await documentUploadForm.locator('button[type="submit"]').click();
