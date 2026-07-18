@@ -69,6 +69,7 @@ async function startApi(port, runtimeRoot, emailPort, smsPort) {
     SANDFEST_ADMIN_ROLE: "super_admin",
     SANDFEST_ADMIN_ACTOR_ID: "board-runtime-test",
     SANDFEST_ADMIN_RATE_LIMIT: "500",
+    SANDFEST_BOARD_CONDITIONS_MODE: "synthetic",
     SANDFEST_PARTNER_PORTAL_SECRET: "board-runtime-partner-portal-secret-0123456789",
     SANDFEST_OUTREACH_PREFERENCES_SECRET: "board-runtime-outreach-preferences-secret-0123456789",
     OUTREACH_DISCOVERY_ENABLED: "true",
@@ -125,6 +126,33 @@ async function stopChild(processChild) {
   processChild.kill("SIGTERM");
   await Promise.race([exited, new Promise(resolve => setTimeout(resolve, 5_000))]);
   if (processChild.exitCode == null) processChild.kill("SIGKILL");
+}
+
+async function productionRejectsSyntheticConditions(runtimeRoot) {
+  const probe = spawn(process.execPath, ["scripts/admin-api-server.mjs"], {
+    cwd: ROOT,
+    env: {
+      ...process.env,
+      SANDFEST_RUNTIME_ROOT: runtimeRoot,
+      SANDFEST_DATABASE_URL: "",
+      SANDFEST_ENV: "production",
+      SANDFEST_EVENT_ID: DEFAULT_EVENT_ID,
+      SANDFEST_BOARD_CONDITIONS_MODE: "synthetic"
+    },
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+  let output = "";
+  probe.stdout.on("data", chunk => { output += String(chunk); });
+  probe.stderr.on("data", chunk => { output += String(chunk); });
+  const code = await Promise.race([
+    new Promise((resolve, reject) => {
+      probe.once("error", reject);
+      probe.once("exit", resolve);
+    }),
+    new Promise(resolve => setTimeout(() => resolve(null), 5_000))
+  ]);
+  if (code == null) await stopChild(probe);
+  return code !== 0 && output.includes("Synthetic board conditions are restricted to an isolated board demo runtime.");
 }
 
 async function runWorker(env) {
@@ -195,6 +223,7 @@ try {
   check("runtime root resolves outside repository data", resolved === targetRoot && resolved !== ROOT);
   check("board seed covers core operations", prepared.applications === 4 && prepared.invoices === 1 && prepared.payments === 1 && prepared.tasks === 9 && prepared.prospects === 1 && prepared.safetySmsRecipients === 1);
   check("board seed covers field operations", prepared.cameras === 8 && prepared.volunteerShifts === 12 && prepared.documents === 4);
+  check("production refuses synthetic board conditions", await productionRejectsSyntheticConditions(targetRoot));
 
   const port = await freePort();
   const emailPort = await freePort();
@@ -429,7 +458,15 @@ try {
   check("board automation stays scoped to approved campaigns and transactional policy", automationPolicyScoped, automationPolicyScoped ? "" : JSON.stringify(automationProof));
 
   const conditions = await request(base, "GET", "/api/public/island-conditions");
-  check("board conditions expose fresh synthetic lanes without claiming live hardware", conditions.status === 200 && conditions.data.cameras?.length === 8 && conditions.data.summary?.freshObservations === 8 && conditions.data.summary?.liveCameras === 0 && conditions.data.summary?.armedCameras === 0);
+  check("board conditions are offline-safe and expose fresh synthetic lanes without claiming live hardware", conditions.status === 200
+    && conditions.data.weather?.source === "Board weather simulation"
+    && conditions.data.weather?.freshness?.state === "live"
+    && conditions.data.ferry?.source === "Board ferry simulation"
+    && conditions.data.ferry?.freshness?.state === "live"
+    && conditions.data.cameras?.length === 8
+    && conditions.data.summary?.freshObservations === 8
+    && conditions.data.summary?.liveCameras === 0
+    && conditions.data.summary?.armedCameras === 0);
   const playback = await runBoardCameraPlaybackTick({
     apiBase: base,
     adminToken: TOKEN,
