@@ -212,7 +212,28 @@ for (const marker of [
 assert(!publicJavaScript.includes("April 17-19, 2026") && !publicJavaScript.includes("April 17, 2026"), "Public artifact contains stale 2026 event dates.");
 assert(visitorSource.includes('class="skip-link"') && visitorSource.includes('href="#top"'), "Visitor source is missing its keyboard skip link.");
 assert(visitorSource.includes('aria-label="Ask Sandy a question"') && visitorSource.includes('maxlength="280"'), "Public concierge input is not accessible and bounded.");
-assert(visitorSource.includes('class="chat-log" role="log" aria-live="polite"'), "Public concierge responses are not announced as a live conversation log.");
+assert(visitorSource.includes('id="chat" class="chat-log keyboard-scroll-region" role="log" aria-label="Ask Sandy conversation" aria-live="polite"') && visitorSource.includes('aria-relevant="additions" tabindex="0"'), "Public concierge responses are not announced as a named, keyboard-accessible live conversation log.");
+for (const id of [
+  "booth-list",
+  "admin-fleet-assets",
+  "admin-fleet-open",
+  "admin-volunteers-zones",
+  "admin-volunteers-gaps",
+  "admin-sms-campaigns",
+  "admin-passport-checkpoints",
+  "admin-incidents",
+  "admin-partner-milestones",
+  "admin-receivables-accounts",
+  "admin-receivables-exceptions",
+  "admin-partner-applications",
+  "admin-partner-followups",
+  "admin-outreach-campaigns",
+  "admin-outreach-prospects",
+  "admin-condition-cameras"
+]) {
+  const tag = visitorSource.match(new RegExp(`<[^>]+id="${id}"[^>]*>`))?.[0] || "";
+  assert(tag.includes("keyboard-scroll-region") && tag.includes('tabindex="0"') && tag.includes('aria-label="'), `${id} is not a named, keyboard-accessible scroll region.`);
+}
 assert(visitorSource.includes('/api/public/concierge') && visitorSource.includes('className = "concierge-sources"'), "Public concierge is not wired to governed source-cited answers.");
 assert(!visitorSource.includes("const knowledge = [") && !visitorSource.includes("What should the iOS app do first?"), "Public concierge still contains the internal hard-coded roadmap answer table.");
 assert(visitorSource.includes('id="checkout-status" class="checkout-status" role="status" aria-live="polite"'), "Ticket checkout is missing its live status region.");

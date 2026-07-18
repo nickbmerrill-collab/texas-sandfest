@@ -157,9 +157,16 @@ Build both isolated surfaces, then run the fail-closed live verifier before
 sharing or promoting any hostname:
 
 ```bash
+npm run test:accessibility
 npm run build:surfaces
 npm run deployment:verify
 ```
+
+The accessibility acceptance uses the rendered application and the real local
+API workflow. It must report zero automated WCAG A/AA violations across public
+partner intake, the private status handoff, Ask Sandy, mobile intake, and the
+staff operations workspace. Manual keyboard and screen-reader review remains
+part of release signoff because automated rules do not cover every interaction.
 
 The default targets are `https://sandfest.heyelab.com/`,
 `https://api.heyelab.com/sandfest/`, and

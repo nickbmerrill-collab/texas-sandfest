@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { createServer } from "node:net";
@@ -113,6 +114,19 @@ async function assertNoHorizontalOverflow(page) {
     scrollWidth: document.documentElement.scrollWidth
   }));
   expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
+}
+
+async function assertNoAccessibilityViolations(page, label) {
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+    .analyze();
+  const violations = results.violations.map(violation => ({
+    id: violation.id,
+    impact: violation.impact,
+    help: violation.help,
+    nodes: violation.nodes.map(node => node.target.join(" "))
+  }));
+  expect(violations, `${label} must have no automated WCAG A/AA violations`).toEqual([]);
 }
 
 function presentationUploadCopy(buffer, comment) {
@@ -538,4 +552,79 @@ test("critical public and operations views fit a mobile viewport", async ({ page
   await expect(page.locator("#admin-api-status")).toContainText("Loaded", { timeout: 25_000 });
   await expect(page.locator("#admin-create-task")).toBeVisible();
   await assertNoHorizontalOverflow(page);
+});
+
+test("WCAG A and AA checks cover public intake, partner status, concierge, and operations", async ({ page }) => {
+  const runId = randomUUID().slice(0, 8);
+  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#sponsors`);
+  await expect(page.locator("#vendor-application-form")).toBeVisible();
+  await expect(page.locator("#chat")).toHaveAttribute("tabindex", "0");
+  await expect(page.locator("#booth-list")).toHaveAttribute("tabindex", "0");
+  await assertNoAccessibilityViolations(page, "Visitor and partner intake surface");
+
+  const conciergeResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/public/concierge" && response.request().method() === "POST");
+  await page.locator("#ask-input").fill("What accessibility services are available?");
+  await page.locator("#ask-submit").click();
+  expect((await conciergeResponse).status()).toBe(200);
+  await expect(page.locator("#chat .concierge-answer")).toHaveCount(1);
+
+  const vendor = page.locator("#vendor-application-form");
+  await vendor.locator('[name="organizationName"]').fill(`Accessible Boardwalk Arts ${runId}`);
+  await vendor.locator('[name="contactName"]').fill("Taylor Access");
+  await vendor.locator('[name="contactEmail"]').fill(`taylor.${runId}@example.com`);
+  await vendor.locator('[name="category"]').selectOption("artisan");
+  await vendor.locator('[name="vendorOfferingId"]').selectOption("marketplace-booth");
+  await vendor.locator('[name="city"]').fill("Port Aransas");
+  await vendor.locator('[name="description"]').fill("Locally made art with an accessible booth layout.");
+  await vendor.locator('[name="consentToContact"]').check();
+  await submitAndCapture(page, vendor, "/api/public/vendor-applications");
+  await expect(page.locator("#partner-status-result")).toContainText(`Accessible Boardwalk Arts ${runId}`);
+  await assertNoAccessibilityViolations(page, "Concierge response and private partner status");
+
+  await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#admin-partners`);
+  await expect(page.locator("#admin-api-status")).toContainText("Loaded", { timeout: 25_000 });
+  await expect(page.locator("#admin-partner-applications [data-partner-application]")).not.toHaveCount(0);
+  const keyboardRegionIds = [
+    "admin-fleet-assets",
+    "admin-fleet-open",
+    "admin-volunteers-zones",
+    "admin-volunteers-gaps",
+    "admin-sms-campaigns",
+    "admin-passport-checkpoints",
+    "admin-incidents",
+    "admin-partner-milestones",
+    "admin-receivables-accounts",
+    "admin-receivables-exceptions",
+    "admin-partner-applications",
+    "admin-partner-followups",
+    "admin-outreach-campaigns",
+    "admin-outreach-prospects",
+    "admin-condition-cameras"
+  ];
+  for (const id of keyboardRegionIds) {
+    await expect(page.locator(`#${id}`)).toHaveAttribute("tabindex", "0");
+    await expect(page.locator(`#${id}`)).toHaveAttribute("aria-label", /\S/);
+  }
+  const documentPreview = page.locator(".admin-document-preview").first();
+  await expect(documentPreview).toHaveCount(1);
+  await documentPreview.locator("summary").click();
+  await expect(documentPreview.locator("pre")).toHaveAttribute("tabindex", "0");
+
+  const outreachImport = page.locator("#admin-import-prospects");
+  await outreachImport.locator('[name="csv"]').fill("business_name,industry,city,state,zip,email\nNeeds Review,banking,Corpus Christi,TX,invalid,review@example.com");
+  const outreachPreviewResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/outreach/prospects/import" && response.request().method() === "POST");
+  await outreachImport.locator('button[type="submit"]').click();
+  expect((await outreachPreviewResponse).status()).toBe(200);
+  await expect(page.locator("#admin-outreach-import-result ul")).toHaveAttribute("tabindex", "0");
+
+  const discoveryPreviewResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/outreach/discovery/preview" && response.request().method() === "POST");
+  await page.locator('#admin-discover-businesses button[type="submit"]').click();
+  expect((await discoveryPreviewResponse).status()).toBe(200);
+  await expect(page.locator(".admin-discovery-candidates")).toHaveAttribute("tabindex", "0");
+  await assertNoAccessibilityViolations(page, "Operations workspace");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#sponsors`);
+  await expect(page.locator("#vendor-application-form")).toBeVisible();
+  await assertNoAccessibilityViolations(page, "Mobile visitor and partner intake surface");
 });
