@@ -98,6 +98,22 @@ The board API and worker pin every generated public capability link to the docum
 
 ## Verify
 
+Check the exact services that are currently running before opening the board
+presentation:
+
+```bash
+npm run board:check
+```
+
+This fails closed when port 5175 is serving an ordinary `npm run dev` session,
+the isolated API or worker is unavailable, either provider sandbox is missing,
+the seeded partner/staff workspace is incomplete, weather or ferry data is
+stale, or fewer than eight camera playback pipelines are live. The report
+prints recovery commands but never prints the injected admin credential,
+recipient details, or message content. Use
+`npm run --silent board:check -- --json` for a machine-readable preflight
+artifact without npm's command banner.
+
 ```bash
 npm run test:board-runtime
 ```
