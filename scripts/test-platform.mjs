@@ -1227,6 +1227,24 @@ console.log("\n=== Pure library suite ===\n");
   const ticketResult = answerPublicConcierge("Where can I buy tickets?", context);
   const ferryResult = answerPublicConcierge("How long is the ferry line?", context);
   const sponsorResult = answerPublicConcierge("What should a sponsor dashboard track?", context);
+  const vendorResult = answerPublicConcierge("How do vendors apply?", context);
+  const vendorInterestResult = answerPublicConcierge("How do vendors apply?", {
+    ...context,
+    vendors: {
+      ...context.vendors,
+      vendorOfferings: [{ name: "Food vendor interest", amount: 0, publicLabel: "Fee confirmed when applications open", intakeMode: "interest" }]
+    }
+  });
+  const mixedVendorResult = answerPublicConcierge("How do vendors apply?", {
+    ...context,
+    vendors: {
+      ...context.vendors,
+      vendorOfferings: [
+        { name: "Food vendor interest", amount: 0, publicLabel: "Fee confirmed when applications open", intakeMode: "interest" },
+        { name: "Marketplace booth", amount: 125000, currency: "usd", intakeMode: "application" }
+      ]
+    }
+  });
   const emergencyResult = answerPublicConcierge("My child is missing. Is this an emergency?", context);
   const unknownResult = answerPublicConcierge("Can I bring a telescope? private@example.com", context);
   const { ok: ticketOk, ...ticketPayload } = ticketResult;
@@ -1236,6 +1254,9 @@ console.log("\n=== Pure library suite ===\n");
   ok("public concierge answers ticket questions from current catalog", ticketOk && ticketPayload.topic === "tickets" && ticketPayload.answer.includes("Adult day pass ($15)") && ticketPayload.answer.includes("VIP day pass (price pending)") && !ticketPayload.answer.includes("Stripe") && ticketPayload.sources.some(item => item.href === "#tickets"));
   ok("public concierge answers ferry questions from current public conditions", ferryResult.ok && ferryResult.topic === "ferry" && ferryResult.answer.includes("about 12 minutes") && ferryResult.sources.some(item => item.href.startsWith("https://www.txdot.gov/")));
   ok("public concierge replaces internal sponsor roadmap claims with public packages", sponsorResult.ok && sponsorResult.topic === "sponsor" && sponsorResult.answer.includes("Gulf Partner ($5,000)") && !sponsorResult.answer.toLowerCase().includes("dashboard"));
+  ok("public concierge follows application-open vendor catalog wording", vendorResult.ok && vendorResult.topic === "vendor" && vendorResult.answer.includes("vendor application") && !vendorResult.answer.includes("interest list"));
+  ok("public concierge follows interest-only vendor catalog wording", vendorInterestResult.ok && vendorInterestResult.topic === "vendor" && vendorInterestResult.answer.includes("join the interest list") && vendorInterestResult.answer.includes("when applications open") && !vendorInterestResult.answer.includes("use the vendor application"));
+  ok("public concierge explains mixed vendor intake without overpromising", mixedVendorResult.ok && mixedVendorResult.topic === "vendor" && mixedVendorResult.answer.includes("Some programs are accepting applications while others are collecting interest") && mixedVendorResult.answer.includes("see the current path"));
   ok("public concierge routes urgent safety questions to emergency help", emergencyResult.ok && emergencyResult.topic === "emergency" && emergencyResult.escalated && emergencyResult.answer.includes("Call 911") && emergencyResult.answer.includes("cannot dispatch"));
   ok("public concierge escalates unsupported questions without echoing input", unknownOk && unknownPayload.escalated && !JSON.stringify(unknownPayload).includes("private@example.com") && publicConciergeResponseSafety(unknownPayload).ready);
   ok("public concierge safety rejects private implementation fields", !publicConciergeResponseSafety({ ...ticketPayload, storageRoot: "/private/runtime" }).ready);

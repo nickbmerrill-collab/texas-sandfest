@@ -337,6 +337,22 @@ test("board workflows operate through the public and staff interfaces", async ({
   await expect(page.locator('#chat .concierge-sources a[href="#tickets"]')).toHaveText("Current ticket options");
   await expect(page.locator("#ask-submit")).toBeEnabled();
 
+  const vendorConciergeResponsePromise = page.waitForResponse(response => {
+    const url = new URL(response.url());
+    return url.origin === apiBase && url.pathname === "/api/public/concierge" && response.request().method() === "POST";
+  });
+  await page.locator("#ask-input").fill("How do vendors apply?");
+  await page.locator("#ask-submit").click();
+  const vendorConciergeResponse = await vendorConciergeResponsePromise;
+  expect(vendorConciergeResponse.status()).toBe(200);
+  const vendorConciergePayload = await vendorConciergeResponse.json();
+  expect(vendorConciergePayload.topic).toBe("vendor");
+  expect(vendorConciergePayload.answer).toContain("vendor application");
+  expect(vendorConciergePayload.answer).not.toContain("interest list");
+  await expect(page.locator("#chat .concierge-answer")).toHaveCount(2);
+  await expect(page.locator("#chat .concierge-answer").last()).toContainText("vendor application");
+  await expect(page.locator("#ask-submit")).toBeEnabled();
+
   const vendor = page.locator("#vendor-application-form");
   await expect(vendor).toBeVisible();
   await vendor.locator('[name="organizationName"]').fill(vendorName);
