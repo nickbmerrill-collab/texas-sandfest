@@ -219,6 +219,7 @@ assert(visitorSource.includes('<a href="#admin-config">Overview</a>')
   && visitorSource.includes('<a href="#admin-partners">Partners</a>')
   && visitorSource.includes('const targetHash = requestedMode === "ops" ? "#admin-config" : "#top";'), "The local board mode switch does not land on functional operations workspaces.");
 assert(visitorSource.includes('<input name="reviewDueAt" type="datetime-local" required />')
+  && visitorSource.includes('<select name="ownerTeam" required><option value="operations" selected>Operations</option>')
   && visitorSource.includes('reviewTask ? ` · Task ${escapeHtml(conditionLabel(reviewTask.status))}`'), "Document intake does not expose its accountable review deadline and task state.");
 assert(visitorSource.includes("if (BOARD_DEMO_ACCESS.enabled) boardDemoWorkspaceLoaded = true;\n    stabilizeRenderedHashTarget();"), "Async operations loading can push the selected board-demo workspace out of view.");
 assert(publicStylesheets.includes(".admin-config-section{max-width:1240px;scroll-margin-top:72px}")
