@@ -510,6 +510,14 @@ const BOARD_DEMO_ACCESS = boardDemoAccessConfig({
   apiBase: defaultPublicApiBase(),
   token: BOARD_DEMO_INJECTED_TOKEN
 });
+const navCtaHref = ADMIN_ENTRY && BOARD_DEMO_ACCESS.enabled
+  ? (() => {
+      const url = new URL(siteBase, window.location.origin);
+      url.searchParams.set("apiBase", defaultPublicApiBase());
+      url.searchParams.set("mode", "visitor");
+      return url.toString();
+    })()
+  : "https://www.texassandfest.org/";
 let boardDemoWorkspaceLoaded = false;
 let boardDemoWorkspaceLoad = null;
 
@@ -525,16 +533,7 @@ app.innerHTML = `
       ${officialLogo ? `<img class="brand-logo" ${responsiveImageAttributes(mediaAssets.find(asset => asset.role === "official_brand"), "84px")} alt="Texas SandFest logo" decoding="async" />` : `<span class="brand-mark">TSF</span>`}
       <span>${ADMIN_ENTRY ? "SandFest Operations" : "Texas SandFest"}</span>
     </a>
-    <nav>
-      ${ADMIN_ENTRY ? `
-        <a href="#admin-config">Overview</a>
-        <a href="#admin-documents">Documents</a>
-        <a href="#admin-partners">Partners</a>
-        <a href="#admin-revenue">Accounting</a>
-        <a href="#admin-volunteers">Staffing</a>
-        <a href="#admin-island-conditions">Island</a>
-        <a href="#admin-system-monitor">Systems</a>
-      ` : `
+    ${ADMIN_ENTRY ? "" : `<nav>
         <a href="#live-beach">Live Beach</a>
         <a href="#concierge">Concierge</a>
         <a href="#tickets">Tickets</a>
@@ -545,7 +544,7 @@ app.innerHTML = `
         <a href="#sponsors">Sponsors</a>
         <a href="#partner-status">Status</a>
         <a href="#port-a">Port A</a>
-      `}
+
       ${OPS_DEMO_ENABLED ? `
         <a href="#admin-config">Overview</a>
         <a href="#admin-documents">Documents</a>
@@ -555,7 +554,7 @@ app.innerHTML = `
         <a href="#admin-island-conditions">Island</a>
         <a href="#admin-system-monitor">Systems</a>
       ` : ""}
-    </nav>
+    </nav>`}
     <div class="app-status-controls">
       ${OPS_DEMO_ENABLED ? `
         <div class="site-mode-toggle" role="tablist" aria-label="Site mode">
@@ -566,7 +565,7 @@ app.innerHTML = `
       <span id="network-status" class="network-status" data-state="online">Online</span>
       <button id="install-app-btn" class="install-app-btn" type="button" hidden>Install</button>
     </div>
-    <a class="nav-cta" href="https://www.texassandfest.org/" target="_blank" rel="noreferrer">${ADMIN_ENTRY ? "Visitor site" : "Official site"}</a>
+    <a class="nav-cta" href="${escapeAttr(navCtaHref)}" target="_blank" rel="noreferrer">${ADMIN_ENTRY ? "Visitor site" : "Official site"}</a>
   </header>
 
   ${ADMIN_ENTRY ? "" : `
@@ -941,7 +940,7 @@ app.innerHTML = `
         <div>
           <p class="eyebrow">Food &amp; vendors</p>
           <h2>Find booths on the beach corridor</h2>
-          <p class="section-copy">Public map pins mirrored from Eventeny booth assignments. Seed data until the live CSV/export is wired.</p>
+          <p class="section-copy">Explore food, merchandise, and services by beach location. Published booth assignments appear here as the festival map is finalized.</p>
         </div>
         <span class="sculptor-count" id="booth-pin-count">— booths</span>
       </div>
@@ -973,8 +972,8 @@ app.innerHTML = `
     <section class="section admin-config-section" id="admin-config">
       <div class="section-heading">
         <div>
-          <p class="eyebrow">Heyelab admin backend</p>
-          <h1>Pricing, sponsorships, and event controls</h1>
+          <p class="eyebrow">Texas SandFest operations</p>
+          <h1>Festival operations command center</h1>
           <p class="section-copy">One governed workspace for partner revenue, staffing, field conditions, communications, and launch readiness.</p>
         </div>
         <span id="admin-api-pill" class="checkout-status-pill">API not loaded</span>
@@ -988,7 +987,7 @@ app.innerHTML = `
         <a href="#admin-island-conditions">Island conditions</a>
         <a href="#admin-system-monitor">Systems</a>
       </nav>
-      <div class="admin-api-bar">
+      <div class="admin-api-bar" ${BOARD_DEMO_ACCESS.enabled ? "hidden" : ""}>
         <label>
           <span>API base</span>
           <input id="admin-api-base" value="${escapeAttr(defaultPublicApiBase())}" autocomplete="off" ${ADMIN_AUTH_MODE === "oidc" ? "readonly" : ""} />
@@ -3697,10 +3696,11 @@ async function loadBooths() {
     if (!response.ok) throw new Error("Booths API unavailable");
     const data = await response.json();
     renderBoothMap(data.pins || []);
-    if (countEl) countEl.textContent = `${data.pins?.length || 0} public pins`;
+    if (countEl) countEl.textContent = `${data.pins?.length || 0} booths`;
   } catch {
-    corridor.innerHTML = '<p class="empty-state">Start the API to load booth pins, or re-sync Eventeny CSV.</p>';
+    corridor.innerHTML = '<p class="empty-state">The booth map is temporarily unavailable. Please check back shortly.</p>';
     list.innerHTML = "";
+    if (countEl) countEl.textContent = "Map unavailable";
   }
 }
 

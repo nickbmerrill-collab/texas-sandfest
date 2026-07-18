@@ -270,6 +270,8 @@ test("board workflows operate through the public and staff interfaces", async ({
   await expect(page.locator(".map-media-section")).toContainText("See the beach corridor before you arrive.");
   await expect(page.locator("#media")).not.toContainText("Scraped frontend media");
   await expect(page.locator(".map-media-section")).not.toContainText("should become reviewed records");
+  await expect(page.locator("#vendors-map")).not.toContainText("Seed data");
+  await expect(page.locator("#booth-pin-count")).toContainText("booths");
   const galleryImages = page.locator("#media .media-gallery img");
   await expect(galleryImages).toHaveCount(8);
   await expect.poll(() => galleryImages.evaluateAll(images => images.every(image => image.complete && image.naturalWidth > 0))).toBe(true);
@@ -329,6 +331,12 @@ test("board workflows operate through the public and staff interfaces", async ({
 
   await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#admin-partners`);
   await expect(page.locator("#admin-api-status")).toContainText("Loaded", { timeout: 25_000 });
+  await expect(page).toHaveTitle("Texas SandFest Operations");
+  await expect(page.locator("header nav")).toHaveCount(0);
+  await expect(page.locator(".admin-workspace-nav")).toBeVisible();
+  await expect(page.locator(".admin-api-bar")).toBeHidden();
+  await expect(page.locator("#admin-config h1")).toHaveText("Festival operations command center");
+  await expect(page.locator(".nav-cta")).toHaveAttribute("href", `${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor`);
   await expect(page.locator("#admin-deployment-summary")).toContainText("development · ready");
   const commandSignals = page.locator("#admin-command-signals");
   await expect(commandSignals).toHaveAttribute("aria-busy", "false");
