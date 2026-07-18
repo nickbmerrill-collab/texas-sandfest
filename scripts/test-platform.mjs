@@ -1200,7 +1200,10 @@ console.log("\n=== Pure library suite ===\n");
         sourceCheckedAt: "2026-07-18T12:00:00.000Z"
       },
       schedule: [{ day: "Friday", time: "9:00 AM", title: "Beach gates open" }],
-      zones: [{ id: "north-gate", name: "North Gate", marker: "12.5", summary: "Guest Relations, ticket scan, ADA parking, wristbands." }]
+      zones: [
+        { id: "north-gate", name: "North Gate", marker: "12.5", summary: "Guest Relations, ticket scan, ADA parking, wristbands." },
+        { id: "south-gate", name: "South Entrance", marker: "Access Road 1A", summary: "Shuttle drop-off, south beer tent, food and vendor access." }
+      ]
     },
     tickets: {
       lastUpdated: "2026-07-18T12:00:00.000Z",
@@ -1233,6 +1236,11 @@ console.log("\n=== Pure library suite ===\n");
     ...context,
     bootstrap: { ...context.bootstrap, zones: [] }
   });
+  const parkingResult = answerPublicConcierge("Is parking information available?", context);
+  const missingParkingResult = answerPublicConcierge("Is parking information available?", {
+    ...context,
+    bootstrap: { ...context.bootstrap, zones: [] }
+  });
   const vendorResult = answerPublicConcierge("How do vendors apply?", context);
   const vendorInterestResult = answerPublicConcierge("How do vendors apply?", {
     ...context,
@@ -1262,6 +1270,8 @@ console.log("\n=== Pure library suite ===\n");
   ok("public concierge replaces internal sponsor roadmap claims with public packages", sponsorResult.ok && sponsorResult.topic === "sponsor" && sponsorResult.answer.includes("Gulf Partner ($5,000)") && !sponsorResult.answer.toLowerCase().includes("dashboard"));
   ok("public concierge answers accessibility from approved public zones", accessibilityResult.ok && accessibilityResult.topic === "accessibility" && accessibilityResult.confidence === "high" && !accessibilityResult.escalated && accessibilityResult.answer.includes("North Gate at marker 12.5") && accessibilityResult.answer.includes("ADA parking") && !accessibilityResult.answer.includes(".).") && accessibilityResult.sources.some(item => item.href === "#operations"));
   ok("public concierge escalates accessibility without approved locations", missingAccessibilityResult.ok && missingAccessibilityResult.topic === "accessibility" && missingAccessibilityResult.confidence === "low" && missingAccessibilityResult.escalated && !missingAccessibilityResult.answer.includes("North Gate"));
+  ok("public concierge answers parking from approved arrival zones", parkingResult.ok && parkingResult.topic === "parking" && parkingResult.confidence === "medium" && parkingResult.escalated && parkingResult.answer.includes("North Gate at marker 12.5") && parkingResult.answer.includes("South Entrance at marker Access Road 1A") && parkingResult.answer.includes("not included in this feed") && parkingResult.sources.some(item => item.href === "#operations"));
+  ok("public concierge escalates parking without approved locations", missingParkingResult.ok && missingParkingResult.topic === "parking" && missingParkingResult.confidence === "low" && missingParkingResult.escalated && !missingParkingResult.answer.includes("North Gate"));
   ok("public concierge follows application-open vendor catalog wording", vendorResult.ok && vendorResult.topic === "vendor" && vendorResult.answer.includes("vendor application") && !vendorResult.answer.includes("interest list"));
   ok("public concierge follows interest-only vendor catalog wording", vendorInterestResult.ok && vendorInterestResult.topic === "vendor" && vendorInterestResult.answer.includes("join the interest list") && vendorInterestResult.answer.includes("when applications open") && !vendorInterestResult.answer.includes("use the vendor application"));
   ok("public concierge explains mixed vendor intake without overpromising", mixedVendorResult.ok && mixedVendorResult.topic === "vendor" && mixedVendorResult.answer.includes("Some programs are accepting applications while others are collecting interest") && mixedVendorResult.answer.includes("see the current path"));
@@ -4868,6 +4878,7 @@ try {
   const conciergeTicketApi = await hitRaw("POST", "/api/public/concierge", JSON.stringify({ question: "Where can I buy tickets?" }), { "content-type": "application/json" });
   const conciergeSponsorApi = await hit("POST", "/api/public/concierge", { question: "What sponsorship packages are open?" });
   const conciergeAccessibilityApi = await hit("POST", "/api/public/concierge", { question: "What accessibility guidance is available?" });
+  const conciergeParkingApi = await hit("POST", "/api/public/concierge", { question: "Is parking information available?" });
   const conciergeUnsupportedApi = await hit("POST", "/api/public/concierge", { question: "Can I bring a telescope? private@example.com" });
   const conciergeInvalidApi = await hit("POST", "/api/public/concierge", { question: "x".repeat(281) });
   ok("public concierge API returns source-cited current ticket data", conciergeTicketApi.status === 200
@@ -4888,6 +4899,14 @@ try {
     && conciergeAccessibilityApi.data.answer?.includes("ADA parking")
     && conciergeAccessibilityApi.data.sources?.some(item => item.href === "#operations")
     && publicConciergeResponseSafety(conciergeAccessibilityApi.data).ready);
+  ok("public concierge API cites approved parking and shuttle locations", conciergeParkingApi.status === 200
+    && conciergeParkingApi.data.topic === "parking"
+    && conciergeParkingApi.data.confidence === "medium"
+    && conciergeParkingApi.data.escalated === true
+    && conciergeParkingApi.data.answer?.includes("North Gate at marker 12.5")
+    && conciergeParkingApi.data.answer?.includes("South Entrance at marker Access Road 1A")
+    && conciergeParkingApi.data.sources?.some(item => item.href === "#operations")
+    && publicConciergeResponseSafety(conciergeParkingApi.data).ready);
   ok("public concierge API neither stores nor echoes unsupported questions", conciergeUnsupportedApi.status === 200
     && conciergeUnsupportedApi.data.escalated === true
     && !JSON.stringify(conciergeUnsupportedApi.data).includes("private@example.com"));
