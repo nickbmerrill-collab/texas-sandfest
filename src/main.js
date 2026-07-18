@@ -960,7 +960,7 @@ app.innerHTML = `
       </div>
       <div class="booth-map-layout">
         <div class="booth-corridor" id="booth-corridor" aria-label="Vendor booth map"></div>
-        <div class="booth-list" id="booth-list"></div>
+        <div class="booth-list keyboard-scroll-region" id="booth-list" role="region" aria-label="Vendor booth directory" tabindex="0"></div>
       </div>
     </section>
 
@@ -1255,11 +1255,11 @@ app.innerHTML = `
         <div class="admin-fleet-breakdown">
           <div>
             <strong>Assets</strong>
-            <div id="admin-fleet-assets" class="admin-fleet-rows"></div>
+            <div id="admin-fleet-assets" class="admin-fleet-rows keyboard-scroll-region" role="region" aria-label="Fleet asset list" tabindex="0"></div>
           </div>
           <div>
             <strong>Open checkouts</strong>
-            <div id="admin-fleet-open" class="admin-fleet-rows"></div>
+            <div id="admin-fleet-open" class="admin-fleet-rows keyboard-scroll-region" role="region" aria-label="Open fleet checkouts" tabindex="0"></div>
           </div>
         </div>
         <div class="admin-fleet-checkout-form" data-requires-permission="fleet:write">
@@ -1294,11 +1294,11 @@ app.innerHTML = `
         <div class="admin-volunteers-breakdown">
           <div>
             <strong>By zone</strong>
-            <div id="admin-volunteers-zones" class="admin-volunteers-rows"></div>
+            <div id="admin-volunteers-zones" class="admin-volunteers-rows keyboard-scroll-region" role="region" aria-label="Volunteer coverage by zone" tabindex="0"></div>
           </div>
           <div>
             <strong>Understaffed shifts</strong>
-            <div id="admin-volunteers-gaps" class="admin-volunteers-rows"></div>
+            <div id="admin-volunteers-gaps" class="admin-volunteers-rows keyboard-scroll-region" role="region" aria-label="Understaffed volunteer shifts" tabindex="0"></div>
           </div>
         </div>
         <form id="admin-import-volunteers" class="admin-inline-form admin-revenue-import" data-requires-permission="volunteers:write">
@@ -1330,7 +1330,7 @@ app.innerHTML = `
         </div>
         <div>
           <strong>Safety SMS delivery</strong>
-          <div id="admin-sms-campaigns" class="admin-fleet-rows"></div>
+          <div id="admin-sms-campaigns" class="admin-fleet-rows keyboard-scroll-region" role="region" aria-label="Safety SMS delivery campaigns" tabindex="0"></div>
         </div>
       </div>
       <div class="admin-passport-panel">
@@ -1343,7 +1343,7 @@ app.innerHTML = `
         <div id="admin-passport-kpis" class="admin-revenue-kpis">
           <article class="empty-state"><span>No passport stats loaded.</span></article>
         </div>
-        <div id="admin-passport-checkpoints" class="admin-fleet-rows"></div>
+        <div id="admin-passport-checkpoints" class="admin-fleet-rows keyboard-scroll-region" role="region" aria-label="Sculpture Passport checkpoint totals" tabindex="0"></div>
       </div>
       <div class="admin-voting-panel">
         <div class="editor-heading">
@@ -1425,7 +1425,7 @@ app.innerHTML = `
             <label class="admin-incident-public"><input name="publicImpact" type="checkbox" /><span>Approved public notice</span></label>
             <button class="button primary" type="submit">Open incident</button>
           </form>
-          <div id="admin-incidents" class="admin-incident-list"></div>
+          <div id="admin-incidents" class="admin-incident-list keyboard-scroll-region" role="region" aria-label="Island incident list" tabindex="0"></div>
         </div>
         <div class="admin-task-board">
           <div class="admin-task-board-heading"><strong>Staff and volunteer work board</strong><span id="admin-task-board-summary">Load partner workspace to view assignments.</span></div>
@@ -1450,7 +1450,7 @@ app.innerHTML = `
             <input name="reminderLeadDays" type="number" min="0" max="30" step="1" value="3" aria-label="Reminder lead days" />
             <button class="button primary" type="submit">Add key date</button>
           </form>
-          <div id="admin-partner-milestones" class="admin-key-date-list"></div>
+          <div id="admin-partner-milestones" class="admin-key-date-list keyboard-scroll-region" role="region" aria-label="Partner key dates" tabindex="0"></div>
         </div>
         <div class="admin-fulfillment-board">
           <div class="admin-task-board-heading"><strong>Sponsor brand and benefit fulfillment</strong><span id="admin-fulfillment-summary">Load partner workspace to view sponsor delivery.</span></div>
@@ -1464,13 +1464,13 @@ app.innerHTML = `
           <div class="admin-task-board-heading"><strong>Receivables aging and reconciliation</strong><span id="admin-receivables-summary">Load partner workspace to review balances.</span></div>
           <div id="admin-receivables-aging" class="admin-receivables-aging"></div>
           <div class="admin-receivables-columns">
-            <div><strong>Open accounts</strong><div id="admin-receivables-accounts" class="admin-receivables-list"></div></div>
-            <div><strong>Exceptions</strong><div id="admin-receivables-exceptions" class="admin-receivables-list"></div></div>
+            <div><strong>Open accounts</strong><div id="admin-receivables-accounts" class="admin-receivables-list keyboard-scroll-region" role="region" aria-label="Open receivable accounts" tabindex="0"></div></div>
+            <div><strong>Exceptions</strong><div id="admin-receivables-exceptions" class="admin-receivables-list keyboard-scroll-region" role="region" aria-label="Receivable reconciliation exceptions" tabindex="0"></div></div>
           </div>
         </div>
         <div class="admin-partner-columns">
-          <div><strong>Applications and accounting</strong><div id="admin-partner-applications" class="admin-partner-list"></div></div>
-          <div><strong>Message drafts</strong><div id="admin-partner-followups" class="admin-partner-list"></div></div>
+          <div><strong>Applications and accounting</strong><div id="admin-partner-applications" class="admin-partner-list keyboard-scroll-region" role="region" aria-label="Partner applications and accounting" tabindex="0"></div></div>
+          <div><strong>Message drafts</strong><div id="admin-partner-followups" class="admin-partner-list keyboard-scroll-region" role="region" aria-label="Partner message drafts" tabindex="0"></div></div>
         </div>
         <div class="admin-partner-create">
           <form id="admin-import-partners" class="admin-inline-form admin-outreach-import" data-requires-permission="partners:write">
@@ -1601,12 +1601,12 @@ app.innerHTML = `
           </form>
           <div>
             <strong>Campaigns</strong>
-            <div id="admin-outreach-campaigns" class="admin-partner-list admin-campaign-list"></div>
+            <div id="admin-outreach-campaigns" class="admin-partner-list admin-campaign-list keyboard-scroll-region" role="region" aria-label="Sponsor outreach campaigns" tabindex="0"></div>
           </div>
         </div>
         <div class="admin-partner-columns admin-conditions-columns">
-          <div><strong>Outreach pipeline</strong><div id="admin-outreach-prospects" class="admin-partner-list"></div></div>
-          <div class="admin-condition-span" id="admin-island-conditions"><strong>Live source health</strong><div id="admin-condition-feeds" class="admin-condition-feeds"><span>Weather and ferry feeds not loaded</span></div><strong>Eight-source condition grid</strong><span id="admin-condition-ingest" class="admin-condition-ingest">Metric ingest not loaded</span><div id="admin-condition-cameras" class="admin-partner-list"></div></div>
+          <div><strong>Outreach pipeline</strong><div id="admin-outreach-prospects" class="admin-partner-list keyboard-scroll-region" role="region" aria-label="Sponsor outreach pipeline" tabindex="0"></div></div>
+          <div class="admin-condition-span" id="admin-island-conditions"><strong>Live source health</strong><div id="admin-condition-feeds" class="admin-condition-feeds"><span>Weather and ferry feeds not loaded</span></div><strong>Eight-source condition grid</strong><span id="admin-condition-ingest" class="admin-condition-ingest">Metric ingest not loaded</span><div id="admin-condition-cameras" class="admin-partner-list keyboard-scroll-region" role="region" aria-label="Eight-source condition grid" tabindex="0"></div></div>
         </div>
       </div>
       <div class="admin-editor-layout">
@@ -1762,7 +1762,7 @@ app.innerHTML = `
           </div>
           <span class="live-pill">Reviewed sources</span>
         </div>
-        <div id="chat" class="chat-log" role="log" aria-live="polite" aria-relevant="additions">
+        <div id="chat" class="chat-log keyboard-scroll-region" role="log" aria-label="Ask Sandy conversation" aria-live="polite" aria-relevant="additions" tabindex="0">
           <div class="message ai">Ask about tickets, schedules, sponsors, vendors, weather, ferry waits, or live beach conditions.</div>
         </div>
         <form id="ask-form" class="ask-form">
@@ -2662,7 +2662,7 @@ function renderAdminDocuments(payload = adminDocumentState) {
         <label class="admin-document-notes"><span>Review note</span><input name="notes" maxlength="2000" value="${escapeAttr(item.notes || "")}" ${adminCan("documents:write") ? "" : "disabled"} /></label>
       </div>
       ${item.extractionError ? `<p class="admin-document-extraction-error">${escapeHtml(item.extractionError)}</p>` : ""}
-      ${item.textPreview ? `<details class="admin-document-preview"><summary>${item.extractionStatus === "ready" ? `Extracted text · ${Number(item.extractedCharacterCount || 0).toLocaleString()} characters · ${Number(item.extractedChunkCount || 0)} chunks` : "Text preview"}${item.previewTruncated || item.extractionTruncated ? " · shortened" : ""}</summary><pre>${escapeHtml(item.textPreview)}</pre></details>` : ""}
+      ${item.textPreview ? `<details class="admin-document-preview"><summary>${item.extractionStatus === "ready" ? `Extracted text · ${Number(item.extractedCharacterCount || 0).toLocaleString()} characters · ${Number(item.extractedChunkCount || 0)} chunks` : "Text preview"}${item.previewTruncated || item.extractionTruncated ? " · shortened" : ""}</summary><pre class="keyboard-scroll-region" tabindex="0" aria-label="${escapeAttr(`${item.title} text preview`)}">${escapeHtml(item.textPreview)}</pre></details>` : ""}
       <footer>
         <span>${item.uploadedAt ? escapeHtml(new Date(item.uploadedAt).toLocaleString()) : "Timestamp unavailable"}${item.ownerTeam ? ` · ${escapeHtml(adminDocumentOwnerLabels[item.ownerTeam] || item.ownerTeam)}` : ""}${reviewTask ? ` · Task ${escapeHtml(conditionLabel(reviewTask.status))}` : " · Task routing pending"}</span>
         <div>
@@ -4971,7 +4971,7 @@ function renderRevenueImportResult(result, { committed = false } = {}) {
       <span><b>${escapeHtml(summary.duplicates || 0)}</b> duplicates</span>
       <span><b>${escapeHtml(summary.invalid || 0)}</b> invalid</span>
     </div>
-    ${issues.length ? `<ul>${issues.slice(0, 20).map(item => `<li><b>Row ${escapeHtml(item.row || "?")}</b>${item.externalRef ? ` · ${escapeHtml(item.externalRef)}` : ""} · ${escapeHtml(item.label)}</li>`).join("")}</ul>` : ""}
+    ${issues.length ? `<ul class="keyboard-scroll-region" tabindex="0" aria-label="Settlement import issues">${issues.slice(0, 20).map(item => `<li><b>Row ${escapeHtml(item.row || "?")}</b>${item.externalRef ? ` · ${escapeHtml(item.externalRef)}` : ""} · ${escapeHtml(item.label)}</li>`).join("")}</ul>` : ""}
     <p>${result.replay ? "This exact settlement was already imported. No ledger entries were added." : `${adminMoney(summary.grossCents || 0)} gross · ${adminMoney(summary.feeCents || 0)} fees · ${adminMoney(summary.netCents || 0)} net`}</p>
     ${(result.sample || []).length ? `<p>${escapeHtml(result.sample.map(item => `${item.externalRef} (${adminMoney(item.netCents)})`).join(" · "))}</p>` : ""}`;
 }
@@ -5257,7 +5257,7 @@ function renderVolunteerImportResult(result, { committed = false } = {}) {
       <span><b>${escapeHtml(unchanged)}</b> unchanged</span>
       <span><b>${escapeHtml(summary.invalid || 0)}</b> invalid</span>
     </div>
-    ${(result.errors || []).length ? `<ul>${result.errors.slice(0, 20).map(item => `<li><b>${escapeHtml(conditionLabel(item.file || "file"))} row ${escapeHtml(item.row || "?")}</b>${item.externalId ? ` · ${escapeHtml(item.externalId)}` : ""} · ${escapeHtml(item.error || "Invalid row")}</li>`).join("")}</ul>` : ""}
+    ${(result.errors || []).length ? `<ul class="keyboard-scroll-region" tabindex="0" aria-label="Volunteer import issues">${result.errors.slice(0, 20).map(item => `<li><b>${escapeHtml(conditionLabel(item.file || "file"))} row ${escapeHtml(item.row || "?")}</b>${item.externalId ? ` · ${escapeHtml(item.externalId)}` : ""} · ${escapeHtml(item.error || "Invalid row")}</li>`).join("")}</ul>` : ""}
     <p>${result.replay ? "This exact export bundle was already imported; nothing was duplicated." : committed ? "Roster, shifts, and hours were reconciled atomically." : "Preview only. Existing local records missing from the export will not be deleted."}</p>`;
 }
 
@@ -5467,7 +5467,7 @@ function renderBoothImportResult(result, { committed = false } = {}) {
       <span><b>${escapeHtml(booths.unchanged || 0)}</b> unchanged</span>
       <span><b>${escapeHtml(summary.invalid || 0)}</b> invalid</span>
     </div>
-    ${(result.errors || []).length ? `<ul>${result.errors.slice(0, 20).map(item => `<li><b>Booths row ${escapeHtml(item.row || "?")}</b>${item.boothId ? ` · ${escapeHtml(item.boothId)}` : ""} · ${escapeHtml(item.error || "Invalid row")}</li>`).join("")}</ul>` : ""}
+    ${(result.errors || []).length ? `<ul class="keyboard-scroll-region" tabindex="0" aria-label="Booth import issues">${result.errors.slice(0, 20).map(item => `<li><b>Booths row ${escapeHtml(item.row || "?")}</b>${item.boothId ? ` · ${escapeHtml(item.boothId)}` : ""} · ${escapeHtml(item.error || "Invalid row")}</li>`).join("")}</ul>` : ""}
     <p>${result.replay ? "This exact Eventeny export was already imported; nothing was duplicated." : committed ? "Booths, vendor assignments, compliance state, and public-map eligibility were reconciled atomically." : "Preview only. Missing rows will not be deleted; explicit open or moved assignments are reconciled."}</p>`;
 }
 
@@ -5521,7 +5521,7 @@ function renderPartnerImportResult(result, { committed = false } = {}) {
       <span><b>${escapeHtml(summary.duplicates || 0)}</b> duplicates</span>
       <span><b>${escapeHtml((summary.invalid || 0) + (summary.conflicts || 0))}</b> review</span>
     </div>
-    ${issues.length ? `<ul>${issues.slice(0, 20).map(item => `<li><b>Row ${escapeHtml(item.row || "?")}</b>${item.organizationName ? ` · ${escapeHtml(item.organizationName)}` : ""} · ${escapeHtml(item.label)}</li>`).join("")}</ul>` : ""}
+    ${issues.length ? `<ul class="keyboard-scroll-region" tabindex="0" aria-label="Partner import issues">${issues.slice(0, 20).map(item => `<li><b>Row ${escapeHtml(item.row || "?")}</b>${item.organizationName ? ` · ${escapeHtml(item.organizationName)}` : ""} · ${escapeHtml(item.label)}</li>`).join("")}</ul>` : ""}
     ${(result.sample || []).length ? `<p>${escapeHtml(result.sample.map(item => `${item.organizationName} · ${conditionLabel(item.type)} · ${item.packageName || item.offeringName || "catalog match"}`).join(" · "))}</p>` : ""}`;
 }
 
@@ -5567,7 +5567,7 @@ function renderOutreachImportResult(result, { committed = false } = {}) {
       <span><b>${escapeHtml(summary.duplicates || 0)}</b> duplicates</span>
       <span><b>${escapeHtml(summary.invalid || 0)}</b> invalid</span>
     </div>
-    ${issues.length ? `<ul>${issues.slice(0, 20).map(item => `<li><b>Row ${escapeHtml(item.row || "?")}</b>${item.organizationName ? ` · ${escapeHtml(item.organizationName)}` : ""} · ${escapeHtml(item.label)}</li>`).join("")}</ul>` : ""}
+    ${issues.length ? `<ul class="keyboard-scroll-region" tabindex="0" aria-label="Outreach import issues">${issues.slice(0, 20).map(item => `<li><b>Row ${escapeHtml(item.row || "?")}</b>${item.organizationName ? ` · ${escapeHtml(item.organizationName)}` : ""} · ${escapeHtml(item.label)}</li>`).join("")}</ul>` : ""}
     ${(result.sample || []).length ? `<p>${escapeHtml(result.sample.map(item => `${item.organizationName} (${item.fitScore}/100)`).join(" · "))}</p>` : ""}`;
 }
 
@@ -5642,7 +5642,7 @@ function renderOutreachDiscoveryResult(result, { imported = false } = {}) {
       <span><b>${escapeHtml(candidates.length)}</b> candidates near ${escapeHtml(result.query?.resolvedLocation || result.query?.location || "selected coordinates")}</span>
       <span>${escapeHtml(providerNote)}${providerNote && result.discovery?.attribution ? " · " : ""}${attributionUrl ? `<a href="${escapeAttr(attributionUrl)}" target="_blank" rel="noreferrer noopener">${escapeHtml(result.discovery.attribution)}</a>` : escapeHtml(result.discovery?.attribution || "")}</span>
     </div>
-    <div class="admin-discovery-candidates">
+    <div class="admin-discovery-candidates keyboard-scroll-region" role="region" aria-label="Business discovery candidates" tabindex="0">
       ${candidates.map(candidate => {
         const website = safeExternalHref(candidate.website);
         const sourceUrl = safeExternalHref(candidate.sourceUrl);
@@ -6316,7 +6316,7 @@ function renderAdminPartners(payload, outreach) {
       <header><div><strong>${escapeHtml(application.organizationName)}</strong><span>${escapeHtml(application.reference)} · ${escapeHtml(application.type)}</span></div><b>${adminMoney(paid, "$0.00")} / ${adminMoney(expected, "$0.00")}</b></header>
       <p>${escapeHtml(application.contactName)} · ${escapeHtml(application.contactEmail)}${application.offeringName ? ` · ${escapeHtml(application.offeringName)}` : application.packageName ? ` · ${escapeHtml(application.packageName)}` : ""}</p>
       <div class="admin-partner-row-actions">
-        <select name="status">${partnerStatusOptions(application.status)}</select>
+        <select name="status" aria-label="${escapeAttr(`${application.organizationName} application status`)}">${partnerStatusOptions(application.status)}</select>
         <button type="button" class="button secondary" data-save-application="${escapeAttr(application.id)}">Save</button>
       </div>
       <div class="admin-payment-entry">
@@ -6354,7 +6354,7 @@ function renderAdminPartners(payload, outreach) {
     return `<article data-followup="${escapeAttr(item.id)}" ${deliveryStatus ? `data-delivery-status="${escapeAttr(deliveryStatus)}"` : ""}>
       <header><strong>${escapeHtml(item.subject || conditionLabel(item.kind))}</strong><b>${escapeHtml(conditionLabel(deliveryStatus || item.status))}</b></header>
       <p>${escapeHtml(item.recipientLabel || item.recipient || (item.recipientAvailable ? "Recipient on file" : "Recipient unavailable"))}${item.campaignId ? ` · outreach sequence ${escapeHtml(item.sequenceStepId || "")}` : ""}${item.taskId ? " · delegated task" : ""}${item.automationPolicy === "outreach_campaign_v1" ? " · campaign-approved automation" : item.automationPolicy ? " · transactional automation" : ""}</p>
-      ${item.body ? `<blockquote>${escapeHtml(item.body)}</blockquote>` : '<span>Draft worker pending</span>'}
+      ${item.body ? `<blockquote class="keyboard-scroll-region" tabindex="0" aria-label="${escapeAttr(`Message preview: ${item.subject || conditionLabel(item.kind)}`)}">${escapeHtml(item.body)}</blockquote>` : '<span>Draft worker pending</span>'}
       ${item.lastError ? `<span class="admin-delivery-error">${escapeHtml(item.lastError)}</span>` : ""}
       ${item.sentAt ? `<span>Provider accepted ${escapeHtml(new Date(item.sentAt).toLocaleString())}${item.providerMessageId ? ` · ${escapeHtml(item.providerMessageId)}` : ""}</span>` : ""}
       ${deliveryStatus && deliveryAt ? `<span>Delivery ${escapeHtml(conditionLabel(deliveryStatus))} · ${escapeHtml(new Date(deliveryAt).toLocaleString())}</span>` : ""}

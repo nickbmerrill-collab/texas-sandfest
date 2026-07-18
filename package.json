@@ -36,6 +36,7 @@
     "test:board-runtime": "node scripts/test-board-runtime.mjs",
     "test:board-supervisor": "node scripts/test-board-supervisor.mjs",
     "test:browser": "playwright test tests/board-browser.spec.mjs",
+    "test:accessibility": "playwright test tests/board-browser.spec.mjs --grep 'WCAG A and AA'",
     "test:live-feeds": "node scripts/test-live-feeds.mjs",
     "test:outreach-discovery:live": "SANDFEST_ENV=production node scripts/test-live-outreach-discovery.mjs",
     "test:camera-agent": "python3 scripts/test-camera-edge-agent.py",
@@ -91,6 +92,7 @@
     "twilio": "^6.0.2"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
     "@playwright/test": "^1.61.1",
     "@vitejs/plugin-react": "^5.0.0",
     "sharp": "^0.35.3",
