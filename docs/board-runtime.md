@@ -171,6 +171,12 @@ load-in window, confirms the assignment in the private portal, and verifies the
 dashboard recomputes that vendor as ready. The assignment notice is drafted
 automatically and becomes stale when the vendor confirms, proving the follow-up
 lifecycle without sending an external message.
+The same gate carries one new Tarpon sponsor through a private logo upload,
+profile and asset approval, benefit proof publication, sponsor sign-off, staff
+completion, and the public sponsor showcase. Its $5,000 invoice, payment,
+reversal, and reopened key date stay attached to that record, so branding,
+fulfillment, and finance are verified as one lifecycle instead of separate seed
+examples.
 
 The seeded Island Harbor Hotel prospect is already qualified, geolocated, and
 assigned. Choose a sponsor package and use **Issue invitation**, then **Open
