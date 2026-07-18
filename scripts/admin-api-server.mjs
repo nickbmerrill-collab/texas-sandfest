@@ -103,6 +103,7 @@ import {
   applyVote,
   normalizeBallotEntry,
   normalizeVote,
+  publicVotingPublication,
   summarizeVoting,
   tallyVotes,
   voteForAttendee
@@ -318,6 +319,15 @@ const OUTREACH_DISCOVERY = outreachDiscoveryConfig(process.env, { production: SA
 const SPONSOR_INVITATIONS = sponsorInvitationConfig(process.env);
 const EVENT_CONTEXT = eventContextConfig(process.env);
 const CURRENT_EVENT_ID = EVENT_CONTEXT.eventId;
+const BOARD_DEMO_RUNTIME = await (async () => {
+  if (SANDFEST_ENV === "production" || !RUNTIME_ROOT.isolated) return false;
+  try {
+    const marker = JSON.parse(await readFile(path.join(ROOT, "board-runtime.json"), "utf8"));
+    return marker.kind === "synthetic-board-demonstration" && marker.eventId === CURRENT_EVENT_ID;
+  } catch {
+    return false;
+  }
+})();
 const API_PREFIX = String(process.env.SANDFEST_API_PREFIX || "").replace(/\/$/, "");
 const RATE_LIMIT_WINDOW_MS = Number(process.env.SANDFEST_RATE_LIMIT_WINDOW_MS || 60_000);
 const ADMIN_RATE_LIMIT = Number(process.env.SANDFEST_ADMIN_RATE_LIMIT || 120);
@@ -1082,7 +1092,9 @@ async function readPeoplesChoice() {
   return {
     lastUpdated: doc.lastUpdated ?? null,
     eventId: doc.eventId ?? CURRENT_EVENT_ID,
-    votingOpen: doc.votingOpen !== false,
+    publicationStatus: doc.publicationStatus ?? "unpublished",
+    source: doc.source ?? null,
+    votingOpen: doc.votingOpen === true,
     title: doc.title ?? "People's Choice",
     description: doc.description ?? "",
     entries: Array.isArray(doc.entries) ? doc.entries.map(normalizeBallotEntry) : [],
@@ -1095,7 +1107,9 @@ async function writePeoplesChoice(doc) {
     _note: "People's Choice ballot + votes (lib/voting.mjs).",
     lastUpdated: new Date().toISOString(),
     eventId: doc.eventId ?? CURRENT_EVENT_ID,
-    votingOpen: doc.votingOpen !== false,
+    publicationStatus: doc.publicationStatus ?? "unpublished",
+    source: doc.source ?? null,
+    votingOpen: doc.votingOpen === true,
     title: doc.title ?? "People's Choice",
     description: doc.description ?? "",
     entries: doc.entries ?? [],
@@ -3301,14 +3315,18 @@ async function handleRequest(request, response) {
     // People's Choice voting
     if (method === "GET" && pathname === "/api/public/voting") {
       const doc = await readPeoplesChoice();
-      const tally = tallyVotes(doc.entries, doc.votes);
+      const publication = publicVotingPublication(doc, {
+        eventId: CURRENT_EVENT_ID,
+        allowSample: BOARD_DEMO_RUNTIME
+      });
+      const tally = tallyVotes(publication.entries, publication.votes);
       sendJson(request, response, 200, {
         lastUpdated: doc.lastUpdated,
         eventId: doc.eventId,
-        votingOpen: doc.votingOpen,
+        votingOpen: publication.votingOpen,
         title: doc.title,
         description: doc.description,
-        entries: doc.entries,
+        entries: publication.entries,
         leaderboard: tally.leaderboard,
         totals: { totalVotes: tally.totalVotes, uniqueVoters: tally.uniqueVoters }
       }, publicCacheHeaders(30));
@@ -3322,9 +3340,13 @@ async function handleRequest(request, response) {
         return;
       }
       const doc = await readPeoplesChoice();
+      const publication = publicVotingPublication(doc, {
+        eventId: CURRENT_EVENT_ID,
+        allowSample: BOARD_DEMO_RUNTIME
+      });
       sendJson(request, response, 200, {
-        vote: voteForAttendee(doc.votes, attendeeRef),
-        votingOpen: doc.votingOpen
+        vote: publication.visible ? voteForAttendee(publication.votes, attendeeRef) : null,
+        votingOpen: publication.votingOpen
       }, { "cache-control": "no-store" });
       return;
     }
@@ -3332,11 +3354,19 @@ async function handleRequest(request, response) {
     if (method === "POST" && pathname === "/api/public/voting") {
       const body = await readBody(request);
       const doc = await readPeoplesChoice();
+      const publication = publicVotingPublication(doc, {
+        eventId: CURRENT_EVENT_ID,
+        allowSample: BOARD_DEMO_RUNTIME
+      });
+      if (!publication.visible) {
+        sendJson(request, response, 409, { error: "People's Choice ballot is not published." });
+        return;
+      }
       const result = applyVote({
         eventId: doc.eventId,
-        votingOpen: doc.votingOpen,
-        entries: doc.entries,
-        votes: doc.votes
+        votingOpen: publication.votingOpen,
+        entries: publication.entries,
+        votes: publication.votes
       }, body, {
         idFactory: () => `vote_${randomUUID()}`,
         now: new Date().toISOString(),
@@ -3350,13 +3380,15 @@ async function handleRequest(request, response) {
       if (result.changed) {
         votes = await upsertVote(ROOT, result.vote, {
           eventId: doc.eventId,
-          votingOpen: doc.votingOpen,
+          publicationStatus: doc.publicationStatus,
+          source: doc.source,
+          votingOpen: publication.votingOpen,
           title: doc.title,
           description: doc.description,
-          entries: doc.entries
+          entries: publication.entries
         });
       }
-      const tally = tallyVotes(doc.entries, votes);
+      const tally = tallyVotes(publication.entries, votes);
       sendJson(request, response, result.changed ? 201 : 200, {
         ok: true,
         changed: result.changed,

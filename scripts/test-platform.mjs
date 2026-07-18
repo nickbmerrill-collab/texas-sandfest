@@ -63,7 +63,7 @@ import {
   suppressSmsCampaignsForAlert
 } from "../lib/sms-operations.mjs";
 import { applyStamp, DEFAULT_HUNT_ID, normalizeHunt, parsePassportPayload, summarizePassport } from "../lib/passport.mjs";
-import { applyVote, tallyVotes, summarizeVoting, normalizeTicketRef } from "../lib/voting.mjs";
+import { applyVote, tallyVotes, summarizeVoting, normalizeTicketRef, publicVotingPublication } from "../lib/voting.mjs";
 import { claimNextJobs, completeJob, enqueueJob, getQueueHealth, listJobs, markTerminalJobHandled } from "../lib/job-queue.mjs";
 import { publicBoothPins, summarizeBooths } from "../lib/booths.mjs";
 import {
@@ -308,6 +308,9 @@ import {
 import { TURNSTILE_SITEVERIFY_URL, turnstileConfig, verifyTurnstileToken } from "../lib/turnstile.mjs";
 import { eventGuideReadiness, normalizeEventGuide, publicEventGuide, publishEventGuide } from "../lib/event-guide.mjs";
 import { DEFAULT_EVENT_ID, eventContextConfig, eventContextReadiness } from "../lib/event-context.mjs";
+import { publicSculptorRosterPublication } from "../lib/public-roster.mjs";
+import { boardDemoEngagement } from "../lib/board-runtime.mjs";
+import { developmentPublicApiBase } from "../src/dev-public-api-base.js";
 import { eventArchiveDigest, planEventRollover, ROLLOVER_DOCUMENT_KEYS } from "../lib/event-rollover.mjs";
 import {
   cleanAuthCallbackUrl,
@@ -489,6 +492,26 @@ async function readJson(rel) {
 }
 
 console.log("\n=== Pure library suite ===\n");
+
+{
+  const values = new Map();
+  const storage = {
+    getItem: key => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, value)
+  };
+  const queryBase = developmentPublicApiBase({
+    location: { search: "?apiBase=http%3A%2F%2F127.0.0.1%3A8806", hostname: "127.0.0.1", port: "5175" },
+    storage
+  });
+  const savedBase = developmentPublicApiBase({ location: { search: "", hostname: "localhost", port: "5175" }, storage });
+  values.clear();
+  const loopbackDefault = developmentPublicApiBase({ location: { search: "", hostname: "127.0.0.1", port: "5175" }, storage });
+  const remoteDefault = developmentPublicApiBase({ location: { search: "", hostname: "preview.example", port: "5175" }, storage });
+  ok("development API overrides stay local and deterministic", queryBase === "http://127.0.0.1:8806"
+    && savedBase === queryBase
+    && loopbackDefault === "http://127.0.0.1:8806"
+    && remoteDefault === "https://api.heyelab.com/sandfest");
+}
 
 // Local board demos must open on the audience named by their URL, regardless
 // of the previously viewed surface. Production visitor builds remain public.
@@ -688,6 +711,67 @@ console.log("\n=== Pure library suite ===\n");
   ok("Turnstile rejects wrong-action and expired challenges", !wrongAction.ok && wrongAction.errorCodes.includes("action-mismatch") && !failedChallenge.ok && failedChallenge.errorCodes.includes("timeout-or-duplicate"));
   ok("Turnstile fails closed when Siteverify is unavailable", !unavailable.ok && unavailable.unavailable === true);
   ok("production public build requires a real Turnstile site key", missingPublicKeyRejected && testPublicKeyRejected);
+}
+
+// Public sculptor roster publication authority
+{
+  const records = {
+    sculptors: [{ id: "sculptor-1", name: "Reviewed Artist", entryId: "entry-1" }],
+    entries: [{ id: "entry-1", sculptorId: "sculptor-1", title: "Reviewed Entry" }],
+    pois: [{ id: "poi-1", entryId: "entry-1", type: "sculpture" }]
+  };
+  const sample = {
+    meta: {
+      eventId: DEFAULT_EVENT_ID,
+      publicationStatus: "sample",
+      source: "fictional_board_demo"
+    },
+    ...records
+  };
+  const published = {
+    meta: {
+      eventId: DEFAULT_EVENT_ID,
+      publicationStatus: "published",
+      source: "official_website",
+      sourceUrl: "https://www.texassandfest.org/sculptors",
+      sourceCheckedAt: "2026-07-17T12:00:00.000Z",
+      reviewedAt: "2026-07-17T12:05:00.000Z",
+      reviewedBy: "content-team",
+      publishedAt: "2026-07-17T12:10:00.000Z"
+    },
+    ...records
+  };
+  const unpublished = publicSculptorRosterPublication({
+    meta: { eventId: DEFAULT_EVENT_ID, publicationStatus: "unpublished" },
+    sculptors: [],
+    entries: [],
+    pois: []
+  });
+  const samplePublic = publicSculptorRosterPublication(sample);
+  const sampleLocal = publicSculptorRosterPublication(sample, { allowSample: true });
+  const validPublished = publicSculptorRosterPublication(published);
+  const validIsoVariants = publicSculptorRosterPublication({
+    ...published,
+    meta: {
+      ...published.meta,
+      sourceCheckedAt: "2026-07-17T12:00:00Z",
+      reviewedAt: "2026-07-17T07:05:00-05:00",
+      publishedAt: "2026-07-17T12:10:00.12Z"
+    }
+  });
+  const weakPublished = publicSculptorRosterPublication({
+    ...published,
+    meta: { ...published.meta, source: "placeholder", reviewedAt: null }
+  });
+  const brokenReference = publicSculptorRosterPublication({
+    ...published,
+    entries: [{ ...published.entries[0], sculptorId: "missing-sculptor" }]
+  });
+
+  ok("unpublished sculptor roster fails closed", !unpublished.visible && unpublished.mode === "unpublished" && unpublished.counts.sculptors === 0);
+  ok("fictional sculptor roster is local-demo only", !samplePublic.visible && sampleLocal.visible && sampleLocal.mode === "demo");
+  ok("published sculptor roster requires reviewed source authority", validPublished.visible && validIsoVariants.visible && validPublished.mode === "published" && !weakPublished.visible && weakPublished.issues.length === 2);
+  ok("published sculptor roster validates record references", !brokenReference.visible && brokenReference.issues.some(issue => issue.includes("missing sculptor")));
 }
 
 // Governed public event guide
@@ -1265,15 +1349,23 @@ HOURS-100,${DEFAULT_EVENT_ID},VL-100,SHIFT-100,2027-04-09T08:00:00-05:00,2027-04
 
 // Passport
 {
-  const hunt = await readJson("data/processed/sculpture-passport.json");
-  const comps = await readJson("data/processed/passport-completions.json");
+  const demoRoster = await readJson("src/board-demo/sculptors-demo.json");
+  const engagement = boardDemoEngagement(demoRoster, {
+    eventId: DEFAULT_EVENT_ID,
+    hunt: { id: DEFAULT_HUNT_ID, eventId: DEFAULT_EVENT_ID, active: true },
+    now: "2026-07-18T00:00:00.000Z"
+  });
+  const hunt = engagement.passportHunt;
+  const comps = engagement.passportCompletions;
+  const closedHunt = await readJson("data/processed/sculpture-passport.json");
   ok("passport defaults use current event context", normalizeHunt({}).id === DEFAULT_HUNT_ID && normalizeHunt({}).eventId === DEFAULT_EVENT_ID);
+  ok("repository passport seed contains no unpublished checkpoints", closedHunt.hunt?.active === false && closedHunt.checkpoints?.length === 0);
   ok("passport parse", parsePassportPayload("tsf:cp:cp_ent_tidal_guardian", hunt.checkpoints)?.label === "Tidal Guardian");
   const stamp = applyStamp({
     hunt: hunt.hunt,
     checkpoints: hunt.checkpoints,
     completions: comps.completions
-  }, { attendeeRef: "suite_tester", payload: "TSF-CP-0001", method: "qr_scan" }, { idFactory: () => "hc_suite" });
+  }, { attendeeRef: "suite_tester", payload: hunt.checkpoints[0].code, method: "qr_scan" }, { idFactory: () => "hc_suite" });
   ok("passport stamp", stamp.ok && !stamp.alreadyStamped, stamp.checkpoint?.label);
   const dup = applyStamp({
     hunt: hunt.hunt,
@@ -1286,7 +1378,27 @@ HOURS-100,${DEFAULT_EVENT_ID},VL-100,SHIFT-100,2027-04-09T08:00:00-05:00,2027-04
 
 // Voting
 {
-  const doc = await readJson("data/processed/peoples-choice.json");
+  const demoRoster = await readJson("src/board-demo/sculptors-demo.json");
+  const doc = boardDemoEngagement(demoRoster, {
+    eventId: DEFAULT_EVENT_ID,
+    hunt: { id: DEFAULT_HUNT_ID, eventId: DEFAULT_EVENT_ID },
+    now: "2026-07-18T00:00:00.000Z"
+  }).voting;
+  const closedBallot = await readJson("data/processed/peoples-choice.json");
+  const closedPublication = publicVotingPublication(closedBallot);
+  const demoPublication = publicVotingPublication(doc, { allowSample: true });
+  const publishedPublication = publicVotingPublication({
+    ...doc,
+    publicationStatus: "published",
+    source: "reviewed_current_roster"
+  });
+  const weakPublishedPublication = publicVotingPublication({
+    ...doc,
+    publicationStatus: "published",
+    source: "placeholder_fixture"
+  });
+  ok("repository ballot seed contains no unpublished artists", !closedPublication.visible && closedBallot.votingOpen === false && closedBallot.entries?.length === 0);
+  ok("public voting requires reviewed or board-demo publication", demoPublication.visible && demoPublication.mode === "demo" && publishedPublication.visible && publishedPublication.mode === "published" && !weakPublishedPublication.visible && !publicVotingPublication(doc).visible);
   const vote = applyVote(doc, { attendeeRef: "suite_voter", entryId: "ent_tidal_guardian", channel: "web" }, { idFactory: () => "v_suite" });
   ok("voting cast", vote.ok && vote.changed);
   const tally = tallyVotes(doc.entries, vote.votes);
@@ -3575,9 +3687,25 @@ if (!API_BASE) {
   const isolatedVolunteerPath = path.join(isolatedRuntimeRoot, "data", "processed", "volunteer-mirror.json");
   const isolatedBoothPath = path.join(isolatedRuntimeRoot, "data", "processed", "booth-map.json");
   const isolatedIncomingDocumentPath = path.join(isolatedRuntimeRoot, "data", "processed", "incoming-documents.json");
+  const isolatedPassportPath = path.join(isolatedRuntimeRoot, "data", "processed", "sculpture-passport.json");
+  const isolatedPassportCompletionsPath = path.join(isolatedRuntimeRoot, "data", "processed", "passport-completions.json");
+  const isolatedVotingPath = path.join(isolatedRuntimeRoot, "data", "processed", "peoples-choice.json");
   const isolatedConsent = JSON.parse(await readFile(isolatedConsentPath, "utf8"));
   const isolatedVolunteers = JSON.parse(await readFile(isolatedVolunteerPath, "utf8"));
   const isolatedBooths = JSON.parse(await readFile(isolatedBoothPath, "utf8"));
+  const apiDemoRoster = await readJson("src/board-demo/sculptors-demo.json");
+  const apiEngagement = boardDemoEngagement(apiDemoRoster, {
+    eventId: DEFAULT_EVENT_ID,
+    hunt: {
+      id: DEFAULT_HUNT_ID,
+      eventId: DEFAULT_EVENT_ID,
+      name: "Sculpture Passport API fixture",
+      startsAt: "2027-04-16T09:00:00-05:00",
+      endsAt: "2027-04-18T19:30:00-05:00",
+      active: true
+    },
+    now: "2026-07-18T00:00:00.000Z"
+  });
   await Promise.all([
     writeFile(isolatedPartnerPath, `${JSON.stringify(emptyPartnerOperations(DEFAULT_EVENT_ID), null, 2)}\n`, "utf8"),
     writeFile(isolatedSmsPath, `${JSON.stringify(emptySmsOperations(DEFAULT_EVENT_ID), null, 2)}\n`, "utf8"),
@@ -3600,7 +3728,15 @@ if (!API_BASE) {
       vendors: (isolatedBooths.vendors || []).map(item => ({ ...item, eventId: DEFAULT_EVENT_ID })),
       imports: []
     }, null, 2)}\n`, "utf8"),
-    writeFile(isolatedIncomingDocumentPath, `${JSON.stringify(emptyIncomingDocumentIntake(DEFAULT_EVENT_ID), null, 2)}\n`, "utf8")
+    writeFile(isolatedIncomingDocumentPath, `${JSON.stringify(emptyIncomingDocumentIntake(DEFAULT_EVENT_ID), null, 2)}\n`, "utf8"),
+    writeFile(isolatedPassportPath, `${JSON.stringify(apiEngagement.passportHunt, null, 2)}\n`, "utf8"),
+    writeFile(isolatedPassportCompletionsPath, `${JSON.stringify({ ...apiEngagement.passportCompletions, completions: [] }, null, 2)}\n`, "utf8"),
+    writeFile(isolatedVotingPath, `${JSON.stringify({
+      ...apiEngagement.voting,
+      publicationStatus: "published",
+      source: "reviewed_current_roster",
+      votes: []
+    }, null, 2)}\n`, "utf8")
   ]);
   stripeMock = await startStripeMock();
   turnstileMock = await startTurnstileMock();
