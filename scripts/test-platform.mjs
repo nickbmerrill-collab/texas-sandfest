@@ -309,6 +309,7 @@ import { TURNSTILE_SITEVERIFY_URL, turnstileConfig, verifyTurnstileToken } from 
 import { eventGuideReadiness, normalizeEventGuide, publicEventGuide, publishEventGuide } from "../lib/event-guide.mjs";
 import { DEFAULT_EVENT_ID, eventContextConfig, eventContextReadiness } from "../lib/event-context.mjs";
 import { publicSculptorRosterPublication } from "../lib/public-roster.mjs";
+import { developmentPublicApiBase } from "../src/dev-public-api-base.js";
 import { eventArchiveDigest, planEventRollover, ROLLOVER_DOCUMENT_KEYS } from "../lib/event-rollover.mjs";
 import {
   cleanAuthCallbackUrl,
@@ -490,6 +491,26 @@ async function readJson(rel) {
 }
 
 console.log("\n=== Pure library suite ===\n");
+
+{
+  const values = new Map();
+  const storage = {
+    getItem: key => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, value)
+  };
+  const queryBase = developmentPublicApiBase({
+    location: { search: "?apiBase=http%3A%2F%2F127.0.0.1%3A8806", hostname: "127.0.0.1", port: "5175" },
+    storage
+  });
+  const savedBase = developmentPublicApiBase({ location: { search: "", hostname: "localhost", port: "5175" }, storage });
+  values.clear();
+  const loopbackDefault = developmentPublicApiBase({ location: { search: "", hostname: "127.0.0.1", port: "5175" }, storage });
+  const remoteDefault = developmentPublicApiBase({ location: { search: "", hostname: "preview.example", port: "5175" }, storage });
+  ok("development API overrides stay local and deterministic", queryBase === "http://127.0.0.1:8806"
+    && savedBase === queryBase
+    && loopbackDefault === "http://127.0.0.1:8806"
+    && remoteDefault === "https://api.heyelab.com/sandfest");
+}
 
 // Local board demos must open on the audience named by their URL, regardless
 // of the previously viewed surface. Production visitor builds remain public.

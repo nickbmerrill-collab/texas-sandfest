@@ -86,6 +86,8 @@ let adminAuthClient = null;
 let adminAuthInitializationError = null;
 let partnerBotProtection = { enabled: false, tokenFor: () => "", reset: () => {} };
 let partnerBotProtectionPromise = null;
+const DEVELOPMENT_PUBLIC_API = import.meta.env.DEV ? await import("./dev-public-api-base.js") : null;
+const DEVELOPMENT_PUBLIC_API_BASE = DEVELOPMENT_PUBLIC_API?.developmentPublicApiBase() || "";
 
 if (ADMIN_ENTRY && ADMIN_AUTH_MODE === "oidc") {
   try {
@@ -546,25 +548,7 @@ function defaultPublicApiBase() {
   if (ADMIN_ENTRY && ADMIN_AUTH_MODE === "oidc" && CONFIGURED_ADMIN_API_BASE) {
     return CONFIGURED_ADMIN_API_BASE;
   }
-  const queryBase = new URLSearchParams(window.location.search).get("apiBase");
-  if (queryBase) {
-    try { localStorage.setItem("sandfest_api_base", queryBase); } catch { /* ignore */ }
-    return queryBase;
-  }
-  if (import.meta.env.PROD) {
-    return CONFIGURED_ADMIN_API_BASE || "https://api.heyelab.com/sandfest";
-  }
-  try {
-    const saved = localStorage.getItem("sandfest_api_base");
-    if (saved) return saved;
-  } catch {
-    /* ignore */
-  }
-  if (window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost") {
-    if (window.location.port === "5175") return "http://127.0.0.1:8806";
-    return "http://127.0.0.1:8788";
-  }
-  return "https://api.heyelab.com/sandfest";
+  return DEVELOPMENT_PUBLIC_API_BASE || CONFIGURED_ADMIN_API_BASE || "https://api.heyelab.com/sandfest";
 }
 
 // Local development can present both surfaces from the visitor entry. Built
@@ -2322,7 +2306,7 @@ renderTicketCart();
 function adminApiBase() {
   if (ADMIN_AUTH_MODE === "oidc") return CONFIGURED_ADMIN_API_BASE;
   const value = document.querySelector("#admin-api-base")?.value.replace(/\/+$/, "") || "";
-  try { localStorage.setItem("sandfest_api_base", value); } catch { /* ignore */ }
+  DEVELOPMENT_PUBLIC_API?.persistDevelopmentPublicApiBase(value);
   return value;
 }
 
@@ -2744,9 +2728,10 @@ function applyPublicEventGuide(input) {
 
 function applyRuntimeNotice(runtime) {
   const existing = document.querySelector("#runtime-data-notice");
-  runtimeDataMode = runtime?.mode || null;
-  document.body.classList.toggle("runtime-board-demo", runtimeDataMode === "board_demo");
-  if (runtime?.mode !== "board_demo") {
+  const boardDemoRuntimeEnabled = LIVE_BEACH_DEMO_ENABLED && runtime?.mode === "board_demo";
+  runtimeDataMode = boardDemoRuntimeEnabled ? "board_demo" : null;
+  document.body.classList.toggle("runtime-board-demo", boardDemoRuntimeEnabled);
+  if (!boardDemoRuntimeEnabled) {
     existing?.remove();
     updateNetworkStatus();
     return;
