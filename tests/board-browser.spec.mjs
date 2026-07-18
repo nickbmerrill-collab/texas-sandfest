@@ -177,6 +177,7 @@ test.beforeAll(async () => {
 
   workerProcess = startNodeProcess("Board browser worker", ["scripts/worker.mjs"], {
     SANDFEST_RUNTIME_ROOT: runtimeRoot,
+    SANDFEST_INCOMING_DOCUMENT_DIR: path.join(runtimeRoot, "private", "incoming-documents"),
     SANDFEST_DATABASE_URL: "",
     SANDFEST_ENV: "development",
     SANDFEST_EVENT_ID: DEFAULT_EVENT_ID,
@@ -224,6 +225,7 @@ test("board workflows operate through the public and staff interfaces", async ({
   const campaignName = `Browser geofenced partners ${runId}`;
   const sponsorTierId = `community-champion-${runId}`;
   const vendorOfferingId = `premium-marketplace-${runId}`;
+  const documentTitle = `Board extraction ${runId}`;
 
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#sponsors`);
   await expect(page.locator("#network-status")).toHaveText("Demo");
@@ -287,6 +289,29 @@ test("board workflows operate through the public and staff interfaces", async ({
   expect((await vendorOfferingCreateResponse.json()).vendorOffering.publicLabel).toBe("$2,500 application fee");
   await expect(page.locator("#admin-api-status")).toContainText("Added Premium marketplace");
   await expect(page.locator(`[data-admin-vendor-offering="${vendorOfferingId}"]`)).toContainText("$2,500.00");
+  const documentUploadForm = page.locator("#admin-document-upload");
+  await documentUploadForm.locator('[name="file"]').setInputFiles(path.join(ROOT, "docs", "presentations", "SandFest-Board-Platform-Briefing.pptx"));
+  await documentUploadForm.locator('[name="title"]').fill(documentTitle);
+  const documentUploadResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/documents/upload" && response.request().method() === "POST");
+  await documentUploadForm.locator('button[type="submit"]').click();
+  const documentUploadResult = await documentUploadResponse;
+  expect(documentUploadResult.status()).toBe(201);
+  await expect(page.locator("#admin-document-upload-status")).toContainText("queued for private text extraction");
+  const uploadedDocumentCard = page.locator("[data-admin-document]").filter({ hasText: documentTitle });
+  await expect(uploadedDocumentCard).toHaveCount(1);
+  const uploadedDocumentId = await uploadedDocumentCard.getAttribute("data-admin-document");
+  expect(uploadedDocumentId).toBeTruthy();
+  await expect.poll(async () => page.evaluate(async ({ apiBase, token, documentId }) => {
+    const response = await fetch(`${apiBase}/api/admin/documents?limit=200`, { headers: { authorization: `Bearer ${token}` } });
+    const payload = await response.json();
+    return payload.documents?.find(item => item.id === documentId)?.extractionStatus;
+  }, { apiBase, token: TOKEN, documentId: uploadedDocumentId }), { timeout: 15_000 }).toBe("ready");
+  await page.locator("#admin-load-documents").click();
+  const extractedDocumentCard = page.locator(`[data-admin-document="${uploadedDocumentId}"]`);
+  await expect(extractedDocumentCard).toContainText("Extraction ready");
+  await expect(extractedDocumentCard).toContainText("5,507 characters");
+  await extractedDocumentCard.locator(".admin-document-preview summary").click();
+  await expect(extractedDocumentCard.locator(".admin-document-preview pre")).toContainText("TEXAS SANDFEST");
   const vendorCard = page.locator("#admin-partner-applications [data-partner-application]").filter({ hasText: vendorName });
   const sponsorCard = page.locator("#admin-partner-applications [data-partner-application]").filter({ hasText: sponsorName });
   await expect(vendorCard).toHaveCount(1);

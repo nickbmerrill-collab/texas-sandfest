@@ -4,7 +4,7 @@ import { createHmac, randomBytes } from "node:crypto";
 import { spawn } from "node:child_process";
 import { createServer as createHttpServer } from "node:http";
 import { createServer } from "node:net";
-import { cp, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -571,10 +571,21 @@ async function main() {
   const postgresDocumentWorkspace = await request(base, "GET", "/api/admin/partners", undefined, { auth: true });
   const postgresDocumentTasks = postgresDocumentWorkspace.data.tasks?.filter(item => item.relatedEntityType === "incoming_document" && item.relatedEntityId === postgresDocument?.id) || [];
   const postgresDocumentDownload = await requestDownload(base, `/api/admin/documents/${encodeURIComponent(postgresDocument?.id || "missing")}/content`);
+  const postgresBoardBriefingBytes = await readFile(path.join(ROOT, "docs", "presentations", "SandFest-Board-Platform-Briefing.pptx"));
+  const postgresBoardBriefingUpload = await requestUpload(base, "/api/admin/documents/upload", postgresBoardBriefingBytes, {
+    authorization: `Bearer ${TOKEN}`,
+    "content-type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "x-file-name": "SandFest-Board-Platform-Briefing.pptx",
+    "x-document-domain": "docs",
+    "x-document-title": "SandFest board platform briefing",
+    "x-owner-team": "operations",
+    "x-document-review-due-at": "2027-01-22T18:00:00.000Z"
+  });
   check("concurrent document uploads converge in Postgres", [postgresDocumentUploadA, postgresDocumentUploadB].filter(item => item.status === 201).length === 1 && [postgresDocumentUploadA, postgresDocumentUploadB].filter(item => item.status === 200 && item.data.duplicate === true).length === 1 && postgresDocuments.data.summary?.total === 1);
   check("Postgres document metadata excludes private storage paths", postgresDocuments.status === 200 && postgresDocument?.textPreview.includes("Postgres board packet") && !("storageKey" in (postgresDocument || {})) && postgresDocument?.checksumSha256?.length === 64);
   check("Postgres document review creates one durable task", postgresDocumentTasks.length === 1 && postgresDocumentTasks[0]?.status === "in_progress" && postgresDocumentTasks[0]?.assigneeId === "operations" && postgresDocumentReview.data.document?.reviewTask?.id === postgresDocumentTasks[0]?.id);
   check("Postgres document review and controlled download", postgresDocumentReview.status === 200 && postgresDocumentReview.data.document?.status === "in_review" && postgresDocumentReview.data.document?.reviewedBy === "postgres-test-admin" && postgresDocumentDownload.status === 200 && postgresDocumentDownload.body.equals(postgresDocumentBytes) && postgresDocumentDownload.disposition.includes("postgres-board-packet.txt"));
+  check("Postgres binary document queues private extraction", postgresBoardBriefingUpload.status === 201 && postgresBoardBriefingUpload.data.document?.extractionStatus === "queued" && postgresBoardBriefingUpload.data.extractionJob?.status === "queued" && !JSON.stringify(postgresBoardBriefingUpload.data.document).includes("extractionChunks"));
   await updatePlatformDoc(ROOT, "partnerOps", current => ({
     ...current,
     tasks: current.tasks.filter(task => task.relatedEntityType !== "incoming_document" || task.relatedEntityId !== postgresDocument.id)
@@ -1393,9 +1404,12 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
     SANDFEST_WORKER_BATCH: "50"
   }, "Postgres worker");
   const jobs = await listJobs(ROOT, { limit: 100 });
-  check("worker completed intake and dispatch jobs", jobs.length === 15 && jobs.every(job => job.status === "done"), `${jobs.filter(job => job.status === "done").length}/${jobs.length} done`);
+  check("worker completed intake, extraction, and dispatch jobs", jobs.length === 16 && jobs.every(job => job.status === "done"), `${jobs.filter(job => job.status === "done").length}/${jobs.length} done`);
   const workerStatus = await readPlatformDoc(ROOT, "workerStatus", null);
-  check("worker heartbeat persisted", workerStatus?.state === "stopped" && workerStatus?.lastBatchSize === 15);
+  check("worker heartbeat persisted", workerStatus?.state === "stopped" && workerStatus?.lastBatchSize === 16);
+  const postgresDocumentsAfterWorker = await request(base, "GET", "/api/admin/documents", undefined, { auth: true });
+  const extractedPostgresBoardBriefing = postgresDocumentsAfterWorker.data.documents?.find(item => item.id === postgresBoardBriefingUpload.data.document?.id);
+  check("Postgres worker persists extracted board briefing", extractedPostgresBoardBriefing?.extractionStatus === "ready" && extractedPostgresBoardBriefing?.textPreview?.includes("TEXAS SANDFEST") && extractedPostgresBoardBriefing?.extractedCharacterCount > 5_000 && extractedPostgresBoardBriefing?.extractedChunkCount > 0 && !JSON.stringify(extractedPostgresBoardBriefing).includes("extractionChunks"));
   const partnerDocAfterWorker = await readPlatformDoc(ROOT, "partnerOps", null);
   const repairedPostgresDocumentTasks = partnerDocAfterWorker?.tasks?.filter(task => task.relatedEntityType === "incoming_document" && task.relatedEntityId === postgresDocument.id) || [];
   check("worker repairs missing document review routing", workerStatus?.lastReconciledDocumentReviewTasks === 1 && repairedPostgresDocumentTasks.length === 1 && repairedPostgresDocumentTasks[0]?.status === "in_progress" && repairedPostgresDocumentTasks[0]?.assigneeId === "operations");
@@ -1801,7 +1815,8 @@ PG-EVENTENY-V-1,vendor,Postgres Eventeny Vendor,Postgres Import Contact,${postgr
   const recoveryIncomingDoc = await readPlatformDoc(ROOT, "incomingDocuments", null);
   const recoveryUploads = [...(recoveryPartnerDoc?.brandAssets || []), ...(recoveryPartnerDoc?.vendorDocuments || [])].filter(item => item.sourceType === "upload");
   check("Postgres recovery fixture includes sponsor and vendor uploads", recoveryUploads.some(item => item.storageKey?.endsWith(".png")) && recoveryUploads.some(item => item.storageKey?.endsWith(".pdf")));
-  check("Postgres recovery fixture includes private intake documents", recoveryIncomingDoc?.documents?.length === 1 && recoveryIncomingDoc.documents[0]?.checksumSha256?.length === 64);
+  const recoveryIncomingDocuments = recoveryIncomingDoc?.documents || [];
+  check("Postgres recovery fixture includes private intake documents", recoveryIncomingDocuments.length === 2 && recoveryIncomingDocuments.every(item => item.checksumSha256?.length === 64));
   const assetRecoveryOutput = await runChild(["scripts/verify-asset-recovery.mjs"], {
     ...commonEnv,
     SANDFEST_DATABASE_URL: "",
@@ -1812,7 +1827,7 @@ PG-EVENTENY-V-1,vendor,Postgres Eventeny Vendor,Postgres Import Contact,${postgr
     SANDFEST_RECOVERY_ASSET_MIN_FILES: "2"
   }, "Postgres asset recovery verification");
   const assetRecoveryEvidence = JSON.parse(assetRecoveryOutput.trim().split("\n").at(-1));
-  check("isolated asset recovery verification proves every restored upload", assetRecoveryEvidence.ok && assetRecoveryEvidence.mode === "read-only" && assetRecoveryEvidence.database === "restored" && assetRecoveryEvidence.assetDirectory === "restored" && assetRecoveryEvidence.assets?.verified === recoveryUploads.length + recoveryIncomingDoc.documents.length && assetRecoveryEvidence.assets?.brandAssets >= 1 && assetRecoveryEvidence.assets?.vendorDocuments >= 1 && assetRecoveryEvidence.assets?.incomingDocuments === 1 && assetRecoveryEvidence.assets?.incomingDocumentMetadataPresent === true && /^[a-f0-9]{64}$/.test(assetRecoveryEvidence.assets?.manifestSha256 || ""));
+  check("isolated asset recovery verification proves every restored upload", assetRecoveryEvidence.ok && assetRecoveryEvidence.mode === "read-only" && assetRecoveryEvidence.database === "restored" && assetRecoveryEvidence.assetDirectory === "restored" && assetRecoveryEvidence.assets?.verified === recoveryUploads.length + recoveryIncomingDocuments.length && assetRecoveryEvidence.assets?.brandAssets >= 1 && assetRecoveryEvidence.assets?.vendorDocuments >= 1 && assetRecoveryEvidence.assets?.incomingDocuments === recoveryIncomingDocuments.length && assetRecoveryEvidence.assets?.incomingDocumentMetadataPresent === true && /^[a-f0-9]{64}$/.test(assetRecoveryEvidence.assets?.manifestSha256 || ""));
   await verificationPool.query("DELETE FROM platform_documents WHERE key = $1", ["incoming-documents"]);
   const legacyAssetRecoveryOutput = await runChild(["scripts/verify-asset-recovery.mjs"], {
     ...commonEnv,

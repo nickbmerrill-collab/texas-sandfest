@@ -63,6 +63,7 @@ const cameraModelApprovalKeys = [
 const workerSharedKeys = [
   "SANDFEST_PARTNER_PORTAL_SECRET",
   "SANDFEST_OUTREACH_PREFERENCES_SECRET",
+  "SANDFEST_DOCUMENT_EXTRACTION_SECRET",
   "QB_ENVIRONMENT",
   "QB_INVOICE_SYNC_ENABLED",
   "QB_CLIENT_ID",
@@ -103,13 +104,14 @@ check("API health probe verifies the process and data plane", api?.healthCheckPa
 check("API uses the canonical production prefix", apiEnv.get("SANDFEST_ENV")?.value === "production" && apiEnv.get("SANDFEST_API_PREFIX")?.value === "/sandfest");
 check("API uses private managed Postgres", apiEnv.get("SANDFEST_DATABASE_URL")?.fromDatabase?.name === "sandfest-db" && apiEnv.get("SANDFEST_DATABASE_URL")?.fromDatabase?.property === "connectionString");
 check("API uses private managed rate limiting", apiEnv.get("REDIS_URL")?.fromService?.type === "keyvalue" && apiEnv.get("REDIS_URL")?.fromService?.name === "sandfest-rate-limit" && apiEnv.get("REDIS_URL")?.fromService?.property === "connectionString");
-check("API portal capabilities are generated", apiEnv.get("SANDFEST_PARTNER_PORTAL_SECRET")?.generateValue === true && apiEnv.get("SANDFEST_OUTREACH_PREFERENCES_SECRET")?.generateValue === true);
+check("API private capabilities are generated", apiEnv.get("SANDFEST_PARTNER_PORTAL_SECRET")?.generateValue === true && apiEnv.get("SANDFEST_OUTREACH_PREFERENCES_SECRET")?.generateValue === true && apiEnv.get("SANDFEST_DOCUMENT_EXTRACTION_SECRET")?.generateValue === true);
 check("private document intake uses the attached disk", api?.disk?.mountPath === "/var/data/sandfest-partner-assets" && apiEnv.get("SANDFEST_INCOMING_DOCUMENT_DIR")?.value === "/var/data/sandfest-partner-assets/incoming-documents" && Number(apiEnv.get("SANDFEST_INCOMING_DOCUMENT_MAX_BYTES")?.value) === 20 * 1024 * 1024);
 check("launch capability gates are complete", String(apiEnv.get("SANDFEST_REQUIRED_CAPABILITIES")?.value || "").split(",").sort().join(",") === requiredCapabilities.sort().join(","));
 check("camera model launch approval is explicit and operator supplied", cameraModelApprovalKeys.every(key => apiEnv.get(key)?.sync === false));
 check("worker is a checks-gated Docker service", worker?.type === "worker" && worker?.runtime === "docker" && worker?.branch === "main" && worker?.autoDeployTrigger === "checksPass");
 check("worker shares the production database", workerEnv.get("SANDFEST_DATABASE_URL")?.fromDatabase?.name === "sandfest-db" && workerEnv.get("SANDFEST_DATABASE_URL")?.fromDatabase?.property === "connectionString");
 check("worker event matches API event", workerEnv.get("SANDFEST_EVENT_ID")?.value === apiEnv.get("SANDFEST_EVENT_ID")?.value);
+check("worker reads extraction sources through the API, not a shared disk", workerEnv.get("SANDFEST_DOCUMENT_EXTRACTION_SOURCE_URL")?.value === "https://sandfest-api.onrender.com/sandfest" && !workerEnv.has("SANDFEST_INCOMING_DOCUMENT_DIR"));
 
 for (const key of workerSharedKeys) {
   const reference = workerEnv.get(key)?.fromService;

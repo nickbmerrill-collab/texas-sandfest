@@ -216,6 +216,9 @@ services:
         value: /var/data/sandfest-partner-assets/incoming-documents
       - key: SANDFEST_INCOMING_DOCUMENT_MAX_BYTES
         value: "20971520"
+      # Authenticates worker-only, checksum-bound reads from the API-owned disk.
+      - key: SANDFEST_DOCUMENT_EXTRACTION_SECRET
+        generateValue: true
       # Camera-bound HMAC credentials from local inference hosts; no footage.
       - key: CAMERA_INGEST_ENABLED
         value: "false"
@@ -333,6 +336,15 @@ services:
         value: https://www.texassandfest.org
       - key: SANDFEST_JOB_LEASE_MS
         value: "300000"
+      - key: SANDFEST_DOCUMENT_EXTRACTION_SECRET
+        fromService:
+          type: web
+          name: sandfest-api
+          envVarKey: SANDFEST_DOCUMENT_EXTRACTION_SECRET
+      # The worker has no shared filesystem; it reads source bytes through the
+      # API's authenticated no-store route before verifying the stored checksum.
+      - key: SANDFEST_DOCUMENT_EXTRACTION_SOURCE_URL
+        value: https://sandfest-api.onrender.com/sandfest
       - key: QB_ENVIRONMENT
         fromService:
           type: web
