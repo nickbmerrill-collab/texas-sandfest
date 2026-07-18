@@ -1,27 +1,10 @@
 #!/usr/bin/env node
 
-import { boardDemoLoopbackUrl, evaluateBoardDemoReadiness } from "../lib/board-demo-readiness.mjs";
-
-function loopbackBase(value, label) {
-  const url = boardDemoLoopbackUrl(value, label);
-  if (url.search || url.hash) throw new Error(`${label} cannot include a query string or fragment.`);
-  return url.toString().replace(/\/+$/, "");
-}
-
-function boardDemoCheckConfig(env = process.env) {
-  const webUrl = boardDemoLoopbackUrl(env.SANDFEST_BOARD_WEB_URL || "http://127.0.0.1:5175/?apiBase=http://127.0.0.1:8806&mode=visitor", "SANDFEST_BOARD_WEB_URL");
-  return {
-    webUrl: webUrl.toString(),
-    webOrigin: webUrl.origin,
-    apiBase: loopbackBase(env.SANDFEST_BOARD_API_BASE || "http://127.0.0.1:8806", "SANDFEST_BOARD_API_BASE"),
-    emailBase: loopbackBase(env.SANDFEST_BOARD_EMAIL_BASE || "http://127.0.0.1:8807", "SANDFEST_BOARD_EMAIL_BASE"),
-    smsBase: loopbackBase(env.SANDFEST_BOARD_SMS_BASE || "http://127.0.0.1:8808", "SANDFEST_BOARD_SMS_BASE")
-  };
-}
+import { boardDemoCheckEndpoints, evaluateBoardDemoReadiness } from "../lib/board-demo-readiness.mjs";
 
 let endpoints;
 try {
-  endpoints = boardDemoCheckConfig();
+  endpoints = boardDemoCheckEndpoints(process.env);
 } catch (error) {
   console.error(`[FAIL] Board demo preflight configuration: ${error.message}`);
   process.exit(1);
