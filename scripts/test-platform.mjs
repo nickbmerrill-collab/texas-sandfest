@@ -200,6 +200,7 @@ import {
   updateSponsorPackageConfig
 } from "../lib/sponsor-packages.mjs";
 import {
+  createVendorOfferingConfig,
   DEFAULT_VENDOR_OFFERINGS,
   publicVendorOffering,
   resolveVendorOffering,
@@ -2296,9 +2297,62 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   const categoryMismatch = resolveVendorOffering({ vendorOfferings: DEFAULT_VENDOR_OFFERINGS }, "food-beverage-booth", "artisan");
   const unsafeCatalogChange = updateVendorOfferingConfig({ vendorOfferings: DEFAULT_VENDOR_OFFERINGS }, "food-beverage-booth", { active: false });
   const publicOffering = publicVendorOffering(DEFAULT_VENDOR_OFFERINGS[0]);
+  const createdVendorOffering = createVendorOfferingConfig({ vendorOfferings: DEFAULT_VENDOR_OFFERINGS }, {
+    id: "premium-marketplace-booth",
+    name: "Premium marketplace booth",
+    amount: 250000,
+    categories: ["retail", "artisan"],
+    description: "Expanded marketplace booth for larger retail and artisan activations.",
+    inclusions: ["Expanded booth footprint", "Published booth listing"]
+  });
+  const duplicateVendorOffering = createVendorOfferingConfig(createdVendorOffering.config, {
+    id: "premium-marketplace-booth",
+    name: "Duplicate premium booth",
+    amount: 260000,
+    categories: ["retail"],
+    description: "Duplicate offering.",
+    inclusions: ["Duplicate inclusion"]
+  });
+  const invalidVendorCents = createVendorOfferingConfig({ vendorOfferings: DEFAULT_VENDOR_OFFERINGS }, {
+    id: "fractional-fee",
+    name: "Fractional fee",
+    amount: 100.5,
+    categories: ["service"],
+    description: "Invalid fractional cent fee.",
+    inclusions: ["Service booth"]
+  });
+  const invalidVendorProvider = createVendorOfferingConfig({ vendorOfferings: DEFAULT_VENDOR_OFFERINGS }, {
+    id: "placeholder-provider",
+    name: "Placeholder provider",
+    amount: 10000,
+    categories: ["service"],
+    description: "Invalid provider mapping.",
+    inclusions: ["Service booth"],
+    stripePriceId: "price_replace_me"
+  });
+  const invalidVendorState = createVendorOfferingConfig({ vendorOfferings: DEFAULT_VENDOR_OFFERINGS }, {
+    id: "invalid-active-state",
+    name: "Invalid active state",
+    amount: 10000,
+    categories: ["service"],
+    description: "Invalid active state.",
+    inclusions: ["Service booth"],
+    active: "false"
+  });
+  const invalidVendorInclusions = createVendorOfferingConfig({ vendorOfferings: DEFAULT_VENDOR_OFFERINGS }, {
+    id: "missing-inclusions",
+    name: "Missing inclusions",
+    amount: 10000,
+    categories: ["service"],
+    description: "Missing public inclusions.",
+    inclusions: []
+  });
   ok("vendor offering catalog coverage", defaultVendorCatalog.ready && defaultVendorCatalog.activeOfferings.length === 3 && defaultVendorCatalog.missingCategories.length === 0);
   ok("vendor offering category authority", artisanOffering.ok && artisanOffering.offering.amount === 125000 && !categoryMismatch.ok && categoryMismatch.error.includes("not available"));
   ok("vendor offering catalog cannot strand a category", !unsafeCatalogChange.ok && unsafeCatalogChange.error.includes("food"));
+  ok("vendor offering creation validates and rejects duplicate IDs", createdVendorOffering.ok && createdVendorOffering.offering.publicLabel === "$2,500 application fee" && !duplicateVendorOffering.ok && duplicateVendorOffering.conflict === true);
+  ok("vendor offering pricing and provider mappings fail closed", !invalidVendorCents.ok && invalidVendorCents.error.includes("whole cents") && !invalidVendorProvider.ok && invalidVendorProvider.error.includes("Stripe Price ID"));
+  ok("vendor offering state and inclusions fail closed", !invalidVendorState.ok && invalidVendorState.error.includes("active state") && !invalidVendorInclusions.ok && invalidVendorInclusions.error.includes("inclusion"));
   ok("public vendor offering hides accounting mappings", !Object.hasOwn(publicOffering, "quickBooksItemId") && !Object.hasOwn(publicOffering, "stripePriceId"));
   const vendorCreated = createPartnerApplication(emptyPartnerOperations(), {
     type: "vendor",
@@ -4976,11 +5030,32 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
   const publicMarketplaceOffering = publicVendorCatalogApi.data.vendorOfferings?.find(item => item.id === "marketplace-booth");
   ok("GET public vendor offerings", publicVendorCatalogApi.status === 200 && publicMarketplaceOffering?.amount === 125000 && publicMarketplaceOffering?.categories?.includes("artisan") && !Object.hasOwn(publicMarketplaceOffering || {}, "quickBooksItemId"));
   if (child) {
+    const vendorOfferingCreateBody = {
+      id: "premium-marketplace-booth",
+      name: "Premium marketplace booth",
+      amount: 250000,
+      categories: ["retail", "artisan"],
+      description: "Expanded marketplace booth for larger retail and artisan activations.",
+      inclusions: ["Expanded booth footprint", "Published booth listing"],
+      stripePriceId: "price_api_premium_marketplace",
+      quickBooksItemId: "api-premium-marketplace-item"
+    };
+    const concurrentVendorOfferingCreates = await Promise.all([
+      hit("POST", "/api/admin/vendor-offerings", vendorOfferingCreateBody, true),
+      hit("POST", "/api/admin/vendor-offerings", vendorOfferingCreateBody, true)
+    ]);
+    const invalidVendorOfferingCreate = await hit("POST", "/api/admin/vendor-offerings", {
+      ...vendorOfferingCreateBody,
+      id: "invalid-vendor-fee",
+      amount: 100.5
+    }, true);
     const invalidVendorOfferingPatch = await hit("PATCH", "/api/admin/vendor-offerings/marketplace-booth", { categories: [] }, true);
     const vendorOfferingPatch = await hit("PATCH", "/api/admin/vendor-offerings/marketplace-booth", { quickBooksItemId: "api-vendor-marketplace-item" }, true);
     const publicVendorCatalogAfterPatch = await hit("GET", "/api/public/vendors");
+    const publicPremiumMarketplace = publicVendorCatalogAfterPatch.data.vendorOfferings?.find(item => item.id === "premium-marketplace-booth");
+    ok("admin vendor offering creation is atomic", concurrentVendorOfferingCreates.map(item => item.status).sort((a, b) => a - b).join(",") === "201,409" && invalidVendorOfferingCreate.status === 400 && publicPremiumMarketplace?.amount === 250000);
     ok("admin vendor offering validation", invalidVendorOfferingPatch.status === 400 && invalidVendorOfferingPatch.data.error?.includes("category"));
-    ok("admin vendor offering accounting mapping stays private", vendorOfferingPatch.status === 200 && vendorOfferingPatch.data.vendorOffering?.quickBooksItemId === "api-vendor-marketplace-item" && !Object.hasOwn(publicVendorCatalogAfterPatch.data.vendorOfferings?.find(item => item.id === "marketplace-booth") || {}, "quickBooksItemId"));
+    ok("admin vendor offering accounting mapping stays private", vendorOfferingPatch.status === 200 && vendorOfferingPatch.data.vendorOffering?.quickBooksItemId === "api-vendor-marketplace-item" && !Object.hasOwn(publicVendorCatalogAfterPatch.data.vendorOfferings?.find(item => item.id === "marketplace-booth") || {}, "quickBooksItemId") && !Object.hasOwn(publicPremiumMarketplace || {}, "quickBooksItemId") && !Object.hasOwn(publicPremiumMarketplace || {}, "stripePriceId"));
   }
   const apiIntakeBody = {
     organizationName: "Platform API Portal Test",
