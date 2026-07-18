@@ -602,11 +602,13 @@ app.innerHTML = `
         <a href="#port-a">Port A</a>
       `}
       ${OPS_DEMO_ENABLED ? `
-        <a href="#operations">Ops</a>
-        <a href="#admin">Admin</a>
-        <a href="#surfaces">iOS</a>
-        <a href="#finance">Finance</a>
-        <a href="#roadmap">Build</a>
+        <a href="#admin-config">Overview</a>
+        <a href="#admin-documents">Documents</a>
+        <a href="#admin-partners">Partners</a>
+        <a href="#admin-revenue">Accounting</a>
+        <a href="#admin-volunteers">Staffing</a>
+        <a href="#admin-island-conditions">Island</a>
+        <a href="#admin-system-monitor">Systems</a>
       ` : ""}
     </nav>
     <div class="app-status-controls">
@@ -3277,7 +3279,13 @@ function initSiteMode() {
     opsSectionIds: OPS_SECTION_IDS
   }));
   document.querySelectorAll("[data-site-mode]").forEach(btn => {
-    btn.addEventListener("click", () => setSiteMode(btn.dataset.siteMode));
+    btn.addEventListener("click", () => {
+      const requestedMode = btn.dataset.siteMode === "ops" ? "ops" : "public";
+      setSiteMode(requestedMode);
+      const targetHash = requestedMode === "ops" ? "#admin-config" : "#top";
+      if (window.location.hash !== targetHash) window.location.hash = targetHash;
+      else document.querySelector(targetHash)?.scrollIntoView({ block: "start" });
+    });
   });
   if (OPS_DEMO_ENABLED) {
     window.addEventListener("hashchange", () => {
@@ -7096,6 +7104,7 @@ async function loadAdminWorkspace() {
     setAdminStatus(`Loaded ${adminConfigState.tickets.products.length} ticket products, ${adminConfigState.config.sponsorPackages.length} sponsor packages, and ${adminConfigState.config.vendorOfferings.length} vendor offerings.`, "ok");
     loaded = true;
     if (BOARD_DEMO_ACCESS.enabled) boardDemoWorkspaceLoaded = true;
+    stabilizeRenderedHashTarget();
   } catch (error) {
     const localHint = ADMIN_AUTH_MODE === "token" ? " Confirm the local API is running and the token matches." : "";
     setAdminStatus(`${error.message}${localHint}`, "error");
