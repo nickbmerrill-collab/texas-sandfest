@@ -57,6 +57,11 @@ import {
   recordIncidentDispatchDelivery,
   resolveIncidentDispatchRecipient
 } from "../lib/island-conditions.mjs";
+import {
+  emptyIncomingDocumentIntake,
+  normalizeIncomingDocumentIntake
+} from "../lib/incoming-documents.mjs";
+import { syncIncomingDocumentReviewTasks } from "../lib/document-review-routing.mjs";
 
 await loadDotEnv();
 
@@ -596,6 +601,7 @@ async function tick() {
   let generatedMilestoneDrafts = 0;
   let generatedOutreachDrafts = 0;
   let generatedTaskDrafts = 0;
+  let reconciledDocumentReviewTasks = 0;
   let autoApproved = 0;
   let autoSkipped = 0;
   let automationCandidates = [];
@@ -604,9 +610,22 @@ async function tick() {
   const partnerSeed = currentPartnerOperations(
     await readPlatformDoc(ROOT, "partnerOps", emptyPartnerOperations(CURRENT_EVENT_ID))
   );
+  const incomingDocuments = normalizeIncomingDocumentIntake(
+    await readPlatformDoc(ROOT, "incomingDocuments", emptyIncomingDocumentIntake(CURRENT_EVENT_ID)),
+    { eventId: CURRENT_EVENT_ID }
+  );
+  if (incomingDocuments.eventId !== CURRENT_EVENT_ID) {
+    throw new Error(`Document intake is assigned to ${incomingDocuments.eventId}; worker expects ${CURRENT_EVENT_ID}.`);
+  }
   const recipientContext = await readRecipientContext();
   await updatePlatformDoc(ROOT, "partnerOps", current => {
-    const tasks = generateDueTaskFollowups(currentPartnerOperations(current), {
+    const routed = syncIncomingDocumentReviewTasks(currentPartnerOperations(current), incomingDocuments.documents, {
+      actorId: "worker",
+      idFactory: prefix => `${prefix}_${randomUUID()}`
+    });
+    if (!routed.ok) throw new Error(routed.error || "Document review task reconciliation failed.");
+    reconciledDocumentReviewTasks = routed.summary.created + routed.summary.updated;
+    const tasks = generateDueTaskFollowups(routed.doc, {
       ...recipientContext,
       idFactory: prefix => `${prefix}_${randomUUID()}`
     });
@@ -643,6 +662,7 @@ async function tick() {
     return automated.doc;
   }, { fallback: partnerSeed });
   if (generatedTaskDrafts) console.log(`[worker] generated ${generatedTaskDrafts} task notification draft(s)`);
+  if (reconciledDocumentReviewTasks) console.log(`[worker] reconciled ${reconciledDocumentReviewTasks} document review task(s)`);
   if (generatedMilestoneDrafts) console.log(`[worker] generated ${generatedMilestoneDrafts} milestone follow-up draft(s)`);
   if (generatedOutreachDrafts) console.log(`[worker] generated ${generatedOutreachDrafts} outreach draft(s)`);
   const campaignAutomationCandidates = automationCandidates.filter(item => item.automationPolicy === OUTREACH_CAMPAIGN_AUTOMATION_POLICY).length;
@@ -747,6 +767,7 @@ async function tick() {
     jobs: jobs.length,
     generatedDrafts,
     generatedTaskDrafts,
+    reconciledDocumentReviewTasks,
     generatedMilestoneDrafts,
     generatedOutreachDrafts,
     autoApproved,
@@ -765,6 +786,7 @@ if (ONCE) {
     lastBatchSize: result.jobs,
     lastGeneratedDrafts: result.generatedDrafts,
     lastGeneratedTaskDrafts: result.generatedTaskDrafts,
+    lastReconciledDocumentReviewTasks: result.reconciledDocumentReviewTasks,
     lastGeneratedOutreachDrafts: result.generatedOutreachDrafts,
     lastAutoApproved: result.autoApproved,
     lastAutoQueued: result.autoQueued,
@@ -781,7 +803,7 @@ process.on("SIGTERM", () => { stopped = true; });
 while (!stopped) {
   try {
     const processed = await tick();
-    await writeHeartbeat("running", { lastBatchSize: processed.jobs, lastGeneratedDrafts: processed.generatedDrafts, lastGeneratedTaskDrafts: processed.generatedTaskDrafts, lastGeneratedOutreachDrafts: processed.generatedOutreachDrafts });
+    await writeHeartbeat("running", { lastBatchSize: processed.jobs, lastGeneratedDrafts: processed.generatedDrafts, lastGeneratedTaskDrafts: processed.generatedTaskDrafts, lastReconciledDocumentReviewTasks: processed.reconciledDocumentReviewTasks, lastGeneratedOutreachDrafts: processed.generatedOutreachDrafts });
   } catch (error) {
     console.error("[worker] tick failed:", error.message);
   }

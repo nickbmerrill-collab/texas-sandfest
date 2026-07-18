@@ -1036,6 +1036,7 @@ app.innerHTML = `
       </div>
       <nav class="admin-workspace-nav" aria-label="Operations workspaces">
         <a href="#admin-config">Overview</a>
+        <a href="#admin-documents">Documents</a>
         <a href="#admin-partners">Partners</a>
         <a href="#admin-revenue">Accounting</a>
         <a href="#admin-volunteers">Staffing</a>
@@ -1152,7 +1153,8 @@ app.innerHTML = `
         <form id="admin-document-upload" class="admin-document-upload" data-requires-permission="documents:write">
           <label class="admin-document-file"><span>File</span><input name="file" type="file" required accept=".pdf,.txt,.csv,.json,.eml,.png,.jpg,.jpeg,.webp,.docx,.xlsx,.pptx" /></label>
           <label><span>Domain</span><select name="domain" required><option value="docs">Board and policy</option><option value="ops">Operations</option><option value="finance">Finance</option><option value="eventeny">Eventeny</option><option value="quickbooks">QuickBooks</option><option value="comms">Communications</option></select></label>
-          <label><span>Owner</span><select name="ownerTeam"><option value="">Unassigned</option><option value="operations">Operations</option><option value="sponsor">Sponsor</option><option value="finance">Finance</option><option value="volunteer-captains">Volunteer captains</option><option value="traffic">Traffic and parking</option><option value="guest-services">Guest services</option><option value="production">Production</option></select></label>
+          <label><span>Owner</span><select name="ownerTeam"><option value="">Unassigned</option><option value="operations" selected>Operations</option><option value="sponsor">Sponsor</option><option value="finance">Finance</option><option value="volunteer-captains">Volunteer captains</option><option value="traffic">Traffic and parking</option><option value="guest-services">Guest services</option><option value="production">Production</option></select></label>
+          <label><span>Review due</span><input name="reviewDueAt" type="datetime-local" required /></label>
           <label class="admin-document-title"><span>Title</span><input name="title" required maxlength="180" /></label>
           <button class="button primary" type="submit">Upload document</button>
           <p id="admin-document-upload-status" class="checkout-status" role="status" aria-live="polite"></p>
@@ -2516,10 +2518,14 @@ function renderAdminDocuments(payload = adminDocumentState) {
     <article><strong>${Number(summary.byStatus?.in_review || 0)}</strong><span>In review</span></article>
     <article><strong>${Number(summary.byStatus?.approved || 0)}</strong><span>Approved</span></article>
     <article><strong>${Number(summary.unassigned || 0)}</strong><span>Unassigned</span></article>
+    <article><strong>${Number(summary.overdue || 0)}</strong><span>Overdue</span></article>
+    <article><strong>${Number(summary.dueSoon || 0)}</strong><span>Due in 3 days</span></article>
     <article><strong>${adminDocumentBytes(summary.bytes)}</strong><span>Private storage</span></article>
   `;
   const documents = adminDocumentState.documents || [];
-  list.innerHTML = documents.length ? documents.map(item => `
+  list.innerHTML = documents.length ? documents.map(item => {
+    const reviewTask = item.reviewTask || null;
+    return `
     <article class="admin-document-row" data-admin-document="${escapeAttr(item.id)}">
       <header>
         <div><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.fileName)} · ${adminDocumentBytes(item.sizeBytes)} · ${escapeHtml(item.domain)}</span></div>
@@ -2528,18 +2534,20 @@ function renderAdminDocuments(payload = adminDocumentState) {
       <div class="admin-document-fields">
         <label><span>Status</span><select name="status" ${adminCan("documents:write") ? "" : "disabled"}>${adminDocumentStatusOptions(item.status)}</select></label>
         <label><span>Owner</span><select name="ownerTeam" ${adminCan("documents:write") ? "" : "disabled"}>${adminDocumentOwnerOptions(item.ownerTeam)}</select></label>
+        <label><span>Review due</span><input name="reviewDueAt" type="datetime-local" value="${escapeAttr(taskDateTimeInput(item.reviewDueAt))}" ${adminCan("documents:write") ? "" : "disabled"} /></label>
         <label class="admin-document-notes"><span>Review note</span><input name="notes" maxlength="2000" value="${escapeAttr(item.notes || "")}" ${adminCan("documents:write") ? "" : "disabled"} /></label>
       </div>
       ${item.textPreview ? `<details class="admin-document-preview"><summary>Text preview${item.previewTruncated ? " · shortened" : ""}</summary><pre>${escapeHtml(item.textPreview)}</pre></details>` : ""}
       <footer>
-        <span>${item.uploadedAt ? escapeHtml(new Date(item.uploadedAt).toLocaleString()) : "Timestamp unavailable"}${item.ownerTeam ? ` · ${escapeHtml(adminDocumentOwnerLabels[item.ownerTeam] || item.ownerTeam)}` : ""}</span>
+        <span>${item.uploadedAt ? escapeHtml(new Date(item.uploadedAt).toLocaleString()) : "Timestamp unavailable"}${item.ownerTeam ? ` · ${escapeHtml(adminDocumentOwnerLabels[item.ownerTeam] || item.ownerTeam)}` : ""}${reviewTask ? ` · Task ${escapeHtml(conditionLabel(reviewTask.status))}` : " · Task routing pending"}</span>
         <div>
           <button class="button secondary" type="button" data-download-admin-document="${escapeAttr(item.id)}">Download</button>
           <button class="button primary" type="button" data-save-admin-document="${escapeAttr(item.id)}" ${adminCan("documents:write") ? "" : "disabled"}>Save review</button>
         </div>
       </footer>
     </article>
-  `).join("") : `<article class="empty-state"><strong>No private documents</strong><span>The intake queue is empty.</span></article>`;
+  `;
+  }).join("") : `<article class="empty-state"><strong>No private documents</strong><span>The intake queue is empty.</span></article>`;
 
   document.querySelectorAll("[data-save-admin-document]").forEach(button => button.addEventListener("click", async () => {
     const card = button.closest("[data-admin-document]");
@@ -2550,6 +2558,7 @@ function renderAdminDocuments(payload = adminDocumentState) {
         body: JSON.stringify({
           status: card.querySelector('[name="status"]').value,
           ownerTeam: card.querySelector('[name="ownerTeam"]').value || null,
+          reviewDueAt: localDateTimeToIso(card.querySelector('[name="reviewDueAt"]').value),
           notes: card.querySelector('[name="notes"]').value
         })
       });
@@ -7132,6 +7141,13 @@ document.querySelector("#admin-launch-readiness")?.addEventListener("click", eve
   renderAdminDeployment(adminDeploymentState);
 });
 
+function resetAdminDocumentReviewDue(form = document.querySelector("#admin-document-upload")) {
+  if (!form?.elements.reviewDueAt) return;
+  form.elements.reviewDueAt.value = isoToLocalDateTime(new Date(Date.now() + 3 * 86_400_000).toISOString());
+}
+
+resetAdminDocumentReviewDue();
+
 document.querySelector('#admin-document-upload [name="file"]')?.addEventListener("change", event => {
   const file = event.currentTarget.files?.[0];
   const title = document.querySelector('#admin-document-upload [name="title"]');
@@ -7158,7 +7174,8 @@ document.querySelector("#admin-document-upload")?.addEventListener("submit", asy
         "x-file-name": file.name,
         "x-document-domain": form.elements.domain.value,
         "x-document-title": form.elements.title.value,
-        "x-owner-team": form.elements.ownerTeam.value
+        "x-owner-team": form.elements.ownerTeam.value,
+        "x-document-review-due-at": localDateTimeToIso(form.elements.reviewDueAt.value) || ""
       },
       body: file
     });
@@ -7166,6 +7183,8 @@ document.querySelector("#admin-document-upload")?.addEventListener("submit", asy
     if (!response.ok) throw new Error(result.error || `Document upload failed with ${response.status}`);
     setFormStatus(status, result.duplicate ? "That file is already in the intake queue." : "Document added to the private review queue.", "ok");
     form.reset();
+    form.elements.ownerTeam.value = "operations";
+    resetAdminDocumentReviewDue(form);
     await loadAdminDocuments({ quiet: true });
   } catch (error) {
     setFormStatus(status, error.message, "error");

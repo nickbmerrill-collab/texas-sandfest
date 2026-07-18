@@ -218,6 +218,7 @@ import {
 import {
   adminIncomingDocument,
   createIncomingDocument,
+  defaultIncomingDocumentReviewDueAt,
   deleteIncomingDocumentUpload,
   emptyIncomingDocumentIntake,
   incomingDocumentDownloadName,
@@ -229,6 +230,10 @@ import {
   updateIncomingDocument,
   verifyIncomingDocumentBytes
 } from "../lib/incoming-documents.mjs";
+import {
+  incomingDocumentReviewTaskView,
+  syncIncomingDocumentReviewTask
+} from "../lib/document-review-routing.mjs";
 import { approvedPublicSponsorAsset, publicSponsorShowcase } from "../lib/sponsor-showcase.mjs";
 import { publicTicketCatalog } from "../lib/ticket-catalog.mjs";
 import { emailConfigFromEnv, publicEmailReadiness } from "../lib/email.mjs";
@@ -1225,6 +1230,13 @@ async function mutatePartnerOperations(mutator) {
   return result;
 }
 
+async function syncDocumentReviewTask(document, actorId, now = new Date().toISOString()) {
+  return mutatePartnerOperations(doc => syncIncomingDocumentReviewTask(doc, document, {
+    actorId,
+    now
+  }));
+}
+
 function publicPartnerStatus(doc, application) {
   const status = publicPartnerPortalStatus(doc, application);
   status.finance.onlinePayment = publicStripePartnerPaymentsReadiness(STRIPE_PARTNER_PAYMENTS);
@@ -1768,7 +1780,7 @@ function sendJson(request, response, status, payload, headers = {}) {
   const responseHeaders = {
     "content-type": "application/json; charset=utf-8",
     "access-control-allow-methods": "GET,POST,PATCH,OPTIONS",
-    "access-control-allow-headers": "content-type,authorization,idempotency-key,x-partner-reference,x-partner-token,x-file-name,x-asset-kind,x-asset-label,x-requirement-id,x-document-label,x-document-domain,x-document-title,x-owner-team",
+    "access-control-allow-headers": "content-type,authorization,idempotency-key,x-partner-reference,x-partner-token,x-file-name,x-asset-kind,x-asset-label,x-requirement-id,x-document-label,x-document-domain,x-document-title,x-owner-team,x-document-review-due-at",
     "x-request-id": requestId,
     "x-content-type-options": "nosniff",
     "referrer-policy": "no-referrer",
@@ -4199,10 +4211,12 @@ async function handleRequest(request, response) {
 
     if (method === "GET" && pathname === "/api/admin/documents") {
       if (!(await requirePermission(request, response, "documents:read"))) return;
-      const doc = normalizeIncomingDocumentIntake(
-        await readPlatformDoc(ROOT, "incomingDocuments", emptyIncomingDocumentIntake(CURRENT_EVENT_ID)),
-        { eventId: CURRENT_EVENT_ID }
-      );
+      const [incomingDocumentData, partnerOperationsData] = await Promise.all([
+        readPlatformDoc(ROOT, "incomingDocuments", emptyIncomingDocumentIntake(CURRENT_EVENT_ID)),
+        readPartnerOperations()
+      ]);
+      const doc = normalizeIncomingDocumentIntake(incomingDocumentData, { eventId: CURRENT_EVENT_ID });
+      const partnerOperations = normalizePartnerOperations(partnerOperationsData);
       if (doc.eventId !== CURRENT_EVENT_ID) {
         sendJson(request, response, 409, { error: `Document intake belongs to ${doc.eventId}; expected ${CURRENT_EVENT_ID}.` });
         return;
@@ -4214,10 +4228,13 @@ async function handleRequest(request, response) {
         .filter(record => !domain || record.domain === domain)
         .sort((left, right) => String(right.uploadedAt || "").localeCompare(String(left.uploadedAt || "")))
         .slice(0, clampLimit(url.searchParams.get("limit"), 200))
-        .map(adminIncomingDocument);
+        .map(record => ({
+          ...adminIncomingDocument(record),
+          reviewTask: incomingDocumentReviewTaskView(partnerOperations, record.id)
+        }));
       sendJson(request, response, 200, {
         documents,
-        summary: summarizeIncomingDocuments(doc, { eventId: CURRENT_EVENT_ID }),
+        summary: summarizeIncomingDocuments(doc, { eventId: CURRENT_EVENT_ID, now: new Date().toISOString() }),
         storage: {
           ready: INCOMING_DOCUMENT_STORAGE.ready,
           maxBytes: INCOMING_DOCUMENT_STORAGE.maxBytes,
@@ -4237,6 +4254,8 @@ async function handleRequest(request, response) {
       }
       const header = name => String(Array.isArray(request.headers[name]) ? request.headers[name][0] : request.headers[name] || "").trim();
       const documentId = `incoming_document_${randomUUID()}`;
+      const now = new Date().toISOString();
+      const reviewDueAt = header("x-document-review-due-at") || defaultIncomingDocumentReviewDueAt(now);
       const buffer = await readBufferBody(request, INCOMING_DOCUMENT_STORAGE.maxBytes);
       const saved = await saveIncomingDocumentUpload(ROOT, {
         documentId,
@@ -4257,11 +4276,12 @@ async function handleRequest(request, response) {
             id: documentId,
             domain: header("x-document-domain"),
             title: header("x-document-title"),
-            ownerTeam: header("x-owner-team") || null
+            ownerTeam: header("x-owner-team") || "operations",
+            reviewDueAt
           }, {
             eventId: CURRENT_EVENT_ID,
             actorId: session.id,
-            now: new Date().toISOString()
+            now
           });
           return result?.ok ? result.doc : normalizeIncomingDocumentIntake(current, { eventId: CURRENT_EVENT_ID });
         }, { fallback: emptyIncomingDocumentIntake(CURRENT_EVENT_ID) });
@@ -4276,6 +4296,18 @@ async function handleRequest(request, response) {
         sendJson(request, response, result.eventContextMismatch ? 409 : 400, { error: result.error || "Document could not be registered." });
         return;
       }
+      const reviewTaskResult = await syncDocumentReviewTask(result.document, session.id, now);
+      if (!reviewTaskResult?.ok) {
+        await writeAuditRecord(request, "document.review_task.sync_failed", { type: "incomingDocument", id: result.document.id }, null, null, {
+          reason: reviewTaskResult?.error || "Document review task could not be synchronized."
+        });
+        sendJson(request, response, reviewTaskResult?.eventContextMismatch ? 409 : 503, {
+          error: "The document is stored, but its review task could not be synchronized. Retry the upload to repair routing.",
+          duplicate: result.duplicate,
+          document: adminIncomingDocument(result.document)
+        });
+        return;
+      }
       if (!result.duplicate) {
         await writeAuditRecord(request, "document.upload", { type: "incomingDocument", id: result.document.id }, null, incomingDocumentAuditView(result.document), {
           domain: result.document.domain,
@@ -4285,8 +4317,11 @@ async function handleRequest(request, response) {
       }
       sendJson(request, response, result.duplicate ? 200 : 201, {
         duplicate: result.duplicate,
-        document: adminIncomingDocument(result.document),
-        summary: summarizeIncomingDocuments(result.doc, { eventId: CURRENT_EVENT_ID })
+        document: {
+          ...adminIncomingDocument(result.document),
+          reviewTask: incomingDocumentReviewTaskView(reviewTaskResult.doc, result.document.id)
+        },
+        summary: summarizeIncomingDocuments(result.doc, { eventId: CURRENT_EVENT_ID, now })
       });
       return;
     }
@@ -4333,12 +4368,13 @@ async function handleRequest(request, response) {
       if (!session) return;
       const documentId = decodeURIComponent(adminDocumentMatch[1]);
       const body = await readBody(request);
+      const now = new Date().toISOString();
       let result = null;
       await updatePlatformDoc(ROOT, "incomingDocuments", current => {
         result = updateIncomingDocument(current, documentId, body, {
           eventId: CURRENT_EVENT_ID,
           actorId: session.id,
-          now: new Date().toISOString()
+          now
         });
         return result?.ok ? result.doc : normalizeIncomingDocumentIntake(current, { eventId: CURRENT_EVENT_ID });
       }, { fallback: emptyIncomingDocumentIntake(CURRENT_EVENT_ID) });
@@ -4346,13 +4382,27 @@ async function handleRequest(request, response) {
         sendJson(request, response, result?.eventContextMismatch ? 409 : result?.error === "Document not found." ? 404 : 400, { error: result?.error || "Document review could not be saved." });
         return;
       }
+      const reviewTaskResult = await syncDocumentReviewTask(result.document, session.id, now);
+      if (!reviewTaskResult?.ok) {
+        await writeAuditRecord(request, "document.review_task.sync_failed", { type: "incomingDocument", id: result.document.id }, null, null, {
+          reason: reviewTaskResult?.error || "Document review task could not be synchronized."
+        });
+        sendJson(request, response, reviewTaskResult?.eventContextMismatch ? 409 : 503, {
+          error: "The document review was saved, but its delegated task could not be synchronized. Retry Save review to repair routing.",
+          document: adminIncomingDocument(result.document)
+        });
+        return;
+      }
       if (result.changed) {
         await writeAuditRecord(request, "document.review", { type: "incomingDocument", id: result.document.id }, incomingDocumentAuditView(result.before), incomingDocumentAuditView(result.document));
       }
       sendJson(request, response, 200, {
         changed: result.changed,
-        document: adminIncomingDocument(result.document),
-        summary: summarizeIncomingDocuments(result.doc, { eventId: CURRENT_EVENT_ID })
+        document: {
+          ...adminIncomingDocument(result.document),
+          reviewTask: incomingDocumentReviewTaskView(reviewTaskResult.doc, result.document.id)
+        },
+        summary: summarizeIncomingDocuments(result.doc, { eventId: CURRENT_EVENT_ID, now })
       });
       return;
     }
