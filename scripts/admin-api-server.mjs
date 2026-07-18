@@ -3077,6 +3077,7 @@ async function handleRequest(request, response) {
         cameraIngestReady: cameraIngestConfig().ready,
         backupRecoveryReady: recoveryReadiness(process.env).ready,
         partnerPortalReady: partnerPortalConfig().ready,
+        publicSiteUrl: partnerPortalConfig().publicBaseUrl,
         documentIngestionReady: INCOMING_DOCUMENT_STORAGE.ready,
         outreachPreferencesReady: OUTREACH_PREFERENCES.ready,
         stripePartnerPaymentsReady: STRIPE_PARTNER_PAYMENTS.ready,

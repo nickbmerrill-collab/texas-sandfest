@@ -45,6 +45,21 @@ Start the site on a separate terminal:
 npm run board:web -- --port 5175
 ```
 
+If `5175` is occupied, choose another loopback port. Start the web process on
+that port, then give the API and every worker the same public origin in their
+respective terminals:
+
+```bash
+npm run board:web -- --port 5176
+SANDFEST_BOARD_PUBLIC_SITE_URL=http://127.0.0.1:5176 npm run board:api
+SANDFEST_BOARD_PUBLIC_SITE_URL=http://127.0.0.1:5176 npm run board:worker:watch
+```
+
+The API health response exposes this public URL without any capability tokens,
+and `board:check` rejects a web/API origin mismatch. This keeps copied sponsor
+invitations, outreach preferences, and private partner links on the board site
+that actually passed preflight.
+
 The dedicated board web command injects the fixed synthetic credential only
 into the Vite development process and only accepts an exact loopback API host.
 Opening the admin entry or switching the combined site to **Operations** loads
@@ -105,10 +120,11 @@ presentation:
 npm run board:check
 ```
 
-This fails closed when port 5175 is serving an ordinary `npm run dev` session,
-the isolated API or worker is unavailable, either provider sandbox is missing,
-the seeded partner/staff workspace is incomplete, weather or ferry data is
-stale, or fewer than eight camera playback pipelines are live. The report
+This fails closed when the configured board URL is serving an ordinary
+`npm run dev` session, its origin differs from the API's generated public-link
+origin, the isolated API or worker is unavailable, either provider sandbox is
+missing, the seeded partner/staff workspace is incomplete, weather or ferry
+data is stale, or fewer than eight camera playback pipelines are live. The report
 prints recovery commands but never prints the injected admin credential,
 recipient details, or message content. Use
 `npm run --silent board:check -- --json` for a machine-readable preflight

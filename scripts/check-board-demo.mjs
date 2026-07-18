@@ -1,30 +1,15 @@
 #!/usr/bin/env node
 
-import { boardDemoLoopbackUrl, evaluateBoardDemoReadiness } from "../lib/board-demo-readiness.mjs";
-
-function loopbackBase(value, label) {
-  const url = boardDemoLoopbackUrl(value, label);
-  if (url.search || url.hash) throw new Error(`${label} cannot include a query string or fragment.`);
-  return url.toString().replace(/\/+$/, "");
-}
-
-function boardDemoCheckConfig(env = process.env) {
-  return {
-    webUrl: boardDemoLoopbackUrl(env.SANDFEST_BOARD_WEB_URL || "http://127.0.0.1:5175/?apiBase=http://127.0.0.1:8806&mode=visitor", "SANDFEST_BOARD_WEB_URL").toString(),
-    apiBase: loopbackBase(env.SANDFEST_BOARD_API_BASE || "http://127.0.0.1:8806", "SANDFEST_BOARD_API_BASE"),
-    emailBase: loopbackBase(env.SANDFEST_BOARD_EMAIL_BASE || "http://127.0.0.1:8807", "SANDFEST_BOARD_EMAIL_BASE"),
-    smsBase: loopbackBase(env.SANDFEST_BOARD_SMS_BASE || "http://127.0.0.1:8808", "SANDFEST_BOARD_SMS_BASE")
-  };
-}
+import { boardDemoCheckEndpoints, evaluateBoardDemoReadiness } from "../lib/board-demo-readiness.mjs";
 
 let endpoints;
 try {
-  endpoints = boardDemoCheckConfig();
+  endpoints = boardDemoCheckEndpoints(process.env);
 } catch (error) {
   console.error(`[FAIL] Board demo preflight configuration: ${error.message}`);
   process.exit(1);
 }
-const { webUrl, apiBase, emailBase, smsBase } = endpoints;
+const { webUrl, webOrigin, apiBase, emailBase, smsBase } = endpoints;
 const adminToken = process.env.SANDFEST_BOARD_ADMIN_TOKEN || "board-demo-local-admin-token-change-me";
 const configuredTimeoutMs = Number(process.env.SANDFEST_BOARD_CHECK_TIMEOUT_MS || 5000);
 const timeoutMs = Number.isFinite(configuredTimeoutMs) ? Math.max(1000, configuredTimeoutMs) : 5000;
@@ -56,6 +41,7 @@ const report = {
   checkedAt: new Date().toISOString(),
   ...evaluateBoardDemoReadiness({
     web: { ok: web.ok, status: web.status, html: web.body },
+    webOrigin,
     health: health.body,
     ready: ready.body,
     bootstrap: bootstrap.body,

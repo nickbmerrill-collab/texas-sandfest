@@ -192,7 +192,7 @@ try {
   });
   const resolved = resolveRuntimeRoot(ROOT, { SANDFEST_RUNTIME_ROOT: targetRoot });
   check("runtime root resolves outside repository data", resolved === targetRoot && resolved !== ROOT);
-  check("board seed covers core operations", prepared.applications === 2 && prepared.invoices === 1 && prepared.payments === 1 && prepared.tasks === 3 && prepared.prospects === 1 && prepared.safetySmsRecipients === 1);
+  check("board seed covers core operations", prepared.applications === 4 && prepared.invoices === 1 && prepared.payments === 1 && prepared.tasks === 5 && prepared.prospects === 1 && prepared.safetySmsRecipients === 1);
   check("board seed covers field operations", prepared.cameras === 8 && prepared.volunteerShifts === 12 && prepared.documents === 3);
 
   const port = await freePort();
@@ -223,6 +223,7 @@ try {
   const health = await request(base, "GET", "/health");
   check("isolated runtime is current-event ready", health.status === 200 && health.data.currentEventReady === true && health.data.currentEventId === DEFAULT_EVENT_ID);
   check("health identifies isolated runtime data", health.data.runtimeDataMode === "isolated" && health.data.cameraIngestReady === true && health.data.safetySmsReady === true);
+  check("health exposes the generated capability-link origin", health.data.publicSiteUrl === child.processEnv.SANDFEST_PUBLIC_SITE_URL);
   const bootstrap = await request(base, "GET", "/api/public/bootstrap");
   const publicPassport = await request(base, "GET", "/api/public/passport");
   const publicVoting = await request(base, "GET", "/api/public/voting");
@@ -290,9 +291,9 @@ try {
   const seeded = await request(base, "GET", "/api/admin/partners", undefined, { auth: true });
   const outreach = await request(base, "GET", "/api/admin/outreach", undefined, { auth: true });
   const revenue = await request(base, "GET", "/api/admin/revenue", undefined, { auth: true });
-  check("seeded sponsor and vendor finance is visible", seeded.status === 200 && seeded.data.applications?.length === 2 && seeded.data.applications?.some(item => item.type === "vendor" && item.offeringId === "food-beverage-booth" && item.expectedAmountCents === 175000) && seeded.data.invoices?.length === 1 && seeded.data.payments?.length === 1 && seeded.data.receivables?.totals?.collectedCents === 1000000);
+  check("seeded sponsor and vendor finance is visible", seeded.status === 200 && seeded.data.applications?.length === 4 && seeded.data.summary?.applications?.vendors === 2 && seeded.data.summary?.applications?.sponsors === 2 && seeded.data.applications?.some(item => item.type === "vendor" && item.offeringId === "food-beverage-booth" && item.expectedAmountCents === 175000) && seeded.data.invoices?.length === 1 && seeded.data.payments?.length === 1 && seeded.data.receivables?.totals?.collectedCents === 1000000);
   check("revenue is current-event and includes site-native finance", revenue.status === 200 && revenue.data.eventId === DEFAULT_EVENT_ID && revenue.data.sources?.imported?.entries === 3 && revenue.data.sources?.partnerOperations?.entries === 1 && revenue.data.summary?.totals?.grossCents === 1750000 && revenue.data.summary?.tickets?.sold === 100 && revenue.data.entries?.every(item => item.eventId === DEFAULT_EVENT_ID) && revenue.data.imports?.length === 3 && revenue.data.imports?.every(item => item.fileName?.endsWith("-demo.csv")));
-  check("seeded work and outreach are visible", seeded.data.tasks?.length === 3 && seeded.data.followups?.length >= 2 && outreach.status === 200 && outreach.data.prospects?.length === 1 && outreach.data.campaigns?.length === 1);
+  check("seeded work and outreach are visible", seeded.data.tasks?.length === 5 && seeded.data.followups?.length >= 4 && outreach.status === 200 && outreach.data.prospects?.length === 1 && outreach.data.campaigns?.length === 1);
   check("board staff routing is current and private", seeded.data.staffDirectory?.ready === true && seeded.data.staffDirectory?.activeStaff === 7 && seeded.data.staffDirectory?.routedTeams === 7 && seeded.data.assignmentDirectory?.teams?.every(item => item.notificationReady === true) && seeded.data.assignmentDirectory?.staff?.every(item => !("email" in item)));
   const seededSponsorProspect = outreach.data.prospects?.[0];
   const seededOutreachCampaign = outreach.data.campaigns?.[0];
@@ -379,7 +380,7 @@ try {
     .filter(item => ["open", "in_progress", "blocked"].includes(item.status) && item.assigneeType !== "unassigned" && item.assigneeId)
     .map(item => item.id));
   const taskAssignmentMessages = (afterWorker.data.followups || []).filter(item => item.kind === "task_assignment" && activeAssignedTaskIds.has(item.taskId));
-  check("worker prepares review-first messages", workerOutput.includes("processed 3 job(s)") && afterWorker.data.applications?.length === 5 && afterWorker.data.followups?.filter(item => item.status === "draft_ready").length >= 5);
+  check("worker prepares review-first messages", workerOutput.includes("processed 3 job(s)") && afterWorker.data.applications?.length === 7 && afterWorker.data.followups?.filter(item => item.status === "draft_ready").length >= 7);
   check("worker prepares one private notice per assigned task", taskAssignmentMessages.length === activeAssignedTaskIds.size && taskAssignmentMessages.every(item => item.status === "draft_ready" && item.recipientAvailable === true && item.recipientLabel && !("recipient" in item)));
   check("all board applications stay in 2027", afterWorker.data.applications?.every(item => item.eventId === DEFAULT_EVENT_ID));
   const automationEnabled = await request(base, "PATCH", "/api/admin/partners/automation", { mode: "transactional_auto" }, { auth: true });
@@ -388,7 +389,7 @@ try {
     const workspace = await request(base, "GET", "/api/admin/partners", undefined, { auth: true });
     const applicationMessages = workspace.data.followups?.filter(item => item.kind === "application_received") || [];
     const assignmentMessages = workspace.data.followups?.filter(item => item.kind === "task_assignment" && activeAssignedTaskIds.has(item.taskId)) || [];
-    return applicationMessages.length >= 5
+    return applicationMessages.length >= 7
       && applicationMessages.every(item => item.status === "sent" && item.deliveryStatus === "delivered")
       && assignmentMessages.length === activeAssignedTaskIds.size
       && assignmentMessages.every(item => item.status === "sent" && item.deliveryStatus === "delivered")

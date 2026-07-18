@@ -14,7 +14,7 @@ import twilio from "twilio";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { boardDemoAccessConfig } from "../lib/board-demo-access.mjs";
-import { boardDemoLoopbackUrl, evaluateBoardDemoReadiness } from "../lib/board-demo-readiness.mjs";
+import { boardDemoCheckEndpoints, boardDemoLoopbackUrl, evaluateBoardDemoReadiness } from "../lib/board-demo-readiness.mjs";
 import { boardDemoAccessPlugin } from "../vite.config.js";
 import { buildRevenueLedgerView, partnerRevenueEntries, summarizeLedger } from "../lib/revenue.mjs";
 import {
@@ -545,10 +545,35 @@ console.log("\n=== Pure library suite ===\n");
     && injectedBoardDemoHtml[0]?.children.includes(boardDemoAccess.token)
     && remoteBindRejected
     && boardDemoAccessPlugin({}) === null);
+  const boardPackageScripts = JSON.parse(await readFile(path.join(ROOT, "package.json"), "utf8")).scripts;
+  const boardPublicOriginContract = "${SANDFEST_BOARD_PUBLIC_SITE_URL:-http://127.0.0.1:5175}";
+  ok("board API and workers share one configurable public origin", ["board:api", "board:worker", "board:worker:watch"]
+    .every(name => String(boardPackageScripts[name] || "").includes(`SANDFEST_PUBLIC_SITE_URL=${boardPublicOriginContract}`)));
+  const alternateBoardEndpoints = boardDemoCheckEndpoints({
+    SANDFEST_BOARD_PUBLIC_SITE_URL: "http://127.0.0.1:5176",
+    SANDFEST_BOARD_API_BASE: "http://127.0.0.1:8816",
+    SANDFEST_BOARD_EMAIL_BASE: "http://127.0.0.1:8817",
+    SANDFEST_BOARD_SMS_BASE: "http://127.0.0.1:8818"
+  });
+  const explicitBoardEndpoints = boardDemoCheckEndpoints({
+    SANDFEST_BOARD_PUBLIC_SITE_URL: "http://127.0.0.1:5176",
+    SANDFEST_BOARD_WEB_URL: "http://localhost:5190/?apiBase=http://127.0.0.1:8890&mode=visitor"
+  });
+  let remoteBoardPublicSiteRejected = false;
+  try {
+    boardDemoCheckEndpoints({ SANDFEST_BOARD_PUBLIC_SITE_URL: "https://example.com" });
+  } catch {
+    remoteBoardPublicSiteRejected = true;
+  }
+  ok("board preflight follows the shared public origin by default", alternateBoardEndpoints.webOrigin === "http://127.0.0.1:5176"
+    && new URL(alternateBoardEndpoints.webUrl).searchParams.get("apiBase") === "http://127.0.0.1:8816"
+    && explicitBoardEndpoints.webOrigin === "http://localhost:5190"
+    && remoteBoardPublicSiteRejected);
 
   const readyBoardState = {
     web: { ok: true, status: 200, html: "<script>globalThis.__SANDFEST_BOARD_ADMIN_TOKEN__ = 'hidden';</script>" },
-    health: { ok: true, service: "sandfest-admin-api" },
+    webOrigin: "http://127.0.0.1:5175",
+    health: { ok: true, service: "sandfest-admin-api", publicSiteUrl: "http://127.0.0.1:5175" },
     bootstrap: { runtime: { mode: "board_demo" } },
     ready: { ok: true, checks: { workerStatus: { healthy: true }, queueStatus: { operational: true, unhandledFailed: 0 } } },
     emailSandbox: { ok: true, service: "sandfest-board-email-sandbox", mode: "board_demo" },
@@ -569,11 +594,13 @@ console.log("\n=== Pure library suite ===\n");
   const failedBoardReport = evaluateBoardDemoReadiness({
     ...readyBoardState,
     web: { ok: true, status: 200, html: "<main>ordinary development server</main>" },
+    health: { ...readyBoardState.health, publicSiteUrl: "http://127.0.0.1:5176" },
     conditions: { ...readyBoardState.conditions, summary: { ...readyBoardState.conditions.summary, liveCameras: 0, healthyPipelines: 0, offlinePipelines: 8 } }
   });
-  ok("board demo readiness accepts the complete local stack", readyBoardReport.ok && readyBoardReport.passed === readyBoardReport.total && readyBoardReport.total === 8);
-  ok("board demo readiness diagnoses ordinary web and stopped playback", !failedBoardReport.ok
+  ok("board demo readiness accepts the complete local stack", readyBoardReport.ok && readyBoardReport.passed === readyBoardReport.total && readyBoardReport.total === 9);
+  ok("board demo readiness diagnoses origin, ordinary web, and stopped playback", !failedBoardReport.ok
     && failedBoardReport.checks.find(item => item.id === "auto_session")?.ok === false
+    && failedBoardReport.checks.find(item => item.id === "public_links")?.ok === false
     && failedBoardReport.checks.find(item => item.id === "camera_fleet")?.ok === false
     && !JSON.stringify(failedBoardReport).includes(boardDemoAccess.token));
   let remoteBoardCheckRejected = false;
