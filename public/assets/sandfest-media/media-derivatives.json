@@ -50,296 +50,212 @@
       ]
     },
     {
-      "sourcePath": "/assets/sandfest-media/photos/f800df-b05ba62d4f574a6da81bb26bb1c1ca00-mv2-jpg-f800df-b05ba62d4f574a6da81bb26bb1c1ca00-mv2-jpg.jpg",
+      "sourcePath": "/assets/sandfest-media/photos/f800df-e4280e8d8b1549e8910dcd9a7ad7556f-mv2-jpg-dsc08186-jpg.jpg",
       "kind": "gallery",
-      "defaultPath": "/assets/sandfest-media/optimized/gallery-f273d9262f70-720.webp",
+      "defaultPath": "/assets/sandfest-media/optimized/gallery-3486b5e1f6cc-720.webp",
+      "width": 720,
+      "height": 481,
+      "sources": [
+        {
+          "publicPath": "/assets/sandfest-media/optimized/gallery-3486b5e1f6cc-360.webp",
+          "width": 360,
+          "height": 240,
+          "bytes": 20480
+        },
+        {
+          "publicPath": "/assets/sandfest-media/optimized/gallery-3486b5e1f6cc-720.webp",
+          "width": 720,
+          "height": 481,
+          "bytes": 63960
+        }
+      ]
+    },
+    {
+      "sourcePath": "/assets/sandfest-media/photos/f800df-0da27b8877a14262a468e2572539bbb0-mv2-jpg-dsc07846-jpg.jpg",
+      "kind": "gallery",
+      "defaultPath": "/assets/sandfest-media/optimized/gallery-16783cb481bb-720.webp",
       "width": 720,
       "height": 480,
       "sources": [
         {
-          "publicPath": "/assets/sandfest-media/optimized/gallery-f273d9262f70-360.webp",
+          "publicPath": "/assets/sandfest-media/optimized/gallery-16783cb481bb-360.webp",
           "width": 360,
           "height": 240,
-          "bytes": 9858
+          "bytes": 16182
         },
         {
-          "publicPath": "/assets/sandfest-media/optimized/gallery-f273d9262f70-720.webp",
+          "publicPath": "/assets/sandfest-media/optimized/gallery-16783cb481bb-720.webp",
           "width": 720,
           "height": 480,
-          "bytes": 30624
+          "bytes": 61662
         }
       ]
     },
     {
-      "sourcePath": "/assets/sandfest-media/photos/f800df-e2ee06389b0f41bda26ee00078ebd68a-mv2-jpg-f800df-e2ee06389b0f41bda26ee00078ebd68a-mv2-jpg.jpg",
+      "sourcePath": "/assets/sandfest-media/photos/f800df-543f2f12010240f5a1b0a37221155b7e-mv2-jpg-dsc08716-jpg.jpg",
       "kind": "gallery",
-      "defaultPath": "/assets/sandfest-media/optimized/gallery-839460c92876-720.webp",
-      "width": 720,
-      "height": 405,
-      "sources": [
-        {
-          "publicPath": "/assets/sandfest-media/optimized/gallery-839460c92876-360.webp",
-          "width": 360,
-          "height": 202,
-          "bytes": 16004
-        },
-        {
-          "publicPath": "/assets/sandfest-media/optimized/gallery-839460c92876-720.webp",
-          "width": 720,
-          "height": 405,
-          "bytes": 57784
-        }
-      ]
-    },
-    {
-      "sourcePath": "/assets/sandfest-media/photos/11062b-e298cfdb13fc435c87ec381beb6fc85e-mv2-jpg-11062b-e298cfdb13fc435c87ec381beb6fc85e-mv2-jpg.jpg",
-      "kind": "gallery",
-      "defaultPath": "/assets/sandfest-media/optimized/gallery-b366e899b26e-720.webp",
+      "defaultPath": "/assets/sandfest-media/optimized/gallery-43b9e7c4f1b5-720.webp",
       "width": 720,
       "height": 480,
       "sources": [
         {
-          "publicPath": "/assets/sandfest-media/optimized/gallery-b366e899b26e-360.webp",
+          "publicPath": "/assets/sandfest-media/optimized/gallery-43b9e7c4f1b5-360.webp",
           "width": 360,
           "height": 240,
-          "bytes": 2824
+          "bytes": 23304
         },
         {
-          "publicPath": "/assets/sandfest-media/optimized/gallery-b366e899b26e-720.webp",
+          "publicPath": "/assets/sandfest-media/optimized/gallery-43b9e7c4f1b5-720.webp",
           "width": 720,
           "height": 480,
-          "bytes": 6886
+          "bytes": 77218
         }
       ]
     },
     {
-      "sourcePath": "/assets/sandfest-media/photos/11062b-e8771669914d4b8a949e06893dfd43a0-mv2-jpg-11062b-e8771669914d4b8a949e06893dfd43a0-mv2-jpg.jpg",
+      "sourcePath": "/assets/sandfest-media/photos/f800df-4eb53e6fb1c94f6ca83593ee8a975313-mv2-jpg-dsc07802-jpg.jpg",
       "kind": "gallery",
-      "defaultPath": "/assets/sandfest-media/optimized/gallery-325a3b61fc86-720.webp",
+      "defaultPath": "/assets/sandfest-media/optimized/gallery-89a21f950d3f-720.webp",
       "width": 720,
-      "height": 488,
+      "height": 480,
       "sources": [
         {
-          "publicPath": "/assets/sandfest-media/optimized/gallery-325a3b61fc86-360.webp",
+          "publicPath": "/assets/sandfest-media/optimized/gallery-89a21f950d3f-360.webp",
           "width": 360,
-          "height": 244,
-          "bytes": 7796
+          "height": 240,
+          "bytes": 16494
         },
         {
-          "publicPath": "/assets/sandfest-media/optimized/gallery-325a3b61fc86-720.webp",
+          "publicPath": "/assets/sandfest-media/optimized/gallery-89a21f950d3f-720.webp",
           "width": 720,
-          "height": 488,
-          "bytes": 71558
+          "height": 480,
+          "bytes": 42214
         }
       ]
     },
     {
-      "sourcePath": "/assets/sandfest-media/photos/f800df-276285d5d6e5432ea12492ed8d318b1d-mv2-jpeg-f800df-276285d5d6e5432ea12492ed8d318b1d-mv2-jpeg.jpg",
+      "sourcePath": "/assets/sandfest-media/photos/f800df-9a128dab309a4962a49805a6a16a7d49-mv2-jpg-dsc08548-jpg.jpg",
       "kind": "gallery",
-      "defaultPath": "/assets/sandfest-media/optimized/gallery-0ed825f80de9-720.webp",
+      "defaultPath": "/assets/sandfest-media/optimized/gallery-d5f692f2835d-720.webp",
       "width": 720,
-      "height": 720,
+      "height": 1079,
       "sources": [
         {
-          "publicPath": "/assets/sandfest-media/optimized/gallery-0ed825f80de9-360.webp",
+          "publicPath": "/assets/sandfest-media/optimized/gallery-d5f692f2835d-360.webp",
           "width": 360,
-          "height": 360,
-          "bytes": 14446
+          "height": 540,
+          "bytes": 24482
         },
         {
-          "publicPath": "/assets/sandfest-media/optimized/gallery-0ed825f80de9-720.webp",
+          "publicPath": "/assets/sandfest-media/optimized/gallery-d5f692f2835d-720.webp",
           "width": 720,
-          "height": 720,
-          "bytes": 32334
+          "height": 1079,
+          "bytes": 65852
         }
       ]
     },
     {
-      "sourcePath": "/assets/sandfest-media/photos/f800df-0040a10da3b541058bb6939973ae5096-mv2-jpg-f800df-0040a10da3b541058bb6939973ae5096-mv2-jpg.jpg",
+      "sourcePath": "/assets/sandfest-media/photos/f800df-22d89a1389504d948291d8570e11b98e-mv2-jpg-dsc08541-jpg.jpg",
       "kind": "gallery",
-      "defaultPath": "/assets/sandfest-media/optimized/gallery-01cd8bd5a6ae-720.webp",
+      "defaultPath": "/assets/sandfest-media/optimized/gallery-63b1440725be-720.webp",
       "width": 720,
-      "height": 432,
+      "height": 480,
       "sources": [
         {
-          "publicPath": "/assets/sandfest-media/optimized/gallery-01cd8bd5a6ae-360.webp",
+          "publicPath": "/assets/sandfest-media/optimized/gallery-63b1440725be-360.webp",
           "width": 360,
-          "height": 216,
-          "bytes": 8608
+          "height": 240,
+          "bytes": 18538
         },
         {
-          "publicPath": "/assets/sandfest-media/optimized/gallery-01cd8bd5a6ae-720.webp",
+          "publicPath": "/assets/sandfest-media/optimized/gallery-63b1440725be-720.webp",
           "width": 720,
-          "height": 432,
-          "bytes": 19516
+          "height": 480,
+          "bytes": 59436
         }
       ]
     },
     {
-      "sourcePath": "/assets/sandfest-media/photos/f800df-82cd7a1461bc4e15a4cdc474ccfd0995-mv2-jpg-stbp-jpg.jpg",
+      "sourcePath": "/assets/sandfest-media/photos/f800df-6b4c73b059564218aabb760deafa0310-mv2-jpg-dsc00673-edited-jpg.jpg",
       "kind": "gallery",
-      "defaultPath": "/assets/sandfest-media/optimized/gallery-dff7cef31bcc-720.webp",
+      "defaultPath": "/assets/sandfest-media/optimized/gallery-a65565713c4c-720.webp",
       "width": 720,
-      "height": 218,
+      "height": 367,
       "sources": [
         {
-          "publicPath": "/assets/sandfest-media/optimized/gallery-dff7cef31bcc-360.webp",
+          "publicPath": "/assets/sandfest-media/optimized/gallery-a65565713c4c-360.webp",
           "width": 360,
-          "height": 109,
-          "bytes": 4970
+          "height": 183,
+          "bytes": 14538
         },
         {
-          "publicPath": "/assets/sandfest-media/optimized/gallery-dff7cef31bcc-720.webp",
+          "publicPath": "/assets/sandfest-media/optimized/gallery-a65565713c4c-720.webp",
           "width": 720,
-          "height": 218,
-          "bytes": 10040
+          "height": 367,
+          "bytes": 41978
         }
       ]
     },
     {
-      "sourcePath": "/assets/sandfest-media/photos/f800df-7e5bf6ece54344a8a10fea772cc41296-mv2-jpeg-jetty-boat-jpeg.jpg",
+      "sourcePath": "/assets/sandfest-media/photos/f800df-f833ad5b44a44ac081d792ffc30bbfca-mv2-jpg-dsc08225-jpg.jpg",
       "kind": "gallery",
-      "defaultPath": "/assets/sandfest-media/optimized/gallery-abf2ff1edfb0-720.webp",
+      "defaultPath": "/assets/sandfest-media/optimized/gallery-e5771fed0916-720.webp",
       "width": 720,
-      "height": 615,
+      "height": 480,
       "sources": [
         {
-          "publicPath": "/assets/sandfest-media/optimized/gallery-abf2ff1edfb0-360.webp",
+          "publicPath": "/assets/sandfest-media/optimized/gallery-e5771fed0916-360.webp",
           "width": 360,
-          "height": 307,
-          "bytes": 3806
+          "height": 240,
+          "bytes": 11968
         },
         {
-          "publicPath": "/assets/sandfest-media/optimized/gallery-abf2ff1edfb0-720.webp",
+          "publicPath": "/assets/sandfest-media/optimized/gallery-e5771fed0916-720.webp",
           "width": 720,
-          "height": 615,
-          "bytes": 8620
+          "height": 480,
+          "bytes": 31656
         }
       ]
     },
     {
-      "sourcePath": "/assets/sandfest-media/photos/f800df-b45ec5f6ec0c44c4b722043e75777360-mv2-jpeg-joy-jpeg.jpg",
+      "sourcePath": "/assets/sandfest-media/photos/f800df-3ed94510587a4568952f8b05b049e00f-mv2-jpg-copy-of-dsc08906-jpg.jpg",
       "kind": "field",
-      "defaultPath": "/assets/sandfest-media/optimized/field-bcd76a560193-720.webp",
+      "defaultPath": "/assets/sandfest-media/optimized/field-f532d9e23b60-720.webp",
       "width": 720,
-      "height": 541,
+      "height": 480,
       "sources": [
         {
-          "publicPath": "/assets/sandfest-media/optimized/field-bcd76a560193-360.webp",
+          "publicPath": "/assets/sandfest-media/optimized/field-f532d9e23b60-360.webp",
           "width": 360,
-          "height": 270,
-          "bytes": 8868
+          "height": 240,
+          "bytes": 10422
         },
         {
-          "publicPath": "/assets/sandfest-media/optimized/field-bcd76a560193-720.webp",
+          "publicPath": "/assets/sandfest-media/optimized/field-f532d9e23b60-720.webp",
           "width": 720,
-          "height": 541,
-          "bytes": 17236
+          "height": 480,
+          "bytes": 25852
         }
       ]
     },
     {
-      "sourcePath": "/assets/sandfest-media/photos/f800df-4fb04318170d4af18a46775f0cb4ade0-mv2-jpg-f800df-4fb04318170d4af18a46775f0cb4ade0-mv2-jpg.jpg",
+      "sourcePath": "/assets/sandfest-media/photos/f800df-0b0d8c05923a4af691a77fb72f85e4af-mv2-jpg-photo-apr-27-2025-12-19-49-pm-jpg.jpg",
       "kind": "field",
-      "defaultPath": "/assets/sandfest-media/optimized/field-1c34be3ec0be-720.webp",
+      "defaultPath": "/assets/sandfest-media/optimized/field-1be68c90ad42-720.webp",
       "width": 720,
-      "height": 720,
+      "height": 960,
       "sources": [
         {
-          "publicPath": "/assets/sandfest-media/optimized/field-1c34be3ec0be-360.webp",
+          "publicPath": "/assets/sandfest-media/optimized/field-1be68c90ad42-360.webp",
           "width": 360,
-          "height": 360,
-          "bytes": 4990
+          "height": 480,
+          "bytes": 19542
         },
         {
-          "publicPath": "/assets/sandfest-media/optimized/field-1c34be3ec0be-720.webp",
+          "publicPath": "/assets/sandfest-media/optimized/field-1be68c90ad42-720.webp",
           "width": 720,
-          "height": 720,
-          "bytes": 12178
-        }
-      ]
-    },
-    {
-      "sourcePath": "/assets/sandfest-media/photos/f800df-9079949f74174202a475f6614c3dd27a-mv2-jpg-f800df-9079949f74174202a475f6614c3dd27a-mv2-jpg.jpg",
-      "kind": "field",
-      "defaultPath": "/assets/sandfest-media/optimized/field-0868b4663bc1-720.webp",
-      "width": 500,
-      "height": 218,
-      "sources": [
-        {
-          "publicPath": "/assets/sandfest-media/optimized/field-0868b4663bc1-360.webp",
-          "width": 360,
-          "height": 157,
-          "bytes": 5556
-        },
-        {
-          "publicPath": "/assets/sandfest-media/optimized/field-0868b4663bc1-720.webp",
-          "width": 500,
-          "height": 218,
-          "bytes": 8034
-        }
-      ]
-    },
-    {
-      "sourcePath": "/assets/sandfest-media/photos/f800df-8fbe8310bf5e4f31b8b18292239e1eed-mv2-jpg-f800df-8fbe8310bf5e4f31b8b18292239e1eed-mv2-jpg.jpg",
-      "kind": "field",
-      "defaultPath": "/assets/sandfest-media/optimized/field-3b690192ec3f-720.webp",
-      "width": 720,
-      "height": 275,
-      "sources": [
-        {
-          "publicPath": "/assets/sandfest-media/optimized/field-3b690192ec3f-360.webp",
-          "width": 360,
-          "height": 137,
-          "bytes": 6382
-        },
-        {
-          "publicPath": "/assets/sandfest-media/optimized/field-3b690192ec3f-720.webp",
-          "width": 720,
-          "height": 275,
-          "bytes": 13252
-        }
-      ]
-    },
-    {
-      "sourcePath": "/assets/sandfest-media/photos/f800df-85bfdd6c2bb648b5a21fb7b808061439-mv2-jpg-f800df-85bfdd6c2bb648b5a21fb7b808061439-mv2-jpg.jpg",
-      "kind": "field",
-      "defaultPath": "/assets/sandfest-media/optimized/field-ad0a960b0825-720.webp",
-      "width": 480,
-      "height": 530,
-      "sources": [
-        {
-          "publicPath": "/assets/sandfest-media/optimized/field-ad0a960b0825-360.webp",
-          "width": 360,
-          "height": 398,
-          "bytes": 9550
-        },
-        {
-          "publicPath": "/assets/sandfest-media/optimized/field-ad0a960b0825-720.webp",
-          "width": 480,
-          "height": 530,
-          "bytes": 12702
-        }
-      ]
-    },
-    {
-      "sourcePath": "/assets/sandfest-media/photos/f800df-691acd5b747a413ab4c1d8054b5fab0b-mv2-jpg-f800df-691acd5b747a413ab4c1d8054b5fab0b-mv2-jpg.jpg",
-      "kind": "field",
-      "defaultPath": "/assets/sandfest-media/optimized/field-a2e91172b977-720.webp",
-      "width": 720,
-      "height": 406,
-      "sources": [
-        {
-          "publicPath": "/assets/sandfest-media/optimized/field-a2e91172b977-360.webp",
-          "width": 360,
-          "height": 203,
-          "bytes": 10150
-        },
-        {
-          "publicPath": "/assets/sandfest-media/optimized/field-a2e91172b977-720.webp",
-          "width": 720,
-          "height": 406,
-          "bytes": 23116
+          "height": 960,
+          "bytes": 53312
         }
       ]
     },

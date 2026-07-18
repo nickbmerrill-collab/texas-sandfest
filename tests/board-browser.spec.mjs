@@ -263,6 +263,18 @@ test("board workflows operate through the public and staff interfaces", async ({
 
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#sponsors`);
   await expect(page.locator("#network-status")).toHaveText("Demo");
+  await expect(page.locator("#experience")).toBeHidden();
+  await expect(page.locator("#port-a")).toBeHidden();
+  await expect(page.locator('header nav a[href="#port-a"]')).toBeHidden();
+  await expect(page.locator("#media")).toContainText("Scenes from SandFest");
+  await expect(page.locator(".map-media-section")).toContainText("See the beach corridor before you arrive.");
+  await expect(page.locator("#media")).not.toContainText("Scraped frontend media");
+  await expect(page.locator(".map-media-section")).not.toContainText("should become reviewed records");
+  const galleryImages = page.locator("#media .media-gallery img");
+  await expect(galleryImages).toHaveCount(8);
+  await expect.poll(() => galleryImages.evaluateAll(images => images.every(image => image.complete && image.naturalWidth > 0))).toBe(true);
+  await expect.poll(() => galleryImages.evaluateAll(images => images.every(image => new URL(image.currentSrc).pathname.includes("/assets/sandfest-media/optimized/gallery-")))).toBe(true);
+  await expect.poll(() => galleryImages.evaluateAll(images => images.every(image => image.alt && !/^DSC/i.test(image.alt)))).toBe(true);
   await expect(page.locator("#public-sponsor-tiers [data-package-id]")).toHaveCount(4);
   const featuredSponsor = page.locator("#public-sponsor-showcase .public-sponsor-card").filter({ hasText: "Gulf Shore Credit Union" });
   await expect(featuredSponsor).toHaveCount(1);

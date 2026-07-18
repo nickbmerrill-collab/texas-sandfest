@@ -283,6 +283,11 @@ import {
   siteModeForHash
 } from "../lib/site-mode.mjs";
 import {
+  PUBLIC_FIELD_MEDIA,
+  PUBLIC_GALLERY_MEDIA,
+  selectPublicMediaAssets
+} from "../lib/public-media-selection.mjs";
+import {
   createIncidentDispatch,
   createOperationsIncident,
   deriveCameraCondition,
@@ -600,7 +605,13 @@ console.log("\n=== Pure library suite ===\n");
 // of the previously viewed surface. Production visitor builds remain public.
 {
   ok("site mode aliases normalize", normalizeSiteMode("Visitor") === "public" && normalizeSiteMode("operations") === "ops" && normalizeSiteMode("other") == null);
-  ok("public and operations deep links select their audience", siteModeForHash("#sponsors") === "public" && siteModeForHash("#operations") === "ops" && siteModeForHash("#admin-partners") === "ops" && siteModeForHash("#admin-system-monitor") === "ops");
+  ok("public and operations deep links select their audience", siteModeForHash("#sponsors") === "public"
+    && siteModeForHash("#media") === "public"
+    && siteModeForHash("#experience") === "ops"
+    && siteModeForHash("#port-a") === "ops"
+    && siteModeForHash("#operations") === "ops"
+    && siteModeForHash("#admin-partners") === "ops"
+    && siteModeForHash("#admin-system-monitor") === "ops");
   ok("site mode URL overrides saved demo state", resolveInitialSiteMode({ opsDemoEnabled: true, queryMode: "visitor", hash: "#operations", savedMode: "ops" }) === "public");
   ok("site mode deep link overrides saved demo state", resolveInitialSiteMode({ opsDemoEnabled: true, hash: "#sponsors", savedMode: "ops" }) === "public" && resolveInitialSiteMode({ opsDemoEnabled: true, hash: "#finance", savedMode: "public" }) === "ops" && resolveInitialSiteMode({ opsDemoEnabled: true, hash: "#admin-revenue", savedMode: "public" }) === "ops");
   ok("production visitor and admin modes fail closed", resolveInitialSiteMode({ opsDemoEnabled: false, queryMode: "ops", savedMode: "ops" }) === "public" && resolveInitialSiteMode({ adminEntry: true, opsDemoEnabled: true, queryMode: "visitor" }) === "ops");
@@ -813,6 +824,23 @@ console.log("\n=== Pure library suite ===\n");
     remoteBoardCheckRejected = true;
   }
   ok("board demo preflight endpoints stay exact-loopback", boardDemoLoopbackUrl("http://127.0.0.1:8806").hostname === "127.0.0.1" && remoteBoardCheckRejected);
+}
+
+// Public imagery is editorially selected so imported logos or source-order
+// changes cannot leak into the visitor gallery.
+{
+  const sampleAssets = [...PUBLIC_GALLERY_MEDIA, ...PUBLIC_FIELD_MEDIA].map((item, index) => ({
+    name: item.name,
+    alt: "",
+    category: "photos",
+    publicPath: `/photos/${index}.jpg`
+  }));
+  const gallery = selectPublicMediaAssets(sampleAssets, PUBLIC_GALLERY_MEDIA);
+  const field = selectPublicMediaAssets(sampleAssets, PUBLIC_FIELD_MEDIA);
+  ok("public media selection resolves every curated photograph", gallery.length === 8 && field.length === 2);
+  ok("public media selection preserves editorial order", gallery.map(asset => asset.name).join("|") === PUBLIC_GALLERY_MEDIA.map(item => item.name).join("|"));
+  ok("public media selection supplies meaningful alternative text", [...gallery, ...field].every(asset => asset.alt && !/^DSC/i.test(asset.alt)));
+  ok("public media selection ignores unrelated imported assets", selectPublicMediaAssets([{ name: "Sponsor Logo.png" }], PUBLIC_GALLERY_MEDIA).length === 0);
 }
 
 // Private portal capabilities leave the URL before network work begins. A
