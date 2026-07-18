@@ -147,6 +147,11 @@ signals use the same partner API payload as the detailed queues and link
 directly to application intake, receivables, message review, assignments, key
 dates, sponsor fulfillment, vendor readiness, and sponsor outreach. Attention
 states remain visible in the summary instead of being hidden for the demo.
+The recent partner workflow activity feed directly below the partner totals
+groups same-batch lifecycle events and resolves readable organization or task
+names. It demonstrates intake, finance, key-date, messaging, work-board,
+branding, vendor, and outreach automation in one staff-only history without
+rendering raw activity, application, follow-up, or capability identifiers.
 
 In the board-only runtime, each application card includes **Open demo portal**
 beside its status controls. The action rotates the application's audited private

@@ -390,6 +390,19 @@ test("board workflows operate through the public and staff interfaces", async ({
   await expect(commandSignals.locator('[data-command-signal="sponsors"]')).toContainText("assets approved");
   await expect(commandSignals.locator('[data-command-signal="vendors"]')).toContainText("blocked");
   await expect(commandSignals.locator('[data-command-signal="outreach"]')).toContainText("qualified");
+  const partnerActivity = page.locator("#admin-partner-activity");
+  const partnerActivityRows = partnerActivity.locator("[data-partner-activity]");
+  expect(await partnerActivityRows.count()).toBeGreaterThanOrEqual(15);
+  await expect(page.locator("#admin-partner-activity-summary")).toContainText("recorded events");
+  for (const category of ["intake", "finance", "schedule", "messaging", "work", "branding", "vendor", "outreach"]) {
+    await expect(partnerActivity.locator(`[data-category="${category}"]`).first()).toBeVisible();
+  }
+  await expect(partnerActivity).toContainText("Payment recorded");
+  await expect(partnerActivity).toContainText("Invoice created");
+  await expect(partnerActivity).toContainText("Partner message prepared");
+  await expect(partnerActivity).toContainText(/assignment notices prepared/i);
+  await expect(partnerActivity).toContainText("Brand profile approved");
+  expect(await partnerActivity.textContent()).not.toMatch(/activity_|demo_[sv]app|followup_/);
   const deferredRecovery = page.locator('#admin-deployment-checks [data-board-stage="post-presentation"]');
   await expect(deferredRecovery).toHaveCount(1);
   await expect(deferredRecovery).toContainText("Post-board");
