@@ -1210,6 +1210,7 @@ time {
 
 .admin-config-section {
   max-width: 1240px;
+  scroll-margin-top: 72px;
 }
 
 .admin-surface > section:not(.admin-config-section) {
@@ -1250,6 +1251,7 @@ time {
   color: var(--deep);
 }
 
+#admin-documents,
 #admin-system-monitor,
 #admin-revenue,
 #admin-fleet,

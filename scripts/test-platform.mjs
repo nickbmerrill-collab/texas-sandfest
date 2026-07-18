@@ -517,9 +517,9 @@ console.log("\n=== Pure library suite ===\n");
 // of the previously viewed surface. Production visitor builds remain public.
 {
   ok("site mode aliases normalize", normalizeSiteMode("Visitor") === "public" && normalizeSiteMode("operations") === "ops" && normalizeSiteMode("other") == null);
-  ok("public and operations deep links select their audience", siteModeForHash("#sponsors") === "public" && siteModeForHash("#operations") === "ops");
+  ok("public and operations deep links select their audience", siteModeForHash("#sponsors") === "public" && siteModeForHash("#operations") === "ops" && siteModeForHash("#admin-partners") === "ops" && siteModeForHash("#admin-system-monitor") === "ops");
   ok("site mode URL overrides saved demo state", resolveInitialSiteMode({ opsDemoEnabled: true, queryMode: "visitor", hash: "#operations", savedMode: "ops" }) === "public");
-  ok("site mode deep link overrides saved demo state", resolveInitialSiteMode({ opsDemoEnabled: true, hash: "#sponsors", savedMode: "ops" }) === "public" && resolveInitialSiteMode({ opsDemoEnabled: true, hash: "#finance", savedMode: "public" }) === "ops");
+  ok("site mode deep link overrides saved demo state", resolveInitialSiteMode({ opsDemoEnabled: true, hash: "#sponsors", savedMode: "ops" }) === "public" && resolveInitialSiteMode({ opsDemoEnabled: true, hash: "#finance", savedMode: "public" }) === "ops" && resolveInitialSiteMode({ opsDemoEnabled: true, hash: "#admin-revenue", savedMode: "public" }) === "ops");
   ok("production visitor and admin modes fail closed", resolveInitialSiteMode({ opsDemoEnabled: false, queryMode: "ops", savedMode: "ops" }) === "public" && resolveInitialSiteMode({ adminEntry: true, opsDemoEnabled: true, queryMode: "visitor" }) === "ops");
   const boardDemoAccess = boardDemoAccessConfig({
     development: true,

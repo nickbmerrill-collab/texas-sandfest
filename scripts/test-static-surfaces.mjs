@@ -214,6 +214,12 @@ for (const marker of [
   assert(visitorSource.includes(marker), `Admin source is missing the accessible control marker ${marker}.`);
 }
 assert(visitorSource.includes('if (ADMIN_ENTRY) {\n      link.dataset.audience = "ops";') && visitorSource.includes('if (OPS_DEMO_ENABLED) {\n    window.addEventListener("hashchange"'), "Admin workspace navigation is not isolated from the visitor demo mode switch.");
+assert(visitorSource.includes('<a href="#admin-config">Overview</a>')
+  && visitorSource.includes('<a href="#admin-partners">Partners</a>')
+  && visitorSource.includes('const targetHash = requestedMode === "ops" ? "#admin-config" : "#top";'), "The local board mode switch does not land on functional operations workspaces.");
+assert(visitorSource.includes("if (BOARD_DEMO_ACCESS.enabled) boardDemoWorkspaceLoaded = true;\n    stabilizeRenderedHashTarget();"), "Async operations loading can push the selected board-demo workspace out of view.");
+assert(publicStylesheets.includes(".admin-config-section{max-width:1240px;scroll-margin-top:72px}")
+  && publicStylesheets.includes("#admin-documents,#admin-system-monitor,#admin-revenue,#admin-fleet,#admin-volunteers,#admin-partners,#admin-island-conditions{scroll-margin-top:132px}"), "Operations shortcuts can land underneath the sticky workspace navigation.");
 assert(!visitorSource.includes('class="lb-svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true"'), "Interactive Live Beach SVG is hidden from assistive technology.");
 assert(!publicStylesheets.includes("outline:none") && !publicStylesheets.includes("outline: none"), "Public stylesheet removes a keyboard focus outline.");
 assert(publicStylesheets.includes("outline:3px solid var(--sun)") && adminStylesheets.includes("outline:3px solid var(--sun)"), "Compiled surfaces are missing the high-visibility keyboard focus treatment.");
