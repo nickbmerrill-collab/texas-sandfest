@@ -149,6 +149,23 @@ npm run test:board-runtime
 
 The integration gate creates a temporary runtime, starts the real API plus local email and SMS providers, proves an explicit safety campaign with signed delivery and STOP/START callbacks, verifies finance/task/outreach/calendar exports, proves the current private staff directory and all seven team routes, converts the seeded prospect through a signed sponsor invitation, submits an additional vendor and sponsor, runs the worker, proves one delivered privacy-safe notice per assigned task, proves the standby camera state, drives all eight lanes through signed playback, verifies the live privacy-minimized camera state, and confirms the repository partner ledger is byte-for-byte unchanged.
 
+Run the real-browser acceptance separately after installing Playwright's local
+Chromium runtime once:
+
+```bash
+npx playwright install chromium
+npm run test:browser
+```
+
+This lane starts a fresh temporary board API and web server on random loopback
+ports. It submits vendor and sponsor applications through the rendered public
+forms, opens both private partner portals, verifies trusted amounts in the staff
+accounting view, delegates a roster-backed volunteer task, adds a partner key
+date, scores a geolocated outreach target, loads all eight Island Conditions
+lanes, and checks the critical public and operations views at a mobile viewport.
+CI installs an isolated Chromium runtime, retains screenshots and traces only on
+failure, and runs this acceptance inside `ready:production`.
+
 Immediately before a demonstration, verify the external Island Conditions
 sources separately:
 
