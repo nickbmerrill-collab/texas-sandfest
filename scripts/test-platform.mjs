@@ -650,6 +650,42 @@ console.log("\n=== Pure library suite ===\n");
     conditions: { ...readyBoardState.conditions, summary: { ...readyBoardState.conditions.summary, liveCameras: 0, healthyPipelines: 0, offlinePipelines: 8 } }
   });
   ok("board demo readiness accepts the complete local stack", readyBoardReport.ok && readyBoardReport.passed === readyBoardReport.total && readyBoardReport.total === 9);
+  const directionalCameraIds = ["harbor-island-entrance", "harbor-island-stacking", "ferry-loading", "ferry-stacking"];
+  const partialFerryConditions = {
+    ...readyBoardState.conditions,
+    ferry: {
+      status: "partial",
+      freshness: { state: "live" },
+      directions: [
+        { id: "to-port-aransas", status: "unavailable" },
+        { id: "to-aransas-pass", status: "live" }
+      ]
+    },
+    cameras: Array.from({ length: 8 }, (_, index) => ({
+      id: directionalCameraIds[index] || `camera-${index + 1}`,
+      operationalStatus: "live",
+      freshness: { state: "live" },
+      observation: { observedAt: "2026-07-16T12:00:00.000Z" }
+    }))
+  };
+  const partialFerryReport = evaluateBoardDemoReadiness({ ...readyBoardState, conditions: partialFerryConditions });
+  const uncoveredFerryReport = evaluateBoardDemoReadiness({
+    ...readyBoardState,
+    conditions: {
+      ...partialFerryConditions,
+      cameras: partialFerryConditions.cameras.filter(camera => !camera.id.startsWith("harbor-island-"))
+    }
+  });
+  const cameraOnlyFerryReport = evaluateBoardDemoReadiness({
+    ...readyBoardState,
+    conditions: {
+      ...partialFerryConditions,
+      ferry: { ...partialFerryConditions.ferry, status: "camera_estimate" }
+    }
+  });
+  ok("board demo readiness requires signed camera coverage for partial ferry data", partialFerryReport.ok
+    && uncoveredFerryReport.checks.find(item => item.id === "island_feeds")?.ok === false
+    && cameraOnlyFerryReport.checks.find(item => item.id === "island_feeds")?.ok === false);
   ok("board demo readiness diagnoses origin, ordinary web, and stopped playback", !failedBoardReport.ok
     && failedBoardReport.checks.find(item => item.id === "auto_session")?.ok === false
     && failedBoardReport.checks.find(item => item.id === "public_links")?.ok === false
