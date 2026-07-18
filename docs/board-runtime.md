@@ -184,6 +184,12 @@ the recorded lifecycle timestamps. The worker must retain exactly one delivered
 assignment notice and no active overdue escalation after completion. Weekly
 overdue reminders remain enabled for tasks that stay open, in progress, or
 blocked; the 24-hour assignment grace period prevents an immediate double send.
+The fresh sponsor's custom artwork key date is placed inside its configured
+lead window, delivered once through the same local transactional lifecycle, and
+then completed in Operations with an audited completion timestamp. The browser
+gate rejects duplicate reminders or any still-active reminder after that date
+is closed, while overdue dates continue to advance on the documented weekly
+cadence when staff leave them open.
 
 The seeded Island Harbor Hotel prospect is already qualified, geolocated, and
 assigned. Choose a sponsor package and use **Issue invitation**, then **Open

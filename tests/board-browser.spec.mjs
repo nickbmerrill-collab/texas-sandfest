@@ -253,6 +253,7 @@ test("board workflows operate through the public and staff interfaces", async ({
   const sponsorName = `Browser Coastal Health ${runId}`;
   const taskTitle = `Browser volunteer welcome desk ${runId}`;
   const milestoneLabel = `Browser sponsor artwork due ${runId}`;
+  const milestoneDueInput = new Date(Date.now() + 2 * 86_400_000).toISOString().slice(0, 16);
   const prospectName = `Browser Port A Hospitality ${runId}`;
   const prospectIndustry = `browser hospitality ${runId}`;
   const prospectRecipient = `morgan.${runId}@example.com`;
@@ -864,12 +865,17 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   const milestoneForm = page.locator("#admin-create-milestone");
   await milestoneForm.locator('[name="applicationId"]').selectOption(sponsorResult.application.id);
   await milestoneForm.locator('[name="label"]').fill(milestoneLabel);
-  await milestoneForm.locator('[name="dueAt"]').fill("2027-03-15T10:00");
+  await milestoneForm.locator('[name="dueAt"]').fill(milestoneDueInput);
   await milestoneForm.locator('[name="assigneeTeam"]').selectOption("sponsor");
   const milestonePath = `/api/admin/partners/applications/${sponsorResult.application.id}/milestones`;
   const milestoneResponse = page.waitForResponse(response => new URL(response.url()).pathname === milestonePath && response.request().method() === "POST");
   await milestoneForm.locator('button[type="submit"]').click();
-  expect((await milestoneResponse).status()).toBe(201);
+  const createdMilestoneResponse = await milestoneResponse;
+  expect(createdMilestoneResponse.status()).toBe(201);
+  const createdSponsorMilestone = (await createdMilestoneResponse.json()).milestone;
+  expect(createdSponsorMilestone.applicationId).toBe(sponsorResult.application.id);
+  expect(createdSponsorMilestone.status).toBe("open");
+  expect(createdSponsorMilestone.reminderLeadDays).toBe(3);
   await expect(page.locator("#admin-partner-milestones")).toContainText(milestoneLabel);
 
   const prospectForm = page.locator("#admin-create-prospect");
@@ -1028,6 +1034,20 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
     deliveredTaskAssignmentId = assignment?.id || null;
     return Boolean(deliveredTaskAssignmentId);
   }, { timeout: 15_000 }).toBe(true);
+  let deliveredMilestoneReminderId = null;
+  await expect.poll(async () => {
+    const response = await fetch(`${apiBase}/api/admin/partners`, { headers: { authorization: `Bearer ${TOKEN}` } });
+    const payload = await response.json();
+    const reminder = payload.followups?.find(item => item.milestoneId === createdSponsorMilestone.id
+      && item.kind === "milestone_reminder"
+      && item.reminderPhase === "upcoming"
+      && item.subject === `Texas SandFest ${milestoneLabel.toLowerCase()} reminder - ${sponsorResult.application.reference}`
+      && item.automationPolicy === "partner_transactional_v1"
+      && item.status === "sent"
+      && item.deliveryStatus === "delivered");
+    deliveredMilestoneReminderId = reminder?.id || null;
+    return Boolean(deliveredMilestoneReminderId);
+  }, { timeout: 15_000 }).toBe(true);
   const reloadPartners = Promise.all([
     page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/partners" && response.request().method() === "GET"),
     page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/outreach" && response.request().method() === "GET")
@@ -1046,6 +1066,36 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   await expect(deliveredTaskAssignment).toHaveAttribute("data-delivery-status", "delivered");
   await expect(deliveredTaskAssignment).toContainText(`Texas SandFest task assigned - ${taskTitle}`);
   await expect(deliveredTaskAssignment).toContainText("transactional automation");
+  const deliveredMilestoneReminder = page.locator(`#admin-partner-followups [data-followup="${deliveredMilestoneReminderId}"]`);
+  await expect(deliveredMilestoneReminder).toHaveCount(1);
+  await expect(deliveredMilestoneReminder).toHaveAttribute("data-delivery-status", "delivered");
+  await expect(deliveredMilestoneReminder).toContainText(`Texas SandFest ${milestoneLabel.toLowerCase()} reminder`);
+  await expect(deliveredMilestoneReminder).toContainText("transactional automation");
+  const freshSponsorMilestone = page.locator(`#admin-partner-milestones [data-admin-milestone="${createdSponsorMilestone.id}"]`);
+  await expect(freshSponsorMilestone).toContainText(milestoneLabel);
+  await expect(freshSponsorMilestone).toContainText("latest reminder upcoming (sent)");
+  await freshSponsorMilestone.locator('[name="status"]').selectOption("completed");
+  const completedMilestoneResponse = page.waitForResponse(response => new URL(response.url()).pathname === `/api/admin/partners/milestones/${createdSponsorMilestone.id}` && response.request().method() === "PATCH");
+  await freshSponsorMilestone.locator('[data-save-milestone]').click();
+  const completedMilestoneResult = await completedMilestoneResponse;
+  expect(completedMilestoneResult.status()).toBe(200);
+  const completedMilestone = (await completedMilestoneResult.json()).milestone;
+  expect(completedMilestone.status).toBe("completed");
+  expect(completedMilestone.completedAt).toBeTruthy();
+  await expect(page.locator("#admin-api-status")).toContainText("Key date saved.");
+  await expect(freshSponsorMilestone.locator('[name="status"]')).toHaveValue("completed");
+  await expect.poll(async () => {
+    const response = await fetch(`${apiBase}/api/admin/partners`, { headers: { authorization: `Bearer ${TOKEN}` } });
+    const payload = await response.json();
+    const milestone = payload.milestones?.find(item => item.id === createdSponsorMilestone.id);
+    const reminders = payload.followups?.filter(item => item.milestoneId === createdSponsorMilestone.id && item.kind === "milestone_reminder") || [];
+    const activeReminders = reminders.filter(item => !["dismissed", "sent"].includes(item.status));
+    return milestone?.status === "completed"
+      && Boolean(milestone.completedAt)
+      && reminders.length === 1
+      && reminders[0].deliveryStatus === "delivered"
+      && activeReminders.length === 0;
+  }, { timeout: 15_000 }).toBe(true);
   const freshVolunteerTask = page.locator(`#admin-partner-tasks [data-task="${createdVolunteerTask.id}"]`);
   await expect(freshVolunteerTask).toContainText(taskTitle);
   await expect(freshVolunteerTask).toContainText("Notification · delivered · task assignment");
