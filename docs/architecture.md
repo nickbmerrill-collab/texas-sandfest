@@ -34,7 +34,7 @@ Core jobs:
 - Push alerts for weather, traffic, gate queues, schedule changes, and safety notices.
 - Volunteer check-in, reassignment, shift reminders, and captain contact.
 - Incident capture for lost party, medical assist, ADA request, sanitation, vendor issue, security, and maintenance.
-- AI concierge with cached approved answers and escalation to staff.
+- Source-cited concierge answers from the shared governed public API, with honest stale-source handling and escalation to staff.
 
 ### Operations Console
 
@@ -145,11 +145,11 @@ Every AI-answerable fact needs:
 
 ## AI Rules
 
-- AI can answer only from approved source records.
-- AI answers cite source records and last-reviewed dates.
-- AI escalates high-risk categories: medical, safety, legal/policy dispute, lost child/person, payments, accessibility accommodation conflict, media credentials, sponsor contract issue.
-- AI logs unresolved question themes for content cleanup.
-- AI should be available on web, iOS, SMS, and staff console through the same backend.
+- Ask Sandy answers only from the privacy-safe public event, ticket, sponsor, vendor, weather, ferry, and camera projections.
+- Every answer cites one to four public sources; stale feeds are withheld rather than summarized as current.
+- Urgent medical, missing-person, and security questions state that Ask Sandy cannot dispatch help and direct immediate danger to 911 and on-site staff. Unsupported policy, payment, accessibility, media, and contract questions escalate to the public SandFest contact.
+- Public question text is bounded, rate-limited, sent with `cache-control: no-store`, and is not persisted or echoed in unsupported responses. Any future content-gap telemetry requires a separate aggregate privacy review.
+- Web uses `POST /api/public/concierge` today. iOS, SMS, and staff-console clients should reuse that governed contract instead of creating independent answer tables.
 
 ## Recommended Build Order
 

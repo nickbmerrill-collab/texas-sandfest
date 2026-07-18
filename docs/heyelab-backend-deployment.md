@@ -42,6 +42,7 @@ Routes:
 | `GET` | `/api/public/bootstrap` | Public | Shared app bootstrap payload |
 | `GET` | `/api/public/tickets` | Public | Current ticket catalog |
 | `GET` | `/api/public/sponsors` | Public | Active sponsor packages |
+| `POST` | `/api/public/concierge` | Public, rate-limited | Source-cited Ask Sandy answer over governed public data; question text is not persisted |
 | `POST` | `/api/public/vendor-applications` | Public + optional `Idempotency-Key` | Create one vendor workflow and replay it safely on network retry |
 | `POST` | `/api/public/sponsor-inquiries` | Public + optional `Idempotency-Key` | Create one sponsor workflow using a server-authoritative active tier |
 | `POST` | `/api/public/partner-status` | Capability token | Return a privacy-minimized application, payment, invoice, and milestone status |
@@ -479,7 +480,7 @@ In production, pair these app-level limits with Vercel Firewall or the chosen AP
 7. Connect Stripe sandbox keys and webhook signing secret.
 8. Connect QuickBooks sandbox credentials.
 9. Run health check: `GET /health` and readiness check: `GET /ready`.
-10. Verify public reads: `/api/public/tickets`, `/api/public/sponsors`.
+10. Verify public reads: `/api/public/tickets`, `/api/public/sponsors`, and a source-cited `POST /api/public/concierge` response with `cache-control: no-store`.
 11. Sign in through `sandfest-admin.heyelab.com`, confirm `/api/admin/session`, and load the operations workspace.
 12. Patch one sandbox ticket price and confirm the public endpoint reflects the change.
 13. Upload, review, and checksum-download one disposable private document; confirm it is included in the isolated asset-recovery manifest.

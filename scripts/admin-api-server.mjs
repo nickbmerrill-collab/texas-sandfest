@@ -185,6 +185,12 @@ import {
 } from "../lib/deployment-task-sync.mjs";
 import { publicAppBootstrap } from "../lib/public-bootstrap.mjs";
 import {
+  answerPublicConcierge,
+  parsePublicConciergeQuestion,
+  publicConciergeNeedsConditions,
+  publicConciergeResponseSafety
+} from "../lib/public-concierge.mjs";
+import {
   adminPartnerPortalAccess,
   findPartnerPortalApplication,
   issuePartnerPortalToken,
@@ -2013,6 +2019,7 @@ function rateLimitProfile(pathname, method) {
   if (method === "POST" && pathname === "/api/webhooks/brevo") return { name: "brevo-webhook", limit: PUBLIC_RATE_LIMIT };
   if (method === "POST" && pathname.startsWith("/api/webhooks/twilio/")) return { name: "twilio-webhook", limit: SMS_WEBHOOK_RATE_LIMIT };
   if (pathname === "/api/stripe/create-checkout-session") return { name: "checkout", limit: CHECKOUT_RATE_LIMIT };
+  if (method === "POST" && pathname === "/api/public/concierge") return { name: "concierge", limit: PUBLIC_RATE_LIMIT };
   if (method === "POST" && ["/api/public/partner-status", "/api/public/partner-payment-checkout", "/api/public/outreach-preferences"].includes(pathname)) {
     return { name: "partner-status", limit: PARTNER_STATUS_RATE_LIMIT };
   }
@@ -3437,6 +3444,43 @@ async function handleRequest(request, response) {
         publicAppBootstrap(bootstrap, { includeBoardRuntime: BOARD_DEMO_RUNTIME }),
         publicCacheHeaders(120)
       );
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/public/concierge") {
+      const body = await readBody(request);
+      const question = parsePublicConciergeQuestion(body.question);
+      if (!question.ok) {
+        sendJson(request, response, 400, { error: question.error }, { "cache-control": "no-store" });
+        return;
+      }
+      const [bootstrapInput, ticketInput, config, conditions] = await Promise.all([
+        storage.config.read("app-bootstrap"),
+        storage.config.read("ticket-products"),
+        storage.config.read("admin-config"),
+        publicConciergeNeedsConditions(question.topic)
+          ? readIslandConditions({ refreshWeather: true, refreshFerry: true })
+          : Promise.resolve(null)
+      ]);
+      const sponsorCatalog = sponsorPackageCatalog(config);
+      const vendorCatalog = vendorOfferingCatalog(config);
+      const answer = answerPublicConcierge(question.question, {
+        bootstrap: publicAppBootstrap(bootstrapInput, { includeBoardRuntime: BOARD_DEMO_RUNTIME }),
+        tickets: publicTicketCatalog(ticketInput, { checkoutEnabled: stripeReady() }),
+        sponsors: {
+          lastUpdated: config.lastUpdated || null,
+          sponsorPackages: sponsorCatalog.activePackages.map(publicSponsorPackage)
+        },
+        vendors: {
+          lastUpdated: config.lastUpdated || null,
+          vendorOfferings: vendorCatalog.activeOfferings.map(publicVendorOffering)
+        },
+        islandConditions: conditions ? publicIslandConditions(conditions) : null
+      });
+      const { ok: answered, ...payload } = answer;
+      const safety = publicConciergeResponseSafety(payload);
+      if (!answered || !safety.ready) throw new Error("Public concierge response failed its safety policy.");
+      sendJson(request, response, 200, payload, { "cache-control": "no-store" });
       return;
     }
 

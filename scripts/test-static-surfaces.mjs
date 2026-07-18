@@ -211,8 +211,10 @@ for (const marker of [
 }
 assert(!publicJavaScript.includes("April 17-19, 2026") && !publicJavaScript.includes("April 17, 2026"), "Public artifact contains stale 2026 event dates.");
 assert(visitorSource.includes('class="skip-link"') && visitorSource.includes('href="#top"'), "Visitor source is missing its keyboard skip link.");
-assert(visitorSource.includes('aria-label="Ask Sandy a question"'), "Public concierge input is missing an accessible name.");
+assert(visitorSource.includes('aria-label="Ask Sandy a question"') && visitorSource.includes('maxlength="280"'), "Public concierge input is not accessible and bounded.");
 assert(visitorSource.includes('class="chat-log" role="log" aria-live="polite"'), "Public concierge responses are not announced as a live conversation log.");
+assert(visitorSource.includes('/api/public/concierge') && visitorSource.includes('className = "concierge-sources"'), "Public concierge is not wired to governed source-cited answers.");
+assert(!visitorSource.includes("const knowledge = [") && !visitorSource.includes("What should the iOS app do first?"), "Public concierge still contains the internal hard-coded roadmap answer table.");
 assert(visitorSource.includes('id="checkout-status" class="checkout-status" role="status" aria-live="polite"'), "Ticket checkout is missing its live status region.");
 assert(visitorSource.includes('id="admin-api-status" class="checkout-status" role="status" aria-live="polite"'), "Admin operations are missing their live status region.");
 assert(visitorSource.includes('id="admin-deployment-checks" class="admin-deployment-checks" aria-live="polite"'), "Deployment readiness checks are missing their live status region.");
