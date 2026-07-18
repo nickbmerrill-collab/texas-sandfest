@@ -262,6 +262,7 @@ import {
   createOperationsIncident,
   evaluateCameraHealthIncident,
   evaluateCameraObservationIncident,
+  failedFeedRefreshNeedsRetry,
   fetchPortAransasFerryStatus,
   fetchPortAransasWeather,
   weatherForecastNeedsRefresh,
@@ -1338,7 +1339,9 @@ async function readIslandConditions({ refreshWeather = false, refreshFerry = fal
   const ferryOverrideUntil = doc.ferry?.manualOverrideUntil ? new Date(doc.ferry.manualOverrideUntil).getTime() : Number.NaN;
   const ferryOverrideActive = Number.isFinite(ferryOverrideUntil) && ferryOverrideUntil > Date.now();
   const dueWeather = refreshWeather && weatherForecastNeedsRefresh(doc.weather, now);
-  const dueFerry = refreshFerry && !ferryOverrideActive && refreshAge(doc.ferry) > 2 * 60_000;
+  const dueFerry = refreshFerry
+    && !ferryOverrideActive
+    && (failedFeedRefreshNeedsRetry(doc.ferry, now) || refreshAge(doc.ferry) > 2 * 60_000);
   if (dueWeather || dueFerry) {
     if (!islandConditionsRefreshPromise) {
       islandConditionsRefreshPromise = (async () => {

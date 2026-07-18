@@ -277,6 +277,7 @@ import {
   deriveCameraCondition,
   evaluateCameraHealthIncident,
   evaluateCameraObservationIncident,
+  failedFeedRefreshNeedsRetry,
   freshness,
   normalizeNwsForecast,
   normalizeTxdotFerryStatus,
@@ -3718,6 +3719,8 @@ Research First,construction,Corpus Christi,,78401,,,,Find decision maker,`;
   ] }, "2026-07-16T12:00:00.000Z");
   ok("NWS expired forecast fails closed while preserving active alerts", staleNws.status === "unavailable" && staleNws.alerts.length === 2 && staleNws.alerts[0]?.event === "Current Heat Advisory" && staleNws.alerts[1]?.event === "Beach Hazards Statement");
   ok("expired persisted weather bypasses the refresh interval", weatherForecastNeedsRefresh({ observedAt: "2026-07-16T11:58:00.000Z", validUntil: "2026-07-16T11:59:00.000Z" }, "2026-07-16T12:00:00.000Z") && !weatherForecastNeedsRefresh({ observedAt: "2026-07-16T11:58:00.000Z", validUntil: "2026-07-16T13:00:00.000Z" }, "2026-07-16T12:00:00.000Z") && !weatherForecastNeedsRefresh({ observedAt: "2026-07-16T11:58:00.000Z", validUntil: null }, "2026-07-16T12:00:00.000Z"));
+  const failedFeed = { refreshAttemptedAt: "2026-07-16T11:59:55.000Z", refreshError: "upstream timeout" };
+  ok("failed live feed refreshes use a bounded retry interval", !failedFeedRefreshNeedsRetry(failedFeed, "2026-07-16T12:00:00.000Z") && failedFeedRefreshNeedsRetry(failedFeed, "2026-07-16T12:00:05.000Z") && !weatherForecastNeedsRefresh({ ...failedFeed, validUntil: "2026-07-16T11:59:00.000Z" }, "2026-07-16T12:00:00.000Z") && weatherForecastNeedsRefresh({ ...failedFeed, validUntil: "2026-07-16T11:59:00.000Z" }, "2026-07-16T12:00:05.000Z"));
   ok("public condition refresh cadence is cache-aligned and jittered", publicIslandConditionsRefreshDelay(0) === 60_000 && publicIslandConditionsRefreshDelay(0.5) === 67_500 && publicIslandConditionsRefreshDelay(1) === 75_000 && publicIslandConditionsRefreshDelay(2) === 75_000);
   const stalePublicWeather = publicIslandConditions({
     ...seed,
