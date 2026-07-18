@@ -38,6 +38,8 @@ const adminJavaScript = (await Promise.all(
 const publicBootstrap = JSON.parse(await readFile(path.join(publicDir, "data", "app-bootstrap.json"), "utf8"));
 const publicTicketCatalog = JSON.parse(await readFile(path.join(publicDir, "data", "ticket-products.json"), "utf8"));
 const publicSculptorRoster = JSON.parse(await readFile(path.join(publicDir, "data", "sculptors.json"), "utf8"));
+const sourceVoting = JSON.parse(await readFile(path.join(root, "data", "processed", "peoples-choice.json"), "utf8"));
+const sourcePassport = JSON.parse(await readFile(path.join(root, "data", "processed", "sculpture-passport.json"), "utf8"));
 const vercelConfig = JSON.parse(await readFile(path.join(root, "vercel.json"), "utf8"));
 const mediaDerivatives = JSON.parse(await readFile(path.join(publicDir, "assets", "sandfest-media", "media-derivatives.json"), "utf8"));
 const robots = await readFile(path.join(publicDir, "robots.txt"), "utf8");
@@ -167,6 +169,8 @@ assert(publicTicketCatalog.products?.length > 0 && publicTicketCatalog.products.
 const serializedPublicRoster = JSON.stringify(publicSculptorRoster);
 assert(publicSculptorRoster.meta?.eventId === "texas-sandfest-2027" && publicSculptorRoster.meta?.publicationStatus === "unpublished", "Static sculptor roster is not current-event and publication-gated.");
 assert(publicSculptorRoster.sculptors?.length === 0 && publicSculptorRoster.entries?.length === 0 && publicSculptorRoster.pois?.length === 0, "Static sculptor roster exposes records before publication.");
+assert(sourceVoting.publicationStatus === "unpublished" && sourceVoting.votingOpen === false && sourceVoting.entries?.length === 0 && sourceVoting.votes?.length === 0, "Repository voting seed exposes an unpublished ballot.");
+assert(sourcePassport.hunt?.active === false && sourcePassport.checkpoints?.length === 0, "Repository passport seed exposes unpublished checkpoints.");
 assert(!(await exists(path.join(publicDir, "board-demo"))) && !(await exists(path.join(publicDir, "data", "sculptors-demo.json"))) && !(await exists(path.join(publicDir, "data", "live-beach-demo.json"))), "Production artifact contains local board-demonstration data files.");
 for (const marker of fictionalPublicContentMarkers) {
   assert(!serializedPublicRoster.includes(marker), `Public sculptor roster contains fictional marker ${marker}.`);
@@ -178,6 +182,9 @@ assert(visitorSource.includes("publicSculptorRosterPublication") && visitorSourc
 assert(visitorSource.includes('const boardDemoRuntimeEnabled = LIVE_BEACH_DEMO_ENABLED && runtime?.mode === "board_demo";'), "Board runtime copy is not gated by local demonstration content.");
 assert(visitorSource.includes('const DEVELOPMENT_PUBLIC_API = import.meta.env.DEV ? await import("./dev-public-api-base.js") : null;'), "API query overrides are not isolated in a development-only module.");
 assert(!publicJavaScript.includes("sandfest_api_base") && !adminJavaScript.includes("sandfest_api_base"), "A production artifact contains the local API override path.");
+const publicVotingLoader = visitorSource.slice(visitorSource.indexOf("async function loadVoting"), visitorSource.indexOf("async function castVote"));
+assert(publicVotingLoader.includes("if (!sculptorRosterVisible) return null;"), "Voting can load before the sculptor roster is published.");
+assert(visitorSource.includes("if (sculptorRosterVisible) initialPublicLoads.push(loadVoting());") && visitorSource.includes("if (sculptorRosterVisible) recoveryLoads.push(loadVoting());"), "Public startup or recovery fetches an unpublished ballot.");
 
 assert(publicBootstrap.guide?.startDate === "2027-04-16" && publicBootstrap.guide?.endDate === "2027-04-18", "Public artifact does not contain the governed 2027 event guide.");
 assert(publicBootstrap.guide?.dailyOpen === "09:00" && publicBootstrap.guide?.dailyClose === "19:30", "Public artifact contains stale event hours.");

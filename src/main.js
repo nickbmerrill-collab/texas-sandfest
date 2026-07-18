@@ -3418,6 +3418,7 @@ function renderPassport() {
 }
 
 function initSculptors() {
+  if (!sculptorRosterVisible) return;
   if (!document.querySelector("#corridor-map")) return;
   renderCorridorMap();
   renderSculptorFilters("all");
@@ -3441,6 +3442,7 @@ function writeLocalVote(entryId) {
 }
 
 function renderVotingBallot(payload) {
+  if (!sculptorRosterVisible) return;
   const ballot = document.querySelector("#voting-ballot");
   const countEl = document.querySelector("#voting-count");
   if (!ballot) return;
@@ -3463,6 +3465,7 @@ function renderVotingBallot(payload) {
 }
 
 async function loadVoting() {
+  if (!sculptorRosterVisible) return null;
   try {
     const response = await fetchWithTimeout(`${publicApiBase()}/api/public/voting`, { cache: "no-store" });
     if (!response.ok) throw new Error("Voting API unavailable");
@@ -3484,6 +3487,7 @@ async function loadVoting() {
 }
 
 async function castVote(entryId) {
+  if (!sculptorRosterVisible) return null;
   const status = document.querySelector("#voting-status");
   writeLocalVote(entryId);
   if (status) status.textContent = "Saving your vote…";
@@ -7662,13 +7666,13 @@ if (!ADMIN_ENTRY) {
   const initialPublicLoads = [
     loadPublicBootstrap(),
     loadPublicTicketCatalog(),
-    loadVoting(),
     loadBooths(),
     loadIslandConditions(),
     publicSponsorPackagesLoad,
     loadPublicVendorOfferings(),
     loadPublicAlert()
   ];
+  if (sculptorRosterVisible) initialPublicLoads.push(loadVoting());
   armPartnerBotProtection();
   const initialPartnerPortalAccess = partnerPortalAccessFromFragment() || savedPartnerPortalAccess();
   if (initialPartnerPortalAccess) initialPublicLoads.push(loadPartnerPortalStatus(initialPartnerPortalAccess));
@@ -7710,13 +7714,13 @@ function recoverPublicConnectivity() {
   const recoveryLoads = [
     loadPublicBootstrap(),
     loadPublicTicketCatalog(),
-    loadVoting(),
     loadBooths(),
     loadIslandConditions({ force: true, preserveOnError: true }),
     loadPublicSponsorPackages(),
     loadPublicVendorOfferings(),
     loadPublicAlert()
   ];
+  if (sculptorRosterVisible) recoveryLoads.push(loadVoting());
   const portalAccess = activePartnerPortalAccess || savedPartnerPortalAccess();
   if (portalAccess) recoveryLoads.push(loadPartnerPortalStatus(portalAccess));
   Promise.allSettled(recoveryLoads);
