@@ -223,6 +223,10 @@ assert((visitorSource.match(/\bfetch\(/g) || []).length === 1 && visitorSource.i
 assert(visitorSource.includes("Your private access is still saved; try again.") && visitorSource.includes("!activePartnerPortalApplication"), "Transient partner-portal failures do not preserve private access and the last loaded view.");
 assert(visitorSource.includes('const portalAccess = partnerPortalAccessFromFragment();\n    if (portalAccess) {\n      loadPartnerPortalStatus(portalAccess, { scroll: true });')
   && visitorSource.includes('const outreachAccess = outreachPreferenceAccessFromFragment();\n    if (outreachAccess) {\n      loadOutreachPreference(outreachAccess, { scroll: true });'), "Same-document private links do not switch partner or outreach views.");
+assert(visitorSource.includes("const loadVersion = ++partnerPortalLoadVersion;")
+  && visitorSource.includes("if (switchingAccess) {\n    activePartnerPortalApplication = null;")
+  && visitorSource.includes("if (loadVersion !== partnerPortalLoadVersion) return;")
+  && visitorSource.includes("if (loadVersion === partnerPortalLoadVersion) button.disabled = false;"), "Partner link switching can expose or restore a stale private portal response.");
 assert(visitorSource.indexOf('window.location.hash.startsWith("#sponsor-invitation?")') < visitorSource.indexOf('body: JSON.stringify({ token })')
   && visitorSource.indexOf('window.location.hash.startsWith("#outreach-preferences?")') < visitorSource.indexOf('body: JSON.stringify(access)'), "Private fragment capabilities are not concealed before provider requests.");
 assert(visitorSource.includes("[400, 401, 403, 409, 422].includes(error.status)") && visitorSource.includes("retry protection remains active"), "Partner intake does not distinguish correctable errors from retry-safe transient failures.");

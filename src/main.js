@@ -248,6 +248,7 @@ let outreachDiscoveryPreview = null;
 let activeSponsorInvitationToken = null;
 let activePartnerPortalAccess = null;
 let activePartnerPortalApplication = null;
+let partnerPortalLoadVersion = 0;
 let publicVendorOfferings = DEFAULT_VENDOR_OFFERINGS.map(publicVendorOffering);
 const taskBoardFilters = { status: "active", assignment: "all", query: "" };
 let incidentBoardFilter = "active";
@@ -4261,6 +4262,15 @@ async function loadPartnerPortalStatus(access, options = {}) {
   const status = form.querySelector(".partner-form-status");
   const button = form.querySelector('button[type="submit"]');
   const forgetButton = document.querySelector("#partner-status-forget");
+  const result = document.querySelector("#partner-status-result");
+  const loadVersion = ++partnerPortalLoadVersion;
+  const switchingAccess = Boolean(activePartnerPortalAccess)
+    && (activePartnerPortalAccess.reference !== access.reference || activePartnerPortalAccess.token !== access.token);
+  activePartnerPortalAccess = access;
+  if (switchingAccess) {
+    activePartnerPortalApplication = null;
+    if (result) result.innerHTML = '<div class="partner-status-empty"><strong>Opening another application.</strong><span>Verifying this private access before showing partner details.</span></div>';
+  }
   form.elements.reference.value = access.reference;
   form.elements.token.value = access.token;
   concealPartnerPortalCapability();
@@ -4275,20 +4285,20 @@ async function loadPartnerPortalStatus(access, options = {}) {
     });
     responseStatus = response.status;
     const data = await response.json().catch(() => ({}));
+    if (loadVersion !== partnerPortalLoadVersion) return;
     if (!response.ok) {
       const statusError = new Error(data.error || `Status lookup failed with ${response.status}`);
       statusError.status = response.status;
       throw statusError;
     }
     rememberPartnerPortalAccess(access);
-    activePartnerPortalAccess = access;
     renderPartnerPortalStatus(data.application);
     if (forgetButton) forgetButton.hidden = false;
     setFormStatus(status, `Secure status loaded for ${data.application.reference}.`, "ok");
     if (options.scroll) document.querySelector("#partner-status")?.scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (error) {
+    if (loadVersion !== partnerPortalLoadVersion) return;
     const accessRejected = shouldForgetPartnerPortalAccess(responseStatus);
-    const result = document.querySelector("#partner-status-result");
     if (accessRejected) {
       activePartnerPortalAccess = null;
       activePartnerPortalApplication = null;
@@ -4297,7 +4307,7 @@ async function loadPartnerPortalStatus(access, options = {}) {
       setFormStatus(status, friendlyRequestError(error, "This private access link is no longer valid."), "error");
       if (result) result.innerHTML = '<div class="partner-status-empty"><strong>We could not open this application.</strong><span>Check the private link or ask the SandFest team to issue a new one.</span></div>';
     } else {
-      activePartnerPortalAccess = access;
+      rememberPartnerPortalAccess(access);
       if (forgetButton) forgetButton.hidden = false;
       setFormStatus(status, "SandFest status is temporarily unavailable. Your private access is still saved; try again.", "error");
       if (result && !activePartnerPortalApplication) {
@@ -4305,7 +4315,7 @@ async function loadPartnerPortalStatus(access, options = {}) {
       }
     }
   } finally {
-    button.disabled = false;
+    if (loadVersion === partnerPortalLoadVersion) button.disabled = false;
   }
 }
 
