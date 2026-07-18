@@ -165,6 +165,8 @@ if (visitorUrl && operationsUrl) {
       observations.operations = await page.evaluate(() => ({
         title: document.title,
         heading: document.querySelector("#admin-config h1")?.textContent?.trim(),
+        network: document.querySelector("#network-status")?.textContent?.trim(),
+        runtimeLabel: document.querySelector("#runtime-data-notice")?.textContent?.trim(),
         apiStatus: document.querySelector("#admin-api-status")?.textContent?.trim(),
         deployment: document.querySelector("#admin-deployment-summary")?.textContent?.trim(),
         commandSignals: document.querySelectorAll("#admin-command-signals [data-command-signal]").length,
@@ -181,10 +183,19 @@ if (visitorUrl && operationsUrl) {
 
     await inspect("operations_shell", "Operations command center", "Reload the Operations link and inspect its automatic board session.", async () => {
       const item = observations.operations;
-      if (!item || item.title !== "Texas SandFest Operations" || item.heading !== "Festival operations command center" || item.commandSignals !== 8 || !item.apiStatus?.includes("Loaded")) {
+      if (
+        !item
+        || item.title !== "Texas SandFest Operations"
+        || item.heading !== "Festival operations command center"
+        || item.network !== "Demo"
+        || !item.runtimeLabel?.includes("Synthetic 2027 data")
+        || !item.runtimeLabel?.includes("No external messages or payments are sent")
+        || item.commandSignals !== 8
+        || !item.apiStatus?.includes("Loaded")
+      ) {
         throw new Error(observations.operationsError || "The operations command center did not finish loading.");
       }
-      return `${item.commandSignals} operating signals rendered from the active API session.`;
+      return `${item.commandSignals} operating signals rendered with a persistent synthetic Demo label.`;
     });
     await inspect("operations_workflows", "Operations workflow queues", "Inspect partner, task, document, and accounting board data.", async () => {
       const item = observations.operations;

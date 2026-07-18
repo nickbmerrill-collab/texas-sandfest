@@ -2887,7 +2887,8 @@ function applyPublicEventGuide(input) {
 
 function applyRuntimeNotice(runtime) {
   const existing = document.querySelector("#runtime-data-notice");
-  const boardDemoRuntimeEnabled = LIVE_BEACH_DEMO_ENABLED && runtime?.mode === "board_demo";
+  const boardDemoRuntimeEnabled = runtime?.mode === "board_demo"
+    && (LIVE_BEACH_DEMO_ENABLED || BOARD_DEMO_ACCESS.enabled);
   runtimeDataMode = boardDemoRuntimeEnabled ? "board_demo" : null;
   document.body.classList.toggle("runtime-board-demo", boardDemoRuntimeEnabled);
   if (!boardDemoRuntimeEnabled) {

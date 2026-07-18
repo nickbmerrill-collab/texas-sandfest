@@ -337,6 +337,9 @@ test("board workflows operate through the public and staff interfaces", async ({
   await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#admin-partners`);
   await expect(page.locator("#admin-api-status")).toContainText("Loaded", { timeout: 25_000 });
   await expect(page).toHaveTitle("Texas SandFest Operations");
+  await expect(page.locator("#network-status")).toHaveText("Demo");
+  await expect(page.locator("#runtime-data-notice")).toContainText("Synthetic 2027 data");
+  await expect(page.locator("#runtime-data-notice")).toContainText("No external messages or payments are sent");
   await expect(page.locator("header nav")).toHaveCount(0);
   await expect(page.locator(".admin-workspace-nav")).toBeVisible();
   await expect(page.locator(".admin-api-bar")).toBeHidden();
