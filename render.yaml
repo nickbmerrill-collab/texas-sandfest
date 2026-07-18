@@ -85,6 +85,8 @@ services:
         value: production
       - key: SANDFEST_EVENT_ID
         value: texas-sandfest-2027
+      - key: SANDFEST_DEPLOYMENT_TASK_SYNC_INTERVAL_MS
+        value: "900000"
       - key: SANDFEST_API_HOST
         value: 0.0.0.0
       - key: SANDFEST_API_PREFIX
