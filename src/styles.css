@@ -5328,6 +5328,11 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
   .partner-tier-table,
   .island-condition-kpis,
   .island-camera-grid { grid-template-columns: 1fr; }
+  .island-conditions-section .section-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  #refresh-island-conditions { align-self: flex-start; }
   .admin-task-board-heading { align-items: start; flex-direction: column; }
   .admin-incident-kpis,
   .admin-dispatch-create,
