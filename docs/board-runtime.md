@@ -194,8 +194,11 @@ This lane starts a fresh temporary board API and web server on random loopback
 ports. It submits vendor and sponsor applications through the rendered public
 forms, opens both private partner portals, verifies trusted amounts in the staff
 accounting view, delegates a roster-backed volunteer task, adds a partner key
-date, scores a geolocated outreach target, loads all eight Island Conditions
-lanes, and checks the critical public and operations views at a mobile viewport.
+date, scores a geolocated outreach target, verifies approved sponsor branding
+and package deliverables, enables bounded transactional automation, observes an
+authenticated delivered event through the local email sandbox, loads all eight
+Island Conditions lanes, and checks the critical public and operations views at
+a mobile viewport.
 CI installs an isolated Chromium runtime, retains screenshots and traces only on
 failure, and runs this acceptance inside `ready:production`.
 

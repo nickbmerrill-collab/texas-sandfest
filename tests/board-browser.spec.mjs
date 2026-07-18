@@ -13,9 +13,13 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const TOKEN = "board-browser-admin-token-0123456789abcdef";
 const PORTAL_SECRET = "board-browser-portal-secret-0123456789abcdef";
 const OUTREACH_SECRET = "board-browser-outreach-secret-0123456789abcdef";
+const EMAIL_API_KEY = "board-browser-email-api-key-0123456789abcdef";
+const EMAIL_WEBHOOK_TOKEN = "board-browser-email-webhook-token-0123456789abcdef";
 let temporaryRoot;
 let apiProcess;
 let webProcess;
+let emailProcess;
+let workerProcess;
 let apiBase;
 let webBase;
 
@@ -66,6 +70,24 @@ async function waitForHttp(url, child, timeoutMs = 15_000) {
   throw new Error(`${child.label} did not become ready at ${url}:\n${child.output()}`);
 }
 
+async function waitForJson(url, predicate, child, timeoutMs = 15_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (child.exitCode != null) {
+      throw new Error(`${child.label} exited ${child.exitCode}:\n${child.output()}`);
+    }
+    try {
+      const response = await fetch(url, { signal: AbortSignal.timeout(1_000) });
+      const value = response.ok ? await response.json() : null;
+      if (value && predicate(value)) return value;
+    } catch {
+      // The service state is still converging.
+    }
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  throw new Error(`${child.label} did not reach the expected state at ${url}:\n${child.output()}`);
+}
+
 async function stopChild(child) {
   if (!child || child.exitCode != null) return;
   const exited = new Promise(resolve => child.once("exit", resolve));
@@ -103,9 +125,29 @@ test.beforeAll(async () => {
     replace: true
   });
 
-  const [apiPort, webPort] = await Promise.all([freePort(), freePort()]);
+  const [apiPort, webPort, emailPort] = await Promise.all([freePort(), freePort(), freePort()]);
   apiBase = `http://127.0.0.1:${apiPort}`;
   webBase = `http://127.0.0.1:${webPort}`;
+  const emailBase = `http://127.0.0.1:${emailPort}`;
+  const emailEnvironment = {
+    TRANSACTIONAL_EMAIL_ENABLED: "true",
+    BREVO_API_KEY: EMAIL_API_KEY,
+    BREVO_SENDER_EMAIL: "sandbox@texassandfest.example",
+    BREVO_SENDER_NAME: "Texas SandFest Browser Acceptance",
+    BREVO_REPLY_TO_EMAIL: "reply@texassandfest.example",
+    BREVO_WEBHOOK_TOKEN: EMAIL_WEBHOOK_TOKEN,
+    BREVO_API_ENDPOINT: `${emailBase}/v3/smtp/email`
+  };
+  emailProcess = startNodeProcess("Board browser email sandbox", ["scripts/board-email-sandbox.mjs"], {
+    SANDFEST_ENV: "development",
+    SANDFEST_BOARD_EMAIL_SANDBOX: "true",
+    SANDFEST_BOARD_EMAIL_PORT: String(emailPort),
+    SANDFEST_BOARD_EMAIL_DELIVERY_DELAY_MS: "10",
+    BOARD_BREVO_API_KEY: EMAIL_API_KEY,
+    BREVO_WEBHOOK_TOKEN: EMAIL_WEBHOOK_TOKEN,
+    SANDFEST_BOARD_EMAIL_WEBHOOK_URL: `${apiBase}/api/webhooks/brevo`
+  });
+  await waitForHttp(`${emailBase}/health`, emailProcess);
   apiProcess = startNodeProcess("Board browser API", ["scripts/admin-api-server.mjs"], {
     SANDFEST_RUNTIME_ROOT: runtimeRoot,
     SANDFEST_INCOMING_DOCUMENT_DIR: path.join(runtimeRoot, "private", "incoming-documents"),
@@ -127,11 +169,26 @@ test.beforeAll(async () => {
     SANDFEST_TURNSTILE_ENABLED: "false",
     OUTREACH_DISCOVERY_ENABLED: "true",
     OUTREACH_DISCOVERY_PROVIDER: "fixture",
-    TRANSACTIONAL_EMAIL_ENABLED: "false",
+    ...emailEnvironment,
     SMS_ENABLED: "false",
     CAMERA_INGEST_ENABLED: "false"
   });
   await waitForHttp(`${apiBase}/health`, apiProcess);
+
+  workerProcess = startNodeProcess("Board browser worker", ["scripts/worker.mjs"], {
+    SANDFEST_RUNTIME_ROOT: runtimeRoot,
+    SANDFEST_DATABASE_URL: "",
+    SANDFEST_ENV: "development",
+    SANDFEST_EVENT_ID: DEFAULT_EVENT_ID,
+    SANDFEST_PUBLIC_SITE_URL: webBase,
+    SANDFEST_API_PUBLIC_BASE_URL: apiBase,
+    SANDFEST_PARTNER_PORTAL_SECRET: PORTAL_SECRET,
+    SANDFEST_OUTREACH_PREFERENCES_SECRET: OUTREACH_SECRET,
+    SANDFEST_WORKER_POLL_MS: "100",
+    ...emailEnvironment,
+    SMS_ENABLED: "false"
+  });
+  await waitForJson(`${apiBase}/ready`, value => value.checks?.workerStatus?.healthy === true, workerProcess);
 
   const viteEntrypoint = path.join(ROOT, "node_modules", "vite", "bin", "vite.js");
   webProcess = startNodeProcess("Board browser web", [
@@ -146,8 +203,10 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
+  await stopChild(workerProcess);
   await stopChild(webProcess);
   await stopChild(apiProcess);
+  await stopChild(emailProcess);
   if (temporaryRoot) await rm(temporaryRoot, { recursive: true, force: true });
 });
 
@@ -203,6 +262,14 @@ test("board workflows operate through the public and staff interfaces", async ({
   await expect(sponsorCard).toHaveCount(1);
   await expect(sponsorCard).toContainText("$0.00 / $5,000.00");
 
+  const sponsorFulfillment = page.locator('#admin-sponsor-fulfillment [data-sponsor-fulfillment]').filter({ hasText: "Gulf Shore Credit Union" });
+  await expect(sponsorFulfillment).toHaveCount(1);
+  await expect(sponsorFulfillment).toContainText("Marlin");
+  await expect(sponsorFulfillment).toContainText("Rooted on the Texas coast");
+  await expect(sponsorFulfillment.locator("[data-admin-brand-asset]")).toHaveCount(1);
+  await expect(sponsorFulfillment.locator("[data-admin-deliverable]")).toHaveCount(3);
+  await expect(sponsorFulfillment).toContainText("Beach signage");
+
   const taskForm = page.locator("#admin-create-task");
   await taskForm.locator('[name="assigneeType"]').selectOption("volunteer");
   const taskOwner = taskForm.locator('[name="assigneeId"]');
@@ -247,6 +314,30 @@ test("board workflows operate through the public and staff interfaces", async ({
   expect((await prospectResponse).status()).toBe(201);
   await expect(page.locator("#admin-api-status")).toContainText(`Scored ${prospectName} at`);
   await expect(page.locator("#admin-outreach-prospects")).toContainText(prospectName);
+
+  const automationForm = page.locator("#admin-partner-automation");
+  await automationForm.locator('[name="mode"]').selectOption("transactional_auto");
+  page.once("dialog", dialog => dialog.accept());
+  const automationResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/partners/automation" && response.request().method() === "PATCH");
+  await automationForm.locator('button[type="submit"]').click();
+  expect((await automationResponse).status()).toBe(200);
+  await expect(page.locator("#admin-api-status")).toContainText("Transactional partner automation is active.");
+
+  const sponsorRecipient = `riley.${runId}@example.com`;
+  await expect.poll(async () => {
+    const response = await fetch(`${apiBase}/api/admin/partners`, { headers: { authorization: `Bearer ${TOKEN}` } });
+    const payload = await response.json();
+    return payload.followups?.some(item => item.recipient === sponsorRecipient
+      && item.automationPolicy === "partner_transactional_v1"
+      && item.status === "sent"
+      && item.deliveryStatus === "delivered") || false;
+  }, { timeout: 15_000 }).toBe(true);
+  const reloadPartners = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/partners" && response.request().method() === "GET");
+  await page.locator("#admin-load-partners").click();
+  await reloadPartners;
+  const deliveredFollowup = page.locator('#admin-partner-followups [data-delivery-status="delivered"]').filter({ hasText: sponsorRecipient });
+  await expect(deliveredFollowup).toHaveCount(1);
+  await expect(deliveredFollowup).toContainText("transactional automation");
 
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#island-conditions`);
   await expect(page.locator("#island-camera-grid article")).toHaveCount(8);
