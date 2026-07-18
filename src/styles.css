@@ -4858,7 +4858,8 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .partner-status-milestones article span { color: var(--deep); font-size: 12px; font-weight: 800; overflow-wrap: anywhere; }
 .partner-status-milestones article b { color: var(--gulf); font-size: 10px; text-transform: capitalize; }
 .partner-status-milestones article small { color: var(--muted); }
-.admin-portal-access { justify-self: start; min-height: 38px; padding: 8px 10px; }
+.admin-portal-actions { display: flex; flex-wrap: wrap; gap: 7px; justify-self: start; }
+.admin-portal-actions .button { min-height: 38px; padding: 8px 10px; }
 
 .island-conditions-section { background: #f0f5f1; }
 .island-condition-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 24px; }
