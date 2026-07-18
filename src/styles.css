@@ -5355,6 +5355,16 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .partner-brand-heading span { color: var(--coral); font-size: 11px; font-weight: 900; text-transform: uppercase; }
 .partner-brand-heading h4 { color: var(--deep); font-size: 20px; margin: 0; }
 .partner-brand-heading > b { color: var(--gulf); font-size: 12px; }
+.partner-brand-preview { --brand-preview-primary: #005b63; --brand-preview-primary-ink: #fff; --brand-preview-secondary: #f7b733; --brand-preview-secondary-ink: #12343b; align-items: center; background: var(--brand-preview-primary); border-left: 8px solid var(--brand-preview-secondary); color: var(--brand-preview-primary-ink); display: grid; gap: 14px; grid-template-columns: auto minmax(0, 1fr) auto; min-height: 112px; padding: 18px; }
+.partner-brand-preview-mark { align-items: center; aspect-ratio: 1; background: var(--brand-preview-secondary); color: var(--brand-preview-secondary-ink); display: inline-flex; font-size: 22px; font-weight: 900; justify-content: center; width: 68px; }
+.partner-brand-preview-copy { display: grid; gap: 3px; min-width: 0; }
+.partner-brand-preview-copy > span { font-size: 10px; font-weight: 900; text-transform: uppercase; }
+.partner-brand-preview-copy > strong { font-family: "Instrument Serif", Georgia, serif; font-size: 28px; line-height: 1.05; overflow-wrap: anywhere; }
+.partner-brand-preview-copy > p { font-size: 13px; margin: 0; overflow-wrap: anywhere; }
+.partner-brand-preview-colors { display: flex; gap: 6px; }
+.partner-brand-preview-colors > span { border: 2px solid currentColor; display: block; height: 28px; width: 28px; }
+.partner-brand-preview-colors > span:first-child { background: var(--brand-preview-primary); }
+.partner-brand-preview-colors > span:last-child { background: var(--brand-preview-secondary); }
 .partner-brand-forms { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
 .partner-brand-form { background: var(--white); border: 1px solid var(--line); border-radius: 8px; display: grid; gap: 10px; padding: 14px; }
 .partner-brand-form-heading { align-items: baseline; display: flex; gap: 10px; justify-content: space-between; }
@@ -5367,6 +5377,8 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .partner-brand-fields select,
 .partner-brand-fields textarea { background: var(--foam); border: 1px solid var(--line); border-radius: 6px; color: var(--ink); font: inherit; min-width: 0; padding: 9px; text-transform: none; }
 .partner-brand-fields input[type="file"] { padding: 7px; }
+.partner-brand-color-control { display: grid; gap: 6px; grid-template-columns: 44px minmax(0, 1fr); }
+.partner-brand-color-control input[type="color"] { cursor: pointer; height: 40px; padding: 3px; width: 44px; }
 .partner-brand-fields textarea { resize: vertical; }
 .partner-brand-wide { grid-column: 1 / -1; }
 .partner-brand-form .button { justify-self: start; }
@@ -5562,6 +5574,8 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
   .admin-campaign-fields { grid-template-columns: 1fr; }
   .admin-incident-create,
   .admin-incident-controls { grid-template-columns: 1fr 1fr; }
+  .partner-brand-preview { grid-template-columns: auto minmax(0, 1fr); }
+  .partner-brand-preview-colors { grid-column: 1 / -1; }
   .admin-incident-note { grid-column: 1 / -1; }
   .admin-dispatch-controls { grid-template-columns: 1fr 1fr; }
   .admin-dispatch-controls .button { justify-self: start; }
