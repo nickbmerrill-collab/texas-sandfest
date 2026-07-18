@@ -1172,6 +1172,15 @@ time {
 }
 
 /* Booth / vendor map */
+.booth-section-actions {
+  align-items: flex-end;
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 10px;
+}
+.booth-apply-link { white-space: nowrap; }
+#vendor-application-form { scroll-margin-top: 92px; }
 .booths-section .booth-map-layout {
   display: grid;
   grid-template-columns: 1.2fr 1fr;
@@ -5525,6 +5534,11 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
     align-items: stretch;
     flex-direction: column;
   }
+  .booths-section .section-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .booth-section-actions { align-items: flex-start; }
   #refresh-island-conditions { align-self: flex-start; }
   .admin-task-board-heading { align-items: start; flex-direction: column; }
   .admin-staff-import .admin-task-board-heading span { text-align: left; }
