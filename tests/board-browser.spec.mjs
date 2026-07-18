@@ -222,6 +222,7 @@ test("board workflows operate through the public and staff interfaces", async ({
   const prospectIndustry = `browser hospitality ${runId}`;
   const prospectRecipient = `morgan.${runId}@example.com`;
   const campaignName = `Browser geofenced partners ${runId}`;
+  const sponsorTierId = `community-champion-${runId}`;
 
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#sponsors`);
   await expect(page.locator("#network-status")).toHaveText("Demo");
@@ -258,6 +259,18 @@ test("board workflows operate through the public and staff interfaces", async ({
   await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#admin-partners`);
   await expect(page.locator("#admin-api-status")).toContainText("Loaded", { timeout: 25_000 });
   await expect(page.locator("#admin-deployment-summary")).toContainText("development · ready");
+  const sponsorTierForm = page.locator("#admin-create-sponsor-package");
+  await sponsorTierForm.locator('[name="name"]').fill(`Community Champion ${runId}`);
+  await sponsorTierForm.locator('[name="id"]').fill(sponsorTierId);
+  await sponsorTierForm.locator('[name="amount"]').fill("7500.00");
+  await sponsorTierForm.locator('[name="benefits"]').fill("Community stage recognition\nPublic sponsor showcase");
+  const sponsorTierResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/sponsor-packages" && response.request().method() === "POST");
+  await sponsorTierForm.locator('button[type="submit"]').click();
+  const sponsorTierCreateResponse = await sponsorTierResponse;
+  expect(sponsorTierCreateResponse.status()).toBe(201);
+  expect((await sponsorTierCreateResponse.json()).sponsorPackage.publicLabel).toBe("$7,500 sponsorship");
+  await expect(page.locator("#admin-api-status")).toContainText("Added Community Champion");
+  await expect(page.locator(`[data-admin-sponsor="${sponsorTierId}"]`)).toContainText("$7,500.00");
   const vendorCard = page.locator("#admin-partner-applications [data-partner-application]").filter({ hasText: vendorName });
   const sponsorCard = page.locator("#admin-partner-applications [data-partner-application]").filter({ hasText: sponsorName });
   await expect(vendorCard).toHaveCount(1);
@@ -401,6 +414,9 @@ test("board workflows operate through the public and staff interfaces", async ({
   await expect(deliveredFollowup).toContainText("transactional automation");
 
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#island-conditions`);
+  await expect(page.locator(`[data-package-id="${sponsorTierId}"]`)).toContainText("Community Champion");
+  await page.locator(`[data-package-id="${sponsorTierId}"]`).click();
+  await expect(page.locator('#sponsor-inquiry-form [name="packageId"]')).toHaveValue(sponsorTierId);
   await expect(page.locator("#island-camera-grid article")).toHaveCount(8);
   await expect(page.locator("#island-condition-updated")).not.toHaveText("Checking sources");
   expect(pageErrors).toEqual([]);

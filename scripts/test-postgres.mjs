@@ -581,6 +581,18 @@ async function main() {
   }), { fallback: emptyPartnerOperations(EVENT_ID) });
 
   const postgresSponsorCatalog = await request(base, "GET", "/api/public/sponsors");
+  const postgresSponsorCreateBody = {
+    id: "postgres-community-champion",
+    name: "Postgres Community Champion",
+    amount: 750000,
+    benefits: ["Community stage recognition"],
+    stripePriceId: "price_postgres_community_champion",
+    quickBooksItemId: "postgres-community-champion-item"
+  };
+  const postgresSponsorCreates = await Promise.all([
+    request(base, "POST", "/api/admin/sponsor-packages", postgresSponsorCreateBody, { auth: true }),
+    request(base, "POST", "/api/admin/sponsor-packages", postgresSponsorCreateBody, { auth: true })
+  ]);
   const postgresInvalidSponsorPatch = await request(base, "PATCH", "/api/admin/sponsor-packages/tarpon", {
     benefits: []
   }, { auth: true });
@@ -590,8 +602,10 @@ async function main() {
   }, { auth: true });
   const postgresPublicSponsorCatalog = await request(base, "GET", "/api/public/sponsors");
   const postgresPublicTarpon = postgresPublicSponsorCatalog.data.sponsorPackages?.find(item => item.id === "tarpon");
+  const postgresPublicCommunityChampion = postgresPublicSponsorCatalog.data.sponsorPackages?.find(item => item.id === "postgres-community-champion");
   check("sponsor package catalog reads from Postgres", postgresSponsorCatalog.status === 200 && postgresSponsorCatalog.data.sponsorPackages?.find(item => item.id === "tarpon")?.amount === 500000);
-  check("sponsor package config validates and keeps accounting private", postgresInvalidSponsorPatch.status === 400 && postgresSponsorPackagePatch.status === 200 && postgresSponsorPackagePatch.data.sponsorPackage?.quickBooksItemId === "postgres-sponsor-tarpon-item" && postgresPublicTarpon?.amount === 500000 && !Object.hasOwn(postgresPublicTarpon || {}, "quickBooksItemId") && !Object.hasOwn(postgresPublicTarpon || {}, "stripePriceId"));
+  check("concurrent sponsor package creation is atomic in Postgres", postgresSponsorCreates.map(item => item.status).sort((a, b) => a - b).join(",") === "201,409" && postgresPublicCommunityChampion?.amount === 750000);
+  check("sponsor package config validates and keeps accounting private", postgresInvalidSponsorPatch.status === 400 && postgresSponsorPackagePatch.status === 200 && postgresSponsorPackagePatch.data.sponsorPackage?.quickBooksItemId === "postgres-sponsor-tarpon-item" && postgresPublicTarpon?.amount === 500000 && !Object.hasOwn(postgresPublicTarpon || {}, "quickBooksItemId") && !Object.hasOwn(postgresPublicTarpon || {}, "stripePriceId") && !Object.hasOwn(postgresPublicCommunityChampion || {}, "quickBooksItemId") && !Object.hasOwn(postgresPublicCommunityChampion || {}, "stripePriceId"));
 
   const postgresVendorCatalog = await request(base, "GET", "/api/public/vendors");
   const postgresVendorOfferingPatch = await request(base, "PATCH", "/api/admin/vendor-offerings/marketplace-booth", {

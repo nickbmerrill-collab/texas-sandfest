@@ -1666,6 +1666,29 @@ app.innerHTML = `
             <p class="eyebrow">Sponsor packages</p>
             <h2>Tiers, benefits, finance mapping</h2>
           </div>
+          <form id="admin-create-sponsor-package" class="admin-edit-card admin-sponsor-create" data-requires-permission="sponsor:write">
+            <div class="admin-edit-title">
+              <strong>Add sponsor tier</strong>
+              <span>Published immediately when active</span>
+            </div>
+            <div class="admin-form-grid">
+              <label><span>Name</span><input name="name" required maxlength="120" autocomplete="off" placeholder="Community Partner" /></label>
+              <label><span>Tier ID</span><input name="id" required maxlength="100" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" autocomplete="off" placeholder="community-partner" /></label>
+              <label><span>Amount</span><input name="amount" required type="number" min="0.01" max="1000000" step="0.01" inputmode="decimal" placeholder="7500.00" /></label>
+              <label><span>Public label</span><input name="publicLabel" maxlength="120" placeholder="Generated from amount" /></label>
+              <label><span>Stripe ID</span><input name="stripePriceId" maxlength="160" autocomplete="off" placeholder="Optional" /></label>
+              <label><span>QBO item</span><input name="quickBooksItemId" maxlength="160" autocomplete="off" placeholder="Optional" /></label>
+            </div>
+            <label><span>Benefits</span><textarea name="benefits" required rows="4" maxlength="4000" placeholder="One public benefit per line"></textarea></label>
+            <div class="admin-check-row">
+              <label class="admin-check"><input name="active" type="checkbox" checked /><span>Publicly active</span></label>
+              <label class="admin-check"><input name="requiresApproval" type="checkbox" checked /><span>Approval required</span></label>
+            </div>
+            <div class="admin-edit-actions">
+              <span>Provider mappings remain private</span>
+              <button class="button primary" type="submit">Add tier</button>
+            </div>
+          </form>
           <div id="admin-sponsor-editor" class="admin-editor-list">
             <article class="empty-state">
               <strong>No sponsor config loaded</strong>
@@ -7129,6 +7152,48 @@ async function loadBoardDemoWorkspace() {
 }
 
 document.querySelector("#admin-load-config").addEventListener("click", loadAdminWorkspace);
+const adminCreateSponsorPackageForm = document.querySelector("#admin-create-sponsor-package");
+adminCreateSponsorPackageForm?.elements.name.addEventListener("input", event => {
+  const idInput = adminCreateSponsorPackageForm.elements.id;
+  if (idInput.dataset.manuallyEdited === "true") return;
+  idInput.value = event.currentTarget.value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+});
+adminCreateSponsorPackageForm?.elements.id.addEventListener("input", event => {
+  event.currentTarget.dataset.manuallyEdited = event.currentTarget.value ? "true" : "false";
+});
+adminCreateSponsorPackageForm?.addEventListener("submit", async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const values = Object.fromEntries(new FormData(form).entries());
+  const button = form.querySelector('button[type="submit"]');
+  button.disabled = true;
+  try {
+    const result = await adminFetch("/api/admin/sponsor-packages", {
+      method: "POST",
+      body: JSON.stringify({
+        id: values.id,
+        name: values.name,
+        amount: centsFromInput(values.amount),
+        publicLabel: values.publicLabel,
+        stripePriceId: values.stripePriceId || null,
+        quickBooksItemId: values.quickBooksItemId || null,
+        benefits: values.benefits.split("\n").map(item => item.trim()).filter(Boolean),
+        active: form.elements.active.checked,
+        requiresApproval: form.elements.requiresApproval.checked
+      })
+    });
+    adminConfigState.config.sponsorPackages.push(result.sponsorPackage);
+    adminConfigState.config.lastUpdated = result.lastUpdated;
+    form.reset();
+    delete form.elements.id.dataset.manuallyEdited;
+    renderAdminEditors();
+    setAdminStatus(`Added ${result.sponsorPackage.name} to the public sponsor catalog.`, "ok");
+  } catch (error) {
+    setAdminStatus(error.message, "error");
+  } finally {
+    button.disabled = !adminCan("sponsor:write");
+  }
+});
 document.querySelector("#admin-load-documents")?.addEventListener("click", () => loadAdminDocuments());
 document.querySelector("#admin-launch-readiness")?.addEventListener("click", event => {
   const button = event.target.closest("[data-deployment-filter]");

@@ -203,6 +203,7 @@ import {
   verifySponsorInvitationToken
 } from "../lib/sponsor-invitations.mjs";
 import {
+  createSponsorPackageConfig,
   publicSponsorPackage,
   resolveSponsorPackage,
   sponsorPackageCatalog,
@@ -468,6 +469,7 @@ const patchableSponsorFields = new Set([
   "quickBooksItemId",
   "benefits"
 ]);
+const creatableSponsorFields = new Set(["id", ...patchableSponsorFields]);
 
 const patchableVendorOfferingFields = new Set([
   "name",
@@ -3008,8 +3010,14 @@ async function handleAdminTicketPatch(request, response, productId) {
 async function handleAdminSponsorPatch(request, response, sponsorId) {
   if (!(await requirePermission(request, response, "sponsor:write"))) return;
   const patch = filterPatch(await readBody(request), patchableSponsorFields);
-  const config = await storage.config.read("admin-config");
-  const result = updateSponsorPackageConfig(config, sponsorId, patch);
+  let result;
+  await storage.config.update("admin-config", async config => {
+    result = updateSponsorPackageConfig(config, sponsorId, patch);
+    if (!result.ok) return undefined;
+    result.config.lastUpdated = new Date().toISOString();
+    await writeConfigSnapshot(request, { type: "adminConfig", id: "admin-config" }, config, `Before sponsor package update: ${sponsorId}`);
+    return result.config;
+  });
   if (!result.ok) {
     sendJson(request, response, result.error === "Sponsor package not found." ? 404 : 400, {
       error: result.error,
@@ -3017,9 +3025,6 @@ async function handleAdminSponsorPatch(request, response, sponsorId) {
     });
     return;
   }
-  result.config.lastUpdated = new Date().toISOString();
-  await writeConfigSnapshot(request, { type: "adminConfig", id: "admin-config" }, config, `Before sponsor package update: ${sponsorId}`);
-  await storage.config.write("admin-config", result.config);
   await writeAuditRecord(request, "sponsor-package.update", {
     type: "sponsorPackage",
     id: sponsorId
@@ -3036,11 +3041,51 @@ async function handleAdminSponsorPatch(request, response, sponsorId) {
   });
 }
 
+async function handleAdminSponsorCreate(request, response) {
+  if (!(await requirePermission(request, response, "sponsor:write"))) return;
+  const input = filterPatch(await readBody(request), creatableSponsorFields);
+  let result;
+  await storage.config.update("admin-config", async config => {
+    result = createSponsorPackageConfig(config, input);
+    if (!result.ok) return undefined;
+    result.config.lastUpdated = new Date().toISOString();
+    await writeConfigSnapshot(request, { type: "adminConfig", id: "admin-config" }, config, `Before sponsor package creation: ${result.sponsorPackage.id}`);
+    return result.config;
+  });
+  if (!result.ok) {
+    sendJson(request, response, result.conflict ? 409 : 400, {
+      error: result.error,
+      errors: result.errors
+    });
+    return;
+  }
+  await writeAuditRecord(request, "sponsor-package.create", {
+    type: "sponsorPackage",
+    id: result.sponsorPackage.id
+  }, null, result.sponsorPackage, {
+    changedFields: Object.keys(input)
+  });
+  sendJson(request, response, 201, {
+    sponsorPackage: result.sponsorPackage,
+    readiness: {
+      ready: result.catalog.ready,
+      activePackages: result.catalog.activePackages.length
+    },
+    lastUpdated: result.config.lastUpdated
+  });
+}
+
 async function handleAdminVendorOfferingPatch(request, response, offeringId) {
   if (!(await requirePermission(request, response, "finance:write"))) return;
   const patch = filterPatch(await readBody(request), patchableVendorOfferingFields);
-  const config = await storage.config.read("admin-config");
-  const result = updateVendorOfferingConfig(config, offeringId, patch);
+  let result;
+  await storage.config.update("admin-config", async config => {
+    result = updateVendorOfferingConfig(config, offeringId, patch);
+    if (!result.ok) return undefined;
+    result.config.lastUpdated = new Date().toISOString();
+    await writeConfigSnapshot(request, { type: "adminConfig", id: "admin-config" }, config, `Before vendor offering update: ${offeringId}`);
+    return result.config;
+  });
   if (!result.ok) {
     sendJson(request, response, result.error === "Vendor offering not found." ? 404 : 400, {
       error: result.error,
@@ -3048,9 +3093,6 @@ async function handleAdminVendorOfferingPatch(request, response, offeringId) {
     });
     return;
   }
-  result.config.lastUpdated = new Date().toISOString();
-  await writeConfigSnapshot(request, { type: "adminConfig", id: "admin-config" }, config, `Before vendor offering update: ${offeringId}`);
-  await storage.config.write("admin-config", result.config);
   await writeAuditRecord(request, "vendor-offering.update", {
     type: "vendorOffering",
     id: offeringId
@@ -6696,6 +6738,11 @@ async function handleRequest(request, response) {
     const ticketMatch = pathname.match(/^\/api\/admin\/tickets\/([^/]+)$/);
     if (method === "PATCH" && ticketMatch) {
       await handleAdminTicketPatch(request, response, decodeURIComponent(ticketMatch[1]));
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/admin/sponsor-packages") {
+      await handleAdminSponsorCreate(request, response);
       return;
     }
 
