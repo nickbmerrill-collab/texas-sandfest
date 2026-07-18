@@ -246,6 +246,7 @@ let partnerImportPreview = null;
 let outreachImportPreview = null;
 let outreachDiscoveryPreview = null;
 let activeSponsorInvitationToken = null;
+let sponsorInvitationLoadVersion = 0;
 let activePartnerPortalAccess = null;
 let activePartnerPortalApplication = null;
 let partnerPortalLoadVersion = 0;
@@ -3598,6 +3599,8 @@ function armPartnerBotProtection() {
 
 const PARTNER_PORTAL_SESSION_KEY = "sandfest_partner_portal_v1";
 let activeOutreachPreferenceAccess = null;
+let lastLoadedOutreachPreference = null;
+let outreachPreferenceLoadVersion = 0;
 
 function partnerPortalAccessFromFragment() {
   const hash = window.location.hash.slice(1);
@@ -3629,6 +3632,8 @@ async function loadSponsorInvitation(token, options = {}) {
   const copy = document.querySelector("#sponsor-invitation-copy");
   const form = document.querySelector("#sponsor-inquiry-form");
   if (!banner || !copy || !form || !token) return;
+  const loadVersion = ++sponsorInvitationLoadVersion;
+  if (activeSponsorInvitationToken && activeSponsorInvitationToken !== token) clearSponsorInvitationForm(form);
   if (window.location.hash.startsWith("#sponsor-invitation?")) {
     history.replaceState(null, "", `${window.location.pathname}${window.location.search}#sponsors`);
   }
@@ -3642,6 +3647,7 @@ async function loadSponsorInvitation(token, options = {}) {
       body: JSON.stringify({ token })
     });
     const data = await response.json().catch(() => ({}));
+    if (loadVersion !== sponsorInvitationLoadVersion) return;
     if (!response.ok) throw new Error(data.error || `Invitation lookup failed with ${response.status}`);
     history.replaceState(null, "", `${window.location.pathname}${window.location.search}#sponsors`);
     if (data.converted && data.portalAccess?.reference && data.portalAccess?.token) {
@@ -3667,6 +3673,7 @@ async function loadSponsorInvitation(token, options = {}) {
     copy.textContent = `${invitation.organizationName} · ${invitation.packageName}${invitation.packageLabel ? ` · ${invitation.packageLabel}` : ""}`;
     if (options.scroll) form.scrollIntoView({ behavior: "smooth", block: "center" });
   } catch (error) {
+    if (loadVersion !== sponsorInvitationLoadVersion) return;
     clearSponsorInvitationForm(form);
     history.replaceState(null, "", `${window.location.pathname}${window.location.search}#sponsors`);
     banner.hidden = false;
@@ -3705,33 +3712,78 @@ function renderOutreachPreference(preference) {
   button.disabled = false;
 }
 
+function sameOutreachPreferenceAccess(left, right) {
+  return Boolean(left?.prospectId && left?.token)
+    && left.prospectId === right?.prospectId
+    && left.token === right?.token;
+}
+
 async function loadOutreachPreference(access, options = {}) {
   const section = document.querySelector("#outreach-preferences");
+  const copy = document.querySelector("#outreach-preferences-copy");
   const status = document.querySelector("#outreach-preferences-status");
   const button = document.querySelector("#outreach-preferences-unsubscribe");
-  if (!section || !status || !button || !access?.prospectId || !access?.token) return;
+  if (!section || !copy || !status || !button || !access?.prospectId || !access?.token) return;
+  const loadVersion = ++outreachPreferenceLoadVersion;
+  const previous = lastLoadedOutreachPreference;
+  const switchingAccess = Boolean(activeOutreachPreferenceAccess)
+    && !sameOutreachPreferenceAccess(activeOutreachPreferenceAccess, access);
+  activeOutreachPreferenceAccess = access;
   if (window.location.hash.startsWith("#outreach-preferences?")) {
     history.replaceState(null, "", `${window.location.pathname}${window.location.search}#outreach-preferences`);
   }
   section.hidden = false;
   button.hidden = true;
+  button.disabled = true;
+  if (switchingAccess) copy.textContent = "Verifying another outreach preference link before showing recipient details.";
   status.dataset.state = "loading";
   status.textContent = "Loading outreach preference...";
+  let responseStatus = 0;
   try {
     const response = await fetchWithTimeout(`${publicApiBase()}/api/public/outreach-preferences`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(access)
     });
+    responseStatus = response.status;
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || `Preference lookup failed with ${response.status}`);
-    activeOutreachPreferenceAccess = access;
+    if (loadVersion !== outreachPreferenceLoadVersion) return;
+    if (!response.ok) {
+      const preferenceError = new Error(data.error || `Preference lookup failed with ${response.status}`);
+      preferenceError.status = response.status;
+      throw preferenceError;
+    }
+    lastLoadedOutreachPreference = { access, preference: data.preference };
     renderOutreachPreference(data.preference);
     if (options.scroll) section.scrollIntoView({ behavior: "smooth", block: "center" });
-  } catch {
-    activeOutreachPreferenceAccess = null;
+  } catch (error) {
+    if (loadVersion !== outreachPreferenceLoadVersion) return;
+    const accessRejected = shouldForgetPartnerPortalAccess(responseStatus);
+    if (accessRejected && previous?.access && previous?.preference) {
+      if (switchingAccess) {
+        activeOutreachPreferenceAccess = previous.access;
+        renderOutreachPreference(previous.preference);
+        status.dataset.state = "error";
+        status.textContent = "This new outreach preference link is invalid. The previously loaded preference remains available.";
+        return;
+      }
+      if (sameOutreachPreferenceAccess(previous.access, access)) lastLoadedOutreachPreference = null;
+    }
+    if (!accessRejected && previous?.preference && sameOutreachPreferenceAccess(previous.access, access)) {
+      activeOutreachPreferenceAccess = previous.access;
+      renderOutreachPreference(previous.preference);
+      status.dataset.state = "error";
+      status.textContent = "Outreach preferences are temporarily unavailable. Showing the last verified preference so you can retry.";
+      return;
+    }
+    if (accessRejected) {
+      activeOutreachPreferenceAccess = null;
+      copy.textContent = "No outreach recipient is shown because this private link could not be verified.";
+    }
     status.dataset.state = "error";
-    status.textContent = "This outreach preference link is invalid. Use the latest link from the SandFest message.";
+    status.textContent = accessRejected
+      ? "This outreach preference link is invalid. Use the latest link from the SandFest message."
+      : "Outreach preferences are temporarily unavailable. This private access remains available to retry.";
   }
 }
 
@@ -3739,6 +3791,8 @@ async function unsubscribeOutreachPreference() {
   const button = document.querySelector("#outreach-preferences-unsubscribe");
   const status = document.querySelector("#outreach-preferences-status");
   if (!button || !status || !activeOutreachPreferenceAccess) return;
+  const access = activeOutreachPreferenceAccess;
+  const loadVersion = outreachPreferenceLoadVersion;
   button.disabled = true;
   status.dataset.state = "loading";
   status.textContent = "Saving preference...";
@@ -3746,12 +3800,15 @@ async function unsubscribeOutreachPreference() {
     const response = await fetchWithTimeout(`${publicApiBase()}/api/public/outreach-preferences/unsubscribe`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(activeOutreachPreferenceAccess)
+      body: JSON.stringify(access)
     });
     const data = await response.json().catch(() => ({}));
+    if (loadVersion !== outreachPreferenceLoadVersion || !sameOutreachPreferenceAccess(activeOutreachPreferenceAccess, access)) return;
     if (!response.ok) throw new Error(data.error || `Preference update failed with ${response.status}`);
+    lastLoadedOutreachPreference = { access, preference: data.preference };
     renderOutreachPreference(data.preference);
   } catch (error) {
+    if (loadVersion !== outreachPreferenceLoadVersion || !sameOutreachPreferenceAccess(activeOutreachPreferenceAccess, access)) return;
     button.disabled = false;
     status.dataset.state = "error";
     status.textContent = error.message;
