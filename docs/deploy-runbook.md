@@ -5,7 +5,7 @@ End-state hostnames (from `heyelab-backend-deployment.md`):
 | Service | URL |
 | --- | --- |
 | Public web | `https://sandfest.heyelab.com` |
-| API (public + admin) | `https://api.heyelab.com/sandfest` |
+| API (public + admin) | `https://sandfest-api.heyelab.com` |
 | Admin console | `https://sandfest-admin.heyelab.com` |
 | Identity provider | `https://auth.heyelab.com` |
 
@@ -140,7 +140,7 @@ Render documents paid Postgres recovery windows and isolated PITR instances in i
 After Render is healthy, point heyelab.com DNS:
 
 ```
-CNAME  api               → sandfest-api.onrender.com
+CNAME  sandfest-api      → sandfest-api.onrender.com
 CNAME  sandfest-admin    → sandfest-admin.onrender.com
 CNAME  sandfest          → nickbmerrill-collab.github.io
 ```
@@ -148,7 +148,7 @@ CNAME  sandfest          → nickbmerrill-collab.github.io
 If `auth.heyelab.com` doesn't exist yet, the API still runs in production with `/ready` returning 503; admin endpoints will refuse requests. To unblock admin during the IdP build-out, use a Clerk dev app temporarily — see `docs/heyelab-auth-contract.md` for the issuer/JWKS shape and the existing Clerk staging notes.
 
 The Blueprint assigns `sandfest-admin.heyelab.com` to the static admin service.
-Assign `api.heyelab.com` to `sandfest-api` and verify each hostname receives its
+Assign `sandfest-api.heyelab.com` to `sandfest-api` and verify each hostname receives its
 own managed certificate. Do not attach the admin hostname to the API service.
 
 ## Live deployment acceptance
@@ -169,7 +169,7 @@ staff operations workspace. Manual keyboard and screen-reader review remains
 part of release signoff because automated rules do not cover every interaction.
 
 The default targets are `https://sandfest.heyelab.com/`,
-`https://api.heyelab.com/sandfest/`, and
+`https://sandfest-api.heyelab.com/`, and
 `https://sandfest-admin.heyelab.com/`. The verifier requires the exact current
 public and admin asset names, the current service-worker cache version, the
 governed 2027 event, document security headers, a production
@@ -196,10 +196,10 @@ successful local build.
 
 `AppDataStore.apiBase` resolves the API in this order:
 
-1. `-apiBase https://api.heyelab.com/sandfest` launch arg (demos / Xcode schemes)
+1. `-apiBase https://sandfest-api.heyelab.com` launch arg (demos / Xcode schemes)
 2. `SANDFEST_API_BASE` env var
 3. `SandFestAPIBase` Info.plist key
-4. `https://api.heyelab.com/sandfest` (Release builds)
+4. `https://sandfest-api.heyelab.com` (Release builds)
 5. `http://127.0.0.1:8788` (Debug builds)
 
 To ship a TestFlight build that talks to the real API, no code changes — Release config picks up the production default automatically. To stage against Render before DNS is ready:
@@ -216,7 +216,7 @@ xcrun simctl launch booted com.portalcodex.texassandfest \
 The iOS app currently uses an in-code `SampleData.liveBeach` plus a bundled `sandfest-seed.json`. Once the API is live, the public bootstrap endpoint becomes the source of truth:
 
 ```bash
-curl https://api.heyelab.com/sandfest/api/public/bootstrap > data/processed/app-bootstrap.json
+curl https://sandfest-api.heyelab.com/api/public/bootstrap > data/processed/app-bootstrap.json
 npm run ios:seed
 ```
 
@@ -246,7 +246,7 @@ For production, the iOS app should fetch this on launch and cache locally. That'
 - [ ] Approved live ticket prices, limits, terms, Price IDs, HTTPS redirects, and webhook endpoint are configured before `STRIPE_TICKETING_ENABLED=true`
 - [ ] DNS:
   - [ ] `sandfest.heyelab.com` CNAME → `nickbmerrill-collab.github.io`
-  - [ ] `api.heyelab.com` CNAME → `sandfest-api.onrender.com`
+  - [ ] `sandfest-api.heyelab.com` CNAME → `sandfest-api.onrender.com`
   - [ ] `sandfest-admin.heyelab.com` CNAME → `sandfest-admin.onrender.com`
 - [ ] Render → verify API and admin custom domains on their respective services; wait for certs
 - [ ] Update GitHub Pages custom domain to `sandfest.heyelab.com`, enforce HTTPS

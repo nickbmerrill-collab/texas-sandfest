@@ -6,15 +6,15 @@ This backend should run as the configurable admin and API layer for SandFest whi
 
 Use Heyelab-controlled subdomains:
 
-- Public/API base: `https://api.heyelab.com/sandfest`
+- Public/API base: `https://sandfest-api.heyelab.com`
 - Admin console: `https://sandfest-admin.heyelab.com`
-- Stripe webhook: `https://api.heyelab.com/sandfest/api/stripe/webhook`
-- QuickBooks OAuth callback: `https://api.heyelab.com/sandfest/api/integrations/quickbooks/callback`
+- Stripe webhook: `https://sandfest-api.heyelab.com/api/stripe/webhook`
+- QuickBooks OAuth callback: `https://sandfest-api.heyelab.com/api/integrations/quickbooks/callback`
 
 If Heyelab uses a different root domain, keep the same shape:
 
 ```text
-api.<heyelab-domain>/sandfest
+sandfest-api.<heyelab-domain>
 sandfest-admin.<heyelab-domain>
 ```
 

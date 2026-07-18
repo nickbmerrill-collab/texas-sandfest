@@ -543,21 +543,32 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   await expect(page.locator("#admin-api-status")).toContainText("Transactional partner automation is active.");
 
   const sponsorRecipient = `riley.${runId}@example.com`;
+  const sponsorAcknowledgmentSubject = `Texas SandFest sponsorship application ${sponsorResult.application.reference}`;
+  let deliveredSponsorAcknowledgmentId = null;
   await expect.poll(async () => {
     const response = await fetch(`${apiBase}/api/admin/partners`, { headers: { authorization: `Bearer ${TOKEN}` } });
     const payload = await response.json();
-    return payload.followups?.some(item => item.recipient === sponsorRecipient
+    const acknowledgment = payload.followups?.find(item => item.applicationId === sponsorResult.application.id
+      && item.kind === "application_received"
+      && item.recipient === sponsorRecipient
+      && item.subject === sponsorAcknowledgmentSubject
       && item.automationPolicy === "partner_transactional_v1"
       && item.status === "sent"
-      && item.deliveryStatus === "delivered") || false;
+      && item.deliveryStatus === "delivered");
+    deliveredSponsorAcknowledgmentId = acknowledgment?.id || null;
+    return Boolean(deliveredSponsorAcknowledgmentId);
   }, { timeout: 15_000 }).toBe(true);
-  const reloadPartners = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/partners" && response.request().method() === "GET");
+  const reloadPartners = Promise.all([
+    page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/partners" && response.request().method() === "GET"),
+    page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/outreach" && response.request().method() === "GET")
+  ]);
   await page.locator("#admin-load-partners").click();
   await reloadPartners;
-  const deliveredFollowup = page.locator('#admin-partner-followups [data-delivery-status="delivered"]')
-    .filter({ hasText: sponsorRecipient })
-    .filter({ hasText: `Texas SandFest sponsorship application ${sponsorResult.application.reference}` });
+  const deliveredFollowup = page.locator(`#admin-partner-followups [data-followup="${deliveredSponsorAcknowledgmentId}"]`);
   await expect(deliveredFollowup).toHaveCount(1);
+  await expect(deliveredFollowup).toHaveAttribute("data-delivery-status", "delivered");
+  await expect(deliveredFollowup).toContainText(sponsorRecipient);
+  await expect(deliveredFollowup).toContainText(sponsorAcknowledgmentSubject);
   await expect(deliveredFollowup).toContainText("transactional automation");
 
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#island-conditions`);

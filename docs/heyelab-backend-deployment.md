@@ -6,15 +6,15 @@ This backend should run as the configurable admin and API layer for SandFest whi
 
 Use Heyelab-controlled subdomains:
 
-- Public/API base: `https://api.heyelab.com/sandfest`
+- Public/API base: `https://sandfest-api.heyelab.com`
 - Admin console: `https://sandfest-admin.heyelab.com`
-- Stripe webhook: `https://api.heyelab.com/sandfest/api/stripe/webhook`
-- QuickBooks OAuth callback: `https://api.heyelab.com/sandfest/api/integrations/quickbooks/callback`
+- Stripe webhook: `https://sandfest-api.heyelab.com/api/stripe/webhook`
+- QuickBooks OAuth callback: `https://sandfest-api.heyelab.com/api/integrations/quickbooks/callback`
 
 If Heyelab uses a different root domain, keep the same shape:
 
 ```text
-api.<heyelab-domain>/sandfest
+sandfest-api.<heyelab-domain>
 sandfest-admin.<heyelab-domain>
 ```
 
@@ -122,7 +122,7 @@ Production uses Heyelab's own identity provider at `auth.heyelab.com`. The full 
 SANDFEST_AUTH_MODE=jwt
 SANDFEST_AUTH_JWKS_URL=https://auth.heyelab.com/.well-known/jwks.json
 SANDFEST_AUTH_ISSUER=https://auth.heyelab.com/
-SANDFEST_AUTH_AUDIENCE=https://api.heyelab.com/sandfest
+SANDFEST_AUTH_AUDIENCE=https://sandfest-api.heyelab.com
 SANDFEST_AUTH_ROLE_CLAIM=sandfest_role
 SANDFEST_AUTH_ACTOR_CLAIM=sub
 ```
@@ -288,7 +288,7 @@ Vendor workflow decisions use the same review-first queue. Requested operating-p
 
 The worker re-checks the original application consent and recipient before calling Brevo's transactional email API. Follow-ups retain approval actor/time, queue time, delivery attempts, last error, provider message ID, accepted time, and the bounded delivery-event history. Failed jobs retry through the durable queue and become terminally failed after their configured attempt limit.
 
-Configure a Brevo transactional webhook at `https://api.heyelab.com/sandfest/api/webhooks/brevo` using bearer authentication with the value of `BREVO_WEBHOOK_TOKEN`. Subscribe to sent/request, delivered, opened, unique opened, click, soft bounce, deferred, hard bounce, invalid, blocked, error, spam/complaint, and unsubscribed events. Brevo may send one event or a batch of up to 100. Events are correlated by the provider message ID, deduplicated, and held briefly for reconciliation if they arrive before the worker persists send acceptance. Hard bounce, invalid, blocked, complaint, and provider unsubscribe outcomes set sponsor prospects to `do_not_contact` and dismiss every unsent sequence message. Webhook audits contain counts only, not recipient addresses, payload bodies, or credentials.
+Configure a Brevo transactional webhook at `https://sandfest-api.heyelab.com/api/webhooks/brevo` using bearer authentication with the value of `BREVO_WEBHOOK_TOKEN`. Subscribe to sent/request, delivered, opened, unique opened, click, soft bounce, deferred, hard bounce, invalid, blocked, error, spam/complaint, and unsubscribed events. Brevo may send one event or a batch of up to 100. Events are correlated by the provider message ID, deduplicated, and held briefly for reconciliation if they arrive before the worker persists send acceptance. Hard bounce, invalid, blocked, complaint, and provider unsubscribe outcomes set sponsor prospects to `do_not_contact` and dismiss every unsent sequence message. Webhook audits contain counts only, not recipient addresses, payload bodies, or credentials.
 
 Sponsor outreach additionally includes a fragment-safe recipient preference link and `List-Unsubscribe` header. The public confirmation endpoint HMAC-verifies the current prospect ID, email, and creation record, exposes no contact address, atomically suppresses the prospect, and dismisses every unsent campaign message. Configure `SANDFEST_OUTREACH_PREFERENCES_SECRET` on both API and worker to use a dedicated 32+ character HMAC root; otherwise the partner portal secret is reused with domain separation.
 
@@ -347,7 +347,7 @@ Production fails closed unless both values are configured:
 
 ```bash
 SANDFEST_PARTNER_PORTAL_SECRET=<32-or-more-random-characters>
-SANDFEST_PUBLIC_SITE_URL=https://www.texassandfest.org
+SANDFEST_PUBLIC_SITE_URL=https://sandfest.heyelab.com
 SANDFEST_PARTNER_STATUS_RATE_LIMIT=30
 ```
 

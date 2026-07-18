@@ -592,7 +592,7 @@ console.log("\n=== Pure library suite ===\n");
   ok("development API overrides stay local and deterministic", queryBase === "http://127.0.0.1:8806"
     && savedBase === queryBase
     && loopbackDefault === "http://127.0.0.1:8806"
-    && remoteDefault === "https://api.heyelab.com/sandfest");
+    && remoteDefault === "https://sandfest-api.heyelab.com");
 }
 
 // Local board demos must open on the audience named by their URL, regardless
@@ -612,7 +612,7 @@ console.log("\n=== Pure library suite ===\n");
   ok("board demo access requires development loopback", boardDemoAccess.enabled
     && !boardDemoAccessConfig({ development: false, authMode: "token", apiBase: "http://127.0.0.1:8806", token: boardDemoAccess.token }).enabled
     && !boardDemoAccessConfig({ development: true, authMode: "oidc", apiBase: "http://127.0.0.1:8806", token: boardDemoAccess.token }).enabled
-    && !boardDemoAccessConfig({ development: true, authMode: "token", apiBase: "https://api.heyelab.com/sandfest", token: boardDemoAccess.token }).enabled
+    && !boardDemoAccessConfig({ development: true, authMode: "token", apiBase: "https://sandfest-api.heyelab.com", token: boardDemoAccess.token }).enabled
     && !boardDemoAccessConfig({ development: true, authMode: "token", apiBase: "http://127.0.0.1.evil.example:8806", token: boardDemoAccess.token }).enabled);
   const boardDemoPlugin = boardDemoAccessPlugin({ SANDFEST_BOARD_DEMO_ADMIN_TOKEN: boardDemoAccess.token });
   const injectedBoardDemoHtml = boardDemoPlugin.transformIndexHtml();
@@ -790,8 +790,8 @@ console.log("\n=== Pure library suite ===\n");
     VITE_SANDFEST_AUTH_REDIRECT_URI: "https://sandfest-admin.heyelab.com/",
     VITE_SANDFEST_AUTH_POST_LOGOUT_REDIRECT_URI: "https://sandfest-admin.heyelab.com/",
     VITE_SANDFEST_AUTH_SCOPES: "openid profile email",
-    VITE_SANDFEST_AUTH_AUDIENCE: "https://api.heyelab.com/sandfest",
-    VITE_SANDFEST_API_BASE_URL: "https://api.heyelab.com/sandfest",
+    VITE_SANDFEST_AUTH_AUDIENCE: "https://sandfest-api.heyelab.com",
+    VITE_SANDFEST_API_BASE_URL: "https://sandfest-api.heyelab.com",
     SANDFEST_DEPLOYMENT_ENV: "production"
   };
   const config = normalizeAdminAuthConfig(env, "https://sandfest-admin.heyelab.com/?code=hidden");
@@ -3736,7 +3736,7 @@ Research First,construction,Corpus Christi,,78401,,,,Find decision maker,`;
     SANDFEST_ENV: "production",
     TRANSACTIONAL_EMAIL_ENABLED: "true",
     BREVO_WEBHOOK_TOKEN: token,
-    SANDFEST_API_PUBLIC_BASE_URL: "https://api.heyelab.com/sandfest"
+    SANDFEST_API_PUBLIC_BASE_URL: "https://sandfest-api.heyelab.com"
   });
   const missing = brevoWebhookConfig({
     SANDFEST_ENV: "production",
@@ -3744,7 +3744,7 @@ Research First,construction,Corpus Christi,,78401,,,,Find decision maker,`;
     BREVO_WEBHOOK_TOKEN: "short",
     SANDFEST_API_PUBLIC_BASE_URL: "http://127.0.0.1:8806"
   });
-  ok("Brevo webhook production readiness", config.ready && config.url === "https://api.heyelab.com/sandfest/api/webhooks/brevo" && !missing.ready);
+  ok("Brevo webhook production readiness", config.ready && config.url === "https://sandfest-api.heyelab.com/api/webhooks/brevo" && !missing.ready);
   ok("Brevo webhook bearer authentication", verifyBrevoWebhookAuthorization({ authorization: `Bearer ${token}` }, config) && !verifyBrevoWebhookAuthorization({ authorization: "Bearer wrong-token" }, config));
 
   const payloads = [

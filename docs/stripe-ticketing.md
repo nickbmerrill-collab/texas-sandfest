@@ -11,7 +11,7 @@ SandFest ticket checkout is implemented end to end, but live sales remain config
 - Public catalog: `GET /api/public/tickets`
 - Checkout endpoint: `POST /api/stripe/create-checkout-session`
 - Webhook endpoint: `POST /api/stripe/webhook`
-- Admin config API: `https://api.heyelab.com/sandfest/api/admin/config`
+- Admin config API: `https://sandfest-api.heyelab.com/api/admin/config`
 
 The browser never decides charge amounts and never receives Stripe Price IDs. It submits product IDs and quantities with a stable `Idempotency-Key`; the server loads trusted products, enforces limits, persists the order, reuses the original Checkout Session on retry, and returns an exact `https://checkout.stripe.com` URL.
 
@@ -48,8 +48,8 @@ Enable ticket sales only after sandbox acceptance:
 STRIPE_TICKETING_ENABLED=true
 STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
-STRIPE_SUCCESS_URL=https://www.texassandfest.org/tickets/success?session_id={CHECKOUT_SESSION_ID}
-STRIPE_CANCEL_URL=https://www.texassandfest.org/#tickets
+STRIPE_SUCCESS_URL=https://sandfest.heyelab.com/tickets/success?session_id={CHECKOUT_SESSION_ID}
+STRIPE_CANCEL_URL=https://sandfest.heyelab.com/#tickets
 ```
 
 ## Partner Invoice Checkout

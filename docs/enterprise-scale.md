@@ -69,7 +69,7 @@ For a **single VPS** event weekend (thousands concurrent, not 100k API RPS):
 
 1. One Node process + Postgres on same host is enough if public GETs are CDN-cached.
 2. Put Vite build on Cloudflare/Netlify/Pages.
-3. Point API to `api.heyelab.com/sandfest` with TLS.
+3. Point API to `sandfest-api.heyelab.com` with TLS.
 
 ## Capacity notes
 

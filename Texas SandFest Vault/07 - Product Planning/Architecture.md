@@ -58,7 +58,7 @@ Core jobs:
 
 - Configure ticket pricing, Stripe Price IDs, VIP capacity, sale windows, and review gates.
 - Configure sponsor package pricing, benefits, QuickBooks items, and payment links.
-- Serve public app APIs from `api.<heyelab-domain>/sandfest`.
+- Serve public app APIs from the dedicated `sandfest-api.<heyelab-domain>` origin.
 - Serve admin configuration UI from `sandfest-admin.<heyelab-domain>`.
 - Keep public app data separate from finance/admin-only records.
 

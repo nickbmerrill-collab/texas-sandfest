@@ -80,8 +80,8 @@ assert(csp["script-src"]?.join(" ") === "'self' https://challenges.cloudflare.co
 assert(!csp["script-src"].includes("'unsafe-inline'") && !csp["script-src"].includes("'unsafe-eval'"), "Public CSP must not permit inline or evaluated scripts.");
 assert(csp["style-src"]?.join(" ") === "'self'", "Public CSP stylesheets must be self-hosted.");
 assert(csp["style-src-attr"]?.join(" ") === "'unsafe-inline'", "Public CSP must retain the narrow dynamic style-attribute allowance used by maps and meters.");
-assert(csp["img-src"]?.join(" ") === "'self' data: blob: https://api.heyelab.com", "Public CSP images must be limited to bundled assets, local data/blob images, and approved API-hosted sponsor logos.");
-assert(csp["connect-src"]?.includes("https://api.heyelab.com") && csp["connect-src"]?.includes("https://challenges.cloudflare.com"), "Public CSP must allow the production API and Turnstile connections.");
+assert(csp["img-src"]?.join(" ") === "'self' data: blob: https://sandfest-api.heyelab.com", "Public CSP images must be limited to bundled assets, local data/blob images, and approved API-hosted sponsor logos.");
+assert(csp["connect-src"]?.includes("https://sandfest-api.heyelab.com") && csp["connect-src"]?.includes("https://challenges.cloudflare.com"), "Public CSP must allow the dedicated production API and Turnstile connections.");
 assert(csp["frame-src"]?.join(" ") === "https://challenges.cloudflare.com", "Public CSP frames must be limited to Turnstile.");
 for (const directive of ["object-src", "base-uri"]) {
   assert(csp[directive]?.join(" ") === "'none'", `Public CSP ${directive} must be disabled.`);

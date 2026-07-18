@@ -64,7 +64,7 @@ These commands are safe to run without credentials for status checks. Calls that
 ## Production Connection
 
 1. Create an Intuit Developer app for QuickBooks Online.
-2. Register the exact deployed redirect URI: `https://api.heyelab.com/sandfest/api/integrations/quickbooks/callback`.
+2. Register the exact deployed redirect URI: `https://sandfest-api.heyelab.com/api/integrations/quickbooks/callback`.
 3. Set `QB_CLIENT_ID` and `QB_CLIENT_SECRET` on the API service. Render generates `QB_TOKEN_ENCRYPTION_KEY` and shares it with the worker.
 4. Sign in to the SandFest operations console as `finance_admin` or `super_admin` and choose **Connect QuickBooks** in Partner operations.
 5. Approve access in Intuit. The callback consumes a one-time, ten-minute state and stores only encrypted credentials.

@@ -200,7 +200,7 @@ npm run api:load-test -- http://127.0.0.1:8788 1000 50
 
 Target deployment shape:
 
-- `https://api.heyelab.com/sandfest` for public and admin APIs.
+- `https://sandfest-api.heyelab.com` for public and admin APIs.
 - `https://sandfest-admin.heyelab.com` for the admin UI.
 
 See `docs/heyelab-backend-deployment.md`.

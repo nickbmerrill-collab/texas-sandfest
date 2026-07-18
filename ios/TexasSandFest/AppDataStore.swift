@@ -42,7 +42,7 @@ final class AppDataStore: ObservableObject {
     /// 1. CommandLine `-apiBase URL` (handy for demos / local routing)
     /// 2. `SANDFEST_API_BASE` env var (CI / TestFlight builds)
     /// 3. Info.plist `SandFestAPIBase` (per-config plist override)
-    /// 4. https://api.heyelab.com/sandfest (production default)
+    /// 4. https://sandfest-api.heyelab.com (production default)
     /// 5. http://127.0.0.1:8788 (debug fallback when running against local API)
     static var apiBase: URL {
         let args = CommandLine.arguments
@@ -55,7 +55,7 @@ final class AppDataStore: ObservableObject {
         #if DEBUG
         return URL(string: "http://127.0.0.1:8788")!
         #else
-        return URL(string: "https://api.heyelab.com/sandfest")!
+        return URL(string: "https://sandfest-api.heyelab.com")!
         #endif
     }
 

@@ -58,7 +58,7 @@ The example intentionally sets `model.approval.status` to `pending`. After revie
 Create one root-readable environment file per camera. For `north-gate`, `/etc/sandfest/camera-north-gate.env` contains:
 
 ```dotenv
-SANDFEST_API_BASE=https://api.heyelab.com/sandfest
+SANDFEST_API_BASE=https://sandfest-api.heyelab.com
 SANDFEST_CAMERA_NORTH_GATE_STREAM=rtsp://camera-user:camera-password@10.20.0.25/live
 SANDFEST_CAMERA_NORTH_GATE_SECRET=replace-with-the-camera-bound-32-plus-character-secret
 ```

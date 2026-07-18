@@ -1,7 +1,7 @@
 import { defineConfig, loadEnv } from "vite";
 import { resolve } from "node:path";
 
-// On GitHub Pages we live at /<repo>/, on a custom domain (api.heyelab.com / sandfest.heyelab.com)
+// On GitHub Pages we live at /<repo>/; custom domains use root-relative paths.
 // we live at the root. The DEPLOY_BASE env var lets the workflow pin this.
 const base = process.env.DEPLOY_BASE || "/";
 const sourcemap = process.env.SOURCE_MAPS === "true";
@@ -13,9 +13,9 @@ export const PUBLIC_CONTENT_SECURITY_POLICY = [
   "script-src 'self' https://challenges.cloudflare.com",
   "style-src 'self'",
   "style-src-attr 'unsafe-inline'",
-  "img-src 'self' data: blob: https://api.heyelab.com",
+  "img-src 'self' data: blob: https://sandfest-api.heyelab.com",
   "font-src 'self'",
-  "connect-src 'self' https://api.heyelab.com https://challenges.cloudflare.com",
+  "connect-src 'self' https://sandfest-api.heyelab.com https://challenges.cloudflare.com",
   "frame-src https://challenges.cloudflare.com",
   "worker-src 'self'",
   "manifest-src 'self'",

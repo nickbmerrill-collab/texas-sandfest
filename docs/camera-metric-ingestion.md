@@ -148,7 +148,7 @@ CAMERA_ID=north-gate \
 CAMERA_SOURCE_ID=local-north-gate-1 \
 CAMERA_INGEST_KEY_ID=north-gate-v1 \
 CAMERA_INGEST_SECRET='<secret-for-this-key-id>' \
-SANDFEST_API_BASE=https://api.heyelab.com/sandfest \
+SANDFEST_API_BASE=https://sandfest-api.heyelab.com \
 npm run camera:push -- observation.json
 ```
 

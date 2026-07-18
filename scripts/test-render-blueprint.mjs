@@ -102,7 +102,10 @@ check("admin publishes only after checks pass", admin?.branch === "main" && admi
 check("admin owns the canonical operations domain", admin?.domains?.includes("sandfest-admin.heyelab.com"));
 check("API is a checks-gated Docker service", api?.type === "web" && api?.runtime === "docker" && api?.branch === "main" && api?.autoDeployTrigger === "checksPass");
 check("API health probe verifies the process and data plane", api?.healthCheckPath === "/health");
-check("API uses the canonical production prefix", apiEnv.get("SANDFEST_ENV")?.value === "production" && apiEnv.get("SANDFEST_API_PREFIX")?.value === "/sandfest");
+check("API owns a dedicated SandFest hostname", api?.domains?.includes("sandfest-api.heyelab.com"));
+check("API uses the dedicated production origin without a shared path prefix", apiEnv.get("SANDFEST_ENV")?.value === "production" && !apiEnv.has("SANDFEST_API_PREFIX"));
+check("API links and CORS include the canonical visitor site", apiEnv.get("SANDFEST_PUBLIC_SITE_URL")?.value === "https://sandfest.heyelab.com" && String(apiEnv.get("SANDFEST_CORS_ORIGINS")?.value || "").split(",").includes("https://sandfest.heyelab.com"));
+check("Stripe returns to the canonical visitor site", apiEnv.get("STRIPE_SUCCESS_URL")?.value?.startsWith("https://sandfest.heyelab.com/") && apiEnv.get("STRIPE_CANCEL_URL")?.value?.startsWith("https://sandfest.heyelab.com/"));
 check("API continuously reconciles launch work", Number(apiEnv.get("SANDFEST_DEPLOYMENT_TASK_SYNC_INTERVAL_MS")?.value) === 15 * 60_000);
 check("API uses private managed Postgres", apiEnv.get("SANDFEST_DATABASE_URL")?.fromDatabase?.name === "sandfest-db" && apiEnv.get("SANDFEST_DATABASE_URL")?.fromDatabase?.property === "connectionString");
 check("API uses private managed rate limiting", apiEnv.get("REDIS_URL")?.fromService?.type === "keyvalue" && apiEnv.get("REDIS_URL")?.fromService?.name === "sandfest-rate-limit" && apiEnv.get("REDIS_URL")?.fromService?.property === "connectionString");
@@ -113,7 +116,8 @@ check("camera model launch approval is explicit and operator supplied", cameraMo
 check("worker is a checks-gated Docker service", worker?.type === "worker" && worker?.runtime === "docker" && worker?.branch === "main" && worker?.autoDeployTrigger === "checksPass");
 check("worker shares the production database", workerEnv.get("SANDFEST_DATABASE_URL")?.fromDatabase?.name === "sandfest-db" && workerEnv.get("SANDFEST_DATABASE_URL")?.fromDatabase?.property === "connectionString");
 check("worker event matches API event", workerEnv.get("SANDFEST_EVENT_ID")?.value === apiEnv.get("SANDFEST_EVENT_ID")?.value);
-check("worker reads extraction sources through the API, not a shared disk", workerEnv.get("SANDFEST_DOCUMENT_EXTRACTION_SOURCE_URL")?.value === "https://sandfest-api.onrender.com/sandfest" && !workerEnv.has("SANDFEST_INCOMING_DOCUMENT_DIR"));
+check("worker generates links for the canonical visitor site", workerEnv.get("SANDFEST_PUBLIC_SITE_URL")?.value === apiEnv.get("SANDFEST_PUBLIC_SITE_URL")?.value);
+check("worker reads extraction sources through the stable API service origin, not a shared disk", workerEnv.get("SANDFEST_DOCUMENT_EXTRACTION_SOURCE_URL")?.value === "https://sandfest-api.onrender.com" && !workerEnv.has("SANDFEST_INCOMING_DOCUMENT_DIR"));
 
 for (const key of workerSharedKeys) {
   const reference = workerEnv.get(key)?.fromService;
