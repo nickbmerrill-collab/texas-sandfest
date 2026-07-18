@@ -179,6 +179,7 @@ import {
   updateVendorAssignment,
   updateVendorProfile
 } from "../lib/partner-ops.mjs";
+import { syncDeploymentCheckTasks } from "../lib/deployment-task-sync.mjs";
 import {
   adminPartnerPortalAccess,
   findPartnerPortalApplication,
@@ -1273,6 +1274,28 @@ async function mutatePartnerOperations(mutator) {
     }
     result = mutator(doc);
     return result?.ok ? result.doc : doc;
+  }, { fallback: emptyPartnerOperations(CURRENT_EVENT_ID) });
+  return result;
+}
+
+async function syncDeploymentTasks(checks, actorId, now = new Date().toISOString()) {
+  let result = null;
+  await updatePlatformDoc(ROOT, "partnerOps", current => {
+    const doc = normalizePartnerOperations(current);
+    if (doc.eventId !== CURRENT_EVENT_ID) {
+      result = {
+        ok: false,
+        eventContextMismatch: true,
+        error: `Partner operations are assigned to ${doc.eventId}; complete rollover to ${CURRENT_EVENT_ID} before accepting changes.`
+      };
+      return undefined;
+    }
+    result = syncDeploymentCheckTasks(doc, checks, {
+      actorId,
+      idFactory: prefix => `${prefix}_${randomUUID()}`,
+      now
+    });
+    return result?.ok && result.changed ? result.doc : undefined;
   }, { fallback: emptyPartnerOperations(CURRENT_EVENT_ID) });
   return result;
 }
@@ -4373,6 +4396,30 @@ async function handleRequest(request, response) {
       const session = await requireAdmin(request, response);
       if (!session) return;
       sendJson(request, response, 200, { deployment: await deploymentProfile() });
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/admin/deployment/tasks/sync") {
+      const session = await requirePermission(request, response, "partners:write");
+      if (!session) return;
+      const deployment = await deploymentProfile();
+      const result = await syncDeploymentTasks(deployment.checks, session.id);
+      if (!result?.ok) {
+        sendJson(request, response, result?.eventContextMismatch ? 409 : 400, { error: result?.error || "Launch work items could not be synchronized." });
+        return;
+      }
+      const { doc: _doc, tasks: _tasks, ...sync } = result;
+      await writeAuditRecord(request, "deployment.tasks.sync", { type: "deployment", id: deployment.environment }, null, {
+        changed: sync.changed,
+        created: sync.created,
+        updated: sync.updated,
+        reopened: sync.reopened,
+        completed: sync.completed,
+        deduplicated: sync.deduplicated,
+        active: sync.active,
+        taskIds: sync.taskIds
+      });
+      sendJson(request, response, 200, { deployment, sync });
       return;
     }
 

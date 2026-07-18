@@ -1107,9 +1107,12 @@ app.innerHTML = `
             <h2>Production readiness</h2>
             <p id="admin-deployment-check-count" class="admin-launch-readiness-count">Load the operations workspace to evaluate launch gates.</p>
           </div>
-          <div class="admin-readiness-filter" role="group" aria-label="Deployment checks">
-            <button type="button" data-deployment-filter="attention" aria-pressed="true">Needs action <span id="admin-deployment-attention-count">0</span></button>
-            <button type="button" data-deployment-filter="all" aria-pressed="false">All checks <span id="admin-deployment-total-count">0</span></button>
+          <div class="admin-launch-readiness-actions">
+            <button id="admin-sync-deployment-tasks" type="button" class="button secondary" data-requires-permission="partners:write">Sync work board</button>
+            <div class="admin-readiness-filter" role="group" aria-label="Deployment checks">
+              <button type="button" data-deployment-filter="attention" aria-pressed="true">Needs action <span id="admin-deployment-attention-count">0</span></button>
+              <button type="button" data-deployment-filter="all" aria-pressed="false">All checks <span id="admin-deployment-total-count">0</span></button>
+            </div>
           </div>
         </div>
         <div id="admin-deployment-checks" class="admin-deployment-checks" aria-live="polite">
@@ -7311,6 +7314,29 @@ document.querySelector("#admin-launch-readiness")?.addEventListener("click", eve
   if (!button || !adminDeploymentState) return;
   adminDeploymentFilter = button.dataset.deploymentFilter === "all" ? "all" : "attention";
   renderAdminDeployment(adminDeploymentState);
+});
+document.querySelector("#admin-sync-deployment-tasks")?.addEventListener("click", async event => {
+  const button = event.currentTarget;
+  button.disabled = true;
+  try {
+    const data = await adminFetch("/api/admin/deployment/tasks/sync", { method: "POST" });
+    renderAdminDeployment(data.deployment);
+    await loadAdminPartners({ quiet: true });
+    const changed = [
+      [data.sync.created, "created"],
+      [data.sync.reopened, "reopened"],
+      [data.sync.updated, "updated"],
+      [data.sync.completed, "completed"],
+      [data.sync.deduplicated, "duplicate closed"]
+    ].filter(([count]) => count).map(([count, label]) => `${count} ${label}`);
+    setAdminStatus(changed.length
+      ? `Launch work board synchronized: ${changed.join(" · ")}. ${data.sync.active} active.`
+      : `Launch work board is current with ${data.sync.active} active task${data.sync.active === 1 ? "" : "s"}.`, "ok");
+  } catch (error) {
+    setAdminStatus(error.message, "error");
+  } finally {
+    button.disabled = !adminCan("partners:write");
+  }
 });
 
 function resetAdminDocumentReviewDue(form = document.querySelector("#admin-document-upload")) {

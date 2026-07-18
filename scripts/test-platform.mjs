@@ -76,6 +76,7 @@ import {
   parseEventenyBoothCsv
 } from "../lib/booth-import.mjs";
 import { applyOutreachProspectImport, parseOutreachProspectCsv } from "../lib/outreach-import.mjs";
+import { syncDeploymentCheckTasks } from "../lib/deployment-task-sync.mjs";
 import {
   EVENTENY_PARTNER_IMPORT_MAX_ROWS,
   applyEventenyPartnerImport,
@@ -2658,6 +2659,56 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   ok("delegated task lifecycle", done.ok && done.task.completedAt === now && done.doc.activity.at(-1).type === "task.updated");
   const invalidTaskDate = createPartnerTask(done.doc, { title: "Bad date", dueAt: "not-a-date" }, { idFactory, now });
   ok("task date validation", !invalidTaskDate.ok && invalidTaskDate.error.includes("valid date"));
+  const launchChecks = {
+    backupRecovery: {
+      id: "backupRecovery",
+      label: "Backup and recovery",
+      group: "Platform",
+      ok: false,
+      severity: "warning",
+      message: "Record a current restore drill."
+    },
+    stripePartnerPayments: {
+      id: "stripePartnerPayments",
+      label: "Partner invoice payments",
+      group: "Revenue",
+      ok: false,
+      severity: "error",
+      message: "Configure Stripe partner invoice checkout."
+    }
+  };
+  const launchCreated = syncDeploymentCheckTasks(emptyPartnerOperations(), launchChecks, {
+    actorId: "ops_1",
+    idFactory,
+    now: "2026-07-18T12:00:00.000Z"
+  });
+  const backupLaunchTask = launchCreated.tasks.find(item => item.relatedEntityId === "backupRecovery");
+  const paymentLaunchTask = launchCreated.tasks.find(item => item.relatedEntityId === "stripePartnerPayments");
+  ok("launch gates create accountable team tasks", launchCreated.ok && launchCreated.created === 2 && launchCreated.active === 2 && backupLaunchTask?.assigneeId === "operations" && backupLaunchTask?.priority === "high" && backupLaunchTask?.dueAt === "2026-08-01T12:00:00.000Z" && paymentLaunchTask?.assigneeId === "finance" && paymentLaunchTask?.priority === "urgent" && paymentLaunchTask?.dueAt === "2026-07-21T12:00:00.000Z");
+  const launchReplay = syncDeploymentCheckTasks(launchCreated.doc, launchChecks, {
+    actorId: "ops_1",
+    idFactory,
+    now: "2026-07-19T12:00:00.000Z"
+  });
+  ok("launch task sync replay is idempotent", launchReplay.ok && !launchReplay.changed && launchReplay.created === 0 && launchReplay.active === 2 && launchReplay.tasks.length === 2 && launchReplay.tasks.every(item => item.updatedAt === "2026-07-18T12:00:00.000Z"));
+  const launchEscalated = syncDeploymentCheckTasks(launchReplay.doc, {
+    ...launchChecks,
+    backupRecovery: { ...launchChecks.backupRecovery, severity: "error", message: "Restore drill is now a launch blocker." }
+  }, { actorId: "ops_1", idFactory, now: "2026-07-19T12:00:00.000Z" });
+  const escalatedBackupTask = launchEscalated.tasks.find(item => item.relatedEntityId === "backupRecovery");
+  ok("launch warning escalation advances priority and deadline", launchEscalated.updated === 1 && escalatedBackupTask?.priority === "urgent" && escalatedBackupTask?.dueAt === "2026-07-22T12:00:00.000Z");
+  const launchCompleted = syncDeploymentCheckTasks(launchEscalated.doc, Object.fromEntries(Object.entries(launchChecks).map(([id, check]) => [id, { ...check, ok: true, severity: "ok" }])), {
+    actorId: "ops_1",
+    idFactory,
+    now: "2026-07-20T12:00:00.000Z"
+  });
+  ok("passing launch gates complete active tasks", launchCompleted.completed === 2 && launchCompleted.active === 0 && launchCompleted.tasks.every(item => item.status === "done" && item.completedAt === "2026-07-20T12:00:00.000Z"));
+  const launchRegressed = syncDeploymentCheckTasks(launchCompleted.doc, {
+    ...launchChecks,
+    stripePartnerPayments: { ...launchChecks.stripePartnerPayments, ok: true, severity: "ok" }
+  }, { actorId: "ops_1", idFactory, now: "2026-07-22T12:00:00.000Z" });
+  const reopenedBackupTask = launchRegressed.tasks.find(item => item.relatedEntityId === "backupRecovery");
+  ok("regressed launch gate reopens its original task", launchRegressed.reopened === 1 && launchRegressed.active === 1 && reopenedBackupTask?.id === backupLaunchTask?.id && reopenedBackupTask?.status === "open" && reopenedBackupTask?.reopenedAt === "2026-07-22T12:00:00.000Z" && reopenedBackupTask?.dueAt === "2026-08-05T12:00:00.000Z");
   const prospect = createOutreachProspect(done.doc, {
     organizationName: "Island Hotel",
     industry: "hospitality",
@@ -4339,6 +4390,15 @@ try {
   ok("deployment exposes data plane gate", deployment.status === 200 && deployment.data.deployment?.checks?.dataPlane?.ok === true);
   const deploymentChecks = Object.values(deployment.data.deployment?.checks || {});
   const deploymentGroups = deployment.data.deployment?.groups || [];
+  const unauthenticatedDeploymentTaskSync = await hit("POST", "/api/admin/deployment/tasks/sync");
+  const deploymentTaskSync = await hit("POST", "/api/admin/deployment/tasks/sync", null, true);
+  const deploymentTaskReplay = await hit("POST", "/api/admin/deployment/tasks/sync", null, true);
+  const deploymentTaskWorkspace = await hit("GET", "/api/admin/partners", null, true);
+  const failingDeploymentChecks = deploymentChecks.filter(check => !check.ok);
+  const launchTasksApi = (deploymentTaskWorkspace.data.tasks || []).filter(task => task.relatedEntityType === "deployment_check" && ["open", "in_progress", "blocked"].includes(task.status));
+  ok("deployment task sync requires task delegation permission", unauthenticatedDeploymentTaskSync.status === 401);
+  ok("deployment task sync creates one task per failing gate", deploymentTaskSync.status === 200 && deploymentTaskSync.data.sync?.created === failingDeploymentChecks.length && deploymentTaskSync.data.sync?.active === failingDeploymentChecks.length && launchTasksApi.length === failingDeploymentChecks.length && new Set(launchTasksApi.map(task => task.relatedEntityId)).size === failingDeploymentChecks.length);
+  ok("deployment task API replay is idempotent", deploymentTaskReplay.status === 200 && deploymentTaskReplay.data.sync?.changed === false && deploymentTaskReplay.data.sync?.created === 0 && deploymentTaskReplay.data.sync?.active === failingDeploymentChecks.length);
   ok("deployment exposes labeled and grouped launch checks", deploymentChecks.length >= 35
     && deploymentChecks.every(check => check.id && check.label && check.label !== check.id && check.group && check.group !== "Other" && check.message && ["ok", "warning", "error"].includes(check.severity))
     && new Set(deploymentChecks.map(check => check.group)).size >= 6
@@ -5814,6 +5874,7 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
   const smsAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("sms."));
   ok("Twilio webhook audit is aggregate-only", smsAuditApi.some(item => item.record?.action === "sms.delivery.webhook") && smsAuditApi.some(item => item.record?.action === "sms.preference.webhook") && !JSON.stringify(smsAuditApi).includes("+13615550188") && !JSON.stringify(smsAuditApi).includes("platform-twilio-auth-secret"));
   ok("event guide publish is audited", auditApi.data.audit?.some(item => item.record?.action === "content.event-guide.publish"));
+  ok("launch task synchronization is aggregate audited", auditApi.data.audit?.some(item => item.record?.action === "deployment.tasks.sync" && item.record?.after?.active === failingDeploymentChecks.length));
   const documentAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("document."));
   ok("private document lifecycle is audited without file contents", documentAuditApi.some(item => item.record?.action === "document.upload") && documentAuditApi.some(item => item.record?.action === "document.review") && documentAuditApi.some(item => item.record?.action === "document.download") && documentAuditApi.some(item => item.record?.action === "document.extraction.source_read") && documentAuditApi.some(item => item.record?.action === "document.extraction.retry") && !JSON.stringify(documentAuditApi).includes("Board packet source"));
   ok("revenue settlement commit is audited", auditApi.data.audit?.some(item => item.record?.action === "revenue.import.commit" && item.record?.after?.source === "square" && item.record?.after?.imported === 1));
