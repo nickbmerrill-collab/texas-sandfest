@@ -27,11 +27,18 @@ The generated public bootstrap labels both visitor and operations surfaces as a 
 
 ## Run
 
-Start the complete presentation stack in one terminal:
+Start the complete presentation stack from a clean local `main` that matches
+`origin/main` in one terminal:
 
 ```bash
 npm run board:demo
 ```
+
+The supervisor records the commit, branch, clean/dirty state, and a SHA-256 of
+Git's status output without storing changed paths. Startup refuses dirty source,
+a non-`main` branch, or a commit different from local `origin/main`.
+`board:check` and `board:rehearse` recompute that fingerprint and fail before
+presentation navigation if the checkout changes while the stack is running.
 
 The supervisor prepares or reuses the isolated runtime, selects unused loopback
 ports without stopping another local service, starts the web, API, worker,
@@ -77,7 +84,7 @@ errors, and desktop overflow without submitting a form or changing demo data.
 Use the reset icon in the Operations header when you want to discard
 demonstration changes and restore the synthetic starting state. After
 confirmation, the supervisor stops every local component, replaces the runtime,
-starts fresh services, waits for a new 9-of-9 generation, and reloads Operations.
+starts fresh services, waits for a new 10-of-10 generation, and reloads Operations.
 The control appears only when an authenticated board session is connected
 directly to its loopback supervisor; ordinary development and production APIs
 return no reset capability. A reset requested while startup or component
@@ -94,7 +101,7 @@ npm run board:rehearse
 
 The credential-free session record lives at
 `.sandfest-runtime/board-demo-session.json`. The supervisor restarts a failed
-component with bounded backoff and returns to ready only after another 9-of-9
+component with bounded backoff and returns to ready only after another 10-of-10
 preflight. It stops instead of looping forever when a component repeatedly
 fails. External Stripe ticketing, sponsor checkout, and QuickBooks sync are
 explicitly disabled in this synthetic stack even if the parent shell contains

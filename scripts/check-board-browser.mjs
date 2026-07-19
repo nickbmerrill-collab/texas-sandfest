@@ -4,8 +4,11 @@ import { chromium } from "@playwright/test";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  BOARD_DEMO_SESSION_SCHEMA_VERSION,
+  assessBoardDemoSourceRevision,
   boardDemoSessionPath,
   boardDemoSessionProcessAlive,
+  boardDemoSourceRevision,
   readBoardDemoSession
 } from "../lib/board-demo-session.mjs";
 
@@ -68,14 +71,19 @@ await inspect(
     if (!session || !boardDemoSessionProcessAlive(session) || session.status !== "ready") {
       throw new Error("No ready board supervisor session is running.");
     }
+    if (session.schemaVersion !== BOARD_DEMO_SESSION_SCHEMA_VERSION) {
+      throw new Error(`The board session schema is ${session.schemaVersion ?? "missing"}; restart it with the current supervisor.`);
+    }
+    const sourceAssessment = assessBoardDemoSourceRevision(session.source, await boardDemoSourceRevision(ROOT));
+    if (!sourceAssessment.ok) throw new Error(sourceAssessment.detail);
     const { webBase, apiBase } = session.endpoints || {};
     if (!webBase || !apiBase) throw new Error("The board session is missing its web or API endpoint.");
     visitorUrl = exactBoardLink(session.links?.visitor, { webBase, apiBase, kind: "Visitor" });
     operationsUrl = exactBoardLink(session.links?.operations, { webBase, apiBase, kind: "Operations" });
-    if (session.lastPreflight?.passed !== 9 || session.lastPreflight?.total !== 9) {
-      throw new Error("The supervisor has not recorded a complete 9-of-9 service preflight.");
+    if (session.lastPreflight?.passed !== 10 || session.lastPreflight?.total !== 10) {
+      throw new Error("The supervisor has not recorded a complete 10-of-10 service and source preflight.");
     }
-    return `Ready supervisor ${session.pid}; links match the 9-of-9 session.`;
+    return `Ready supervisor ${session.pid}; ${sourceAssessment.detail} Links match the 10-of-10 session.`;
   }
 );
 

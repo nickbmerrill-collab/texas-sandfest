@@ -59,7 +59,7 @@
     "recovery:verify:assets": "node scripts/verify-asset-recovery.mjs",
     "event:rollover": "node scripts/rollover-event.mjs",
     "board:runtime": "node scripts/prepare-board-runtime.mjs --replace",
-    "board:demo": "node scripts/board-demo.mjs",
+    "board:demo": "SANDFEST_BOARD_REQUIRE_MAIN=true node scripts/board-demo.mjs",
     "board:stop": "node scripts/stop-board-demo.mjs",
     "board:check": "node scripts/check-board-demo.mjs",
     "board:rehearse": "npm run board:check && node scripts/check-board-browser.mjs",

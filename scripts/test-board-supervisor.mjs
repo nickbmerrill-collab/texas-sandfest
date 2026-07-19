@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { BOARD_RUNTIME_SCHEMA_VERSION, prepareBoardRuntime } from "../lib/board-runtime.mjs";
-import { readBoardDemoSession } from "../lib/board-demo-session.mjs";
+import { BOARD_DEMO_SESSION_SCHEMA_VERSION, readBoardDemoSession } from "../lib/board-demo-session.mjs";
 import { DEFAULT_EVENT_ID } from "../lib/event-context.mjs";
 import { emptyPartnerOperations } from "../lib/partner-ops.mjs";
 import { platformDocumentFilePath } from "../lib/platform-data.mjs";
@@ -114,7 +114,7 @@ async function preflight(sessionFile) {
   } catch {
     throw new Error(`Board preflight returned invalid JSON:\n${result.stderr}\n${result.stdout}`);
   }
-  if (result.code !== 0 || !report.ok || report.passed !== 9 || report.total !== 9) {
+  if (result.code !== 0 || !report.ok || report.passed !== 10 || report.total !== 10) {
     throw new Error(`Board preflight failed ${report.passed}/${report.total}:\n${JSON.stringify(report, null, 2)}`);
   }
   return report;
@@ -172,6 +172,7 @@ try {
   await writeFile(runtimeMarkerPath, `${JSON.stringify(staleRuntimeMarker, null, 2)}\n`, "utf8");
   const supervisorEnvironment = {
     ...commandEnvironment(sessionFile),
+    SANDFEST_BOARD_ALLOW_DIRTY_SOURCE: "true",
     STRIPE_TICKETING_ENABLED: "true",
     STRIPE_PARTNER_PAYMENTS_ENABLED: "true",
     STRIPE_SECRET_KEY: "sk_live_inherited-test-only",
@@ -193,7 +194,7 @@ try {
 
   const initial = await waitFor(async () => {
     const session = await readBoardDemoSession(sessionFile);
-    if (session?.status !== "ready" || session?.lastPreflight?.passed !== 9) return null;
+    if (session?.status !== "ready" || session?.lastPreflight?.passed !== 10) return null;
     rememberServicePids(session);
     return session;
   }, 90_000, "Initial board demo readiness");
@@ -201,6 +202,15 @@ try {
     throw new Error("Supervisor did not preserve and move around the occupied web port.");
   }
   console.log(`  ok supervisor preserves an occupied port and starts the complete stack (PID ${initial.pid})`);
+  if (
+    initial.schemaVersion !== BOARD_DEMO_SESSION_SCHEMA_VERSION
+    || !/^[a-f0-9]{40}$/i.test(String(initial.source?.commit || ""))
+    || !/^[a-f0-9]{64}$/i.test(String(initial.source?.statusHash || ""))
+    || initial.source?.allowDirty !== true
+  ) {
+    throw new Error("Supervisor did not capture a privacy-minimized source revision snapshot.");
+  }
+  console.log(`  ok supervisor pins source ${initial.source.branch}@${initial.source.commit.slice(0, 8)} without storing changed paths`);
   const upgradedRuntimeMarker = JSON.parse(await readFile(runtimeMarkerPath, "utf8"));
   if (
     initial.runtimeReused !== false
@@ -266,6 +276,22 @@ try {
   console.log(`  ok board:check discovers the active session and passes ${initialReport.passed}/${initialReport.total}`);
   const browserReport = await browserRehearsal(sessionFile);
   console.log(`  ok board:rehearse renders the active visitor and operations session ${browserReport.passed}/${browserReport.total}`);
+  const staleSourceSessionFile = path.join(temporary, "stale-source-session.json");
+  await writeFile(staleSourceSessionFile, `${JSON.stringify({
+    ...initial,
+    source: { ...initial.source, commit: "0".repeat(40) }
+  }, null, 2)}\n`);
+  const staleSourceResult = await run(process.execPath, ["scripts/check-board-demo.mjs", "--json"], commandEnvironment(staleSourceSessionFile), 20_000);
+  const staleSourceReport = JSON.parse(staleSourceResult.stdout);
+  if (staleSourceResult.code === 0 || staleSourceReport.checks?.find(item => item.id === "source_revision")?.ok !== false) {
+    throw new Error("Board preflight accepted a session pinned to a different source revision.");
+  }
+  const staleSourceBrowserResult = await run(process.execPath, ["scripts/check-board-browser.mjs", "--json"], commandEnvironment(staleSourceSessionFile), 20_000);
+  const staleSourceBrowserReport = JSON.parse(staleSourceBrowserResult.stdout);
+  if (staleSourceBrowserResult.code === 0 || staleSourceBrowserReport.checks?.find(item => item.id === "session")?.ok !== false) {
+    throw new Error("Board browser rehearsal accepted a session pinned to a different source revision.");
+  }
+  console.log("  ok preflight and browser rehearsal reject source drift before presentation navigation");
   const unsafeSessionFile = path.join(temporary, "unsafe-session.json");
   const unsafeApiBase = "https://example.com";
   await writeFile(unsafeSessionFile, `${JSON.stringify({
@@ -321,7 +347,7 @@ try {
   }
   const resetSession = await waitFor(async () => {
     const session = await readBoardDemoSession(sessionFile);
-    if (session?.status !== "ready" || session?.resetCount !== 1 || !session?.lastResetAt || session?.lastPreflight?.passed !== 9) return null;
+    if (session?.status !== "ready" || session?.resetCount !== 1 || !session?.lastResetAt || session?.lastPreflight?.passed !== 10) return null;
     const servicesReplaced = Object.entries(session.services || {}).every(([name, service]) => {
       const pid = Number(service.pid);
       return pid > 0 && pid !== preResetPids[name] && processAlive(pid);
@@ -389,7 +415,7 @@ try {
   ], supervisorEnvironment);
   const restarted = await waitFor(async () => {
     const session = await readBoardDemoSession(sessionFile);
-    if (session?.status !== "ready" || session?.lastPreflight?.passed !== 9) return null;
+    if (session?.status !== "ready" || session?.lastPreflight?.passed !== 10) return null;
     rememberServicePids(session);
     return session;
   }, 90_000, "Board supervisor restart");
@@ -413,7 +439,7 @@ try {
   const lingering = [...observedPids].filter(processAlive);
   if (lingering.length) throw new Error(`Board child processes remained alive after shutdown: ${lingering.join(", ")}`);
   console.log(`  ok second stop shuts down every process observed across both supervisor lifecycles`);
-  console.log("\nBoard demo supervisor: 15/15 checks passed.\n");
+  console.log("\nBoard demo supervisor: 17/17 checks passed.\n");
 } catch (error) {
   console.error(`\nBoard demo supervisor test failed: ${error.message}`);
   process.exitCode = 1;
