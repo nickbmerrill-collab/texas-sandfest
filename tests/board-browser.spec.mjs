@@ -752,11 +752,11 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   expect(refundedTicketRevenueEntries.find(item => item.entryType === "refund")).toMatchObject({ grossCents: -6000, netCents: -6000, quantity: -2 });
   expect(refundedTicketRevenue.summary.tickets.sold).toBe(paidTicketRevenue.summary.tickets.sold - 2);
   expect(refundedTicketRevenue.summary.totals.refundCents).toBe(paidTicketRevenue.summary.totals.refundCents + 6000);
-  await expect(commandSignals.locator('[data-command-signal="receivables"]')).toHaveAttribute("href", "#admin-receivables-accounts");
-  await expect(commandSignals.locator('[data-command-signal="vendors"]')).toHaveAttribute("href", "#admin-vendor-readiness");
+  await expect(commandSignals.locator('[data-command-signal="receivables"]')).toHaveAttribute("href", "#admin-receivables-workspace");
+  await expect(commandSignals.locator('[data-command-signal="vendors"]')).toHaveAttribute("href", "#admin-vendor-readiness-workspace");
   await commandSignals.locator('[data-command-signal="vendors"]').click();
-  await expect(page).toHaveURL(/#admin-vendor-readiness$/);
-  await expect(page.locator("#admin-vendor-readiness")).toBeInViewport({ ratio: 0.1 });
+  await expect(page).toHaveURL(/#admin-vendor-readiness-workspace$/);
+  await expect(page.locator("#admin-vendor-readiness-workspace")).toBeInViewport({ ratio: 0.1 });
   async function openPreparedPartnerPortal(organizationName) {
     const application = page.locator("#admin-partner-applications [data-partner-application]").filter({ hasText: organizationName });
     await expect(application).toHaveCount(1);
@@ -1568,7 +1568,7 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   expect(pageErrors).toEqual([]);
 });
 
-test("operations command summary fits a 1280x720 board viewport", async ({ page }) => {
+test("operations command summary fits and navigates across board viewports", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}`);
   await expect(page.locator("#admin-api-status")).toContainText("Loaded", { timeout: 25_000 });
@@ -1581,14 +1581,65 @@ test("operations command summary fits a 1280x720 board viewport", async ({ page 
   }));
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
   expect(commandBounds.every(bounds => bounds.top >= 0 && bounds.bottom <= 720)).toBe(true);
-  await page.locator('[data-command-signal="messages"]').click();
-  await expect(page).toHaveURL(/#admin-partner-followups$/);
+  const commandTargets = {
+    applications: { id: "admin-partner-applications-workspace", heading: "Applications and accounting" },
+    receivables: { id: "admin-receivables-workspace", heading: "Open accounts" },
+    messages: { id: "admin-partner-followups-workspace", heading: "Message drafts" },
+    assignments: { id: "admin-partner-tasks-workspace", heading: "Staff and volunteer work board" },
+    "key-dates": { id: "admin-partner-milestones-workspace", heading: "Partner key dates and reminder cadence" },
+    sponsors: { id: "admin-sponsor-fulfillment-workspace", heading: "Sponsor brand and benefit fulfillment" },
+    vendors: { id: "admin-vendor-readiness-workspace", heading: "Vendor compliance and load-in readiness" },
+    outreach: { id: "admin-outreach-prospects-workspace", heading: "Outreach pipeline" }
+  };
+  for (const [signal, { id: targetId, heading }] of Object.entries(commandTargets)) {
+    await page.locator(`[data-command-signal="${signal}"]`).click();
+    await expect(page).toHaveURL(new RegExp(`#${targetId}$`));
+    await expect.poll(() => page.evaluate(({ id, heading }) => {
+      const target = document.getElementById(id);
+      const workspaceNav = document.querySelector(".admin-workspace-nav");
+      const bounds = target?.getBoundingClientRect();
+      return Boolean(bounds
+        && bounds.top >= (workspaceNav?.getBoundingClientRect().bottom || 0)
+        && bounds.top < window.innerHeight
+        && target.contains(document.activeElement)
+        && document.activeElement?.textContent?.trim() === heading);
+    }, { id: targetId, heading }), { timeout: 500 }).toBe(true);
+  }
+  await page.locator('[data-command-signal="applications"]').focus();
+  await page.keyboard.press("Enter");
+  await expect.poll(() => page.evaluate(() => {
+    const target = document.querySelector("#admin-partner-applications-workspace");
+    const active = document.activeElement;
+    return Boolean(target?.contains(active)
+      && active?.textContent?.trim() === "Applications and accounting"
+      && getComputedStyle(active).outlineStyle !== "none");
+  }), { timeout: 500 }).toBe(true);
   const firstFollowup = page.locator("#admin-partner-followups [data-followup]").first();
   await expect(firstFollowup.locator('[data-review-followup][data-action="approve"]')).toBeVisible();
   const reviewReadyOutreach = page.locator("#admin-partner-followups [data-followup]")
     .filter({ hasText: "outreach sequence" })
     .filter({ has: page.locator('[data-review-followup][data-action="approve"]') });
   await expect(reviewReadyOutreach).toHaveCount(1);
+  await assertNoHorizontalOverflow(page);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}`);
+  await expect(page.locator("#admin-api-status")).toContainText("Loaded", { timeout: 25_000 });
+  await expect(page.locator("#admin-command-signals [data-command-signal]")).toHaveCount(8);
+  for (const [signal, { id: targetId, heading }] of Object.entries(commandTargets)) {
+    await page.locator(`[data-command-signal="${signal}"]`).click();
+    await expect(page).toHaveURL(new RegExp(`#${targetId}$`));
+    await expect.poll(() => page.evaluate(({ id, heading }) => {
+      const target = document.getElementById(id);
+      const workspaceNav = document.querySelector(".admin-workspace-nav");
+      const bounds = target?.getBoundingClientRect();
+      return Boolean(bounds
+        && bounds.top >= (workspaceNav?.getBoundingClientRect().bottom || 0)
+        && bounds.top < window.innerHeight
+        && target.contains(document.activeElement)
+        && document.activeElement?.textContent?.trim() === heading);
+    }, { id: targetId, heading }), { timeout: 500 }).toBe(true);
+  }
   await assertNoHorizontalOverflow(page);
 });
 

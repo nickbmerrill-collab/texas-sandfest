@@ -1525,7 +1525,7 @@ app.innerHTML = `
           </form>
           <div id="admin-incidents" class="admin-incident-list keyboard-scroll-region" role="region" aria-label="Island incident list" tabindex="0"></div>
         </div>
-        <div class="admin-task-board">
+        <div id="admin-partner-tasks-workspace" class="admin-task-board">
           <div class="admin-task-board-heading"><strong>Staff and volunteer work board</strong><span id="admin-task-board-summary">Load partner workspace to view assignments.</span></div>
           <form id="admin-import-staff" class="admin-inline-form admin-staff-import" data-requires-permission="staff:write">
             <div class="admin-task-board-heading admin-import-wide"><strong>Staff routing directory</strong><span id="admin-staff-directory-status">Load partner workspace to view routing readiness.</span></div>
@@ -1549,7 +1549,7 @@ app.innerHTML = `
           </div>
           <div id="admin-partner-tasks" class="admin-task-list"></div>
         </div>
-        <div class="admin-key-date-board">
+        <div id="admin-partner-milestones-workspace" class="admin-key-date-board">
           <div class="admin-task-board-heading"><strong>Partner key dates and reminder cadence</strong><span id="admin-key-date-summary">Load partner workspace to manage dates.</span></div>
           <form id="admin-create-milestone" class="admin-key-date-create" data-requires-permission="partners:write">
             <select name="applicationId" required aria-label="Partner account"><option value="">Partner account</option></select>
@@ -1561,11 +1561,11 @@ app.innerHTML = `
           </form>
           <div id="admin-partner-milestones" class="admin-key-date-list keyboard-scroll-region" role="region" aria-label="Partner key dates" tabindex="0"></div>
         </div>
-        <div class="admin-fulfillment-board">
+        <div id="admin-sponsor-fulfillment-workspace" class="admin-fulfillment-board">
           <div class="admin-task-board-heading"><strong>Sponsor brand and benefit fulfillment</strong><span id="admin-fulfillment-summary">Load partner workspace to view sponsor delivery.</span></div>
           <div id="admin-sponsor-fulfillment" class="admin-sponsor-fulfillment"></div>
         </div>
-        <div class="admin-vendor-readiness-board">
+        <div id="admin-vendor-readiness-workspace" class="admin-vendor-readiness-board">
           <div class="admin-task-board-heading"><strong>Vendor compliance and load-in readiness</strong><span id="admin-vendor-readiness-summary">Load partner workspace to view vendor readiness.</span></div>
           <div id="admin-vendor-readiness" class="admin-vendor-readiness"></div>
         </div>
@@ -1573,13 +1573,13 @@ app.innerHTML = `
           <div class="admin-task-board-heading"><strong>Receivables aging and reconciliation</strong><span id="admin-receivables-summary">Load partner workspace to review balances.</span></div>
           <div id="admin-receivables-aging" class="admin-receivables-aging"></div>
           <div class="admin-receivables-columns">
-            <div><strong>Open accounts</strong><div id="admin-receivables-accounts" class="admin-receivables-list keyboard-scroll-region" role="region" aria-label="Open receivable accounts" tabindex="0"></div></div>
+            <div id="admin-receivables-workspace"><strong>Open accounts</strong><div id="admin-receivables-accounts" class="admin-receivables-list keyboard-scroll-region" role="region" aria-label="Open receivable accounts" tabindex="0"></div></div>
             <div><strong>Exceptions</strong><div id="admin-receivables-exceptions" class="admin-receivables-list keyboard-scroll-region" role="region" aria-label="Receivable reconciliation exceptions" tabindex="0"></div></div>
           </div>
         </div>
         <div class="admin-partner-columns">
-          <div><strong>Applications and accounting</strong><div id="admin-partner-applications" class="admin-partner-list keyboard-scroll-region" role="region" aria-label="Partner applications and accounting" tabindex="0"></div></div>
-          <div><strong>Message drafts</strong><div id="admin-partner-followups" class="admin-partner-list keyboard-scroll-region" role="region" aria-label="Partner message drafts" tabindex="0"></div></div>
+          <div id="admin-partner-applications-workspace"><strong>Applications and accounting</strong><div id="admin-partner-applications" class="admin-partner-list keyboard-scroll-region" role="region" aria-label="Partner applications and accounting" tabindex="0"></div></div>
+          <div id="admin-partner-followups-workspace"><strong>Message drafts</strong><div id="admin-partner-followups" class="admin-partner-list keyboard-scroll-region" role="region" aria-label="Partner message drafts" tabindex="0"></div></div>
         </div>
         <div class="admin-partner-create">
           <form id="admin-import-partners" class="admin-inline-form admin-outreach-import" data-requires-permission="partners:write">
@@ -1725,7 +1725,7 @@ app.innerHTML = `
           <div class="admin-outreach-map-empty">Campaign coverage loads with the outreach workspace.</div>
         </section>
         <div class="admin-partner-columns admin-conditions-columns">
-          <div><strong>Outreach pipeline</strong><div id="admin-outreach-prospects" class="admin-partner-list keyboard-scroll-region" role="region" aria-label="Sponsor outreach pipeline" tabindex="0"></div></div>
+          <div id="admin-outreach-prospects-workspace"><strong>Outreach pipeline</strong><div id="admin-outreach-prospects" class="admin-partner-list keyboard-scroll-region" role="region" aria-label="Sponsor outreach pipeline" tabindex="0"></div></div>
           <div class="admin-condition-span" id="admin-island-conditions"><strong>Source health</strong><div id="admin-condition-feeds" class="admin-condition-feeds"><span>Weather and ferry feeds not loaded</span></div><strong>Eight-source condition grid</strong><span id="admin-condition-ingest" class="admin-condition-ingest">Metric ingest not loaded</span><div id="admin-condition-cameras" class="admin-partner-list keyboard-scroll-region" role="region" aria-label="Eight-source condition grid" tabindex="0"></div></div>
         </div>
       </div>
@@ -6996,7 +6996,7 @@ function renderAdminCommandSummary(payload, outreach) {
       value: `${Number(applications.total || 0)} active`,
       detail: `${Number(applications.vendors || 0)} vendors · ${Number(applications.sponsors || 0)} sponsors`,
       action: "View intake",
-      href: "#admin-partner-applications",
+      href: "#admin-partner-applications-workspace",
       state: Number(applications.total || 0) > 0 ? "ready" : "idle"
     },
     {
@@ -7005,7 +7005,7 @@ function renderAdminCommandSummary(payload, outreach) {
       value: adminMoney(finance.balanceCents, "$0.00"),
       detail: `${adminMoney(finance.amountPaidCents, "$0.00")} received of ${adminMoney(finance.amountExpectedCents, "$0.00")}`,
       action: "Open accounts",
-      href: "#admin-receivables-accounts",
+      href: "#admin-receivables-workspace",
       state: Number(finance.amountExpectedCents || 0) > 0 ? "tracking" : "idle"
     },
     {
@@ -7014,7 +7014,7 @@ function renderAdminCommandSummary(payload, outreach) {
       value: `${Number(operations.draftsAwaitingReview || 0)} to review`,
       detail: automationPresentation.commandDetail,
       action: "Review queue",
-      href: "#admin-partner-followups",
+      href: "#admin-partner-followups-workspace",
       state: automationReady ? Number(operations.draftsAwaitingReview || 0) > 0 ? "attention" : "ready" : "blocked"
     },
     {
@@ -7023,7 +7023,7 @@ function renderAdminCommandSummary(payload, outreach) {
       value: `${Number(taskTotals.active || 0)} active`,
       detail: `${Number(taskTotals.unassigned || 0)} unassigned · ${assignmentCoverage.join(" / ") || "No owners"}`,
       action: "Open work board",
-      href: "#admin-partner-tasks",
+      href: "#admin-partner-tasks-workspace",
       state: assignmentsReady ? "ready" : "attention"
     },
     {
@@ -7032,7 +7032,7 @@ function renderAdminCommandSummary(payload, outreach) {
       value: `${Number(operations.upcomingMilestones || 0)} upcoming`,
       detail: `${Number(operations.overdueMilestones || 0)} overdue · ${Number(operations.dueSoonMilestones || 0)} due soon`,
       action: "View calendar",
-      href: "#admin-partner-milestones",
+      href: "#admin-partner-milestones-workspace",
       state: Number(operations.overdueMilestones || 0) > 0 ? "attention" : Number(operations.upcomingMilestones || 0) > 0 ? "ready" : "idle"
     },
     {
@@ -7041,7 +7041,7 @@ function renderAdminCommandSummary(payload, outreach) {
       value: `${Number(fulfillment.assets?.approved || 0)} assets approved`,
       detail: `${Number(fulfillment.profiles?.approved || 0)} brand approved · ${Number(fulfillment.deliverables?.active || 0)} active benefits`,
       action: "View fulfillment",
-      href: "#admin-sponsor-fulfillment",
+      href: "#admin-sponsor-fulfillment-workspace",
       state: sponsorsReady ? "ready" : "attention"
     },
     {
@@ -7050,7 +7050,7 @@ function renderAdminCommandSummary(payload, outreach) {
       value: `${Number(vendor.ready || 0)}/${Number(vendor.vendors || 0)} ready`,
       detail: `${Number(vendor.blocked || 0)} blocked · ${Number(vendor.requirementsMissing || 0)} missing items`,
       action: "Review vendors",
-      href: "#admin-vendor-readiness",
+      href: "#admin-vendor-readiness-workspace",
       state: Number(vendor.blocked || 0) > 0 ? "attention" : Number(vendor.ready || 0) > 0 ? "ready" : "idle"
     },
     {
@@ -7059,7 +7059,7 @@ function renderAdminCommandSummary(payload, outreach) {
       value: `${Number(outreachSummary.qualified || 0)} qualified`,
       detail: `${Number(outreachSummary.nextActionsScheduled || 0)} next actions · ${Number(outreachSummary.unassigned || 0)} unassigned`,
       action: "Open pipeline",
-      href: "#admin-outreach-prospects",
+      href: "#admin-outreach-prospects-workspace",
       state: outreachReady ? "ready" : Number(outreachSummary.nextActionsOverdue || 0) > 0 ? "attention" : "idle"
     }
   ];
@@ -9607,6 +9607,7 @@ document.querySelector("#partner-portal-recovery-form")?.addEventListener("submi
 });
 document.querySelector("#partner-status-forget")?.addEventListener("click", clearPartnerPortalView);
 document.querySelector("#outreach-preferences-unsubscribe")?.addEventListener("click", unsubscribeOutreachPreference);
+document.querySelector("#admin-command-signals")?.addEventListener("click", navigateAdminCommandSignal);
 bindSponsorTierButtons();
 bindSponsorPackageChoices();
 bindVendorOfferingChoices();
@@ -10129,26 +10130,53 @@ function scrollToRenderedHashTarget(options = {}) {
   const scroll = () => target.scrollIntoView({ behavior, block: "start" });
   requestAnimationFrame(() => {
     scroll();
-    requestAnimationFrame(scroll);
+    requestAnimationFrame(() => {
+      scroll();
+      if (options?.focus) focusRenderedHashTarget(target);
+    });
   });
 }
 
-function stabilizeRenderedHashTarget() {
-  scrollToRenderedHashTarget();
+function focusRenderedHashTarget(target) {
+  const focusTarget = target.querySelector(":scope > .admin-task-board-heading > strong, :scope > strong, :scope > h1, :scope > h2, :scope > h3, :scope > h4") || target;
+  const temporaryTabIndex = !focusTarget.hasAttribute("tabindex");
+  if (temporaryTabIndex) focusTarget.setAttribute("tabindex", "-1");
+  focusTarget.dataset.commandTargetFocus = "";
+  focusTarget.focus({ preventScroll: true });
+  focusTarget.addEventListener("blur", () => {
+    delete focusTarget.dataset.commandTargetFocus;
+    if (temporaryTabIndex) focusTarget.removeAttribute("tabindex");
+  }, { once: true });
+}
+
+function stabilizeRenderedHashTarget(options = {}) {
+  scrollToRenderedHashTarget(options);
   const root = document.querySelector("main");
   if (!root || typeof ResizeObserver !== "function" || !window.location.hash) return;
 
+  const settleOptions = { ...options, focus: false };
   let animationFrame = 0;
   const observer = new ResizeObserver(() => {
     cancelAnimationFrame(animationFrame);
-    animationFrame = requestAnimationFrame(scrollToRenderedHashTarget);
+    animationFrame = requestAnimationFrame(() => scrollToRenderedHashTarget(settleOptions));
   });
   observer.observe(root);
   window.setTimeout(() => {
     observer.disconnect();
     cancelAnimationFrame(animationFrame);
-    scrollToRenderedHashTarget();
+    scrollToRenderedHashTarget(settleOptions);
   }, 1500);
+}
+
+function navigateAdminCommandSignal(event) {
+  const link = event.target instanceof Element ? event.target.closest("a[data-command-signal]") : null;
+  if (!link || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  const targetHash = link.getAttribute("href");
+  if (!targetHash?.startsWith("#") || !document.querySelector(targetHash)) return;
+
+  event.preventDefault();
+  if (window.location.hash !== targetHash) window.history.pushState(null, "", targetHash);
+  stabilizeRenderedHashTarget({ focus: true });
 }
 
 window.addEventListener("hashchange", () => {
