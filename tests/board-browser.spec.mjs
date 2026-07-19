@@ -160,7 +160,7 @@ async function assertTargetClearsTopbar(page, selector, minimumGap = 0, maximumG
     return gap >= minimumGap && gap <= maximumGap;
   }, { selector, minimumGap, maximumGap });
   await expect.poll(targetHasSafeGap).toBe(true);
-  await page.waitForTimeout(250);
+  await page.waitForTimeout(1_750);
   expect(await targetHasSafeGap()).toBe(true);
 }
 
@@ -354,6 +354,7 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await expect(page.locator('[data-package-id="flounder"] [data-package-action]')).toHaveText("Selected");
   await expect(page.locator('[data-package-id="the-kraken"] [data-package-action]')).toHaveText("Choose tier");
   await page.locator('[data-package-id="the-kraken"]').click();
+  await expect(page).toHaveURL(/#sponsor-inquiry-form$/);
   await expect(page.locator('#sponsor-inquiry-form [name="packageId"]')).toHaveValue("the-kraken");
   await expect(page.locator('#sponsor-inquiry-form [name="packageId"]')).toBeFocused();
   await assertTargetClearsTopbar(page, "#sponsor-inquiry-form", 12);
@@ -1605,9 +1606,10 @@ test("critical public and operations views fit a mobile viewport", async ({ page
   await expect(page.locator("#vendor-application-form")).toBeInViewport({ ratio: 0.1 });
   await assertNoHorizontalOverflow(page);
 
-  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#sponsors`);
+  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#sponsors`, { waitUntil: "domcontentloaded" });
   await expect(page.locator("#vendor-application-form")).toBeVisible();
   await page.locator('[data-package-id="tarpon"]').click();
+  await expect(page).toHaveURL(/#sponsor-inquiry-form$/);
   await expect(page.locator('#sponsor-inquiry-form [name="packageId"]')).toBeFocused();
   await assertTargetClearsTopbar(page, "#sponsor-inquiry-form", 12);
   await expect(page.locator("#sponsor-inquiry-form")).toBeInViewport({ ratio: 0.1 });
