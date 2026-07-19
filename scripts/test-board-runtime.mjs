@@ -3,11 +3,11 @@
 import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { createServer } from "node:net";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { BOARD_RUNTIME_LABEL, BOARD_RUNTIME_SCHEMA_VERSION, prepareBoardRuntime } from "../lib/board-runtime.mjs";
+import { BOARD_RUNTIME_LABEL, BOARD_RUNTIME_SCHEMA_VERSION, claimBoardRuntimeOwnership, prepareBoardRuntime } from "../lib/board-runtime.mjs";
 import { runBoardCameraPlaybackTick } from "../lib/board-camera-playback.mjs";
 import { boardEmailSandboxConfig, startBoardEmailSandbox } from "../lib/board-email-sandbox.mjs";
 import { boardSmsSandboxConfig, startBoardSmsSandbox } from "../lib/board-sms-sandbox.mjs";
@@ -15,7 +15,7 @@ import { DEFAULT_EVENT_ID } from "../lib/event-context.mjs";
 import { platformDocumentFilePath } from "../lib/platform-data.mjs";
 import { publicAppBootstrapSafety } from "../lib/public-bootstrap.mjs";
 import { partnerContactNotice } from "../lib/partner-consent.mjs";
-import { resolveRuntimeRoot } from "../lib/runtime-root.mjs";
+import { RUNTIME_OWNERSHIP_ERROR_CODE, assertRuntimeOwnership, resolveRuntimeRoot, withRuntimeOwnership } from "../lib/runtime-root.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const TOKEN = "board-runtime-test-admin-token-change-me";
@@ -229,6 +229,39 @@ try {
   check("board runtime records its compatibility contract", runtimeMarker.kind === "synthetic-board-demonstration"
     && runtimeMarker.schemaVersion === BOARD_RUNTIME_SCHEMA_VERSION
     && runtimeMarker.runtimeLabel === BOARD_RUNTIME_LABEL);
+  const ownershipRoot = path.join(temporary, "ownership-contract");
+  const ownershipMarkerPath = path.join(ownershipRoot, "board-runtime.json");
+  const firstOwnerId = "board-runtime-owner-0001";
+  const secondOwnerId = "board-runtime-owner-0002";
+  await mkdir(ownershipRoot, { recursive: true });
+  await writeFile(ownershipMarkerPath, `${JSON.stringify({ kind: "synthetic-board-demonstration", runtimeOwnerId: firstOwnerId })}\n`, "utf8");
+  let releaseOwnedOperation;
+  let ownedOperationStarted;
+  const ownedOperationGate = new Promise(resolve => { releaseOwnedOperation = resolve; });
+  const ownedOperationReady = new Promise(resolve => { ownedOperationStarted = resolve; });
+  let nestedOwnedOperationCompleted = false;
+  const ownedOperation = withRuntimeOwnership(ownershipRoot, async () => {
+    await withRuntimeOwnership(ownershipRoot, async () => {
+      nestedOwnedOperationCompleted = true;
+    }, { SANDFEST_RUNTIME_ROOT: ownershipRoot, SANDFEST_RUNTIME_OWNER_ID: firstOwnerId });
+    ownedOperationStarted();
+    await ownedOperationGate;
+  }, { SANDFEST_RUNTIME_ROOT: ownershipRoot, SANDFEST_RUNTIME_OWNER_ID: firstOwnerId });
+  await ownedOperationReady;
+  let ownershipClaimCompleted = false;
+  const ownershipClaim = claimBoardRuntimeOwnership(ownershipRoot, secondOwnerId).then(() => { ownershipClaimCompleted = true; });
+  await new Promise(resolve => setTimeout(resolve, 50));
+  check("runtime ownership claim waits for an in-flight owner", nestedOwnedOperationCompleted && ownershipClaimCompleted === false);
+  releaseOwnedOperation();
+  await Promise.all([ownedOperation, ownershipClaim]);
+  let staleOwnerRejected = false;
+  try {
+    await assertRuntimeOwnership(ownershipRoot, { SANDFEST_RUNTIME_ROOT: ownershipRoot, SANDFEST_RUNTIME_OWNER_ID: firstOwnerId });
+  } catch (error) {
+    staleOwnerRejected = error?.code === RUNTIME_OWNERSHIP_ERROR_CODE;
+  }
+  const currentOwner = await assertRuntimeOwnership(ownershipRoot, { SANDFEST_RUNTIME_ROOT: ownershipRoot, SANDFEST_RUNTIME_OWNER_ID: secondOwnerId });
+  check("runtime ownership rejects a stale process after handoff", staleOwnerRejected && currentOwner.required === true);
   check("board seed covers core operations", prepared.applications === 4 && prepared.invoices === 1 && prepared.payments === 1 && prepared.tasks === 10 && prepared.prospects === 2 && prepared.safetySmsRecipients === 1);
   check("board seed covers field operations", prepared.cameras === 8 && prepared.volunteerShifts === 12 && prepared.documents === 4);
   check("production refuses synthetic board conditions", await productionRejectsSyntheticConditions(targetRoot));

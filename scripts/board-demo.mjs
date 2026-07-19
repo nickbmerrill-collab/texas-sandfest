@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { access, readFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { BOARD_RUNTIME_LABEL, BOARD_RUNTIME_SCHEMA_VERSION, prepareBoardRuntime } from "../lib/board-runtime.mjs";
+import { BOARD_RUNTIME_LABEL, BOARD_RUNTIME_SCHEMA_VERSION, claimBoardRuntimeOwnership, prepareBoardRuntime } from "../lib/board-runtime.mjs";
 import {
   BOARD_DEMO_SESSION_SCHEMA_VERSION,
   boardDemoSessionPath,
@@ -114,9 +115,12 @@ async function runtimeMarker(runtimeRoot) {
   }
 }
 
-async function prepareRuntime(runtimeRoot, { reset }) {
+async function prepareRuntime(runtimeRoot, { reset }, runtimeOwnerId) {
   const marker = await runtimeMarker(runtimeRoot);
   const eventId = eventContextConfig(process.env).eventId;
+  if (marker?.kind === "synthetic-board-demonstration") {
+    await claimBoardRuntimeOwnership(runtimeRoot, runtimeOwnerId);
+  }
   if (!reset && marker?.kind === "synthetic-board-demonstration") {
     const refreshReasons = [];
     if (marker.schemaVersion !== BOARD_RUNTIME_SCHEMA_VERSION) {
@@ -129,7 +133,9 @@ async function prepareRuntime(runtimeRoot, { reset }) {
     if (marker.messageMode !== PRESENTATION_MESSAGE_MODE) {
       refreshReasons.push(`message mode ${marker.messageMode || "missing"} -> ${PRESENTATION_MESSAGE_MODE}`);
     }
-    if (!refreshReasons.length) return { reused: true, targetRoot: runtimeRoot, eventId };
+    if (!refreshReasons.length) {
+      return { reused: true, targetRoot: runtimeRoot, eventId };
+    }
 
     console.log(`[board-demo] Refreshing the recognized synthetic runtime (${refreshReasons.join("; ")}).`);
     const refreshed = await prepareBoardRuntime({
@@ -137,7 +143,8 @@ async function prepareRuntime(runtimeRoot, { reset }) {
       targetRoot: runtimeRoot,
       eventId,
       replace: true,
-      messageMode: PRESENTATION_MESSAGE_MODE
+      messageMode: PRESENTATION_MESSAGE_MODE,
+      runtimeOwnerId
     });
     return { ...refreshed, refreshed: true, refreshReasons };
   }
@@ -157,15 +164,17 @@ async function prepareRuntime(runtimeRoot, { reset }) {
     targetRoot: runtimeRoot,
     eventId,
     replace: reset,
-    messageMode: PRESENTATION_MESSAGE_MODE
+    messageMode: PRESENTATION_MESSAGE_MODE,
+    runtimeOwnerId
   });
 }
 
-function processEnvironment(runtimeRoot, endpoints) {
+function processEnvironment(runtimeRoot, endpoints, runtimeOwnerId) {
   const shared = {
     ...process.env,
     SANDFEST_DATABASE_URL: "",
     SANDFEST_RUNTIME_ROOT: runtimeRoot,
+    SANDFEST_RUNTIME_OWNER_ID: runtimeOwnerId,
     SANDFEST_INCOMING_DOCUMENT_DIR: path.join(runtimeRoot, "private", "incoming-documents"),
     SANDFEST_ENV: "development",
     SANDFEST_EVENT_ID: eventContextConfig(process.env).eventId,
@@ -332,8 +341,9 @@ const endpoints = Object.fromEntries(Object.entries(ports).map(([name, port]) =>
 ]));
 const visitor = `${endpoints.webBase}/?apiBase=${encodeURIComponent(endpoints.apiBase)}&mode=visitor`;
 const operations = `${endpoints.webBase}/admin.html?apiBase=${encodeURIComponent(endpoints.apiBase)}`;
-const runtime = await prepareRuntime(options.runtimeRoot, options);
-const environments = processEnvironment(options.runtimeRoot, endpoints);
+const runtimeOwnerId = randomUUID();
+const runtime = await prepareRuntime(options.runtimeRoot, options, runtimeOwnerId);
+const environments = processEnvironment(options.runtimeRoot, endpoints, runtimeOwnerId);
 const definitions = serviceDefinitions(environments, ports);
 const preflightEnv = {
   ...process.env,
@@ -546,7 +556,7 @@ async function resetBoardRuntime() {
     }
     for (const name of [...SERVICE_ORDER].reverse()) await stopChild(name);
     await stateWrites;
-    const refreshedRuntime = await prepareRuntime(options.runtimeRoot, { reset: true });
+    const refreshedRuntime = await prepareRuntime(options.runtimeRoot, { reset: true }, runtimeOwnerId);
     state.runtimeReused = false;
     state.runtimeRefreshed = false;
     state.runtimeRefreshReasons = [];

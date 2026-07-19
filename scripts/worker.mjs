@@ -8,7 +8,7 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadDotEnv } from "../lib/load-env.mjs";
-import { resolveRuntimeRoot } from "../lib/runtime-root.mjs";
+import { RUNTIME_OWNERSHIP_ERROR_CODE, resolveRuntimeRoot, withRuntimeOwnership } from "../lib/runtime-root.mjs";
 import { eventContextConfig } from "../lib/event-context.mjs";
 import { claimNextJobs, completeJob, enqueueJob, jobQueueConfig, listJobs, markTerminalJobHandled } from "../lib/job-queue.mjs";
 import { normalizeConsent } from "../lib/consent.mjs";
@@ -191,7 +191,7 @@ async function handleJob(job) {
     const text = `SandFest ${String(alert.severity || "alert").toUpperCase()}: ${String(alert.title || "Festival alert").trim()}. ${String(alert.message || "").trim()}`.slice(0, 320);
     const callbackUrl = smsStatusCallbackUrl(config, { campaignId, messageId });
     const delivery = consentActive
-      ? await sendSms(consent.phone, text, { config, statusCallbackUrl: callbackUrl })
+      ? await withRuntimeOwnership(ROOT, () => sendSms(consent.phone, text, { config, statusCallbackUrl: callbackUrl }))
       : { ok: false, skipped: true, status: "suppressed", error: "Safety SMS consent is no longer active." };
     let recorded = null;
     await updatePlatformDoc(ROOT, "smsOperations", current => {
@@ -219,10 +219,10 @@ async function handleJob(job) {
     const application = doc.applications.find(item => item.id === invoice.applicationId);
     if (!application) throw new Error("Application not found for partner invoice.");
     const runtime = await loadQuickBooksRuntimeCredentials(ROOT);
-    const sync = await syncPartnerInvoiceToQuickBooks({ application, invoice }, {
+    const sync = await withRuntimeOwnership(ROOT, () => syncPartnerInvoiceToQuickBooks({ application, invoice }, {
       runtimeEnv: runtime.env,
       onTokenRefresh: token => persistQuickBooksTokenRotation(ROOT, runtime, token)
-    });
+    }));
     let recorded = null;
     await updatePlatformDoc(ROOT, "partnerOps", current => {
       recorded = recordPartnerInvoiceSync(current, invoice.id, sync);
@@ -243,10 +243,10 @@ async function handleJob(job) {
       throw new Error("Partner invoice refresh version is stale.");
     }
     const runtime = await loadQuickBooksRuntimeCredentials(ROOT);
-    const reconciliation = await reconcilePartnerInvoiceFromQuickBooks({ invoice }, {
+    const reconciliation = await withRuntimeOwnership(ROOT, () => reconcilePartnerInvoiceFromQuickBooks({ invoice }, {
       runtimeEnv: runtime.env,
       onTokenRefresh: token => persistQuickBooksTokenRotation(ROOT, runtime, token)
-    });
+    }));
     let recorded = null;
     await updatePlatformDoc(ROOT, "partnerOps", current => {
       recorded = recordPartnerInvoiceReconciliation(current, invoice.id, reconciliation);
@@ -483,7 +483,7 @@ async function handleJob(job) {
     if (begun.canceled) return { ok: true, canceled: true, followupId: followup.id, status: begun.status };
     followup = begun.followup;
     const preferenceUrl = followup.prospectId ? outreachPreferencesUrl(begun.recipient) : null;
-    const delivery = await sendTransactionalEmail({
+    const delivery = await withRuntimeOwnership(ROOT, () => sendTransactionalEmail({
       toEmail: followup.recipient,
       toName: begun.toName,
       subject: followup.subject,
@@ -491,7 +491,7 @@ async function handleJob(job) {
       listUnsubscribeUrl: preferenceUrl,
       idempotencyKey: followup.deliveryIdempotencyKey,
       tags: ["sandfest-partner", `followup-${followup.id}`]
-    }, { config: emailConfigFromEnv() });
+    }, { config: emailConfigFromEnv() }));
     if (!delivery.sent && !delivery.duplicate) {
       const error = new Error(delivery.error || delivery.reason || "Transactional email was not sent.");
       error.delivery = delivery;
@@ -538,13 +538,13 @@ async function handleJob(job) {
     const recipientContext = await readRecipientContext();
     const resolved = resolveIncidentDispatchRecipient(doc, dispatch.id, recipientContext);
     if (!resolved.ok) throw new Error(resolved.error);
-    const delivery = await sendTransactionalEmail({
+    const delivery = await withRuntimeOwnership(ROOT, () => sendTransactionalEmail({
       toEmail: resolved.recipient,
       toName: resolved.toName,
       subject: dispatch.notification.subject,
       textContent: dispatch.notification.body,
       tags: ["sandfest-operations", "incident-dispatch"]
-    }, { config: emailConfigFromEnv() });
+    }, { config: emailConfigFromEnv() }));
     if (!delivery.sent) {
       const error = new Error(delivery.error || delivery.reason || "Incident dispatch email was not sent.");
       error.delivery = delivery;
@@ -916,26 +916,39 @@ async function tick() {
 }
 
 console.log(`[worker] started root=${ROOT} event=${CURRENT_EVENT_ID} worker=${QUEUE.workerId} poll=${POLL_MS}ms lease=${QUEUE.leaseMs}ms once=${ONCE}`);
-await writeHeartbeat("running", { once: ONCE });
-
-if (ONCE) {
-  const result = await tick();
-  await writeHeartbeat("stopped", {
-    once: true,
-    lastBatchSize: result.jobs,
-    lastGeneratedDrafts: result.generatedDrafts,
-    lastGeneratedTaskDrafts: result.generatedTaskDrafts,
-    lastReconciledDocumentReviewTasks: result.reconciledDocumentReviewTasks,
-    lastGeneratedOutreachDrafts: result.generatedOutreachDrafts,
-    lastAutoApproved: result.autoApproved,
-    lastAutoQueued: result.autoQueued,
-    lastAutoFailed: result.autoFailed
-  });
-  console.log(`[worker] processed ${result.jobs} job(s), generated ${result.generatedDrafts} draft(s)`);
+try {
+  await writeHeartbeat("running", { once: ONCE });
+} catch (error) {
+  if (error?.code !== RUNTIME_OWNERSHIP_ERROR_CODE) throw error;
+  console.warn(`[worker] ${error.message}`);
   process.exit(0);
 }
 
+if (ONCE) {
+  try {
+    const result = await tick();
+    await writeHeartbeat("stopped", {
+      once: true,
+      lastBatchSize: result.jobs,
+      lastGeneratedDrafts: result.generatedDrafts,
+      lastGeneratedTaskDrafts: result.generatedTaskDrafts,
+      lastReconciledDocumentReviewTasks: result.reconciledDocumentReviewTasks,
+      lastGeneratedOutreachDrafts: result.generatedOutreachDrafts,
+      lastAutoApproved: result.autoApproved,
+      lastAutoQueued: result.autoQueued,
+      lastAutoFailed: result.autoFailed
+    });
+    console.log(`[worker] processed ${result.jobs} job(s), generated ${result.generatedDrafts} draft(s)`);
+    process.exit(0);
+  } catch (error) {
+    if (error?.code !== RUNTIME_OWNERSHIP_ERROR_CODE) throw error;
+    console.warn(`[worker] ${error.message}`);
+    process.exit(0);
+  }
+}
+
 let stopped = false;
+let ownershipRevoked = false;
 process.on("SIGINT", () => { stopped = true; });
 process.on("SIGTERM", () => { stopped = true; });
 
@@ -944,10 +957,23 @@ while (!stopped) {
     const processed = await tick();
     await writeHeartbeat("running", { lastBatchSize: processed.jobs, lastGeneratedDrafts: processed.generatedDrafts, lastGeneratedTaskDrafts: processed.generatedTaskDrafts, lastReconciledDocumentReviewTasks: processed.reconciledDocumentReviewTasks, lastGeneratedOutreachDrafts: processed.generatedOutreachDrafts });
   } catch (error) {
+    if (error?.code === RUNTIME_OWNERSHIP_ERROR_CODE) {
+      ownershipRevoked = true;
+      stopped = true;
+      console.warn(`[worker] ${error.message}`);
+      continue;
+    }
     console.error("[worker] tick failed:", error.message);
   }
   await new Promise(r => setTimeout(r, POLL_MS));
 }
 
 console.log("[worker] stopped");
-await writeHeartbeat("stopped");
+if (!ownershipRevoked) {
+  try {
+    await writeHeartbeat("stopped");
+  } catch (error) {
+    if (error?.code !== RUNTIME_OWNERSHIP_ERROR_CODE) throw error;
+    console.warn(`[worker] ${error.message}`);
+  }
+}

@@ -16,8 +16,12 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ADMIN_TOKEN = "board-demo-local-admin-token-change-me";
 let temporary = null;
 let supervisor = null;
+let staleApi = null;
+let staleWorker = null;
 let occupiedPortServer = null;
 let output = "";
+let staleApiOutput = "";
+let staleWorkerOutput = "";
 const observedPids = new Set();
 
 function freePort() {
@@ -158,7 +162,7 @@ try {
   const sessionFile = path.join(temporary, "session.json");
   occupiedPortServer = await occupyPort();
   const webPort = occupiedPortServer.address().port;
-  const [apiPort, emailPort, smsPort] = await distinctPorts(3);
+  const [apiPort, emailPort, smsPort, staleApiPort] = await distinctPorts(4);
   await prepareBoardRuntime({
     sourceRoot: ROOT,
     targetRoot: runtimeRoot,
@@ -171,6 +175,40 @@ try {
   staleRuntimeMarker.schemaVersion = 0;
   staleRuntimeMarker.runtimeLabel = "Outdated presentation label";
   await writeFile(runtimeMarkerPath, `${JSON.stringify(staleRuntimeMarker, null, 2)}\n`, "utf8");
+  const staleWorkerEnvironment = {
+    ...process.env,
+    SANDFEST_DATABASE_URL: "",
+    SANDFEST_RUNTIME_ROOT: runtimeRoot,
+    SANDFEST_RUNTIME_OWNER_ID: "",
+    SANDFEST_EVENT_ID: DEFAULT_EVENT_ID,
+    SANDFEST_WORKER_POLL_MS: "100",
+    TRANSACTIONAL_EMAIL_ENABLED: "false"
+  };
+  staleWorker = spawn(process.execPath, ["scripts/worker.mjs"], {
+    cwd: ROOT,
+    env: staleWorkerEnvironment,
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+  staleWorker.stdout.on("data", chunk => { staleWorkerOutput += String(chunk); });
+  staleWorker.stderr.on("data", chunk => { staleWorkerOutput += String(chunk); });
+  await waitFor(async () => staleWorkerOutput.includes("[worker] started") ? true : null, 10_000, "Stale worker startup");
+  staleApi = spawn(process.execPath, ["scripts/admin-api-server.mjs"], {
+    cwd: ROOT,
+    env: {
+      ...process.env,
+      PORT: String(staleApiPort),
+      SANDFEST_API_HOST: "127.0.0.1",
+      SANDFEST_DATABASE_URL: "",
+      SANDFEST_RUNTIME_ROOT: runtimeRoot,
+      SANDFEST_RUNTIME_OWNER_ID: "",
+      SANDFEST_EVENT_ID: DEFAULT_EVENT_ID,
+      SANDFEST_ADMIN_API_TOKEN: ADMIN_TOKEN
+    },
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+  staleApi.stdout.on("data", chunk => { staleApiOutput += String(chunk); });
+  staleApi.stderr.on("data", chunk => { staleApiOutput += String(chunk); });
+  await waitFor(async () => staleApiOutput.includes("SandFest admin API listening") ? true : null, 10_000, "Stale API startup");
   const supervisorEnvironment = {
     ...commandEnvironment(sessionFile),
     SANDFEST_BOARD_ALLOW_DIRTY_SOURCE: "true",
@@ -205,6 +243,17 @@ try {
     throw new Error("Supervisor did not preserve and move around the occupied web port.");
   }
   console.log(`  ok supervisor preserves an occupied port and starts the complete stack (PID ${initial.pid})`);
+  await waitFor(async () => staleWorker.exitCode != null ? true : null, 10_000, "Stale worker ownership fence");
+  if (staleWorker.exitCode !== 0 || !staleWorkerOutput.includes("no longer owns the supervised board runtime")) {
+    throw new Error(`Stale worker was not fenced cleanly:\n${staleWorkerOutput.slice(-4_000)}`);
+  }
+  console.log("  ok supervisor ownership fence retires a stale worker sharing the runtime");
+  const staleApiResponse = await fetch(`http://127.0.0.1:${staleApiPort}/health`);
+  const staleApiPayload = await staleApiResponse.json();
+  if (staleApiResponse.status !== 409 || !String(staleApiPayload.error || "").includes("no longer owns")) {
+    throw new Error(`Stale API was not fenced cleanly: ${staleApiResponse.status} ${JSON.stringify(staleApiPayload)}`);
+  }
+  console.log("  ok supervisor ownership fence rejects a stale API sharing the runtime");
   if (
     initial.schemaVersion !== BOARD_DEMO_SESSION_SCHEMA_VERSION
     || !/^[a-f0-9]{40}$/i.test(String(initial.source?.commit || ""))
@@ -225,6 +274,8 @@ try {
     || upgradedRuntimeMarker.schemaVersion !== BOARD_RUNTIME_SCHEMA_VERSION
     || upgradedRuntimeMarker.runtimeLabel !== BOARD_RUNTIME_LABEL
     || upgradedRuntimeMarker.messageMode !== "local_automation"
+    || !/^[a-f0-9-]{36}$/i.test(String(upgradedRuntimeMarker.runtimeOwnerId || ""))
+    || !Number.isFinite(Date.parse(upgradedRuntimeMarker.ownershipClaimedAt))
   ) {
     throw new Error("Supervisor did not automatically upgrade the recognized stale board runtime.");
   }
@@ -450,7 +501,7 @@ try {
   const lingering = [...observedPids].filter(processAlive);
   if (lingering.length) throw new Error(`Board child processes remained alive after shutdown: ${lingering.join(", ")}`);
   console.log(`  ok second stop shuts down every process observed across both supervisor lifecycles`);
-  console.log("\nBoard demo supervisor: 17/17 checks passed.\n");
+  console.log("\nBoard demo supervisor: 19/19 checks passed.\n");
 } catch (error) {
   console.error(`\nBoard demo supervisor test failed: ${error.message}`);
   process.exitCode = 1;
@@ -462,6 +513,22 @@ try {
       wait(5_000)
     ]);
     if (supervisor.exitCode == null) supervisor.kill("SIGKILL");
+  }
+  if (staleWorker && staleWorker.exitCode == null) {
+    staleWorker.kill("SIGTERM");
+    await Promise.race([
+      new Promise(resolve => staleWorker.once("exit", resolve)),
+      wait(2_000)
+    ]);
+    if (staleWorker.exitCode == null) staleWorker.kill("SIGKILL");
+  }
+  if (staleApi && staleApi.exitCode == null) {
+    staleApi.kill("SIGTERM");
+    await Promise.race([
+      new Promise(resolve => staleApi.once("exit", resolve)),
+      wait(2_000)
+    ]);
+    if (staleApi.exitCode == null) staleApi.kill("SIGKILL");
   }
   for (const pid of observedPids) {
     if (processAlive(pid)) process.kill(pid, "SIGKILL");
