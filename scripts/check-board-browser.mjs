@@ -26,6 +26,17 @@ const checks = [];
 const observations = {};
 let browser = null;
 
+const COMMAND_NAVIGATION_TARGETS = [
+  { signal: "applications", targetId: "admin-partner-applications-workspace", heading: "Applications and accounting" },
+  { signal: "receivables", targetId: "admin-receivables-workspace", heading: "Open accounts" },
+  { signal: "messages", targetId: "admin-partner-followups-workspace", heading: "Message drafts" },
+  { signal: "assignments", targetId: "admin-partner-tasks-workspace", heading: "Staff and volunteer work board" },
+  { signal: "key-dates", targetId: "admin-partner-milestones-workspace", heading: "Partner key dates and reminder cadence" },
+  { signal: "sponsors", targetId: "admin-sponsor-fulfillment-workspace", heading: "Sponsor brand and benefit fulfillment" },
+  { signal: "vendors", targetId: "admin-vendor-readiness-workspace", heading: "Vendor compliance and load-in readiness" },
+  { signal: "outreach", targetId: "admin-outreach-prospects-workspace", heading: "Outreach pipeline" }
+];
+
 function record(id, label, ok, detail, action = null) {
   checks.push({ id, label, ok, detail, action: ok ? null : action });
 }
@@ -62,6 +73,60 @@ function exactBoardLink(raw, { apiBase, webBase, kind }) {
     throw new Error(`${kind} link contains a credential-like query parameter.`);
   }
   return url.toString();
+}
+
+async function waitForCommandTarget(page, target, options = {}) {
+  const handle = await page.waitForFunction(({ targetId, heading, requireOutline }) => {
+    const workspace = document.getElementById(targetId);
+    const workspaceNav = document.querySelector(".admin-workspace-nav");
+    const active = document.activeElement;
+    const bounds = workspace?.getBoundingClientRect();
+    const navBottom = workspaceNav?.getBoundingClientRect().bottom || 0;
+    const focusedHeading = active?.textContent?.trim() === heading;
+    const outlined = !requireOutline || (active && getComputedStyle(active).outlineStyle !== "none");
+    if (
+      window.location.hash !== `#${targetId}`
+      || !bounds
+      || bounds.top < navBottom
+      || bounds.top >= window.innerHeight
+      || !workspace.contains(active)
+      || !focusedHeading
+      || !outlined
+    ) return false;
+    return {
+      hash: window.location.hash,
+      targetTop: Math.round(bounds.top),
+      navigationBottom: Math.round(navBottom),
+      focusedHeading
+    };
+  }, { ...target, requireOutline: options.requireOutline === true }, { timeout: Math.min(timeoutMs, 2_000) });
+  return handle.jsonValue();
+}
+
+async function verifyCommandNavigation(page) {
+  const targets = [];
+  for (const target of COMMAND_NAVIGATION_TARGETS) {
+    const link = page.locator(`[data-command-signal="${target.signal}"]`);
+    const expectedHash = `#${target.targetId}`;
+    const href = await link.getAttribute("href");
+    if (href !== expectedHash) throw new Error(`${target.signal} points to ${href || "no destination"}, expected ${expectedHash}.`);
+    const startedAt = Date.now();
+    await link.click({ timeout: timeoutMs });
+    const state = await waitForCommandTarget(page, target);
+    targets.push({ ...target, ...state, elapsedMs: Date.now() - startedAt });
+  }
+
+  const keyboardTarget = COMMAND_NAVIGATION_TARGETS[0];
+  const keyboardLink = page.locator(`[data-command-signal="${keyboardTarget.signal}"]`);
+  await keyboardLink.focus();
+  const startedAt = Date.now();
+  await page.keyboard.press("Enter");
+  const keyboard = await waitForCommandTarget(page, keyboardTarget, { requireOutline: true });
+  return {
+    targets,
+    keyboard: { ...keyboardTarget, ...keyboard, elapsedMs: Date.now() - startedAt },
+    maxElapsedMs: Math.max(...targets.map(item => item.elapsedMs), Date.now() - startedAt)
+  };
 }
 
 async function presentationSession() {
@@ -329,6 +394,7 @@ if (visitorUrl && operationsUrl) {
         resetReady: document.querySelector("#admin-reset-board-demo")?.hidden === false,
         overflowPixels: Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth)
       }));
+      observations.operations.commandNavigation = await verifyCommandNavigation(page);
     } catch (error) {
       observations.operationsError = error.message;
     }
@@ -350,6 +416,10 @@ if (visitorUrl && operationsUrl) {
         || item.commandViewport?.width !== 1280
         || item.commandViewport?.height !== 720
         || item.commandViewport?.allVisible !== true
+        || item.commandNavigation?.targets?.length !== COMMAND_NAVIGATION_TARGETS.length
+        || item.commandNavigation?.keyboard?.targetId !== COMMAND_NAVIGATION_TARGETS[0].targetId
+        || item.commandNavigation?.keyboard?.focusedHeading !== true
+        || item.commandNavigation?.maxElapsedMs > 2_000
         || !item.apiStatus?.includes("Loaded")
         || item.partnerRefreshLabel !== "Refresh partner workspace"
         || item.conditionsRefreshLabel !== "Refresh island operations"
@@ -363,7 +433,7 @@ if (visitorUrl && operationsUrl) {
       ) {
         throw new Error(observations.operationsError || "The operations command center did not finish loading.");
       }
-      return `${item.commandSignals} operating signals fit the 1280x720 board viewport with the presentation reset control and persistent synthetic Demo label.`;
+      return `${item.commandSignals} operating signals fit the 1280x720 board viewport and open their focused workspaces in at most ${item.commandNavigation.maxElapsedMs} ms, with keyboard activation, the presentation reset control, and persistent synthetic Demo label.`;
     });
     await inspect("operations_workflows", "Operations workflow queues", "Inspect partner, task, document, and accounting board data.", async () => {
       const item = observations.operations;

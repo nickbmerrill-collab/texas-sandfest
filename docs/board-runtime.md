@@ -83,8 +83,8 @@ npm run board:rehearse
 The command first repeats the ten source, service, and data checks, then opens the
 session's credential-free Visitor and Operations links in local headless
 Chromium. It rejects remote or mismatched URLs and verifies the rendered signup
-catalogs, local ticket-payment readiness, approved sponsor branding, eight-camera conditions grid, command
-signals, payment and key-date tracking, delivered local automation, a review-first outreach draft, staff,
+catalogs, local ticket-payment readiness, approved sponsor branding, eight-camera conditions grid, all eight command
+signals and their mouse/keyboard workspace navigation, payment and key-date tracking, delivered local automation, a review-first outreach draft, staff,
 volunteer, and team assignments, sponsor/vendor fulfillment, geofenced
 outreach with an invitation-ready prospect, private document extraction,
 deferred live-accounting label, browser

@@ -346,6 +346,15 @@ try {
   console.log(`  ok board:check discovers the active session and passes ${initialReport.passed}/${initialReport.total}`);
   const eagerBrowserResult = await eagerBrowserRehearsal;
   if (eagerBrowserResult.error) throw eagerBrowserResult.error;
+  const commandNavigation = eagerBrowserResult.report.observations?.operations?.commandNavigation;
+  if (
+    commandNavigation?.targets?.length !== 8
+    || commandNavigation.keyboard?.signal !== "applications"
+    || commandNavigation.keyboard?.focusedHeading !== true
+    || commandNavigation.maxElapsedMs > 2_000
+  ) {
+    throw new Error(`Board browser rehearsal lacks complete command navigation evidence: ${JSON.stringify(commandNavigation)}`);
+  }
   console.log(`  ok board:rehearse waits through startup and renders the active visitor and operations session ${eagerBrowserResult.report.passed}/${eagerBrowserResult.report.total}`);
   const staleSourceSessionFile = path.join(temporary, "stale-source-session.json");
   await writeFile(staleSourceSessionFile, `${JSON.stringify({
