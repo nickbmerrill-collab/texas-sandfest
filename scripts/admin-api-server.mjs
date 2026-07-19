@@ -287,6 +287,7 @@ import {
   failedFeedRefreshNeedsRetry,
   fetchPortAransasFerryStatus,
   fetchPortAransasWeather,
+  islandConditionsLiveFeedsEnabled,
   weatherForecastNeedsRefresh,
   normalizeIslandConditions,
   publicIslandConditions,
@@ -399,6 +400,9 @@ const BOARD_DEMO_CONDITIONS_MODE = String(process.env.SANDFEST_BOARD_CONDITIONS_
 if (BOARD_DEMO_CONDITIONS_MODE && !["official", "synthetic"].includes(BOARD_DEMO_CONDITIONS_MODE)) {
   throw new Error("SANDFEST_BOARD_CONDITIONS_MODE must be official or synthetic.");
 }
+const LIVE_ISLAND_CONDITIONS_FEEDS_ENABLED = islandConditionsLiveFeedsEnabled(process.env, {
+  boardMode: BOARD_DEMO_CONDITIONS_MODE
+});
 if (BOARD_DEMO_CONDITIONS_MODE === "synthetic" && (SANDFEST_ENV === "production" || !BOARD_DEMO_RUNTIME)) {
   throw new Error("Synthetic board conditions are restricted to an isolated board demo runtime.");
 }
@@ -1478,8 +1482,13 @@ async function readIslandConditions({ refreshWeather = false, refreshFerry = fal
   }
   const ferryOverrideUntil = doc.ferry?.manualOverrideUntil ? new Date(doc.ferry.manualOverrideUntil).getTime() : Number.NaN;
   const ferryOverrideActive = Number.isFinite(ferryOverrideUntil) && ferryOverrideUntil > Date.now();
-  const dueWeather = BOARD_DEMO_CONDITIONS_MODE !== "synthetic" && refreshWeather && weatherForecastNeedsRefresh(doc.weather, now);
-  const dueFerry = BOARD_DEMO_CONDITIONS_MODE !== "synthetic" && refreshFerry
+  const dueWeather = LIVE_ISLAND_CONDITIONS_FEEDS_ENABLED
+    && BOARD_DEMO_CONDITIONS_MODE !== "synthetic"
+    && refreshWeather
+    && weatherForecastNeedsRefresh(doc.weather, now);
+  const dueFerry = LIVE_ISLAND_CONDITIONS_FEEDS_ENABLED
+    && BOARD_DEMO_CONDITIONS_MODE !== "synthetic"
+    && refreshFerry
     && !ferryOverrideActive
     && (failedFeedRefreshNeedsRetry(doc.ferry, now) || refreshAge(doc.ferry) > 2 * 60_000);
   if (dueWeather || dueFerry) {

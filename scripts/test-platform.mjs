@@ -298,6 +298,7 @@ import {
   evaluateCameraObservationIncident,
   failedFeedRefreshNeedsRetry,
   freshness,
+  islandConditionsLiveFeedsEnabled,
   normalizeNwsForecast,
   normalizeTxdotFerryStatus,
   publicIslandConditionsRefreshDelay,
@@ -4159,6 +4160,8 @@ Research First,construction,Corpus Christi,,78401,,,,Find decision maker,`;
   const high = deriveCameraCondition({ occupancyPct: 72, queueLength: 4, estimatedWaitMinutes: 8 });
   ok("camera condition levels", low.level === "low" && high.level === "high");
   ok("condition freshness", freshness("2026-07-16T11:55:00.000Z", "2026-07-16T12:00:00.000Z", 10).state === "live");
+  ok("live Island Conditions providers require explicit enablement", !islandConditionsLiveFeedsEnabled({}) && islandConditionsLiveFeedsEnabled({ SANDFEST_ISLAND_CONDITIONS_LIVE_FEEDS_ENABLED: "true" }));
+  ok("explicit board official mode enables provider acceptance", islandConditionsLiveFeedsEnabled({}, { boardMode: "official" }));
   const seed = await readJson("data/processed/island-conditions.json");
   const observed = recordCameraObservation(seed, "north-gate", {
     occupancyPct: 70,
