@@ -1711,7 +1711,7 @@ app.innerHTML = `
         </section>
         <div class="admin-partner-columns admin-conditions-columns">
           <div><strong>Outreach pipeline</strong><div id="admin-outreach-prospects" class="admin-partner-list keyboard-scroll-region" role="region" aria-label="Sponsor outreach pipeline" tabindex="0"></div></div>
-          <div class="admin-condition-span" id="admin-island-conditions"><strong>Live source health</strong><div id="admin-condition-feeds" class="admin-condition-feeds"><span>Weather and ferry feeds not loaded</span></div><strong>Eight-source condition grid</strong><span id="admin-condition-ingest" class="admin-condition-ingest">Metric ingest not loaded</span><div id="admin-condition-cameras" class="admin-partner-list keyboard-scroll-region" role="region" aria-label="Eight-source condition grid" tabindex="0"></div></div>
+          <div class="admin-condition-span" id="admin-island-conditions"><strong>Source health</strong><div id="admin-condition-feeds" class="admin-condition-feeds"><span>Weather and ferry feeds not loaded</span></div><strong>Eight-source condition grid</strong><span id="admin-condition-ingest" class="admin-condition-ingest">Metric ingest not loaded</span><div id="admin-condition-cameras" class="admin-partner-list keyboard-scroll-region" role="region" aria-label="Eight-source condition grid" tabindex="0"></div></div>
         </div>
       </div>
       <div class="admin-editor-layout">
@@ -5187,6 +5187,11 @@ function conditionLabel(value) {
   return String(value || "unknown").replace(/_/g, " ");
 }
 
+function isBoardConditionSimulation(payload) {
+  return payload?.weather?.source === "Board weather simulation"
+    && payload?.ferry?.source === "Board ferry simulation";
+}
+
 function renderIslandConditions(payload) {
   const kpis = document.querySelector("#island-condition-kpis");
   const grid = document.querySelector("#island-camera-grid");
@@ -5195,6 +5200,8 @@ function renderIslandConditions(payload) {
   const weather = payload.weather || {};
   const ferry = payload.ferry || {};
   const syntheticWeather = weather.source === "Board weather simulation";
+  const syntheticFerry = ferry.source === "Board ferry simulation";
+  const syntheticConditions = isBoardConditionSimulation(payload);
   const ferryDirections = Array.isArray(ferry.directions) ? ferry.directions : [];
   const ferryLive = ferry.freshness?.state === "live";
   const ferryHasInterruption = ferryLive && (ferry.status === "service_interruption" || ferryDirections.some(direction => direction.status === "service_interruption"));
@@ -5222,11 +5229,11 @@ function renderIslandConditions(payload) {
     <article data-level="${escapeAttr(ferryHasInterruption ? "critical" : ferry.freshness?.state || "unknown")}">
       <span>Ferry wait</span><strong>${escapeHtml(ferryPrimary)}</strong>
       <p>${escapeHtml(ferryDirectionSummary)}</p>
-      <small>${ferrySource} · ${escapeHtml(conditionLabel(ferry.freshness?.state))}</small>
+      <small>${ferrySource} · ${escapeHtml(syntheticFerry ? "simulated" : conditionLabel(ferry.freshness?.state))}</small>
     </article>
     <article data-level="${escapeAttr(payload.summary?.overallLevel || "unknown")}">
       <span>Island load</span><strong>${escapeHtml(conditionLabel(payload.summary?.overallLevel))}</strong>
-      <p>${payload.summary?.liveCameras || 0} operationally live of ${payload.summary?.armedCameras || 0} armed sources</p>
+      <p>${syntheticConditions ? `${payload.summary?.liveCameras || 0} simulated feeds across ${payload.summary?.armedCameras || 0} armed sources` : `${payload.summary?.liveCameras || 0} operationally live of ${payload.summary?.armedCameras || 0} armed sources`}</p>
       <small>${payload.summary?.freshObservations || 0} fresh observations · ${payload.summary?.standbyCameras || 0} standby · ${payload.summary?.awaitingSource || 0} awaiting source</small>
     </article>
     <article data-level="${weather.alerts?.length ? "high" : "low"}">
@@ -5249,11 +5256,13 @@ function renderIslandConditions(payload) {
         <div><dt>Flow/min</dt><dd>${observation?.flowPerMinute ?? "-"}</dd></div>
         <div><dt>Wait</dt><dd>${observation?.estimatedWaitMinutes != null ? `${observation.estimatedWaitMinutes}m` : "-"}</dd></div>
       </dl>
-      <small>${escapeHtml(conditionLabel(camera.operationalStatus))}${camera.freshness?.ageMinutes != null ? ` · ${observation ? "metric" : "last metric"} ${camera.freshness.ageMinutes}m ago` : ""}</small>
+      <small>${escapeHtml(syntheticConditions && camera.operationalStatus === "live" ? "playback" : conditionLabel(camera.operationalStatus))}${camera.freshness?.ageMinutes != null ? ` · ${observation ? "metric" : "last metric"} ${camera.freshness.ageMinutes}m ago` : ""}</small>
     </article>
   `;
   }).join("");
-  setFormStatus(updated, payload.lastUpdated ? `Updated ${new Date(payload.lastUpdated).toLocaleString()}` : "Live sources connected as available", "ok");
+  setFormStatus(updated, payload.lastUpdated
+    ? `Updated ${new Date(payload.lastUpdated).toLocaleString()}${syntheticConditions ? " · Board simulation" : ""}`
+    : syntheticConditions ? "Board simulation awaiting refresh" : "Live sources connected as available", "ok");
 }
 
 async function loadIslandConditions(options = {}) {
@@ -8253,9 +8262,11 @@ function renderAdminConditions(payload) {
     };
     const feedRow = (label, feed, observedAt) => {
       const state = feed?.freshness?.state || "unavailable";
+      const synthetic = ["Board weather simulation", "Board ferry simulation"].includes(feed?.source);
       const lastAttempt = feed?.refreshAttemptedAt ? `Last attempt ${feedTime(feed.refreshAttemptedAt)}` : "No refresh attempt recorded";
       const detail = feed?.refreshError ? `Refresh failed: ${feed.refreshError}` : lastAttempt;
-      return `<div class="admin-condition-feed" data-state="${escapeAttr(state)}"><strong>${escapeHtml(label)}</strong><span>${escapeHtml(conditionLabel(feed?.status))} · ${escapeHtml(conditionLabel(state))}</span><small>Observed ${escapeHtml(feedTime(observedAt))} · ${escapeHtml(detail)}</small></div>`;
+      const displayState = synthetic ? "Simulated · Current" : `${conditionLabel(feed?.status)} · ${conditionLabel(state)}`;
+      return `<div class="admin-condition-feed" data-state="${escapeAttr(state)}"><strong>${escapeHtml(label)}</strong><span>${escapeHtml(displayState)}</span><small>Observed ${escapeHtml(feedTime(observedAt))} · ${escapeHtml(detail)}</small></div>`;
     };
     feeds.innerHTML = [
       feedRow(payload.weather?.source || "National Weather Service", payload.weather || {}, payload.weather?.observedAt),
@@ -8267,6 +8278,7 @@ function renderAdminConditions(payload) {
     : `Signed ingest off · ${payload.summary?.standbyCameras || 0} sources in standby`;
   container.innerHTML = (payload.cameras || []).map(camera => {
     const health = camera.health;
+    const syntheticPlayback = health?.agentId === "board-camera-playback";
     const healthDetail = health
       ? [
           health.agentId ? `agent ${health.agentId}` : null,
@@ -8285,9 +8297,9 @@ function renderAdminConditions(payload) {
       : cameraCredentialCount === 1
         ? "Credential ready"
         : "Credential required before arming";
-    return `<article data-operational-status="${escapeAttr(camera.operationalStatus)}">
-    <header><strong>${escapeHtml(camera.name)}</strong><b>${escapeHtml(conditionLabel(camera.operationalStatus))}</b></header>
-    <p>${escapeHtml(camera.zone)} · metric ${escapeHtml(conditionLabel(camera.freshness.state))} · heartbeat ${escapeHtml(conditionLabel(camera.healthFreshness?.state))}</p>
+    return `<article data-operational-status="${escapeAttr(camera.operationalStatus)}"${syntheticPlayback ? ' data-source-mode="playback"' : ""}>
+    <header><strong>${escapeHtml(camera.name)}</strong><b>${escapeHtml(syntheticPlayback && camera.operationalStatus === "live" ? "Playback" : conditionLabel(camera.operationalStatus))}</b></header>
+    <p>${escapeHtml(camera.zone)} · metric ${escapeHtml(syntheticPlayback && camera.freshness.state === "live" ? "simulated" : conditionLabel(camera.freshness.state))} · heartbeat ${escapeHtml(syntheticPlayback && camera.healthFreshness?.state === "live" ? "current" : conditionLabel(camera.healthFreshness?.state))}</p>
     <span>${camera.observation ? `${camera.observation.peopleCount || 0} people · ${camera.observation.flowPerMinute || 0}/min · ${camera.observation.estimatedWaitMinutes || 0}m wait` : "No current observation"}</span>
     <span class="admin-camera-health">${escapeHtml(healthDetail)}</span>
     <span class="admin-camera-credential" data-ready="${cameraCredentialCount > 0 ? "true" : "false"}">${escapeHtml(credentialDetail)}</span>
@@ -8332,7 +8344,7 @@ async function loadAdminConditions({ quiet = false } = {}) {
     const data = await adminFetch("/api/admin/island-conditions");
     if (!adminSessionState) await loadAdminSession();
     renderAdminConditions(data);
-    if (!quiet) setAdminStatus(`Loaded ${data.summary.liveCameras} live condition sources and ${data.incidentSummary?.active || 0} active incidents.`, "ok");
+    if (!quiet) setAdminStatus(`Loaded ${data.summary.liveCameras} current condition sources and ${data.incidentSummary?.active || 0} active incidents.`, "ok");
     return data;
   } catch (error) {
     if (!quiet) setAdminStatus(error.message, "error");

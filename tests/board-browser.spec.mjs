@@ -549,6 +549,9 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await expect(activationBoundary.locator('[data-board-stage="post-presentation"]')).toContainText("Stripe, QuickBooks, Brevo, Twilio, NWS, TxDOT, eight webcam edge agents, OIDC, Turnstile, DNS, and managed recovery");
   await expect(page.locator("#admin-load-partners")).toHaveText("Refresh partner workspace");
   await expect(page.locator("#admin-load-conditions")).toHaveText("Refresh island operations");
+  await expect(page.locator("#admin-island-conditions > strong").first()).toHaveText("Source health");
+  await expect(page.locator("#admin-condition-feeds")).toContainText("Simulated · Current");
+  await expect(page.locator("#admin-condition-feeds")).not.toContainText("Live · Live");
   const partnerKpis = page.locator("#admin-partner-kpis");
   await expect(partnerKpis.locator("article").filter({ hasText: "Received" })).toContainText("1 active payment");
   await expect(partnerKpis.locator("article").filter({ hasText: "Received" })).toContainText("0 accounts paid in full");
@@ -1464,6 +1467,10 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   await expect(publicVendorForm.locator('[name="vendorOfferingId"]')).toHaveValue(vendorOfferingId);
   await expect(page.locator("#island-camera-grid article")).toHaveCount(8);
   await expect(page.locator("#island-condition-updated")).not.toHaveText("Checking sources");
+  await expect(page.locator("#island-condition-updated")).toContainText("Board simulation");
+  await expect(page.locator("#island-condition-kpis article").filter({ hasText: "Island load" })).toContainText(/\d+ simulated feeds across \d+ armed sources/);
+  await expect(page.locator("#island-condition-kpis article").filter({ hasText: "Ferry wait" })).toContainText("simulated");
+  await expect(page.locator("#island-camera-grid")).not.toContainText("operationally live");
   expect(pageErrors).toEqual([]);
 });
 
@@ -1729,6 +1736,8 @@ test("WCAG A and AA checks cover public intake, partner status, concierge, and o
   await expect(page.locator("#admin-campaign-center-preview")).toHaveAttribute("aria-live", "polite");
   await expect(page.locator("#admin-campaign-audience-preview")).toHaveAttribute("aria-live", "polite");
   await expect(page.locator("#admin-preview-campaign")).toHaveAccessibleName("Preview audience");
+  await page.evaluate(() => window.scrollTo({ top: 0, left: 0, behavior: "instant" }));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
   await assertNoAccessibilityViolations(page, "Operations workspace");
 
   await page.setViewportSize({ width: 390, height: 844 });
