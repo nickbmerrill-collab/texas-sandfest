@@ -394,6 +394,13 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
 
   await expect(page.locator("#ticketing-status-pill")).toHaveText("Local payment sandbox");
   await expect(page.locator("#ticketing-copy")).toContainText("No external charge is sent");
+  const sponsorTicketRequest = page.locator('[data-ticket-request="sponsor-package-request"]');
+  await expect(sponsorTicketRequest).toHaveText("Request review");
+  await sponsorTicketRequest.click();
+  await expect(page).toHaveURL(/#sponsor-inquiry-form$/);
+  await expect(page.locator("#checkout-status")).toContainText("partnership form below");
+  await expect(page.locator('#sponsor-inquiry-form [name="organizationName"]')).toBeFocused();
+  await assertTargetClearsTopbar(page, "#sponsor-inquiry-form", 12);
   const demoGaCard = page.locator(".ticket-card").filter({ has: page.locator('[data-ticket-id="general-admission-3-day"]') });
   await expect(demoGaCard).toContainText("$30.00 demo");
   await expect(demoGaCard).toContainText("Demo checkout");
@@ -1605,6 +1612,14 @@ test("critical public and operations views fit a mobile viewport", async ({ page
   await assertTargetClearsTopbar(page, "#sponsor-inquiry-form", 12);
   await expect(page.locator("#sponsor-inquiry-form")).toBeInViewport({ ratio: 0.1 });
   await expect(page.locator('[data-package-id="tarpon"] [data-package-action]')).toHaveText("Selected");
+  await assertNoHorizontalOverflow(page);
+
+  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#tickets`);
+  await page.locator('[data-ticket-request="sponsor-package-request"]').click();
+  await expect(page).toHaveURL(/#sponsor-inquiry-form$/);
+  await expect(page.locator('#sponsor-inquiry-form [name="organizationName"]')).toBeFocused();
+  await assertTargetClearsTopbar(page, "#sponsor-inquiry-form", 12);
+  await expect(page.locator("#sponsor-inquiry-form")).toBeInViewport({ ratio: 0.1 });
   await assertNoHorizontalOverflow(page);
 
   await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#admin-partners`);
