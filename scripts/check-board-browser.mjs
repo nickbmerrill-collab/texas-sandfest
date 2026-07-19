@@ -2,6 +2,7 @@
 
 import { chromium } from "@playwright/test";
 import path from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import {
   BOARD_DEMO_SESSION_SCHEMA_VERSION,
@@ -17,6 +18,10 @@ const sessionFile = boardDemoSessionPath(process.env, { root: ROOT });
 const jsonOutput = process.argv.includes("--json");
 const configuredTimeoutMs = Number(process.env.SANDFEST_BOARD_BROWSER_CHECK_TIMEOUT_MS || 20_000);
 const timeoutMs = Number.isFinite(configuredTimeoutMs) ? Math.max(5_000, configuredTimeoutMs) : 20_000;
+const configuredSessionWaitMs = Number(process.env.SANDFEST_BOARD_BROWSER_SESSION_WAIT_MS || 30_000);
+const sessionWaitMs = Number.isFinite(configuredSessionWaitMs)
+  ? Math.max(0, Math.min(120_000, configuredSessionWaitMs))
+  : 30_000;
 const checks = [];
 const observations = {};
 let browser = null;
@@ -59,17 +64,45 @@ function exactBoardLink(raw, { apiBase, webBase, kind }) {
   return url.toString();
 }
 
-const session = await readBoardDemoSession(sessionFile);
+async function presentationSession() {
+  let value = await readBoardDemoSession(sessionFile);
+  const transitionalStates = new Set(["starting", "recovering", "resetting"]);
+  if (
+    !value
+    || !boardDemoSessionProcessAlive(value)
+    || value.status === "ready"
+    || !transitionalStates.has(value.status)
+    || sessionWaitMs === 0
+  ) return value;
+
+  const deadline = Date.now() + sessionWaitMs;
+  while (Date.now() < deadline) {
+    await delay(Math.min(250, Math.max(1, deadline - Date.now())));
+    value = await readBoardDemoSession(sessionFile);
+    if (
+      !value
+      || !boardDemoSessionProcessAlive(value)
+      || value.status === "ready"
+      || !transitionalStates.has(value.status)
+    ) return value;
+  }
+  return value;
+}
+
+const session = await presentationSession();
 let visitorUrl = null;
 let operationsUrl = null;
 
 await inspect(
   "session",
   "Active presentation session",
-  "Start the board stack with npm run board:demo.",
+  "Start the board stack, or wait for npm run board:demo to report ready, then retry.",
   async () => {
-    if (!session || !boardDemoSessionProcessAlive(session) || session.status !== "ready") {
+    if (!session || !boardDemoSessionProcessAlive(session)) {
       throw new Error("No ready board supervisor session is running.");
+    }
+    if (session.status !== "ready") {
+      throw new Error(`Board supervisor ${session.pid} remained ${session.status || "unavailable"} after ${Math.round(sessionWaitMs / 1000)} seconds.`);
     }
     if (session.schemaVersion !== BOARD_DEMO_SESSION_SCHEMA_VERSION) {
       throw new Error(`The board session schema is ${session.schemaVersion ?? "missing"}; restart it with the current supervisor.`);
