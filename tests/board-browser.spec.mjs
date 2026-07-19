@@ -1173,6 +1173,10 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   await expect(campaignCard).toContainText(campaignName);
   await expect(campaignCard).toContainText("1 matched");
   await expect(campaignCard).toContainText("campaign-approved, 3/day");
+  const campaignOutcomeFunnel = campaignCard.locator(`[data-campaign-outcomes="${createdCampaign.id}"]`);
+  await expect(campaignOutcomeFunnel).toBeVisible();
+  await expect(campaignOutcomeFunnel.locator('[data-outcome-stage="reached"] strong')).toHaveText("0");
+  await expect(campaignOutcomeFunnel.locator('[data-outcome-stage="applications"] strong')).toHaveText("0");
   const outreachMap = page.locator("#admin-outreach-targeting-map");
   const outreachMapCampaign = outreachMap.locator("#admin-outreach-map-campaign");
   await outreachMapCampaign.selectOption(createdCampaign.id);
@@ -1207,6 +1211,10 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   const deliveredCampaignMessage = page.locator('#admin-partner-followups [data-delivery-status="delivered"]').filter({ hasText: prospectRecipient });
   await expect(deliveredCampaignMessage).toHaveCount(1);
   await expect(deliveredCampaignMessage).toContainText("campaign-approved automation");
+  await expect(campaignOutcomeFunnel.locator('[data-outcome-stage="reached"] strong')).toHaveText("1");
+  await expect(campaignOutcomeFunnel.locator('[data-outcome-stage="delivered"] strong')).toHaveText("1");
+  await expect(campaignOutcomeFunnel.locator('[data-outcome-stage="opened"] strong')).toHaveText("0");
+  await expect(campaignOutcomeFunnel.locator('[data-outcome-stage="clicked"] strong')).toHaveText("0");
 
   const prospectCard = page.locator(`[data-outreach-prospect="${createdProspect.id}"]`);
   await expect(prospectCard).toContainText("Ready for an invited sponsor application");
@@ -1264,6 +1272,7 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   await expect(convertedApplication).toHaveCount(1);
   await expect(convertedApplication).toContainText(`Community Champion ${runId}`);
   await expect(convertedApplication).toContainText("$0.00 / $7,500.00");
+  await expect(campaignOutcomeFunnel.locator('[data-outcome-stage="applications"] strong')).toHaveText("1");
   await expect(page.locator("#admin-partner-activity")).toContainText("Sponsor target converted");
 
   const automationForm = page.locator("#admin-partner-automation");
@@ -1480,6 +1489,10 @@ test("critical public and operations views fit a mobile viewport", async ({ page
   await expect(page.locator("#admin-campaign-center-preview")).toBeVisible();
   await expect(page.locator("#admin-preview-campaign")).toBeVisible();
   await expect(page.locator("#admin-campaign-audience-preview")).toBeVisible();
+  const mobileCampaignOutcomes = page.locator("#admin-outreach-campaigns [data-campaign-outcomes]").first();
+  await expect(mobileCampaignOutcomes).toBeVisible();
+  await expect(mobileCampaignOutcomes.getByText("Reached", { exact: true })).toBeVisible();
+  await expect.poll(() => mobileCampaignOutcomes.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
   const workspaceNav = page.locator(".admin-workspace-nav");
   const workspaceLinks = workspaceNav.locator("a");
   await expect(workspaceLinks).toHaveCount(7);

@@ -249,6 +249,11 @@ if (visitorUrl && operationsUrl) {
         invitationReadyProspects: [...document.querySelectorAll("#admin-outreach-prospects [data-outreach-prospect]")]
           .filter(item => item.querySelector('[data-sponsor-invitation-action="issue"]:not(:disabled)')).length,
         outreachCampaigns: document.querySelectorAll("#admin-outreach-campaigns [data-outreach-campaign]").length,
+        campaignOutcomeFunnels: document.querySelectorAll("#admin-outreach-campaigns [data-campaign-outcomes]").length,
+        campaignReachedBusinesses: [...document.querySelectorAll('#admin-outreach-campaigns [data-outcome-stage="reached"] strong')]
+          .reduce((total, item) => total + Number(item.textContent || 0), 0),
+        campaignDeliveredBusinesses: [...document.querySelectorAll('#admin-outreach-campaigns [data-outcome-stage="delivered"] strong')]
+          .reduce((total, item) => total + Number(item.textContent || 0), 0),
         reviewFirstCampaigns: [...document.querySelectorAll("#admin-outreach-campaigns [data-outreach-campaign]")]
           .filter(item => item.textContent?.includes("review every message")).length,
         geofencedCampaigns: [...document.querySelectorAll("#admin-outreach-campaigns [data-outreach-campaign]")]
@@ -362,13 +367,16 @@ if (visitorUrl && operationsUrl) {
         || item?.locatedProspects < 1
         || item?.invitationReadyProspects < 1
         || item?.outreachCampaigns < 1
+        || item?.campaignOutcomeFunnels < item?.outreachCampaigns
+        || item?.campaignReachedBusinesses < 1
+        || item?.campaignDeliveredBusinesses < 1
         || item?.reviewFirstCampaigns < 1
         || item?.geofencedCampaigns < 1
         || !item?.campaignPreflightReady
       ) {
         throw new Error("Sponsor, vendor, or geofenced outreach proof is incomplete.");
       }
-      return `${item.approvedBrandAssets} approved brand assets, ${item.sponsorDeliverables} sponsor benefits, ready and blocked vendor paths, an invitation-ready located prospect, and server-qualified campaign preflight rendered.`;
+      return `${item.approvedBrandAssets} approved brand assets, ${item.sponsorDeliverables} sponsor benefits, ready and blocked vendor paths, an invitation-ready located prospect, server-qualified campaign preflight, and ${item.campaignDeliveredBusinesses} delivered campaign business${item.campaignDeliveredBusinesses === 1 ? "" : "es"} rendered.`;
     });
     await inspect("document_ingestion", "Private document ingestion", "Inspect governed files, extraction states, and staff-only previews.", async () => {
       const item = observations.operations;

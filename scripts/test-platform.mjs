@@ -135,6 +135,7 @@ import {
   matchOutreachProspects,
   outreachDistanceMiles,
   outreachCampaignAutomationReadiness,
+  outreachCampaignMetrics,
   partnerAutomationReadiness,
   previewOutreachCampaign,
   prepareFollowupDraft,
@@ -3561,6 +3562,44 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   const outreachApproved = reviewFollowup(campaignDraft.doc, campaignDraft.generated[0].id, "approve", { actorId: "sponsor_1", now });
   const outreachQueued = queueFollowupDelivery(outreachApproved.doc, campaignDraft.generated[0].id, { now });
   const outreachSent = recordFollowupDelivery(outreachQueued.doc, campaignDraft.generated[0].id, { sent: true, provider: "brevo", providerMessageId: "msg_outreach_1" }, { now });
+  const campaignOutcomeEvidence = {
+    ...outreachSent.doc,
+    followups: outreachSent.doc.followups.flatMap(item => item.id === campaignDraft.generated[0].id ? [
+      {
+        ...item,
+        deliveryStatus: "clicked",
+        deliveredAt: "2026-07-16T12:01:00.000Z",
+        openedAt: "2026-07-16T12:02:00.000Z",
+        clickedAt: "2026-07-16T12:03:00.000Z"
+      },
+      {
+        ...item,
+        id: "followup_same_campaign_second_step",
+        sequenceStepId: "step_2",
+        deliveryStatus: "accepted",
+        deliveredAt: null,
+        openedAt: null,
+        clickedAt: null
+      }
+    ] : [item])
+  };
+  const convertedCampaignOutcome = createSponsorApplicationFromOutreachInvitation(campaignOutcomeEvidence, prospect.prospect.id, invitedApplicationInput, {
+    packageId: sponsorPackage.id,
+    invitationVersion: issuedInvitation.invitation.version,
+    portalAccessIdFactory: () => "portal_campaign_outcome",
+    idFactory,
+    now
+  });
+  const campaignOutcomeMetrics = outreachCampaignMetrics(convertedCampaignOutcome.doc, campaign.campaign);
+  ok("campaign outcome funnel is cumulative, unique, converted, and aggregate-only", convertedCampaignOutcome.ok
+    && campaignOutcomeMetrics.funnel.enrolled === 1
+    && campaignOutcomeMetrics.funnel.reached === 1
+    && campaignOutcomeMetrics.funnel.delivered === 1
+    && campaignOutcomeMetrics.funnel.opened === 1
+    && campaignOutcomeMetrics.funnel.clicked === 1
+    && campaignOutcomeMetrics.funnel.applications === 1
+    && campaignOutcomeMetrics.funnel.deliveryFailures === 0
+    && !JSON.stringify(campaignOutcomeMetrics).includes(prospect.prospect.contactEmail));
   const weekLater = "2026-07-23T12:00:00.000Z";
   const secondDraft = generateDueOutreachFollowups(outreachSent.doc, { idFactory, now: weekLater });
   ok("outreach sequence timing", secondDraft.generated.length === 1 && secondDraft.generated[0].sequenceStepId === "step_2" && outreachSent.doc.prospects[0].status === "contacted");
@@ -6346,7 +6385,7 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
   const geoCampaignWorkspaceApi = geoOutreachWorkspaceApi.data.campaigns?.find(item => item.id === geoCampaignApi.data.campaign?.id);
   const geoDraftApi = geoOutreachWorkspaceApi.data.followups?.find(item => item.campaignId === geoCampaignApi.data.campaign?.id);
   ok("campaign preflight API is authorized, private, personalized, and mutation-free", unauthenticatedGeoCampaignPreviewApi.status === 401 && geoCampaignPreviewApi.status === 200 && geoCampaignPreviewApi.data.preview?.matched === 1 && geoCampaignPreviewApi.data.preview?.matches?.[0]?.id === geoProspectApi.data.prospect?.id && !("contactEmail" in geoCampaignPreviewApi.data.preview.matches[0]) && geoCampaignPreviewApi.data.preview.sample?.sequence?.[0]?.subject === "A local partnership for API Port Aransas Hotel" && !outreachAfterPreviewApi.data.campaigns?.some(item => item.name === geoCampaignPayloadApi.name) && invalidGeoCampaignPreviewApi.status === 400);
-  ok("geofenced outreach API", geoProspectApi.status === 201 && geoCampaignApi.status === 201 && activatedGeoCampaignApi.status === 200 && activatedGeoCampaignApi.data.generated === 1 && generatedGeoCampaignApi.data.generated === 0 && geoCampaignWorkspaceApi?.metrics?.matched === 1 && geoCampaignWorkspaceApi?.targeting?.postalCodes?.[0] === "78373");
+  ok("geofenced outreach API", geoProspectApi.status === 201 && geoCampaignApi.status === 201 && activatedGeoCampaignApi.status === 200 && activatedGeoCampaignApi.data.generated === 1 && generatedGeoCampaignApi.data.generated === 0 && geoCampaignWorkspaceApi?.metrics?.matched === 1 && geoCampaignWorkspaceApi?.metrics?.funnel?.enrolled === 1 && geoCampaignWorkspaceApi?.metrics?.funnel?.reached === 0 && geoCampaignWorkspaceApi?.metrics?.funnel?.applications === 0 && geoCampaignWorkspaceApi?.targeting?.postalCodes?.[0] === "78373");
   ok("outreach accountability API", geoProspectApi.data.prospect?.ownerId === "sponsor_lead" && geoProspectApi.data.prospect?.nextActionAt === "2027-01-15T15:00:00.000Z" && geoOutreachWorkspaceApi.data.summary?.nextActionsScheduled >= 1);
   ok("geofenced outreach API validation", invalidGeoProspectApi.status === 400 && invalidScheduleProspectApi.status === 400 && invalidScheduleProspectApi.data.error?.includes("follow-up date") && invalidGeoCampaignApi.status === 400);
   const invitedSponsorProspectApi = await hit("POST", "/api/admin/outreach/prospects", {
@@ -6403,11 +6442,12 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
   const invitedWorkspaceAfterConversionApi = await hit("GET", "/api/admin/partners", null, true);
   const invitedOutreachAfterConversionApi = await hit("GET", "/api/admin/outreach", null, true);
   const convertedInvitedProspectApi = invitedOutreachAfterConversionApi.data.prospects?.find(item => item.id === invitedProspectIdApi);
+  const convertedInvitedCampaignApi = invitedOutreachAfterConversionApi.data.campaigns?.find(item => item.id === invitedSponsorCampaignApi.data.campaign?.id);
   const convertedInvitedApplicationApi = invitedWorkspaceAfterConversionApi.data.applications?.find(item => item.id === convertedInvitationIntakeApi.data.application?.id);
   const dismissedInvitedDraftApi = invitedWorkspaceAfterConversionApi.data.followups?.find(item => item.id === invitedDraftApi?.id);
   ok("sponsor invitation API injects reviewed outreach link", activatedInvitedSponsorCampaignApi.data.generated === 1 && generatedInvitationDraftApi.data.generated === 0 && invitedDraftApi?.status === "draft_ready" && invitedDraftApi?.body.includes(replacedInvitationApi.data.invitation?.url) && invitedDraftApi?.body.includes("#outreach-preferences?"));
   ok("sponsor invitation API identity gate", mismatchedInvitationIntakeApi.status === 400 && mismatchedInvitationIntakeApi.data.error?.includes("business email"));
-  ok("sponsor invitation API converts into operations", convertedInvitationIntakeApi.status === 201 && convertedInvitationIntakeApi.data.outreachConversion === true && convertedInvitationIntakeApi.data.portalAccess?.token?.startsWith("tsfp_") && convertedInvitedProspectApi?.status === "won" && convertedInvitedProspectApi?.convertedApplicationId === convertedInvitedApplicationApi?.id && convertedInvitedApplicationApi?.outreachProspectId === invitedProspectIdApi && convertedInvitedApplicationApi?.source === "outreach_invitation" && invitedWorkspaceAfterConversionApi.data.brandProfiles?.some(item => item.applicationId === convertedInvitedApplicationApi?.id) && invitedWorkspaceAfterConversionApi.data.deliverables?.some(item => item.applicationId === convertedInvitedApplicationApi?.id) && dismissedInvitedDraftApi?.status === "dismissed");
+  ok("sponsor invitation API converts into operations", convertedInvitationIntakeApi.status === 201 && convertedInvitationIntakeApi.data.outreachConversion === true && convertedInvitationIntakeApi.data.portalAccess?.token?.startsWith("tsfp_") && convertedInvitedProspectApi?.status === "won" && convertedInvitedProspectApi?.convertedApplicationId === convertedInvitedApplicationApi?.id && convertedInvitedApplicationApi?.outreachProspectId === invitedProspectIdApi && convertedInvitedApplicationApi?.source === "outreach_invitation" && invitedWorkspaceAfterConversionApi.data.brandProfiles?.some(item => item.applicationId === convertedInvitedApplicationApi?.id) && invitedWorkspaceAfterConversionApi.data.deliverables?.some(item => item.applicationId === convertedInvitedApplicationApi?.id) && dismissedInvitedDraftApi?.status === "dismissed" && convertedInvitedCampaignApi?.metrics?.funnel?.reached === 0 && convertedInvitedCampaignApi?.metrics?.funnel?.applications === 0);
   ok("converted sponsor invitation recovers private portal", convertedInvitationLookupApi.status === 200 && convertedInvitationLookupApi.data.converted === true && convertedInvitationLookupApi.data.portalAccess?.reference === convertedInvitedApplicationApi?.reference && convertedInvitationLookupApi.data.portalAccess?.token?.startsWith("tsfp_"));
   const revocableSponsorProspectApi = await hit("POST", "/api/admin/outreach/prospects", {
     organizationName: "API Revocable Sponsor",

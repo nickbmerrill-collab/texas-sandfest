@@ -5488,6 +5488,10 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .admin-outreach-map-empty strong { color: var(--deep); font-size: 13px; }
 .admin-campaign-metrics { display: grid; gap: 5px; grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .admin-campaign-metrics span { background: var(--foam); color: var(--deep); font-size: 11px; font-weight: 800; padding: 7px; text-align: center; }
+.admin-campaign-outcomes { display: grid; gap: 5px; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.admin-campaign-outcomes span { background: #eef6f5; border-top: 3px solid var(--gulf); display: grid; gap: 1px; min-height: 48px; padding: 7px; text-align: center; }
+.admin-campaign-outcomes strong { color: var(--deep); font-size: 16px; }
+.admin-campaign-outcomes small { color: var(--muted); font-size: 9px; font-weight: 800; overflow-wrap: anywhere; text-transform: uppercase; }
 .admin-campaign-automation { background: #eef6f5; border-left: 4px solid var(--gulf); color: var(--deep); display: grid; font-size: 11px; gap: 3px; line-height: 1.45; padding: 9px 11px; }
 .admin-campaign-automation strong { font-size: 12px; }
 .admin-campaign-automation[data-state="blocked"] { background: #fff0ee; border-left-color: #a62929; }
@@ -5802,7 +5806,9 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
   .admin-receivables-aging { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-camera-config { grid-template-columns: 1fr 1fr; }
   .admin-camera-config input[name="sourceUrl"] { grid-column: 1 / -1; }
-  .admin-campaign-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-campaign-list { max-height: 620px; }
+  .admin-campaign-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .admin-campaign-outcomes { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .admin-campaign-preview-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-campaign-audience-preview > header { align-items: start; flex-direction: column; }
   .admin-campaign-audience-preview > header b { text-align: left; }
