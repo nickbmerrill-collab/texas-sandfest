@@ -238,6 +238,7 @@ let adminSessionState = null;
 let adminDeploymentState = null;
 let adminDeploymentFilter = "attention";
 let adminPartnerState = null;
+let selectedOutreachCampaignId = null;
 let adminConditionsState = null;
 let adminDocumentState = null;
 let revenueImportPreview = null;
@@ -1672,6 +1673,9 @@ app.innerHTML = `
             <div id="admin-outreach-campaigns" class="admin-partner-list admin-campaign-list keyboard-scroll-region" role="region" aria-label="Sponsor outreach campaigns" tabindex="0"></div>
           </div>
         </div>
+        <section id="admin-outreach-targeting-map" class="admin-outreach-targeting-map" aria-label="Campaign coverage">
+          <div class="admin-outreach-map-empty">Campaign coverage loads with the outreach workspace.</div>
+        </section>
         <div class="admin-partner-columns admin-conditions-columns">
           <div><strong>Outreach pipeline</strong><div id="admin-outreach-prospects" class="admin-partner-list keyboard-scroll-region" role="region" aria-label="Sponsor outreach pipeline" tabindex="0"></div></div>
           <div class="admin-condition-span" id="admin-island-conditions"><strong>Live source health</strong><div id="admin-condition-feeds" class="admin-condition-feeds"><span>Weather and ferry feeds not loaded</span></div><strong>Eight-source condition grid</strong><span id="admin-condition-ingest" class="admin-condition-ingest">Metric ingest not loaded</span><div id="admin-condition-cameras" class="admin-partner-list keyboard-scroll-region" role="region" aria-label="Eight-source condition grid" tabindex="0"></div></div>
@@ -6990,6 +6994,125 @@ function renderAdminPartnerActivity(payload, outreach) {
   }).join("") || '<article class="empty-state"><span>No partner workflow activity has been recorded.</span></article>';
 }
 
+function validOutreachCoordinate(value, minimum, maximum) {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) && number >= minimum && number <= maximum ? number : null;
+}
+
+function outreachMapPosition(prospect, geofence) {
+  const latitude = validOutreachCoordinate(prospect.latitude, -90, 90);
+  const longitude = validOutreachCoordinate(prospect.longitude, -180, 180);
+  if (latitude === null || longitude === null) return null;
+  const radians = value => value * Math.PI / 180;
+  const centerLatitude = Number(geofence.latitude);
+  const centerLongitude = Number(geofence.longitude);
+  const latitudeDelta = radians(latitude - centerLatitude);
+  const longitudeDelta = radians(longitude - centerLongitude);
+  const haversine = Math.sin(latitudeDelta / 2) ** 2
+    + Math.cos(radians(centerLatitude)) * Math.cos(radians(latitude)) * Math.sin(longitudeDelta / 2) ** 2;
+  const distanceMiles = 3958.8 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+  const northMiles = (latitude - centerLatitude) * 69.093;
+  const eastMiles = (longitude - centerLongitude) * 69.172 * Math.cos(radians(centerLatitude));
+  return { latitude, longitude, distanceMiles, northMiles, eastMiles };
+}
+
+function renderAdminOutreachCoverage(outreach) {
+  const root = document.querySelector("#admin-outreach-targeting-map");
+  if (!root) return;
+  const campaigns = [...(outreach.campaigns || [])].sort((left, right) => {
+    const statusOrder = { active: 0, draft: 1, paused: 2, complete: 3, archived: 4 };
+    return (statusOrder[left.status] ?? 9) - (statusOrder[right.status] ?? 9)
+      || String(right.createdAt || "").localeCompare(String(left.createdAt || ""));
+  });
+  if (!campaigns.length) {
+    selectedOutreachCampaignId = null;
+    root.removeAttribute("data-campaign-id");
+    root.innerHTML = '<div class="admin-outreach-map-empty"><strong>No campaign coverage yet</strong><span>Create a campaign with a center point and radius to plot located businesses.</span></div>';
+    return;
+  }
+
+  const geofencedCampaigns = campaigns.filter(campaign => {
+    const geofence = campaign.targeting?.geofence;
+    return geofence
+      && validOutreachCoordinate(geofence.latitude, -90, 90) !== null
+      && validOutreachCoordinate(geofence.longitude, -180, 180) !== null
+      && Number(geofence.radiusMiles) > 0;
+  });
+  const selected = campaigns.find(campaign => campaign.id === selectedOutreachCampaignId)
+    || geofencedCampaigns[0]
+    || campaigns[0];
+  selectedOutreachCampaignId = selected.id;
+  root.dataset.campaignId = selected.id;
+  const options = campaigns.map(campaign => `<option value="${escapeAttr(campaign.id)}" ${campaign.id === selected.id ? "selected" : ""}>${escapeHtml(campaign.name)} · ${escapeHtml(conditionLabel(campaign.status))}</option>`).join("");
+  const geofence = selected.targeting?.geofence;
+  const radiusMiles = Number(geofence?.radiusMiles);
+  const hasGeofence = geofence
+    && validOutreachCoordinate(geofence.latitude, -90, 90) !== null
+    && validOutreachCoordinate(geofence.longitude, -180, 180) !== null
+    && Number.isFinite(radiusMiles)
+    && radiusMiles > 0;
+
+  if (!hasGeofence) {
+    root.innerHTML = `<header class="admin-outreach-map-heading">
+      <div><span>Geographic targeting</span><strong id="admin-outreach-targeting-title">Campaign coverage</strong></div>
+      <label><span>Campaign</span><select id="admin-outreach-map-campaign">${options}</select></label>
+    </header>
+    <div class="admin-outreach-map-empty"><strong>No radius configured</strong><span>${escapeHtml(selected.name)} uses non-geographic campaign filters.</span></div>`;
+    root.querySelector("#admin-outreach-map-campaign")?.addEventListener("change", event => {
+      selectedOutreachCampaignId = event.currentTarget.value;
+      renderAdminOutreachCoverage(adminPartnerState?.outreach || outreach);
+    });
+    return;
+  }
+
+  const plotted = (outreach.prospects || []).map(prospect => {
+    const position = outreachMapPosition(prospect, geofence);
+    return position ? { prospect, ...position, inside: position.distanceMiles <= radiusMiles } : null;
+  }).filter(Boolean).sort((left, right) => left.distanceMiles - right.distanceMiles || left.prospect.organizationName.localeCompare(right.prospect.organizationName));
+  const plotLimitMiles = radiusMiles * 1.2;
+  const visible = plotted.filter(item => Math.abs(item.northMiles) <= plotLimitMiles && Math.abs(item.eastMiles) <= plotLimitMiles);
+  const insideCount = plotted.filter(item => item.inside).length;
+  const matched = Number(selected.metrics?.matched || 0);
+  const pointMarkup = visible.map(item => {
+    const x = 50 + (item.eastMiles / plotLimitMiles) * 50;
+    const y = 50 - (item.northMiles / plotLimitMiles) * 50;
+    const label = `${item.prospect.organizationName}, ${item.distanceMiles.toFixed(1)} miles from campaign center, ${item.inside ? "inside" : "outside"} radius`;
+    return `<span class="admin-outreach-map-point" data-outreach-map-prospect="${escapeAttr(item.prospect.id)}" data-inside="${item.inside}" style="--plot-x:${x.toFixed(3)}%;--plot-y:${y.toFixed(3)}%" title="${escapeAttr(label)}" aria-hidden="true"><i></i><b>${escapeHtml(item.prospect.organizationName)}</b></span>`;
+  }).join("");
+  const prospectRows = plotted.slice(0, 8).map(item => `<li data-outreach-map-row="${escapeAttr(item.prospect.id)}" data-inside="${item.inside}"><span><i aria-hidden="true"></i><strong>${escapeHtml(item.prospect.organizationName)}</strong></span><span>${item.distanceMiles.toFixed(1)} mi · ${item.inside ? "inside radius" : "outside radius"} · fit ${Number(item.prospect.fitScore || 0)}/100</span></li>`).join("");
+  const radiusDiameter = (radiusMiles / plotLimitMiles) * 100;
+  const plotLabel = `${selected.name}: ${insideCount} located business${insideCount === 1 ? "" : "es"} inside the ${radiusMiles}-mile geographic radius; ${matched} prospect${matched === 1 ? "" : "s"} ${matched === 1 ? "matches" : "match"} all server campaign filters.`;
+  root.innerHTML = `<header class="admin-outreach-map-heading">
+      <div><span>Geographic targeting</span><strong id="admin-outreach-targeting-title">Campaign coverage</strong></div>
+      <label><span>Campaign</span><select id="admin-outreach-map-campaign">${options}</select></label>
+    </header>
+    <div class="admin-outreach-map-summary" aria-live="polite">
+      <div><strong>${radiusMiles} mi</strong><span>target radius</span></div>
+      <div><strong>${insideCount}</strong><span>located inside</span></div>
+      <div><strong>${matched}</strong><span>server matched</span></div>
+      <div><strong>${plotted.length}</strong><span>located total</span></div>
+    </div>
+    <div class="admin-outreach-map-layout">
+      <div class="admin-outreach-map-plot" role="img" aria-label="${escapeAttr(plotLabel)}">
+        <span class="admin-outreach-map-radius" style="--radius-diameter:${radiusDiameter.toFixed(3)}%" aria-hidden="true"></span>
+        <span class="admin-outreach-map-axis admin-outreach-map-axis-north" aria-hidden="true">N</span>
+        <span class="admin-outreach-map-center" aria-hidden="true"><i></i><b>Campaign center</b></span>
+        ${pointMarkup}
+      </div>
+      <div class="admin-outreach-map-detail">
+        <div class="admin-outreach-map-legend" aria-label="Campaign coverage legend"><span data-kind="center"><i></i>Center</span><span data-kind="inside"><i></i>Inside radius</span><span data-kind="outside"><i></i>Outside radius</span></div>
+        <ul class="admin-outreach-map-list" aria-label="Located outreach businesses">${prospectRows || '<li><span><strong>No located businesses</strong></span><span>Add coordinates to a prospect to include it here.</span></li>'}</ul>
+        ${plotted.length > 8 ? `<span class="admin-outreach-map-more">${plotted.length - 8} additional located business${plotted.length - 8 === 1 ? "" : "es"}</span>` : ""}
+        <p>Geography shows radius coverage. Server matching also enforces industry, city, state, ZIP, fit, qualification, contact basis, and suppression.</p>
+      </div>
+    </div>`;
+  root.querySelector("#admin-outreach-map-campaign")?.addEventListener("change", event => {
+    selectedOutreachCampaignId = event.currentTarget.value;
+    renderAdminOutreachCoverage(adminPartnerState?.outreach || outreach);
+  });
+}
+
 function renderAdminPartners(payload, outreach) {
   adminPartnerState = { payload, outreach };
   const summary = payload.summary;
@@ -7005,6 +7128,7 @@ function renderAdminPartners(payload, outreach) {
   const campaigns = document.querySelector("#admin-outreach-campaigns");
   const automationForm = document.querySelector("#admin-partner-automation");
   if (!kpis || !summary) return;
+  renderAdminOutreachCoverage(outreach);
   kpis.innerHTML = [
     revenueKpiCard("Applications", `${summary.applications.total}`, `${summary.applications.vendors} vendors · ${summary.applications.sponsors} sponsors`),
     revenueKpiCard("Expected", adminMoney(summary.finance.amountExpectedCents, "$0.00"), `${adminMoney(summary.finance.balanceCents, "$0.00")} open`),

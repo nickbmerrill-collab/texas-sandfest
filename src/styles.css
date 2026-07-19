@@ -5418,6 +5418,47 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .admin-campaign-wide { grid-column: 1 / -1; }
 .admin-campaign-form > .button { justify-self: start; }
 .admin-campaign-list { max-height: 660px; }
+.admin-outreach-targeting-map { background: var(--white); border: 1px solid var(--line); border-left: 5px solid var(--gulf); border-radius: 8px; display: grid; gap: 14px; margin: 14px 0; padding: 16px; }
+.admin-outreach-map-heading { align-items: end; display: flex; gap: 18px; justify-content: space-between; }
+.admin-outreach-map-heading > div { display: grid; gap: 3px; min-width: 0; }
+.admin-outreach-map-heading > div > span { color: var(--coral); font-size: 10px; font-weight: 900; text-transform: uppercase; }
+.admin-outreach-map-heading > div > strong { color: var(--deep); font-size: 20px; }
+.admin-outreach-map-heading label { color: var(--muted); display: grid; font-size: 10px; font-weight: 800; gap: 5px; min-width: min(360px, 48%); text-transform: uppercase; }
+.admin-outreach-map-summary { display: grid; gap: 6px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.admin-outreach-map-summary > div { background: var(--foam); display: grid; gap: 2px; padding: 9px 11px; }
+.admin-outreach-map-summary strong { color: var(--deep); font-size: 18px; }
+.admin-outreach-map-summary span { color: var(--muted); font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.admin-outreach-map-layout { display: grid; gap: 14px; grid-template-columns: minmax(360px, 1.35fr) minmax(280px, .65fr); }
+.admin-outreach-map-plot { aspect-ratio: 16 / 8; background-color: #eef6f5; background-image: linear-gradient(rgba(22, 108, 112, .09) 1px, transparent 1px), linear-gradient(90deg, rgba(22, 108, 112, .09) 1px, transparent 1px); background-size: 10% 10%; border: 1px solid #b8d5d2; min-height: 260px; min-width: 0; overflow: hidden; position: relative; width: 100%; }
+.admin-outreach-map-radius { border: 2px solid var(--gulf); border-radius: 50%; height: var(--radius-diameter); left: 50%; position: absolute; top: 50%; transform: translate(-50%, -50%); width: var(--radius-diameter); }
+.admin-outreach-map-radius::after { background: rgba(22, 108, 112, .07); border-radius: inherit; content: ""; inset: 0; position: absolute; }
+.admin-outreach-map-axis { color: var(--gulf); font-size: 10px; font-weight: 900; position: absolute; }
+.admin-outreach-map-axis-north { left: 50%; top: 8px; transform: translateX(-50%); }
+.admin-outreach-map-center { left: 50%; position: absolute; top: 50%; transform: translate(-50%, -50%); }
+.admin-outreach-map-center i { background: var(--deep); border: 3px solid var(--white); border-radius: 50%; box-shadow: 0 0 0 2px var(--deep); display: block; height: 14px; width: 14px; }
+.admin-outreach-map-center b { background: var(--deep); color: var(--white); font-size: 9px; left: 50%; padding: 3px 5px; position: absolute; top: 18px; transform: translateX(-50%); white-space: nowrap; }
+.admin-outreach-map-point { left: var(--plot-x); position: absolute; top: var(--plot-y); transform: translate(-50%, -50%); z-index: 2; }
+.admin-outreach-map-point i { background: var(--coral); border: 3px solid var(--white); border-radius: 50%; box-shadow: 0 0 0 2px #9f3127; display: block; height: 13px; width: 13px; }
+.admin-outreach-map-point[data-inside="false"] i { background: var(--sun); box-shadow: 0 0 0 2px #7a4f00; }
+.admin-outreach-map-point b { background: var(--white); border: 1px solid var(--line); color: var(--deep); font-size: 9px; left: 50%; max-width: 150px; overflow: hidden; padding: 3px 5px; position: absolute; text-overflow: ellipsis; top: 17px; transform: translateX(-50%); white-space: nowrap; }
+.admin-outreach-map-detail { align-content: start; display: grid; gap: 10px; min-width: 0; }
+.admin-outreach-map-legend { display: flex; flex-wrap: wrap; gap: 9px 12px; }
+.admin-outreach-map-legend span { align-items: center; color: var(--muted); display: inline-flex; font-size: 10px; font-weight: 800; gap: 5px; }
+.admin-outreach-map-legend i,
+.admin-outreach-map-list i { background: var(--coral); border-radius: 50%; display: inline-block; flex: 0 0 8px; height: 8px; width: 8px; }
+.admin-outreach-map-legend [data-kind="center"] i { background: var(--deep); }
+.admin-outreach-map-legend [data-kind="outside"] i,
+.admin-outreach-map-list [data-inside="false"] i { background: var(--sun); }
+.admin-outreach-map-list { display: grid; list-style: none; margin: 0; max-height: 240px; overflow: auto; padding: 0; }
+.admin-outreach-map-list li { border-top: 1px solid var(--line); display: grid; gap: 3px; padding: 8px 0; }
+.admin-outreach-map-list li:first-child { border-top: 0; }
+.admin-outreach-map-list li > span:first-child { align-items: center; display: flex; gap: 7px; min-width: 0; }
+.admin-outreach-map-list strong { color: var(--deep); font-size: 11px; overflow-wrap: anywhere; }
+.admin-outreach-map-list li > span:last-child,
+.admin-outreach-map-more { color: var(--muted); font-size: 10px; }
+.admin-outreach-map-detail p { border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; line-height: 1.45; margin: 0; padding-top: 9px; }
+.admin-outreach-map-empty { background: var(--foam); color: var(--muted); display: grid; font-size: 11px; gap: 4px; padding: 18px; }
+.admin-outreach-map-empty strong { color: var(--deep); font-size: 13px; }
 .admin-campaign-metrics { display: grid; gap: 5px; grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .admin-campaign-metrics span { background: var(--foam); color: var(--deep); font-size: 11px; font-weight: 800; padding: 7px; text-align: center; }
 .admin-campaign-automation { background: #eef6f5; border-left: 4px solid var(--gulf); color: var(--deep); display: grid; font-size: 11px; gap: 3px; line-height: 1.45; padding: 9px 11px; }
@@ -5679,6 +5720,7 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
   .admin-sponsor-fulfillment { grid-template-columns: 1fr; }
   .admin-vendor-readiness { grid-template-columns: 1fr; }
   .admin-outreach-workspace { grid-template-columns: 1fr; }
+  .admin-outreach-map-layout { grid-template-columns: 1fr; }
   .admin-discovery-fields { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .admin-discovery-fields label:first-child { grid-column: span 2; }
   .admin-discovery-categories { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -5734,6 +5776,11 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
   .admin-camera-config { grid-template-columns: 1fr 1fr; }
   .admin-camera-config input[name="sourceUrl"] { grid-column: 1 / -1; }
   .admin-campaign-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-outreach-map-heading { align-items: stretch; flex-direction: column; }
+  .admin-outreach-map-heading label { min-width: 0; width: 100%; }
+  .admin-outreach-map-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-outreach-map-layout { grid-template-columns: 1fr; }
+  .admin-outreach-map-plot { min-height: 220px; }
   .admin-campaign-wide { grid-column: auto; }
   .admin-prospect-location-controls { grid-template-columns: 1fr 1fr; }
   .admin-discovery-fields { grid-template-columns: 1fr 1fr; }
@@ -5793,6 +5840,8 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
   .admin-prospect-contact-controls,
   .admin-prospect-schedule-controls { grid-template-columns: 1fr; }
   .admin-discovery-fields label:first-child { grid-column: auto; }
+  .admin-outreach-map-plot { aspect-ratio: 4 / 3; min-height: 0; }
+  .admin-outreach-map-point b { display: none; }
   .admin-discovery-summary,
   .admin-discovery-candidate { align-items: start; grid-template-columns: 1fr; }
   .admin-discovery-summary { flex-direction: column; }
