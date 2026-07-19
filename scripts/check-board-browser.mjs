@@ -140,6 +140,11 @@ if (visitorUrl && operationsUrl) {
         sponsorLogoLoaded: [...document.querySelectorAll("#public-sponsor-showcase img")].some(image => image.complete && image.naturalWidth > 0),
         cameras: document.querySelectorAll("#island-camera-grid article").length,
         conditionsUpdated: document.querySelector("#island-condition-updated")?.textContent?.trim(),
+        conditionLoad: [...document.querySelectorAll("#island-condition-kpis article")]
+          .find(item => item.textContent?.includes("Island load"))?.textContent?.replace(/\s+/g, " ").trim(),
+        playbackCameras: [...document.querySelectorAll("#island-camera-grid article small")]
+          .filter(item => item.textContent?.includes("playback")).length,
+        conditionGridText: document.querySelector("#island-camera-grid")?.textContent?.replace(/\s+/g, " ").trim(),
         overflowPixels: Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth)
       }));
     } catch (error) {
@@ -168,10 +173,16 @@ if (visitorUrl && operationsUrl) {
     });
     await inspect("island_conditions", "Island Conditions", "Inspect the synthetic camera playback and conditions refresh.", async () => {
       const item = observations.visitor;
-      if (item?.cameras !== 8 || !item?.conditionsUpdated || item.conditionsUpdated === "Checking sources") {
-        throw new Error("The eight-camera Island Conditions view did not finish rendering.");
+      if (
+        item?.cameras !== 8
+        || !item?.conditionsUpdated?.includes("Board simulation")
+        || !item?.conditionLoad?.includes("8 simulated feeds across 8 armed sources")
+        || item?.playbackCameras !== 8
+        || item?.conditionGridText?.includes("operationally live")
+      ) {
+        throw new Error("The eight-camera Island Conditions view did not render clearly labeled synthetic playback.");
       }
-      return `All ${item.cameras} camera cards rendered with a current conditions timestamp.`;
+      return `All ${item.cameras} camera cards rendered as current synthetic playback without live-provider claims.`;
     });
 
     try {
@@ -200,6 +211,12 @@ if (visitorUrl && operationsUrl) {
           .map(item => [item.querySelector("span")?.textContent?.trim(), item.textContent?.replace(/\s+/g, " ").trim()])),
         partnerRefreshLabel: document.querySelector("#admin-load-partners")?.textContent?.trim(),
         conditionsRefreshLabel: document.querySelector("#admin-load-conditions")?.textContent?.trim(),
+        conditionSourceHeading: document.querySelector("#admin-island-conditions > strong")?.textContent?.trim(),
+        conditionFeedText: document.querySelector("#admin-condition-feeds")?.textContent?.replace(/\s+/g, " ").trim(),
+        playbackSources: document.querySelectorAll('#admin-condition-cameras [data-source-mode="playback"]').length,
+        playbackSourceLabels: [...document.querySelectorAll('#admin-condition-cameras [data-source-mode="playback"] header b')]
+          .filter(item => item.textContent?.trim() === "Playback").length,
+        playbackSourceText: document.querySelector('#admin-condition-cameras [data-source-mode="playback"] p')?.textContent?.replace(/\s+/g, " ").trim(),
         commandViewport: (() => {
           const cards = [...document.querySelectorAll("#admin-command-signals [data-command-signal]")];
           const lastCard = cards.at(-1)?.getBoundingClientRect();
@@ -294,6 +311,12 @@ if (visitorUrl && operationsUrl) {
         || !item.apiStatus?.includes("Loaded")
         || item.partnerRefreshLabel !== "Refresh partner workspace"
         || item.conditionsRefreshLabel !== "Refresh island operations"
+        || item.conditionSourceHeading !== "Source health"
+        || !item.conditionFeedText?.includes("Simulated · Current")
+        || item.conditionFeedText?.includes("Live · Live")
+        || item.playbackSources !== 8
+        || item.playbackSourceLabels !== 8
+        || !item.playbackSourceText?.includes("metric simulated · heartbeat current")
         || item.resetReady !== true
       ) {
         throw new Error(observations.operationsError || "The operations command center did not finish loading.");
