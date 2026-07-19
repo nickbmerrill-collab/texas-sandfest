@@ -167,6 +167,7 @@ if (visitorUrl && operationsUrl) {
     });
 
     try {
+      await page.setViewportSize({ width: 1280, height: 720 });
       await page.goto(operationsUrl, { waitUntil: "domcontentloaded", timeout: timeoutMs });
       await page.waitForFunction(() => document.querySelector("#admin-api-status")?.textContent?.includes("Loaded"), null, { timeout: timeoutMs });
       await page.waitForFunction(() => document.querySelectorAll("#admin-command-signals [data-command-signal]").length === 8, null, { timeout: timeoutMs });
@@ -185,6 +186,19 @@ if (visitorUrl && operationsUrl) {
         commandSignals: document.querySelectorAll("#admin-command-signals [data-command-signal]").length,
         commandSignalText: Object.fromEntries([...document.querySelectorAll("#admin-command-signals [data-command-signal]")]
           .map(item => [item.dataset.commandSignal, item.textContent?.replace(/\s+/g, " ").trim()])),
+        commandViewport: (() => {
+          const cards = [...document.querySelectorAll("#admin-command-signals [data-command-signal]")];
+          const lastCard = cards.at(-1)?.getBoundingClientRect();
+          return {
+            width: window.innerWidth,
+            height: window.innerHeight,
+            lastCardBottom: lastCard?.bottom ?? null,
+            allVisible: cards.length === 8 && cards.every(card => {
+              const bounds = card.getBoundingClientRect();
+              return bounds.top >= 0 && bounds.bottom <= window.innerHeight;
+            })
+          };
+        })(),
         partnerApplications: document.querySelectorAll("#admin-partner-applications [data-partner-application]").length,
         tasks: document.querySelectorAll("#admin-partner-tasks [data-task]").length,
         taskSummary: document.querySelector("#admin-task-board-summary")?.textContent?.trim(),
@@ -240,12 +254,15 @@ if (visitorUrl && operationsUrl) {
         || !item.runtimeLabel?.includes("Synthetic 2027 data")
         || !item.runtimeLabel?.includes("No external messages or payments are sent")
         || item.commandSignals !== 8
+        || item.commandViewport?.width !== 1280
+        || item.commandViewport?.height !== 720
+        || item.commandViewport?.allVisible !== true
         || !item.apiStatus?.includes("Loaded")
         || item.resetReady !== true
       ) {
         throw new Error(observations.operationsError || "The operations command center did not finish loading.");
       }
-      return `${item.commandSignals} operating signals and the presentation reset control rendered with a persistent synthetic Demo label.`;
+      return `${item.commandSignals} operating signals fit the 1280x720 board viewport with the presentation reset control and persistent synthetic Demo label.`;
     });
     await inspect("operations_workflows", "Operations workflow queues", "Inspect partner, task, document, and accounting board data.", async () => {
       const item = observations.operations;
@@ -329,7 +346,7 @@ if (visitorUrl && operationsUrl) {
       if (observations.visitor?.overflowPixels || observations.operations?.overflowPixels) {
         throw new Error(`Horizontal overflow detected: visitor ${observations.visitor?.overflowPixels || 0}px; operations ${observations.operations?.overflowPixels || 0}px.`);
       }
-      return "No state-changing requests, page or console errors, or horizontal overflow at 1440px.";
+      return "No state-changing requests, page or console errors, or horizontal overflow at the presentation desktop viewports.";
     });
 
     await context.close();
