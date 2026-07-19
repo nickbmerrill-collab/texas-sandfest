@@ -45,6 +45,14 @@ presentation stack does not call NWS or TxDOT: its weather and ferry cards are
 continuously refreshed from a visibly labeled local simulation, so weak venue
 internet cannot block startup or make the conditions panel stale.
 
+Every prepared runtime carries an explicit compatibility schema. On startup,
+the supervisor automatically rebuilds a recognized synthetic runtime when its
+schema, event, or presentation message mode is stale, before any services are
+started. This makes a normal `npm run board:demo` safe after site upgrades
+without requiring an operator to diagnose a one-minute readiness timeout.
+Unknown markers and unmarked directories still fail closed and are never
+overwritten automatically.
+
 Before a rehearsal or the board meeting, run the read-only browser acceptance
 against that exact active session:
 
@@ -68,7 +76,9 @@ confirmation, the supervisor stops every local component, replaces the runtime,
 starts fresh services, waits for a new 9-of-9 generation, and reloads Operations.
 The control appears only when an authenticated board session is connected
 directly to its loopback supervisor; ordinary development and production APIs
-return no reset capability.
+return no reset capability. A reset requested while startup or component
+recovery is still checking readiness preempts that check and restores the
+baseline immediately instead of waiting behind a failing timeout.
 
 The terminal fallback performs the same intentional reset:
 

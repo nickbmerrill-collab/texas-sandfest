@@ -2,11 +2,15 @@
 
 import { spawn } from "node:child_process";
 import { createServer as createNetServer } from "node:net";
-import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { BOARD_RUNTIME_SCHEMA_VERSION, prepareBoardRuntime } from "../lib/board-runtime.mjs";
 import { readBoardDemoSession } from "../lib/board-demo-session.mjs";
+import { DEFAULT_EVENT_ID } from "../lib/event-context.mjs";
+import { emptyPartnerOperations } from "../lib/partner-ops.mjs";
+import { platformDocumentFilePath } from "../lib/platform-data.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ADMIN_TOKEN = "board-demo-local-admin-token-change-me";
@@ -144,6 +148,17 @@ try {
   occupiedPortServer = await occupyPort();
   const webPort = occupiedPortServer.address().port;
   const [apiPort, emailPort, smsPort] = await distinctPorts(3);
+  await prepareBoardRuntime({
+    sourceRoot: ROOT,
+    targetRoot: runtimeRoot,
+    eventId: DEFAULT_EVENT_ID,
+    replace: true,
+    messageMode: "review_first"
+  });
+  const runtimeMarkerPath = path.join(runtimeRoot, "board-runtime.json");
+  const staleRuntimeMarker = JSON.parse(await readFile(runtimeMarkerPath, "utf8"));
+  staleRuntimeMarker.schemaVersion = 0;
+  await writeFile(runtimeMarkerPath, `${JSON.stringify(staleRuntimeMarker, null, 2)}\n`, "utf8");
   const supervisorEnvironment = {
     ...commandEnvironment(sessionFile),
     STRIPE_TICKETING_ENABLED: "true",
@@ -158,7 +173,6 @@ try {
   };
   supervisor = spawn(process.execPath, [
     "scripts/board-demo.mjs",
-    "--reset",
     "--runtime", runtimeRoot,
     "--session-file", sessionFile,
     "--web-port", String(webPort),
@@ -183,6 +197,19 @@ try {
     throw new Error("Supervisor did not preserve and move around the occupied web port.");
   }
   console.log(`  ok supervisor preserves an occupied port and starts the complete stack (PID ${initial.pid})`);
+  const upgradedRuntimeMarker = JSON.parse(await readFile(runtimeMarkerPath, "utf8"));
+  if (
+    initial.runtimeReused !== false
+    || initial.runtimeRefreshed !== true
+    || initial.runtimeSchemaVersion !== BOARD_RUNTIME_SCHEMA_VERSION
+    || !initial.runtimeRefreshReasons?.some(reason => reason.startsWith("schema "))
+    || !initial.runtimeRefreshReasons?.some(reason => reason.startsWith("message mode "))
+    || upgradedRuntimeMarker.schemaVersion !== BOARD_RUNTIME_SCHEMA_VERSION
+    || upgradedRuntimeMarker.messageMode !== "local_automation"
+  ) {
+    throw new Error("Supervisor did not automatically upgrade the recognized stale board runtime.");
+  }
+  console.log(`  ok supervisor upgrades a recognized stale runtime to schema ${BOARD_RUNTIME_SCHEMA_VERSION} before startup`);
   const conditionsResponse = await fetch(`${initial.endpoints.apiBase}/api/public/island-conditions`);
   const conditions = await conditionsResponse.json();
   if (!conditionsResponse.ok || conditions.weather?.source !== "Board weather simulation" || conditions.ferry?.source !== "Board ferry simulation") {
@@ -257,6 +284,25 @@ try {
   const resetProbe = path.join(runtimeRoot, "reset-probe.txt");
   await writeFile(resetProbe, "must be removed by presentation reset\n", "utf8");
   const preResetPids = Object.fromEntries(Object.entries(initial.services).map(([name, service]) => [name, Number(service.pid)]));
+  await writeFile(
+    platformDocumentFilePath(runtimeRoot, "partnerOps"),
+    `${JSON.stringify(emptyPartnerOperations(DEFAULT_EVENT_ID), null, 2)}\n`,
+    "utf8"
+  );
+  process.kill(preResetPids.api, "SIGKILL");
+  await waitFor(async () => {
+    const session = await readBoardDemoSession(sessionFile);
+    const apiPid = Number(session?.services?.api?.pid);
+    if (session?.status !== "recovering" || apiPid < 1 || apiPid === preResetPids.api || !processAlive(apiPid)) return null;
+    try {
+      const response = await fetch(`${session.endpoints.apiBase}/health`);
+      if (!response.ok) return null;
+    } catch {
+      return null;
+    }
+    rememberServicePids(session);
+    return session;
+  }, 30_000, "Degraded board recovery");
   const resetResponse = await fetch(`${initial.endpoints.apiBase}/api/admin/board-demo/reset`, {
     method: "POST",
     headers: { authorization: `Bearer ${ADMIN_TOKEN}` }
@@ -288,6 +334,9 @@ try {
     if (error?.code !== "ENOENT") throw error;
   }
   const resetReport = await preflight(sessionFile);
+  if (!output.includes("Reset requested during api readiness check; replacing it.")) {
+    throw new Error(`Board reset did not preempt the active API readiness check:\n${output.slice(-12_000)}`);
+  }
   console.log(`  ok presentation reset replaces every service, restores the baseline, and returns to ${resetReport.passed}/${resetReport.total}`);
 
   const originalApiPid = Number(resetSession.services.api.pid);
@@ -313,7 +362,7 @@ try {
   const lingering = [...observedPids].filter(processAlive);
   if (lingering.length) throw new Error(`Board child processes remained alive after shutdown: ${lingering.join(", ")}`);
   console.log(`  ok stop command shuts down the supervisor and all ${observedPids.size} observed child processes`);
-  console.log("\nBoard demo supervisor: 12/12 checks passed.\n");
+  console.log("\nBoard demo supervisor: 13/13 checks passed.\n");
 } catch (error) {
   console.error(`\nBoard demo supervisor test failed: ${error.message}`);
   process.exitCode = 1;
