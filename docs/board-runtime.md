@@ -65,6 +65,14 @@ without requiring an operator to diagnose a one-minute readiness timeout.
 Unknown markers and unmarked directories still fail closed and are never
 overwritten automatically.
 
+Each supervised start and reset also claims a new runtime ownership epoch before
+its child services begin. File-backed platform access validates that epoch on
+every process boundary, so an orphaned manual worker or API from an older local
+session cannot keep writing applications, messages, tasks, or finance records
+after the supervisor takes control. A stale worker exits cleanly when it sees
+the new owner. The ownership identifier is local fencing metadata, not a service
+credential, and is never added to the credential-free session handoff.
+
 Before a rehearsal or the board meeting, run the read-only browser acceptance
 against that exact active session:
 

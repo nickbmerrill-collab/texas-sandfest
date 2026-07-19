@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadDotEnv } from "../lib/load-env.mjs";
-import { resolveRuntimeRoot, runtimeRootProfile } from "../lib/runtime-root.mjs";
+import { RUNTIME_OWNERSHIP_ERROR_CODE, assertRuntimeOwnership, resolveRuntimeRoot, runtimeRootProfile } from "../lib/runtime-root.mjs";
 import { createStorage } from "../lib/storage.mjs";
 import { authMode, authModeIsJwt, resolveSession } from "../lib/auth.mjs";
 import { buildRevenueLedgerView, partnerRevenueEntries, summarizeLedger, ticketRevenueEntries } from "../lib/revenue.mjs";
@@ -3735,6 +3735,7 @@ async function handleRequest(request, response) {
   if (!(await checkRateLimit(request, response, pathname, method))) return;
 
   try {
+    await assertRuntimeOwnership(ROOT);
     if (request.method === "GET" && pathname === "/api/integrations/quickbooks/callback") {
       if (url.searchParams.get("error")) {
         try {
@@ -7833,7 +7834,9 @@ async function handleRequest(request, response) {
 
     sendJson(request, response, 404, { error: "Route not found." });
   } catch (error) {
-    const failure = safeErrorResponse(error, { production: SANDFEST_ENV === "production" });
+    const failure = error?.code === RUNTIME_OWNERSHIP_ERROR_CODE
+      ? { status: 409, message: "This local process no longer owns the active board runtime." }
+      : safeErrorResponse(error, { production: SANDFEST_ENV === "production" });
     console.error(JSON.stringify({
       event: "request.error",
       requestId: request.requestId,
