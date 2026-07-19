@@ -7572,6 +7572,7 @@ function renderAdminPartners(payload, outreach) {
       geofence ? `${geofence.radiusMiles} mi around ${Number(geofence.latitude).toFixed(4)}, ${Number(geofence.longitude).toFixed(4)}` : ""
     ].filter(Boolean).join(" · ") || "All qualified prospects";
     const metrics = campaign.metrics || {};
+    const funnel = metrics.funnel || {};
     const automation = campaign.automation || {};
     const automatedSequence = campaign.deliveryMode === "approved_sequence";
     return `<article data-outreach-campaign="${escapeAttr(campaign.id)}">
@@ -7579,6 +7580,13 @@ function renderAdminPartners(payload, outreach) {
       <p>${campaign.sequence?.length || 0} messages · fit ${target.minFitScore || 0}+ · ${metrics.matched || 0} matched · ${automatedSequence ? `campaign-approved, ${campaign.dailySendLimit || 25}/day` : "review every message"}</p>
       ${automatedSequence ? `<div class="admin-campaign-automation" data-state="${automation.active ? "active" : automation.blockedReason ? "blocked" : "ready"}"><strong>${automation.active ? "Automation active" : "Automation gated"}</strong><span>${automation.active ? `${automation.remainingToday ?? campaign.dailySendLimit ?? 25} approvals available today` : escapeHtml(automation.blockedReason || "Ready after activation")}</span></div>` : ""}
       <div class="admin-campaign-metrics"><span>${metrics.drafts || 0} drafts</span><span>${metrics.approved || 0} approved</span><span>${metrics.sent || 0} sent</span><span>${metrics.automated || 0} automated</span><span>${metrics.failed || 0} failed</span></div>
+      <div class="admin-campaign-outcomes" data-campaign-outcomes="${escapeAttr(campaign.id)}" role="group" aria-label="${escapeAttr(`${campaign.name} outcome funnel`)}">
+        <span data-outcome-stage="reached"><strong>${Number(funnel.reached || 0)}</strong><small>Reached</small></span>
+        <span data-outcome-stage="delivered"><strong>${Number(funnel.delivered || 0)}</strong><small>Delivered</small></span>
+        <span data-outcome-stage="opened"><strong>${Number(funnel.opened || 0)}</strong><small>Opened</small></span>
+        <span data-outcome-stage="clicked"><strong>${Number(funnel.clicked || 0)}</strong><small>Clicked</small></span>
+        <span data-outcome-stage="applications"><strong>${Number(funnel.applications || 0)}</strong><small>Applications</small></span>
+      </div>
       <div class="admin-followup-actions">
         ${["draft", "paused"].includes(campaign.status) ? `<button type="button" class="button primary" data-campaign-action="activate" data-campaign-id="${escapeAttr(campaign.id)}" data-campaign-delivery-mode="${escapeAttr(campaign.deliveryMode || "review_first")}">${automatedSequence ? "Approve and activate" : "Activate"}</button>` : ""}
         ${campaign.status === "active" ? `<button type="button" class="button secondary" data-campaign-generate="${escapeAttr(campaign.id)}">Generate due drafts</button><button type="button" class="button secondary" data-campaign-action="pause" data-campaign-id="${escapeAttr(campaign.id)}">Pause</button><button type="button" class="button secondary" data-campaign-action="complete" data-campaign-id="${escapeAttr(campaign.id)}">Complete</button>` : ""}
