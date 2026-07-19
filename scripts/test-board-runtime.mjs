@@ -7,7 +7,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { BOARD_RUNTIME_SCHEMA_VERSION, prepareBoardRuntime } from "../lib/board-runtime.mjs";
+import { BOARD_RUNTIME_LABEL, BOARD_RUNTIME_SCHEMA_VERSION, prepareBoardRuntime } from "../lib/board-runtime.mjs";
 import { runBoardCameraPlaybackTick } from "../lib/board-camera-playback.mjs";
 import { boardEmailSandboxConfig, startBoardEmailSandbox } from "../lib/board-email-sandbox.mjs";
 import { boardSmsSandboxConfig, startBoardSmsSandbox } from "../lib/board-sms-sandbox.mjs";
@@ -226,7 +226,9 @@ try {
   const resolved = resolveRuntimeRoot(ROOT, { SANDFEST_RUNTIME_ROOT: targetRoot });
   const runtimeMarker = JSON.parse(await readFile(path.join(targetRoot, "board-runtime.json"), "utf8"));
   check("runtime root resolves outside repository data", resolved === targetRoot && resolved !== ROOT);
-  check("board runtime records its compatibility schema", runtimeMarker.kind === "synthetic-board-demonstration" && runtimeMarker.schemaVersion === BOARD_RUNTIME_SCHEMA_VERSION);
+  check("board runtime records its compatibility contract", runtimeMarker.kind === "synthetic-board-demonstration"
+    && runtimeMarker.schemaVersion === BOARD_RUNTIME_SCHEMA_VERSION
+    && runtimeMarker.runtimeLabel === BOARD_RUNTIME_LABEL);
   check("board seed covers core operations", prepared.applications === 4 && prepared.invoices === 1 && prepared.payments === 1 && prepared.tasks === 10 && prepared.prospects === 2 && prepared.safetySmsRecipients === 1);
   check("board seed covers field operations", prepared.cameras === 8 && prepared.volunteerShifts === 12 && prepared.documents === 4);
   check("production refuses synthetic board conditions", await productionRejectsSyntheticConditions(targetRoot));
