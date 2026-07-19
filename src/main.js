@@ -1226,31 +1226,31 @@ app.innerHTML = `
         <div class="admin-order-grid">
           <div>
             <strong>Pending checkout attempts</strong>
-            <div id="admin-order-list" class="admin-record-list">
+            <div id="admin-order-list" class="admin-record-list keyboard-scroll-region" role="region" aria-label="Pending checkout attempts" tabindex="0">
               <article class="empty-state"><span>No order records loaded.</span></article>
             </div>
           </div>
           <div>
             <strong>Payment events</strong>
-            <div id="admin-payment-event-list" class="admin-record-list">
+            <div id="admin-payment-event-list" class="admin-record-list keyboard-scroll-region" role="region" aria-label="Payment events" tabindex="0">
               <article class="empty-state"><span>No payment events loaded.</span></article>
             </div>
           </div>
           <div>
             <strong>Fulfillment queue</strong>
-            <div id="admin-fulfillment-list" class="admin-record-list">
+            <div id="admin-fulfillment-list" class="admin-record-list keyboard-scroll-region" role="region" aria-label="Fulfillment queue" tabindex="0">
               <article class="empty-state"><span>No fulfillment records loaded.</span></article>
             </div>
           </div>
           <div>
             <strong>Admin audit trail</strong>
-            <div id="admin-audit-list" class="admin-record-list">
+            <div id="admin-audit-list" class="admin-record-list keyboard-scroll-region" role="region" aria-label="Admin audit trail" tabindex="0">
               <article class="empty-state"><span>No audit records loaded.</span></article>
             </div>
           </div>
           <div>
             <strong>Config snapshots</strong>
-            <div id="admin-snapshot-list" class="admin-record-list">
+            <div id="admin-snapshot-list" class="admin-record-list keyboard-scroll-region" role="region" aria-label="Configuration snapshots" tabindex="0">
               <article class="empty-state"><span>No snapshots loaded.</span></article>
             </div>
           </div>

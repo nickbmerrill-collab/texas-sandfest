@@ -588,6 +588,14 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await expect(deferredRecovery).toContainText("Managed backup provisioning and provider restore drills are scheduled after the presentation.");
   await expect(deferredRecovery).toContainText("Isolated database and upload recovery verification remains in the release gate.");
   await expect(deferredRecovery).not.toContainText("configure a supported managed backup provider");
+  const transactionRegions = page.locator("#admin-system-monitor .admin-record-list");
+  await expect(transactionRegions).toHaveCount(5);
+  expect(await transactionRegions.evaluateAll(regions => regions.every(region => region.getAttribute("role") === "region" && region.tabIndex === 0))).toBe(true);
+  const auditRegionMetrics = await page.locator("#admin-audit-list").evaluate(region => ({
+    clientHeight: region.clientHeight,
+    scrollHeight: region.scrollHeight
+  }));
+  expect(auditRegionMetrics.clientHeight).toBeLessThanOrEqual(560);
   const paidTicketOrderCard = () => page.locator(`#admin-order-list [data-ticket-order="${demoTicketOrderId}"]`);
   await expect(paidTicketOrderCard()).toHaveCount(1);
   await expect(paidTicketOrderCard()).toContainText("paid");
@@ -1428,6 +1436,15 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
       && assignments[0].deliveryStatus === "delivered"
       && activeOverdue.length === 0;
   }, { timeout: 15_000 }).toBe(true);
+
+  const transactionRefresh = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/audit" && response.request().method() === "GET");
+  await page.locator("#admin-load-orders").click();
+  expect((await transactionRefresh).status()).toBe(200);
+  const populatedAuditRegionMetrics = await page.locator("#admin-audit-list").evaluate(region => ({
+    clientHeight: region.clientHeight,
+    scrollHeight: region.scrollHeight
+  }));
+  expect(populatedAuditRegionMetrics.scrollHeight).toBeGreaterThan(populatedAuditRegionMetrics.clientHeight);
 
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#island-conditions`);
   await expect(page.locator(`[data-package-id="${sponsorTierId}"]`)).toContainText("Community Champion");
