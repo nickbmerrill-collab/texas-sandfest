@@ -136,6 +136,7 @@ import {
   outreachDistanceMiles,
   outreachCampaignAutomationReadiness,
   partnerAutomationReadiness,
+  previewOutreachCampaign,
   prepareFollowupDraft,
   queueFollowupDelivery,
   queuePartnerInvoiceReconciliation,
@@ -3383,6 +3384,11 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
     targeting: { geofence: { latitude: 27.8339, longitude: -97.0611, radiusMiles: 25 } },
     sequence: [{ delayDays: 0, subjectTemplate: "Local partnership", bodyTemplate: "Hello {{contactName}}" }]
   }, { actorId: "sponsor_1", idFactory, now });
+  const radiusPreview = previewOutreachCampaign(farProspect.doc, {
+    name: "Port Aransas radius preview",
+    targeting: { geofence: { latitude: 27.8339, longitude: -97.0611, radiusMiles: 25 } },
+    sequence: [{ delayDays: 0, subjectTemplate: "A partnership for {{organization}}", bodyTemplate: "Hello {{contactName}} in {{city}}" }]
+  }, { actorId: "sponsor_1", now });
   const invalidGeofence = createOutreachCampaign(qualified.doc, {
     name: "Invalid radius",
     targeting: { geofence: { latitude: 27.8339, radiusMiles: 25 } },
@@ -3404,6 +3410,7 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   }, { idFactory, now });
   ok("outreach campaign targeting", campaign.ok && campaign.campaign.targeting.postalCodes[0] === "78373" && campaign.campaign.deliveryMode === "review_first" && campaign.campaign.dailySendLimit === 25 && matchOutreachProspects(campaign.doc, campaign.campaign).length === 1);
   ok("outreach radius targeting", radiusCampaign.ok && matchOutreachProspects(radiusCampaign.doc, radiusCampaign.campaign).map(item => item.id).join() === prospect.prospect.id && outreachDistanceMiles(27.8339, -97.0611, 30.2672, -97.7431) > 150);
+  ok("outreach campaign preflight is exact, personalized, private, and mutation-free", radiusPreview.ok && radiusPreview.preview.totalProspects === 2 && radiusPreview.preview.matched === 1 && radiusPreview.preview.excluded === 1 && radiusPreview.preview.exclusions.length === 1 && radiusPreview.preview.exclusions[0].reason === "outside_radius" && radiusPreview.preview.matches[0].organizationName === "Island Hotel" && !("contactEmail" in radiusPreview.preview.matches[0]) && radiusPreview.preview.sample.sequence[0].subject === "A partnership for Island Hotel" && radiusPreview.preview.sample.sequence[0].body === "Hello Jordan Lee in Port Aransas" && farProspect.doc.campaigns.length === 0);
   ok("outreach geofence validation", !invalidGeofence.ok && invalidGeofence.error.includes("requires center"));
   ok("outreach location correction", correctedProspectLocation.ok && correctedProspectLocation.prospect.fitScore === 100 && correctedProspectLocation.prospect.fitReasons.length === 3 && !invalidProspectLocation.ok);
   const activated = updateOutreachCampaignStatus(campaign.doc, campaign.campaign.id, "activate", { actorId: "sponsor_1", idFactory, now });
@@ -6286,12 +6293,13 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     organizationName: "API Port Aransas Hotel",
     contactName: "Geo Test",
     contactEmail: "geo-api@example.com",
-    industry: "hospitality",
+    industry: "api preview lodging",
     city: "Port Aransas",
     state: "TX",
     postalCode: "78373",
     latitude: 27.8339,
     longitude: -97.0611,
+    communityFit: true,
     contactBasis: "business_relevance",
     status: "contact_ready",
     ownerId: "sponsor_lead",
@@ -6308,18 +6316,27 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     contactEmail: "invalid-schedule-api@example.com",
     nextActionAt: "not-a-date"
   }, true);
-  const geoCampaignApi = await hit("POST", "/api/admin/outreach/campaigns", {
+  const geoCampaignPayloadApi = {
     name: "API Port Aransas geofence",
     targeting: {
-      industries: ["hospitality"],
+      industries: ["api preview lodging"],
       postalCodes: ["78373"],
       geofence: { latitude: 27.8339, longitude: -97.0611, radiusMiles: 25 },
       minFitScore: 60
     },
-    sequence: [{ delayDays: 0, subjectTemplate: "A local SandFest partnership", bodyTemplate: "Hello {{contactName}}" }]
-  }, true);
+    sequence: [{ delayDays: 0, subjectTemplate: "A local partnership for {{organization}}", bodyTemplate: "Hello {{contactName}}" }]
+  };
+  const unauthenticatedGeoCampaignPreviewApi = await hit("POST", "/api/admin/outreach/campaigns/preview", geoCampaignPayloadApi);
+  const geoCampaignPreviewApi = await hit("POST", "/api/admin/outreach/campaigns/preview", geoCampaignPayloadApi, true);
+  const outreachAfterPreviewApi = await hit("GET", "/api/admin/outreach", null, true);
+  const geoCampaignApi = await hit("POST", "/api/admin/outreach/campaigns", geoCampaignPayloadApi, true);
   const invalidGeoCampaignApi = await hit("POST", "/api/admin/outreach/campaigns", {
     name: "Invalid API geofence",
+    targeting: { geofence: { latitude: 27.8339, radiusMiles: 25 } },
+    sequence: [{ delayDays: 0, subjectTemplate: "Invalid", bodyTemplate: "Invalid" }]
+  }, true);
+  const invalidGeoCampaignPreviewApi = await hit("POST", "/api/admin/outreach/campaigns/preview", {
+    name: "Invalid API geofence preview",
     targeting: { geofence: { latitude: 27.8339, radiusMiles: 25 } },
     sequence: [{ delayDays: 0, subjectTemplate: "Invalid", bodyTemplate: "Invalid" }]
   }, true);
@@ -6328,6 +6345,7 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
   const geoOutreachWorkspaceApi = await hit("GET", "/api/admin/outreach", null, true);
   const geoCampaignWorkspaceApi = geoOutreachWorkspaceApi.data.campaigns?.find(item => item.id === geoCampaignApi.data.campaign?.id);
   const geoDraftApi = geoOutreachWorkspaceApi.data.followups?.find(item => item.campaignId === geoCampaignApi.data.campaign?.id);
+  ok("campaign preflight API is authorized, private, personalized, and mutation-free", unauthenticatedGeoCampaignPreviewApi.status === 401 && geoCampaignPreviewApi.status === 200 && geoCampaignPreviewApi.data.preview?.matched === 1 && geoCampaignPreviewApi.data.preview?.matches?.[0]?.id === geoProspectApi.data.prospect?.id && !("contactEmail" in geoCampaignPreviewApi.data.preview.matches[0]) && geoCampaignPreviewApi.data.preview.sample?.sequence?.[0]?.subject === "A local partnership for API Port Aransas Hotel" && !outreachAfterPreviewApi.data.campaigns?.some(item => item.name === geoCampaignPayloadApi.name) && invalidGeoCampaignPreviewApi.status === 400);
   ok("geofenced outreach API", geoProspectApi.status === 201 && geoCampaignApi.status === 201 && activatedGeoCampaignApi.status === 200 && activatedGeoCampaignApi.data.generated === 1 && generatedGeoCampaignApi.data.generated === 0 && geoCampaignWorkspaceApi?.metrics?.matched === 1 && geoCampaignWorkspaceApi?.targeting?.postalCodes?.[0] === "78373");
   ok("outreach accountability API", geoProspectApi.data.prospect?.ownerId === "sponsor_lead" && geoProspectApi.data.prospect?.nextActionAt === "2027-01-15T15:00:00.000Z" && geoOutreachWorkspaceApi.data.summary?.nextActionsScheduled >= 1);
   ok("geofenced outreach API validation", invalidGeoProspectApi.status === 400 && invalidScheduleProspectApi.status === 400 && invalidScheduleProspectApi.data.error?.includes("follow-up date") && invalidGeoCampaignApi.status === 400);

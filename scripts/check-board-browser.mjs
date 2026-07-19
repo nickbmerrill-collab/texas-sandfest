@@ -253,6 +253,9 @@ if (visitorUrl && operationsUrl) {
           .filter(item => item.textContent?.includes("review every message")).length,
         geofencedCampaigns: [...document.querySelectorAll("#admin-outreach-campaigns [data-outreach-campaign]")]
           .filter(item => item.textContent?.includes("mi around")).length,
+        campaignPreflightReady: Boolean(document.querySelector("#admin-preview-campaign:not(:disabled)")
+          && document.querySelector('#admin-campaign-audience-preview[aria-live="polite"]')
+          && document.querySelector('#admin-create-campaign button[type="submit"]:disabled')),
         quickBooksState: document.querySelector("#admin-quickbooks-connection")?.dataset?.state,
         partnerActivity: document.querySelectorAll("#admin-partner-activity [data-partner-activity]").length,
         partnerActivityCategories: [...new Set([...document.querySelectorAll("#admin-partner-activity [data-category]")].map(item => item.dataset.category))],
@@ -361,10 +364,11 @@ if (visitorUrl && operationsUrl) {
         || item?.outreachCampaigns < 1
         || item?.reviewFirstCampaigns < 1
         || item?.geofencedCampaigns < 1
+        || !item?.campaignPreflightReady
       ) {
         throw new Error("Sponsor, vendor, or geofenced outreach proof is incomplete.");
       }
-      return `${item.approvedBrandAssets} approved brand assets, ${item.sponsorDeliverables} sponsor benefits, ready and blocked vendor paths, and an invitation-ready located prospect in a geofenced campaign rendered.`;
+      return `${item.approvedBrandAssets} approved brand assets, ${item.sponsorDeliverables} sponsor benefits, ready and blocked vendor paths, an invitation-ready located prospect, and server-qualified campaign preflight rendered.`;
     });
     await inspect("document_ingestion", "Private document ingestion", "Inspect governed files, extraction states, and staff-only previews.", async () => {
       const item = observations.operations;

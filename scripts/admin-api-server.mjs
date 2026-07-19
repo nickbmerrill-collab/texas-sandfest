@@ -147,6 +147,7 @@ import {
   outreachCampaignAutomationReadiness,
   outreachCampaignMetrics,
   partnerAutomationReadiness,
+  previewOutreachCampaign,
   queueFollowupDelivery,
   queuePartnerInvoiceReconciliation,
   queuePartnerInvoiceSync,
@@ -6470,6 +6471,23 @@ async function handleRequest(request, response) {
         refreshedDrafts: result.refreshedDrafts || 0,
         dismissedDrafts: result.dismissedDrafts || 0
       });
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/admin/outreach/campaigns/preview") {
+      const session = await requirePermission(request, response, "outreach:write");
+      if (!session) return;
+      const body = await readBody(request);
+      const doc = await readPartnerOperations();
+      const result = previewOutreachCampaign(doc, body, {
+        actorId: session.id,
+        now: new Date().toISOString()
+      });
+      if (!result?.ok) {
+        sendJson(request, response, 400, { error: result?.error || "Campaign audience could not be previewed." });
+        return;
+      }
+      sendJson(request, response, 200, { preview: result.preview });
       return;
     }
 
