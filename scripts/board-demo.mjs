@@ -5,7 +5,7 @@ import { access, readFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { BOARD_RUNTIME_SCHEMA_VERSION, prepareBoardRuntime } from "../lib/board-runtime.mjs";
+import { BOARD_RUNTIME_LABEL, BOARD_RUNTIME_SCHEMA_VERSION, prepareBoardRuntime } from "../lib/board-runtime.mjs";
 import {
   BOARD_DEMO_SESSION_SCHEMA_VERSION,
   boardDemoSessionPath,
@@ -121,6 +121,9 @@ async function prepareRuntime(runtimeRoot, { reset }) {
     const refreshReasons = [];
     if (marker.schemaVersion !== BOARD_RUNTIME_SCHEMA_VERSION) {
       refreshReasons.push(`schema ${marker.schemaVersion ?? "unversioned"} -> ${BOARD_RUNTIME_SCHEMA_VERSION}`);
+    }
+    if (marker.runtimeLabel !== BOARD_RUNTIME_LABEL) {
+      refreshReasons.push("runtime label changed");
     }
     if (marker.eventId !== eventId) refreshReasons.push(`event ${marker.eventId || "missing"} -> ${eventId}`);
     if (marker.messageMode !== PRESENTATION_MESSAGE_MODE) {

@@ -6,7 +6,7 @@ import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { BOARD_RUNTIME_SCHEMA_VERSION, prepareBoardRuntime } from "../lib/board-runtime.mjs";
+import { BOARD_RUNTIME_LABEL, BOARD_RUNTIME_SCHEMA_VERSION, prepareBoardRuntime } from "../lib/board-runtime.mjs";
 import { BOARD_DEMO_SESSION_SCHEMA_VERSION, readBoardDemoSession } from "../lib/board-demo-session.mjs";
 import { DEFAULT_EVENT_ID } from "../lib/event-context.mjs";
 import { emptyPartnerOperations } from "../lib/partner-ops.mjs";
@@ -169,6 +169,7 @@ try {
   const runtimeMarkerPath = path.join(runtimeRoot, "board-runtime.json");
   const staleRuntimeMarker = JSON.parse(await readFile(runtimeMarkerPath, "utf8"));
   staleRuntimeMarker.schemaVersion = 0;
+  staleRuntimeMarker.runtimeLabel = "Outdated presentation label";
   await writeFile(runtimeMarkerPath, `${JSON.stringify(staleRuntimeMarker, null, 2)}\n`, "utf8");
   const supervisorEnvironment = {
     ...commandEnvironment(sessionFile),
@@ -219,8 +220,10 @@ try {
     || initial.runtimeRefreshed !== true
     || initial.runtimeSchemaVersion !== BOARD_RUNTIME_SCHEMA_VERSION
     || !initial.runtimeRefreshReasons?.some(reason => reason.startsWith("schema "))
+    || !initial.runtimeRefreshReasons?.includes("runtime label changed")
     || !initial.runtimeRefreshReasons?.some(reason => reason.startsWith("message mode "))
     || upgradedRuntimeMarker.schemaVersion !== BOARD_RUNTIME_SCHEMA_VERSION
+    || upgradedRuntimeMarker.runtimeLabel !== BOARD_RUNTIME_LABEL
     || upgradedRuntimeMarker.messageMode !== "local_automation"
   ) {
     throw new Error("Supervisor did not automatically upgrade the recognized stale board runtime.");
