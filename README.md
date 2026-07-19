@@ -9,7 +9,7 @@ Unified visitor and operations platform for Texas SandFest, with production-gate
 - Beach operations dashboard for crowd zones, run-of-show, and dispatch signals.
 - Sponsor, vendor, volunteer, and visitor module framing.
 - Ground-up production roadmap for content, AI, ops, and partner portals.
-- Native iOS and Port A Local Co integration plans.
+- Native iOS source prototype plus the Port A Local Co integration plan.
 - Configuration-gated Stripe ticket checkout with provider-private public catalogs, server-authoritative prices and quantities, browser/server idempotency, signed webhook reconciliation, deterministic wristband/will-call fulfillment, and full/partial refund states. Static builds fail closed until the API confirms the current catalog and Stripe integration are ready; sponsor packages remain invoice/review based and the raffle remains review-gated. The isolated board runtime exercises the same order, reconciliation, fulfillment, refund, and revenue projections through a loopback-only payment sandbox with visibly synthetic prices and no external charge.
 - Configurable admin API scaffold for Heyelab-hosted ticket and sponsorship settings.
 - Event-day emergency alert API and admin publishing controls.

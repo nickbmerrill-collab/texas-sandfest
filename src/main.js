@@ -345,8 +345,8 @@ const surfaces = [
   },
   {
     name: "Native iOS",
-    status: "Planned",
-    role: "On-site app for guests and staff with offline-friendly maps, push alerts, QR/ticket handoff, volunteer check-in, and incident capture."
+    status: "Source prototype implemented",
+    role: "Local source prototype for guests and staff with cached event data, push alerts, QR/ticket handoff, volunteer check-in, and incident capture. Device QA and distribution remain ahead."
   },
   {
     name: "Port A Local Co",
@@ -2070,7 +2070,7 @@ app.innerHTML = `
           </article>
         `).join("")}
       </div>
-      <div class="mobile-shell" aria-label="iOS app concept">
+      <div class="mobile-shell" aria-label="iOS app source prototype">
         <div class="phone-frame">
           <div class="phone-top"></div>
           <div class="phone-screen">
@@ -2085,9 +2085,9 @@ app.innerHTML = `
           </div>
         </div>
         <div>
-          <p class="eyebrow">iOS first release</p>
-          <h3>Build the field app around what breaks on the beach.</h3>
-          <p class="section-copy">Cell signal, heat, crowds, shifting parking, volunteers, and policy questions make this a native app problem. The app should cache the event guide, map, schedule, and policy answers, then sync live changes when connectivity allows.</p>
+          <p class="eyebrow">iOS source prototype</p>
+          <h3>The field app prototype centers the realities of the beach.</h3>
+          <p class="section-copy">The current Swift source caches event data, maps the schedule to the published festival dates, and includes alerts, ticket handoff, volunteer, incident, partner, and operations views. A real Xcode build, signing, device QA, and TestFlight distribution are still required.</p>
           <div class="capability-list">
             <span>Offline map</span>
             <span>Push alerts</span>
@@ -2147,7 +2147,7 @@ app.innerHTML = `
         <article><strong>1. Content OS</strong><span>Canon event facts, FAQ, policies, maps, schedule, sponsor/vendor/volunteer documents.</span></article>
         <article><strong>2. AI Concierge</strong><span>RAG assistant with approved answers, escalation rules, multilingual support, and SMS/web widgets.</span></article>
         <article><strong>3. Ops Console</strong><span>Volunteer shifts, incidents, weather, crowd density, gate queues, lost party, ADA requests.</span></article>
-        <article><strong>4. Native iOS</strong><span>Offline guide, push alerts, check-in, incident capture, staff tools, TestFlight-ready release train.</span></article>
+        <article><strong>4. Native iOS</strong><span>Implemented source prototype for the cached guide, alerts, check-in, incident capture, and staff tools; real-device QA and TestFlight release remain.</span></article>
         <article><strong>5. QuickBooks</strong><span>Connect accounting truth to sponsor invoices, vendor payments, raffle reconciliation, and impact reporting.</span></article>
         <article><strong>6. Partner Portals</strong><span>Sponsor CRM, vendor onboarding, nonprofit grants, city coordination, post-event impact.</span></article>
         <article><strong>7. Port A Local Co</strong><span>Expose SandFest as an event/destination module for local discovery, commerce, and retention.</span></article>

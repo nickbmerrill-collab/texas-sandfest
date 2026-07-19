@@ -3,9 +3,32 @@ import Foundation
 struct EventGuide: Identifiable, Codable {
     let id: String
     let name: String
+    let startDate: String?
+    let endDate: String?
     let dateRange: String
+    let timeZone: String?
     let location: String
     let lastUpdated: Date
+
+    init(
+        id: String,
+        name: String,
+        startDate: String? = nil,
+        endDate: String? = nil,
+        dateRange: String,
+        timeZone: String? = nil,
+        location: String,
+        lastUpdated: Date
+    ) {
+        self.id = id
+        self.name = name
+        self.startDate = startDate
+        self.endDate = endDate
+        self.dateRange = dateRange
+        self.timeZone = timeZone
+        self.location = location
+        self.lastUpdated = lastUpdated
+    }
 }
 
 struct EmergencyAlert: Identifiable, Codable {
@@ -109,7 +132,7 @@ struct Ticket: Identifiable, Codable {
     let id: String                 // also the QR payload (e.g., "tsf:t:WB-29F4-7B0A")
     let band: TicketBand
     let holder: String             // ticket holder name
-    let dayPass: String            // "All 3 days · Apr 17–19" / "Friday only"
+    let dayPass: String            // "All 3 days · Apr 16-18" / "Friday only"
     let seat: String?              // VIP table number, sponsor zone, etc.
     let purchaseSource: String     // "Eventeny" / "Box Office" / "Comp"
     let issuedAt: Date
@@ -309,10 +332,13 @@ struct LiveBeachSnapshot: Codable {
 
 enum SampleData {
     static let guide = EventGuide(
-        id: "texas-sandfest-2026",
+        id: "texas-sandfest-2027",
         name: "Texas SandFest",
-        dateRange: "April 17-19, 2026",
-        location: "Port Aransas beach",
+        startDate: "2027-04-16",
+        endDate: "2027-04-18",
+        dateRange: "April 16-18, 2027",
+        timeZone: "America/Chicago",
+        location: "On the beach, Port Aransas, TX 78373",
         lastUpdated: Date()
     )
 
@@ -384,7 +410,7 @@ enum SampleData {
             id: "tsf:t:WB-29F4-7B0A",
             band: .threeDayGA,
             holder: "Nick Merrill",
-            dayPass: "All 3 days · Apr 17–19",
+            dayPass: "All 3 days · Apr 16-18",
             seat: nil,
             purchaseSource: "Eventeny",
             issuedAt: Date(timeIntervalSince1970: 1_741_999_200),
@@ -394,7 +420,7 @@ enum SampleData {
             id: "tsf:t:WB-A18C-4D22",
             band: .threeDayVIP,
             holder: "Nick Merrill",
-            dayPass: "All 3 days · Apr 17–19",
+            dayPass: "All 3 days · Apr 16-18",
             seat: "VIP table 14 · Sponsor Harbor",
             purchaseSource: "Eventeny",
             issuedAt: Date(timeIntervalSince1970: 1_741_999_200),
@@ -404,7 +430,7 @@ enum SampleData {
 
     static let liveBeach = LiveBeachSnapshot(
         // Lineup pulled from texassandfest.org/master-solo-sculptors and /semi-pro-sculptors
-        // for SandFest 2026. Pieces are revealed at the festival; "title" is the sculptor's
+        // for the 2026 lineup reference used by this prototype. Pieces are revealed at the festival; "title" is the sculptor's
         // most quotable signature phrase from their official bio. Photos are the official
         // headshots hosted on texassandfest.org.
         sculptures: [

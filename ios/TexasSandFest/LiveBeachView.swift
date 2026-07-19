@@ -1071,7 +1071,7 @@ private struct SculptureDetailSheet: View {
                 }
                 .buttonStyle(.plain)
 
-                Text("Source: texassandfest.org · official 2026 lineup")
+                Text("Prototype reference · official 2026 lineup")
                     .font(.caption2)
                     .foregroundStyle(Color.lbNavy.opacity(0.45))
             }

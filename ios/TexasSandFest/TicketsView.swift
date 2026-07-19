@@ -33,7 +33,7 @@ struct TicketsView: View {
                     } else {
                         VStack(spacing: 18) {
                             ForEach(tickets) { ticket in
-                                WristbandTicketCard(ticket: ticket, glow: pulseGlow)
+                                WristbandTicketCard(ticket: ticket, eventGuide: dataStore.payload.guide, glow: pulseGlow)
                             }
                         }
                     }
@@ -60,7 +60,7 @@ struct TicketsView: View {
             .sheet(isPresented: $scannerVisible) {
                 NavigationStack {
                     QRScannerView { payload in
-                        let ticket = userTickets.importFromQR(payload)
+                        let ticket = userTickets.importFromQR(payload, eventGuide: dataStore.payload.guide)
                         importToast = "Added \(ticket.band.rawValue) wristband"
                         scannerVisible = false
                         Task {
@@ -184,6 +184,7 @@ struct TicketsView: View {
 
 private struct WristbandTicketCard: View {
     let ticket: Ticket
+    let eventGuide: EventGuide
     let glow: Bool
 
     @State private var qrLargePulse = false
@@ -216,7 +217,7 @@ private struct WristbandTicketCard: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
-                    Text("TEXAS SANDFEST 2026")
+                    Text("TEXAS SANDFEST \(LiveTimeline.eventYear(for: eventGuide))")
                         .font(.caption.weight(.bold))
                         .tracking(2)
                         .foregroundStyle(textOnBand.opacity(0.85))
