@@ -1430,7 +1430,7 @@ time {
 #admin-volunteers,
 #admin-partners,
 #admin-island-conditions {
-  scroll-margin-top: 132px;
+  scroll-margin-top: 140px;
 }
 
 .admin-api-bar {
@@ -4729,7 +4729,7 @@ body.mode-ops header nav a[data-audience="public"] {
   padding-top: 48px;
   scroll-margin-top: 84px;
 }
-.admin-shell-body #admin-partners { scroll-margin-top: 84px; }
+.admin-shell-body #admin-partners { scroll-margin-top: 140px; }
 .admin-shell-body #admin-partner-applications,
 .admin-shell-body #admin-receivables-accounts,
 .admin-shell-body #admin-partner-followups,
@@ -4737,7 +4737,7 @@ body.mode-ops header nav a[data-audience="public"] {
 .admin-shell-body #admin-partner-milestones,
 .admin-shell-body #admin-sponsor-fulfillment,
 .admin-shell-body #admin-vendor-readiness,
-.admin-shell-body #admin-outreach-prospects { scroll-margin-top: 132px; }
+.admin-shell-body #admin-outreach-prospects { scroll-margin-top: 140px; }
 .admin-shell-body #admin-config .section-heading { align-items: flex-start; }
 .admin-shell-body #admin-config .section-heading > div { max-width: 780px; }
 .admin-shell-body #admin-config .section-heading h1 {

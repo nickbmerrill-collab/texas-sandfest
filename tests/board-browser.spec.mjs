@@ -143,6 +143,14 @@ async function assertNoAccessibilityViolations(page, label) {
   expect(violations, `${label} must have no automated WCAG A/AA violations`).toEqual([]);
 }
 
+async function assertAnchorClearsWorkspaceNav(page, selector, minimumGap = 0) {
+  await expect.poll(() => page.evaluate(({ selector, minimumGap }) => {
+    const nav = document.querySelector(".admin-workspace-nav");
+    const target = document.querySelector(selector);
+    return Boolean(nav && target && target.getBoundingClientRect().top >= nav.getBoundingClientRect().bottom + minimumGap);
+  }, { selector, minimumGap })).toBe(true);
+}
+
 function presentationUploadCopy(buffer, comment) {
   const endOfDirectory = buffer.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
   if (endOfDirectory < 0 || endOfDirectory + 22 > buffer.length) throw new Error("Presentation ZIP directory is invalid.");
@@ -512,6 +520,7 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
 
   await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#admin-partners`);
   await expect(page.locator("#admin-api-status")).toContainText("Loaded", { timeout: 25_000 });
+  await assertAnchorClearsWorkspaceNav(page, "#admin-partners", 4);
   await expect(page).toHaveTitle("Texas SandFest Operations");
   await expect(page.locator("#network-status")).toHaveText("Demo");
   await expect(page.locator("#runtime-data-notice")).toContainText("Synthetic 2027 data");
@@ -1386,11 +1395,7 @@ test("critical public and operations views fit a mobile viewport", async ({ page
   for (const link of await workspaceLinks.all()) await expect(link).toBeInViewport();
   await workspaceNav.getByRole("link", { name: "Island conditions", exact: true }).click();
   await expect(page).toHaveURL(/#admin-island-conditions$/);
-  await expect.poll(() => page.evaluate(() => {
-    const nav = document.querySelector(".admin-workspace-nav");
-    const target = document.querySelector("#admin-island-conditions");
-    return Boolean(nav && target && target.getBoundingClientRect().top >= nav.getBoundingClientRect().bottom - 1);
-  })).toBe(true);
+  await assertAnchorClearsWorkspaceNav(page, "#admin-island-conditions", -1);
   await assertNoHorizontalOverflow(page);
 });
 
