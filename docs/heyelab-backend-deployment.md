@@ -18,6 +18,29 @@ sandfest-api.<heyelab-domain>
 sandfest-admin.<heyelab-domain>
 ```
 
+## Pre-board deployment boundary
+
+The initial Render deployment carries the production data plane and the core
+vendor, sponsor, finance, key-date, document, and work-board workflows. It does
+not contact post-board providers. Outreach discovery, QuickBooks sync, camera
+ingest, Stripe checkout, transactional email, SMS, NWS weather, and TxDOT ferry
+refresh all default to disabled. Their credentials and camera approval evidence
+are deliberately absent from `render.yaml`, so Blueprint creation does not ask
+an operator to invent or transmit values for capabilities that are not ready.
+
+With those integrations disabled, vendor and sponsor submissions still create
+reviewable applications, tasks, milestones, finance records, brand workspaces,
+and message drafts. Payments can be recorded and reconciled manually, while
+outbound delivery and provider sync remain unavailable. `/health` may pass once
+the process and Postgres are healthy; `/ready` remains red for every required
+launch capability that has not completed acceptance. Do not describe that state
+as production-ready.
+
+The only initial operator-supplied Blueprint values are the registered admin
+OIDC client ID and the private Turnstile secret used to protect real public
+intake. Add each deferred provider's variables in Render only when its enablement
+checklist is complete, then change the matching `*_ENABLED` flag to `true`.
+
 ## Current Local API
 
 Run:
@@ -46,7 +69,7 @@ Routes:
 | `POST` | `/api/public/vendor-applications` | Public + optional `Idempotency-Key` | Create one vendor workflow and replay it safely on network retry |
 | `POST` | `/api/public/sponsor-inquiries` | Public + optional `Idempotency-Key` | Create one sponsor workflow using a server-authoritative active tier |
 | `POST` | `/api/public/partner-status` | Capability token | Return a privacy-minimized application, payment, invoice, and milestone status |
-| `GET` | `/api/public/island-conditions` | Public | NWS weather, ferry state, and timestamped traffic/crowd/line conditions |
+| `GET` | `/api/public/island-conditions` | Public | Governed stored conditions, with NWS and TxDOT refresh only when explicitly enabled |
 | `POST` | `/api/ingest/cameras/:id/observations` | HMAC signature | Ingest bounded, idempotent, metrics-only local camera observations |
 | `POST` | `/api/stripe/create-checkout-session` | Public | Validate cart and create a Stripe Checkout Session when configured |
 | `POST` | `/api/stripe/webhook` | Stripe signature | Record Stripe events and queue fulfillment |
@@ -251,6 +274,11 @@ npm run recovery:verify:assets
 
 The asset verifier refuses the active database and `SANDFEST_PARTNER_ASSET_DIR`, rejects symlinks and paths outside the restored root, and checks every uploaded sponsor logo, vendor document, and incoming source file against its recorded byte count and SHA-256. Its aggregate JSON includes category counts, verified bytes, and a deterministic manifest checksum without returning partner contacts or file contents. Record `SANDFEST_ASSET_RESTORE_DRILL_AT` only after `referenced` equals `verified`. See Render's [Postgres recovery](https://render.com/docs/postgresql-backups) and [persistent disk snapshot](https://render.com/docs/disks) documentation.
 
+Neither restore timestamp belongs in the initial Blueprint. Add the exact
+successful timestamps to the API environment only after the two isolated drills
+above pass; a placeholder date would turn missing evidence into a misleading
+readiness claim.
+
 Without `SANDFEST_DATABASE_URL`, the API runs in file-storage mode and writes under `data/` exactly as before.
 
 ## Checkout Safety
@@ -311,6 +339,12 @@ Public vendor and sponsor intake is protected by Cloudflare Turnstile in product
 Public event dates, hours, location, and contact facts are published through the authenticated Event guide editor. Every publish records the staff actor, official HTTPS source, source-check timestamp, snapshot, and audit event. `SANDFEST_EVENT_GUIDE_SOURCE_MAX_AGE_DAYS` defaults to 90; production `/ready` fails closed when the guide is unpublished, past, invalid, or sourced from an older review.
 
 The production visitor artifact also fails closed for the sculptor roster and Live Beach scene. `public/data/sculptors.json` may expose records only when `meta.publicationStatus` is `published`, `meta.eventId` matches `SANDFEST_EVENT_ID`, the source is an authoritative HTTPS source, review and publication timestamps are present, a reviewer is recorded, and every sculptor, entry, and map reference is internally valid. Fictional roster and Live Beach scenarios live under `src/board-demo`, load only in local development, and are regression-tested to stay out of both production bundles and public data files. Until reviewed event-day content and current privacy-safe metrics are available, production renders explicit publication-pending and monitoring-standby states.
+
+Live Island Conditions refresh is separately gated by
+`SANDFEST_ISLAND_CONDITIONS_LIVE_FEEDS_ENABLED=true`. Until that post-board
+acceptance step, public and admin endpoints serve only the stored governed
+snapshot and make no NWS or TxDOT request. Synthetic conditions remain confined
+to the isolated local board runtime.
 
 `SANDFEST_EVENT_ID` is the annual namespace for new operational records and must use `texas-sandfest-YYYY`. It must match both the published guide and every active operational document. Production readiness fails closed on any mismatch. Use `npm run event:rollover` in maintenance mode to archive the prior season and reset season-specific state; the API and worker intentionally refuse partner mutations while their document is assigned to another event. The archive includes Postgres passport and voting append rows, which remain stored as historical evidence and are isolated from current reads by hunt and event ID.
 

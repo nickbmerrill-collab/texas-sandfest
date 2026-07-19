@@ -33,6 +33,7 @@ const api = serviceByName.get("sandfest-api");
 const worker = serviceByName.get("sandfest-worker");
 const rateLimit = serviceByName.get("sandfest-rate-limit");
 const database = databaseByName.get("sandfest-db");
+const adminEnv = envMap(admin);
 const apiEnv = envMap(api);
 const workerEnv = envMap(worker);
 const productionRepo = "https://github.com/nickbmerrill-collab/texas-sandfest";
@@ -49,7 +50,18 @@ const requiredCapabilities = [
   "transactional_email"
 ];
 
-const cameraModelApprovalKeys = [
+const deferredProviderKeys = [
+  "SANDFEST_DATABASE_RESTORE_DRILL_AT",
+  "SANDFEST_ASSET_RESTORE_DRILL_AT",
+  "OUTREACH_DISCOVERY_SECRET",
+  "QB_CLIENT_ID",
+  "QB_CLIENT_SECRET",
+  "QB_REALM_ID",
+  "QB_REFRESH_TOKEN",
+  "QB_SPONSOR_ITEM_ID",
+  "QB_VENDOR_ITEM_ID",
+  "CAMERA_INGEST_KEYS",
+  "CAMERA_INGEST_SECRET",
   "CAMERA_MODEL_APPROVAL_STATUS",
   "CAMERA_MODEL_NAME",
   "CAMERA_MODEL_VERSION",
@@ -57,7 +69,16 @@ const cameraModelApprovalKeys = [
   "CAMERA_MODEL_LICENSE_REFERENCE",
   "CAMERA_MODEL_APPROVED_BY",
   "CAMERA_MODEL_APPROVED_AT",
-  "CAMERA_MODEL_DECISION_REFERENCE"
+  "CAMERA_MODEL_DECISION_REFERENCE",
+  "STRIPE_SECRET_KEY",
+  "STRIPE_WEBHOOK_SECRET",
+  "BREVO_API_KEY",
+  "BREVO_SENDER_EMAIL",
+  "BREVO_WEBHOOK_TOKEN",
+  "TWILIO_ACCOUNT_SID",
+  "TWILIO_AUTH_TOKEN",
+  "TWILIO_FROM_NUMBER",
+  "TWILIO_MESSAGING_SERVICE_SID"
 ];
 
 const workerSharedKeys = [
@@ -66,25 +87,13 @@ const workerSharedKeys = [
   "SANDFEST_DOCUMENT_EXTRACTION_SECRET",
   "QB_ENVIRONMENT",
   "QB_INVOICE_SYNC_ENABLED",
-  "QB_CLIENT_ID",
-  "QB_CLIENT_SECRET",
   "QB_REDIRECT_URI",
   "QB_TOKEN_ENCRYPTION_KEY",
-  "QB_REALM_ID",
-  "QB_REFRESH_TOKEN",
   "QB_MINOR_VERSION",
-  "QB_SPONSOR_ITEM_ID",
-  "QB_VENDOR_ITEM_ID",
   "TRANSACTIONAL_EMAIL_ENABLED",
-  "BREVO_API_KEY",
-  "BREVO_SENDER_EMAIL",
   "BREVO_SENDER_NAME",
   "BREVO_REPLY_TO_EMAIL",
   "SMS_ENABLED",
-  "TWILIO_ACCOUNT_SID",
-  "TWILIO_AUTH_TOKEN",
-  "TWILIO_FROM_NUMBER",
-  "TWILIO_MESSAGING_SERVICE_SID",
   "TWILIO_API_BASE_URL",
   "TWILIO_STATUS_CALLBACK_URL",
   "TWILIO_SAFETY_INBOUND_WEBHOOK_URL",
@@ -112,7 +121,26 @@ check("API uses private managed rate limiting", apiEnv.get("REDIS_URL")?.fromSer
 check("API private capabilities are generated", apiEnv.get("SANDFEST_PARTNER_PORTAL_SECRET")?.generateValue === true && apiEnv.get("SANDFEST_OUTREACH_PREFERENCES_SECRET")?.generateValue === true && apiEnv.get("SANDFEST_DOCUMENT_EXTRACTION_SECRET")?.generateValue === true && apiEnv.get("QB_TOKEN_ENCRYPTION_KEY")?.generateValue === true);
 check("private document intake uses the attached disk", api?.disk?.mountPath === "/var/data/sandfest-partner-assets" && apiEnv.get("SANDFEST_INCOMING_DOCUMENT_DIR")?.value === "/var/data/sandfest-partner-assets/incoming-documents" && Number(apiEnv.get("SANDFEST_INCOMING_DOCUMENT_MAX_BYTES")?.value) === 20 * 1024 * 1024);
 check("launch capability gates are complete", String(apiEnv.get("SANDFEST_REQUIRED_CAPABILITIES")?.value || "").split(",").sort().join(",") === requiredCapabilities.sort().join(","));
-check("camera model launch approval is explicit and operator supplied", cameraModelApprovalKeys.every(key => apiEnv.get(key)?.sync === false));
+check("post-board provider capabilities default off", [
+  "OUTREACH_DISCOVERY_ENABLED",
+  "QB_INVOICE_SYNC_ENABLED",
+  "SANDFEST_ISLAND_CONDITIONS_LIVE_FEEDS_ENABLED",
+  "CAMERA_INGEST_ENABLED",
+  "STRIPE_TICKETING_ENABLED",
+  "STRIPE_PARTNER_PAYMENTS_ENABLED",
+  "TRANSACTIONAL_EMAIL_ENABLED",
+  "SMS_ENABLED"
+].every(key => apiEnv.get(key)?.value === "false"));
+check("post-board provider credentials are omitted until enablement", deferredProviderKeys.every(key => !apiEnv.has(key)));
+check("initial Blueprint requests only core auth and intake values", [
+  ...envEntries(admin).filter(entry => entry?.sync === false).map(entry => `admin:${entry.key}`),
+  ...envEntries(api).filter(entry => entry?.sync === false).map(entry => `api:${entry.key}`),
+  ...envEntries(worker).filter(entry => entry?.sync === false).map(entry => `worker:${entry.key}`)
+].sort().join(",") === [
+  "admin:VITE_SANDFEST_AUTH_CLIENT_ID",
+  "api:SANDFEST_TURNSTILE_SECRET_KEY"
+].sort().join(","));
+check("admin still requires the registered production OIDC client", adminEnv.get("VITE_SANDFEST_AUTH_CLIENT_ID")?.sync === false);
 check("worker is a checks-gated Docker service", worker?.type === "worker" && worker?.runtime === "docker" && worker?.branch === "main" && worker?.autoDeployTrigger === "checksPass");
 check("worker shares the production database", workerEnv.get("SANDFEST_DATABASE_URL")?.fromDatabase?.name === "sandfest-db" && workerEnv.get("SANDFEST_DATABASE_URL")?.fromDatabase?.property === "connectionString");
 check("worker event matches API event", workerEnv.get("SANDFEST_EVENT_ID")?.value === apiEnv.get("SANDFEST_EVENT_ID")?.value);
