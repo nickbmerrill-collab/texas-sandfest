@@ -4749,6 +4749,52 @@ body.mode-ops header nav a[data-audience="public"] {
   line-height: 1.08;
   margin-bottom: 12px;
 }
+@media (min-width: 901px) {
+  .admin-shell-body #admin-config {
+    padding-top: 28px;
+  }
+  .admin-shell-body #admin-config .section-heading {
+    margin-bottom: 10px;
+  }
+  .admin-shell-body #admin-config .section-heading .eyebrow {
+    margin-bottom: 6px;
+  }
+  .admin-shell-body #admin-config .section-heading h1 {
+    font-size: 36px;
+    margin-bottom: 6px;
+  }
+  .admin-shell-body #admin-config .section-heading .section-copy {
+    line-height: 1.45;
+    margin-bottom: 0;
+  }
+  .admin-shell-body .admin-workspace-nav {
+    margin: 0 0 12px;
+    padding: 4px 0;
+  }
+  .admin-shell-body .admin-workspace-nav a {
+    min-height: 40px;
+    padding: 7px 12px 5px;
+  }
+  .admin-shell-body #admin-api-status {
+    line-height: 1.35;
+    margin: 0;
+  }
+  .admin-shell-body .admin-command-center {
+    margin-top: 10px;
+    padding: 14px 0 18px;
+  }
+  .admin-shell-body .admin-command-heading h2 {
+    font-size: 24px;
+  }
+  .admin-shell-body .admin-command-signals {
+    margin-top: 10px;
+  }
+  .admin-shell-body .admin-command-signals > a {
+    gap: 4px;
+    min-height: 112px;
+    padding: 10px;
+  }
+}
 @media (max-width: 900px) {
   .site-mode-toggle button { padding: 6px 9px; }
   .admin-shell-body #admin-config .section-heading { flex-direction: column; }

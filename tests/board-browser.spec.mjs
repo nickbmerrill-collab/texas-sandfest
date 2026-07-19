@@ -1352,6 +1352,22 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   expect(pageErrors).toEqual([]);
 });
 
+test("operations command summary fits a 1280x720 board viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}`);
+  await expect(page.locator("#admin-api-status")).toContainText("Loaded", { timeout: 25_000 });
+  const commandSignals = page.locator("#admin-command-signals [data-command-signal]");
+  await expect(commandSignals).toHaveCount(8);
+  await expect(commandSignals.last()).toBeInViewport({ ratio: 1 });
+  const commandBounds = await commandSignals.evaluateAll(cards => cards.map(card => {
+    const bounds = card.getBoundingClientRect();
+    return { top: bounds.top, bottom: bounds.bottom };
+  }));
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  expect(commandBounds.every(bounds => bounds.top >= 0 && bounds.bottom <= 720)).toBe(true);
+  await assertNoHorizontalOverflow(page);
+});
+
 test("critical public and operations views fit a mobile viewport", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 740 });
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#island-conditions`);
