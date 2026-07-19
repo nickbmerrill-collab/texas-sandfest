@@ -14,7 +14,12 @@ import twilio from "twilio";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { boardDemoAccessConfig } from "../lib/board-demo-access.mjs";
-import { boardDemoCheckEndpoints, boardDemoLoopbackUrl, evaluateBoardDemoReadiness } from "../lib/board-demo-readiness.mjs";
+import {
+  boardDemoCheckEndpoints,
+  boardDemoLoopbackUrl,
+  boardDemoPresentationLinks,
+  evaluateBoardDemoReadiness
+} from "../lib/board-demo-readiness.mjs";
 import { boardDemoAccessPlugin } from "../vite.config.js";
 import { buildRevenueLedgerView, partnerRevenueEntries, summarizeLedger, ticketRevenueEntries } from "../lib/revenue.mjs";
 import {
@@ -913,6 +918,12 @@ console.log("\n=== Pure library suite ===\n");
     remoteBoardCheckRejected = true;
   }
   ok("board demo preflight endpoints stay exact-loopback", boardDemoLoopbackUrl("http://127.0.0.1:8806").hostname === "127.0.0.1" && remoteBoardCheckRejected);
+  const presentationLinks = boardDemoPresentationLinks({
+    SANDFEST_BOARD_PUBLIC_SITE_URL: "http://127.0.0.1:5199",
+    SANDFEST_BOARD_API_BASE: "http://127.0.0.1:8899"
+  });
+  ok("board demo handoff links follow the supervisor-selected ports", presentationLinks.visitor === "http://127.0.0.1:5199/?apiBase=http%3A%2F%2F127.0.0.1%3A8899&mode=visitor"
+    && presentationLinks.operations === "http://127.0.0.1:5199/admin.html?apiBase=http%3A%2F%2F127.0.0.1%3A8899");
 }
 
 // Public imagery is editorially selected so imported logos or source-order

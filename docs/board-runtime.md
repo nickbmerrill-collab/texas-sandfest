@@ -43,7 +43,7 @@ presentation navigation if the checkout changes while the stack is running.
 The supervisor prepares or reuses the isolated runtime, selects unused loopback
 ports without stopping another local service, starts the web, API, worker,
 email, SMS, and eight-camera playback processes, and prints the exact Visitor
-and Operations links only after the same nine readiness checks pass. That gate
+and Operations links only after the same ten readiness checks pass. That gate
 requires sandbox-shaped provider acceptance plus authenticated, durable delivery
 events for transactional and campaign-approved messages, not merely a configured
 worker. A normal supervisor restart can therefore reuse those audited delivery
@@ -51,7 +51,8 @@ events even though the loopback mailbox process begins with fresh in-memory
 counters; a newly prepared runtime must still traverse the mailbox and callback
 path before it can become ready. Keep this
 terminal open during the presentation. `npm run board:check` automatically
-discovers the active session even when the preferred ports were occupied. The
+discovers the active session even when the preferred ports were occupied and
+prints its validated Visitor and Operations links after readiness passes. The
 presentation stack does not call NWS or TxDOT: its weather and ferry cards are
 continuously refreshed from a visibly labeled local simulation, so weak venue
 internet cannot block startup or make the conditions panel stale.
@@ -71,7 +72,7 @@ against that exact active session:
 npm run board:rehearse
 ```
 
-The command first repeats the nine service and data checks, then opens the
+The command first repeats the ten source, service, and data checks, then opens the
 session's credential-free Visitor and Operations links in local headless
 Chromium. It rejects remote or mismatched URLs and verifies the rendered signup
 catalogs, local ticket-payment readiness, approved sponsor branding, eight-camera conditions grid, command
@@ -159,8 +160,10 @@ npm run board:cameras
 
 Playback is loopback-only and refuses to start unless the API identifies itself as `board_demo`. It arms all eight synthetic sources through the admin API, posts HMAC-signed heartbeats and metrics every five seconds, and never reads or stores video. The visitor Island Conditions view refreshes automatically every 15 seconds while the page is visible. `npm run board:cameras:once` runs one deterministic cycle for verification.
 
-Open these deterministic presentation links. The visitor URL pins the public
-audience even if the same browser previously viewed Operations mode.
+For the manual fallback on its default ports, use these links. The visitor URL
+pins the public audience even if the same browser previously viewed Operations
+mode. The supervised `npm run board:demo` stack may select different free ports;
+its startup output or `npm run board:check` is authoritative for that session.
 
 - Visitor: `http://127.0.0.1:5175/?apiBase=http://127.0.0.1:8806&mode=visitor`
 - Ticket checkout: `http://127.0.0.1:5175/?apiBase=http://127.0.0.1:8806&mode=visitor#tickets`
@@ -264,7 +267,12 @@ curl -u 'AC00000000000000000000000000000001:board-demo-local-twilio-auth-token-c
 
 Reload **Consent & SMS** after each command. STOP removes the synthetic subscriber from the safety audience, START restores it, and neither command contacts a carrier.
 
-The board API and worker pin every generated public capability link to the documented `127.0.0.1:5175` site, whose development fallback points to the board API on `127.0.0.1:8806`. Copied sponsor invitations, outreach preference links, and private partner links therefore work in a clean browser without relying on previously saved API settings.
+The supervisor pins every generated public capability link to its selected
+loopback web origin and gives the API and worker that same origin. The manual
+fallback defaults to `127.0.0.1:5175` with its API on `127.0.0.1:8806`.
+Copied sponsor invitations, outreach preference links, and private partner
+links therefore work in a clean browser without relying on previously saved
+API settings.
 
 ## Verify
 
@@ -282,8 +290,9 @@ missing, the seeded finance, key-date, messaging, staff/volunteer/team delegatio
 sponsor fulfillment, vendor, outreach, document, or branding workflow is incomplete,
 the loopback mailbox lacks both transactional and campaign-approved delivery proof,
 the visibly synthetic weather or ferry snapshot is stale, or fewer than eight
-camera playback pipelines are live. The report
-prints recovery commands but never prints the injected admin credential,
+camera playback pipelines are live. After every check passes, the report prints
+the exact active Visitor and Operations links selected by the supervisor. It
+prints recovery commands on failure but never prints the injected admin credential,
 recipient details, or message content. Use
 `npm run --silent board:check -- --json` for a machine-readable preflight
 artifact without npm's command banner.

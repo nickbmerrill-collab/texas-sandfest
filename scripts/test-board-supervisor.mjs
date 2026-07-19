@@ -275,6 +275,9 @@ try {
   console.log(`  ok local automation delivers ${deliveredMessages.length} synthetic messages including ${deliveredMilestoneReminders.length} key-date reminder and preserves ${reviewReadyOutreach.length} outreach draft for staff review`);
 
   const initialReport = await preflight(sessionFile);
+  if (initialReport.links?.visitor !== initial.links?.visitor || initialReport.links?.operations !== initial.links?.operations) {
+    throw new Error("Board preflight did not return the exact active Visitor and Operations links.");
+  }
   console.log(`  ok board:check discovers the active session and passes ${initialReport.passed}/${initialReport.total}`);
   const browserReport = await browserRehearsal(sessionFile);
   console.log(`  ok board:rehearse renders the active visitor and operations session ${browserReport.passed}/${browserReport.total}`);
@@ -285,7 +288,10 @@ try {
   }, null, 2)}\n`);
   const staleSourceResult = await run(process.execPath, ["scripts/check-board-demo.mjs", "--json"], commandEnvironment(staleSourceSessionFile), 20_000);
   const staleSourceReport = JSON.parse(staleSourceResult.stdout);
-  if (staleSourceResult.code === 0 || staleSourceReport.checks?.find(item => item.id === "source_revision")?.ok !== false) {
+  if (staleSourceResult.code === 0
+    || staleSourceReport.checks?.find(item => item.id === "source_revision")?.ok !== false
+    || staleSourceReport.links?.visitor !== null
+    || staleSourceReport.links?.operations !== null) {
     throw new Error("Board preflight accepted a session pinned to a different source revision.");
   }
   const staleSourceBrowserResult = await run(process.execPath, ["scripts/check-board-browser.mjs", "--json"], commandEnvironment(staleSourceSessionFile), 20_000);
