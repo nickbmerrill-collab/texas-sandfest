@@ -70,6 +70,7 @@ import {
   consentFromCheckout,
   mergeConsentRecords,
   normalizeConsent,
+  normalizePhone,
   recipientsForChannel,
   smsPreferenceAction,
   summarizeConsent,
@@ -398,6 +399,30 @@ const BOARD_DEMO_RESET_SUPERVISOR_PID = (() => {
   return pid;
 })();
 const BOARD_DEMO_RESET_READY = Boolean(BOARD_DEMO_RESET_SUPERVISOR_PID);
+const BOARD_DEMO_SMS_SIMULATION = (() => {
+  if (SANDFEST_ENV === "production" || !BOARD_DEMO_RUNTIME) return null;
+  const sms = smsConfigFromEnv(process.env);
+  if (!sms.ready || sms.providerMode !== "sandbox" || !sms.accountSid || !sms.authToken) return null;
+  try {
+    const provider = new URL(sms.apiBaseUrl);
+    if (
+      provider.protocol !== "http:"
+      || provider.hostname !== "127.0.0.1"
+      || provider.username
+      || provider.password
+      || provider.pathname !== "/"
+      || provider.search
+      || provider.hash
+    ) return null;
+    return {
+      endpoint: new URL("/simulate/inbound", provider).toString(),
+      accountSid: sms.accountSid,
+      authToken: sms.authToken
+    };
+  } catch {
+    return null;
+  }
+})();
 const BOARD_DEMO_CONDITIONS_MODE = String(process.env.SANDFEST_BOARD_CONDITIONS_MODE || "").trim().toLowerCase();
 if (BOARD_DEMO_CONDITIONS_MODE && !["official", "synthetic"].includes(BOARD_DEMO_CONDITIONS_MODE)) {
   throw new Error("SANDFEST_BOARD_CONDITIONS_MODE must be official or synthetic.");
@@ -1164,6 +1189,26 @@ async function readSmsOperations() {
     await readPlatformDoc(ROOT, "smsOperations", emptySmsOperations(CURRENT_EVENT_ID)),
     { eventId: CURRENT_EVENT_ID }
   );
+}
+
+function boardDemoSmsRecipient(ledger) {
+  if (!BOARD_DEMO_SMS_SIMULATION || ledger?.eventId !== CURRENT_EVENT_ID) return null;
+  return (ledger.records || []).find(record => {
+    const phone = normalizePhone(record.phone);
+    return record.eventId === CURRENT_EVENT_ID && /^\+1[2-9]\d{2}55501\d{2}$/.test(phone || "");
+  }) || null;
+}
+
+function boardDemoSmsPreferencePayload(ledger, operations) {
+  if (!BOARD_DEMO_SMS_SIMULATION) return null;
+  const recipient = boardDemoSmsRecipient(ledger);
+  if (!recipient) return { available: false, state: "unavailable", signedCallbacks: 0 };
+  const preferences = smsOperationsAdminPayload(operations, { eventId: CURRENT_EVENT_ID }).summary.preferences;
+  return {
+    available: true,
+    state: recipient.smsSafety?.optedIn === true ? "opted_in" : "opted_out",
+    signedCallbacks: Number(preferences.STOP || 0) + Number(preferences.START || 0) + Number(preferences.HELP || 0)
+  };
 }
 
 async function mutateSmsOperations(mutator) {
@@ -5981,7 +6026,86 @@ async function handleRequest(request, response) {
         readiness: publicSmsReadiness(smsConfigFromEnv(process.env)),
         consentEventReady,
         eligibleSafetyRecipients: consentEventReady ? recipientsForChannel(ledger.records, "smsSafety").length : 0,
-        ...smsOperationsAdminPayload(operations, { eventId: CURRENT_EVENT_ID })
+        ...smsOperationsAdminPayload(operations, { eventId: CURRENT_EVENT_ID }),
+        boardDemoPreference: requestSocketIsLoopback(request)
+          ? boardDemoSmsPreferencePayload(ledger, operations)
+          : null
+      });
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/admin/board-demo/sms-preference") {
+      if (!BOARD_DEMO_SMS_SIMULATION || !requestSocketIsLoopback(request)) {
+        sendJson(request, response, 404, { error: "Not found." });
+        return;
+      }
+      const session = await requirePermission(request, response, "alert:write");
+      if (!session) return;
+      const body = await readBody(request);
+      const action = String(body.action || "").trim().toUpperCase();
+      if (!["STOP", "START"].includes(action)) {
+        sendJson(request, response, 400, { error: "Choose STOP or START for the sandbox preference simulation." });
+        return;
+      }
+      const ledger = await readConsentLedger();
+      const recipient = boardDemoSmsRecipient(ledger);
+      if (!recipient) {
+        sendJson(request, response, 409, { error: "The synthetic safety subscriber is not available in this board runtime." });
+        return;
+      }
+      const optedIn = recipient.smsSafety?.optedIn === true;
+      if ((action === "STOP" && !optedIn) || (action === "START" && optedIn)) {
+        sendJson(request, response, 409, { error: `The synthetic safety subscriber is already ${optedIn ? "opted in" : "opted out"}.` });
+        return;
+      }
+
+      const authorization = Buffer.from(`${BOARD_DEMO_SMS_SIMULATION.accountSid}:${BOARD_DEMO_SMS_SIMULATION.authToken}`).toString("base64");
+      let simulation;
+      try {
+        const providerResponse = await fetch(BOARD_DEMO_SMS_SIMULATION.endpoint, {
+          method: "POST",
+          headers: {
+            authorization: `Basic ${authorization}`,
+            "content-type": "application/x-www-form-urlencoded"
+          },
+          body: new URLSearchParams({
+            From: recipient.phone,
+            Body: action,
+            SimulationId: randomUUID()
+          }),
+          signal: AbortSignal.timeout(5_000)
+        });
+        simulation = await providerResponse.json().catch(() => ({}));
+        if (!providerResponse.ok) {
+          sendJson(request, response, 502, { error: simulation.error || `Board SMS sandbox returned HTTP ${providerResponse.status}.` });
+          return;
+        }
+      } catch {
+        sendJson(request, response, 502, { error: "The loopback SMS sandbox did not complete the signed preference callback." });
+        return;
+      }
+
+      const [updatedLedger, operations] = await Promise.all([readConsentLedger(), readSmsOperations()]);
+      const preference = boardDemoSmsPreferencePayload(updatedLedger, operations);
+      const expectedState = action === "STOP" ? "opted_out" : "opted_in";
+      if (preference?.state !== expectedState) {
+        sendJson(request, response, 502, { error: "The signed preference callback did not update the synthetic consent record." });
+        return;
+      }
+      await writeAuditRecord(request, "board_demo.sms_preference.simulate", {
+        type: "smsPreferenceSimulation",
+        id: action.toLowerCase()
+      }, null, null, {
+        action,
+        state: preference.state,
+        providerMode: "loopback_sandbox",
+        signedCallback: true
+      });
+      sendJson(request, response, 200, {
+        ok: true,
+        action,
+        signedCallback: simulation?.status === "accepted",
+        boardDemoPreference: preference
       });
       return;
     }

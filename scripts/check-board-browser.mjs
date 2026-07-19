@@ -279,6 +279,11 @@ if (visitorUrl && operationsUrl) {
           .filter(item => item.textContent?.includes("campaign-approved automation")).length,
         deliveredMilestoneReminders: [...document.querySelectorAll('#admin-partner-followups [data-delivery-status="delivered"]')]
           .filter(item => item.textContent?.includes("automatic key-date reminder")).length,
+        smsPreferenceVisible: document.querySelector("#admin-board-sms-preference")?.hidden === false,
+        smsPreferenceState: document.querySelector("#admin-board-sms-preference")?.dataset?.state,
+        smsPreferenceText: document.querySelector("#admin-board-sms-preference")?.textContent?.replace(/\s+/g, " ").trim(),
+        smsStopEnabled: document.querySelector('[data-board-sms-preference="STOP"]')?.disabled === false,
+        smsStartEnabled: document.querySelector('[data-board-sms-preference="START"]')?.disabled === false,
         reviewQueueShowsAutomaticReminder: document.querySelector("#admin-partner-followups [data-followup]:nth-child(2)")?.textContent?.includes("automatic key-date reminder") === true,
         reviewReadyOutreachMessages: [...document.querySelectorAll("#admin-partner-followups [data-followup]")]
           .filter(item => item.querySelector("[data-review-followup]") && item.textContent?.includes("outreach sequence")).length,
@@ -404,6 +409,12 @@ if (visitorUrl && operationsUrl) {
         || item?.deliveredTransactionalMessages < 1
         || item?.deliveredCampaignMessages < 1
         || item?.deliveredMilestoneReminders < 1
+        || item?.smsPreferenceVisible !== true
+        || !["opted_in", "opted_out"].includes(item?.smsPreferenceState)
+        || !item?.smsPreferenceText?.includes("signed sandbox callback")
+        || /\+1\d{10}/.test(item?.smsPreferenceText || "")
+        || (item?.smsPreferenceState === "opted_in" && (!item?.smsStopEnabled || item?.smsStartEnabled))
+        || (item?.smsPreferenceState === "opted_out" && (item?.smsStopEnabled || !item?.smsStartEnabled))
         || item?.reviewQueueShowsAutomaticReminder !== true
         || item?.reviewReadyOutreachMessages < 1
         || item?.reviewQueueStartsActionable !== true
@@ -412,9 +423,9 @@ if (visitorUrl && operationsUrl) {
         || requiredAssignmentTypes.some(type => !item.taskAssignmentTypes?.includes(type))
         || !item?.commandSignalText?.assignments?.includes("staff / volunteer / team")
       ) {
-        throw new Error("Local message automation or three-way assignment proof is incomplete.");
+        throw new Error("Local message automation, SMS preference, or three-way assignment proof is incomplete.");
       }
-      return `${item.deliveredFollowups} loopback messages include transactional, automatic key-date, and campaign-approved delivery proof, while ${item.reviewReadyOutreachMessages} outreach draft remains staff-controlled; ${item.tasks} tasks cover staff, volunteer, and team owners.`;
+      return `${item.deliveredFollowups} loopback messages include transactional, automatic key-date, and campaign-approved delivery proof; the signed SMS preference control is ${item.smsPreferenceState.replace("_", " ")}; ${item.reviewReadyOutreachMessages} outreach draft remains staff-controlled; ${item.tasks} tasks cover staff, volunteer, and team owners.`;
     });
     await inspect("fulfillment_outreach", "Fulfillment and geofenced outreach", "Inspect sponsor branding, vendor readiness, and targeted campaign records.", async () => {
       const item = observations.operations;

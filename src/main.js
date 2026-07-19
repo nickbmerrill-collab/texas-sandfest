@@ -1394,6 +1394,18 @@ app.innerHTML = `
         <div id="admin-consent-kpis" class="admin-revenue-kpis">
           <article class="empty-state"><span>No consent ledger loaded.</span></article>
         </div>
+        ${BOARD_DEMO_ACCESS.enabled ? `
+          <div id="admin-board-sms-preference" class="admin-board-sms-preference" data-requires-permission="alert:write" hidden>
+            <div>
+              <strong>Sandbox attendee preference</strong>
+              <span id="admin-board-sms-preference-status" role="status" aria-live="polite">Loading signed callback state...</span>
+            </div>
+            <div class="admin-board-sms-preference-actions">
+              <button type="button" class="button secondary" data-board-sms-preference="STOP">Simulate STOP</button>
+              <button type="button" class="button secondary" data-board-sms-preference="START">Simulate START</button>
+            </div>
+          </div>
+        ` : ""}
         <div>
           <strong>Safety SMS delivery</strong>
           <div id="admin-sms-campaigns" class="admin-fleet-rows keyboard-scroll-region" role="region" aria-label="Safety SMS delivery campaigns" tabindex="0"></div>
@@ -5821,9 +5833,28 @@ function renderAdminConsent(payload) {
     : "Consent loaded.";
 }
 
+function renderAdminBoardSmsPreference(preference) {
+  const target = document.querySelector("#admin-board-sms-preference");
+  const status = document.querySelector("#admin-board-sms-preference-status");
+  if (!target || !status) return;
+  const available = preference?.available === true;
+  target.hidden = !available;
+  if (!available) return;
+  const optedIn = preference.state === "opted_in";
+  const callbacks = Number(preference.signedCallbacks || 0);
+  target.dataset.state = optedIn ? "opted_in" : "opted_out";
+  status.textContent = `${optedIn ? "Opted in" : "Opted out"} · ${callbacks} signed sandbox callback${callbacks === 1 ? "" : "s"}`;
+  const canSimulate = adminCan("alert:write");
+  const stop = target.querySelector('[data-board-sms-preference="STOP"]');
+  const start = target.querySelector('[data-board-sms-preference="START"]');
+  if (stop) stop.disabled = !canSimulate || !optedIn;
+  if (start) start.disabled = !canSimulate || optedIn;
+}
+
 function renderAdminSms(payload) {
   const rows = document.querySelector("#admin-sms-campaigns");
   if (!rows) return;
+  renderAdminBoardSmsPreference(payload.boardDemoPreference);
   rows.innerHTML = (payload.campaigns || []).map(campaign => {
     const counts = campaign.counts || {};
     const complete = Number(counts.delivered || 0) + Number(counts.failed || 0)
@@ -9117,6 +9148,24 @@ document.querySelector("#admin-commit-staff-import")?.addEventListener("click", 
   }
 });
 document.querySelector("#admin-load-consent")?.addEventListener("click", () => loadAdminConsent());
+document.querySelectorAll("[data-board-sms-preference]").forEach(button => button.addEventListener("click", async event => {
+  const action = event.currentTarget.dataset.boardSmsPreference;
+  const controls = document.querySelectorAll("[data-board-sms-preference]");
+  const status = document.querySelector("#admin-board-sms-preference-status");
+  controls.forEach(control => { control.disabled = true; });
+  if (status) status.textContent = `Sending ${action} through the loopback SMS sandbox...`;
+  try {
+    const result = await adminFetch("/api/admin/board-demo/sms-preference", {
+      method: "POST",
+      body: JSON.stringify({ action })
+    });
+    await loadAdminConsent({ quiet: true });
+    setAdminStatus(`Synthetic attendee ${result.boardDemoPreference?.state === "opted_in" ? "opted in" : "opted out"} through a signed loopback callback.`, "ok");
+  } catch (error) {
+    setAdminStatus(error.message, "error");
+    await loadAdminConsent({ quiet: true }).catch(() => {});
+  }
+}));
 document.querySelector("#admin-load-passport")?.addEventListener("click", () => loadAdminPassport());
 document.querySelector("#admin-load-voting")?.addEventListener("click", () => loadAdminVoting());
 document.querySelector("#admin-load-booths")?.addEventListener("click", () => loadAdminBooths());
