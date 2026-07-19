@@ -2395,16 +2395,6 @@ time {
   overflow-wrap: anywhere;
 }
 
-.admin-record-card code {
-  background: #f2ead8;
-  border-radius: 7px;
-  color: var(--deep);
-  font-size: 12px;
-  min-width: 0;
-  overflow-wrap: anywhere;
-  padding: 8px;
-}
-
 .fulfillment-actions {
   align-items: center;
   display: grid;
