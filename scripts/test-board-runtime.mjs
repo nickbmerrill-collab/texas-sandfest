@@ -579,7 +579,7 @@ try {
   });
   const playbackPublic = await request(base, "GET", "/api/public/island-conditions");
   const playbackAdmin = await request(base, "GET", "/api/admin/island-conditions", undefined, { auth: true });
-  check("board camera playback drives all signed pipelines live", playback.ok && playback.cameras === 8 && playback.heartbeats === 8 && playbackPublic.data.summary?.armedCameras === 8 && playbackPublic.data.summary?.liveCameras === 8 && playbackPublic.data.summary?.healthyPipelines === 8 && playbackAdmin.data.cameras?.every(camera => camera.health?.agentId === "board-camera-playback"));
+  check("board camera playback keeps all signed pipelines current", playback.ok && playback.cameras === 8 && playback.heartbeats === 8 && playbackPublic.data.summary?.armedCameras === 8 && playbackPublic.data.summary?.liveCameras === 8 && playbackPublic.data.summary?.healthyPipelines === 8 && playbackAdmin.data.cameras?.every(camera => camera.health?.agentId === "board-camera-playback"));
   check("board camera playback stays public-metrics-only", playbackAdmin.data.cameras?.every(camera => camera.observation?.rawMediaStored === false) && playbackPublic.data.cameras?.every(camera => camera.operationalStatus === "live" && !Object.hasOwn(camera, "sourceId") && !Object.hasOwn(camera, "health") && !Object.hasOwn(camera.observation || {}, "modelName") && !Object.hasOwn(camera.observation || {}, "notes") && !Object.hasOwn(camera.observation || {}, "rawMediaStored")));
   const sourceDigestAfter = await digest(sourcePartnerPath);
   check("board workflows do not mutate repository partner data", sourceDigestAfter === sourceDigestBefore);
