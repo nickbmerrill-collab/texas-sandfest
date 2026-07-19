@@ -151,6 +151,19 @@ async function assertAnchorClearsWorkspaceNav(page, selector, minimumGap = 0) {
   }, { selector, minimumGap })).toBe(true);
 }
 
+async function assertTargetClearsTopbar(page, selector, minimumGap = 0, maximumGap = 48) {
+  const targetHasSafeGap = () => page.evaluate(({ selector, minimumGap, maximumGap }) => {
+    const topbar = document.querySelector(".topbar");
+    const target = document.querySelector(selector);
+    if (!topbar || !target) return false;
+    const gap = target.getBoundingClientRect().top - topbar.getBoundingClientRect().bottom;
+    return gap >= minimumGap && gap <= maximumGap;
+  }, { selector, minimumGap, maximumGap });
+  await expect.poll(targetHasSafeGap).toBe(true);
+  await page.waitForTimeout(250);
+  expect(await targetHasSafeGap()).toBe(true);
+}
+
 function presentationUploadCopy(buffer, comment) {
   const endOfDirectory = buffer.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
   if (endOfDirectory < 0 || endOfDirectory + 22 > buffer.length) throw new Error("Presentation ZIP directory is invalid.");
@@ -343,6 +356,7 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await page.locator('[data-package-id="the-kraken"]').click();
   await expect(page.locator('#sponsor-inquiry-form [name="packageId"]')).toHaveValue("the-kraken");
   await expect(page.locator('#sponsor-inquiry-form [name="packageId"]')).toBeFocused();
+  await assertTargetClearsTopbar(page, "#sponsor-inquiry-form", 12);
   await expect(page.locator('#sponsor-inquiry-form [name="packageId"]')).toHaveAttribute("aria-describedby", "sponsor-package-summary");
   await expect(page.locator('[data-package-id="flounder"]')).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator('[data-package-id="flounder"] [data-package-action]')).toHaveText("Choose tier");
@@ -1588,6 +1602,7 @@ test("critical public and operations views fit a mobile viewport", async ({ page
   await expect(page.locator("#vendor-application-form")).toBeVisible();
   await page.locator('[data-package-id="tarpon"]').click();
   await expect(page.locator('#sponsor-inquiry-form [name="packageId"]')).toBeFocused();
+  await assertTargetClearsTopbar(page, "#sponsor-inquiry-form", 12);
   await expect(page.locator("#sponsor-inquiry-form")).toBeInViewport({ ratio: 0.1 });
   await expect(page.locator('[data-package-id="tarpon"] [data-package-action]')).toHaveText("Selected");
   await assertNoHorizontalOverflow(page);
