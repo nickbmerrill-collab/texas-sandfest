@@ -6714,7 +6714,32 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
   ok("receivables export uses server records", receivablesExportApi.status === 200 && receivablesExportTextApi.includes("Outstanding amount") && receivablesExportTextApi.includes("Platform API Portal Test"), `status=${receivablesExportApi.status} account=${receivablesExportTextApi.includes("Platform API Portal Test")}`);
   ok("payment ledger export preserves provider references", paymentsExportApi.status === 200 && paymentsExportTextApi.includes("Payment intent ID") && paymentsExportTextApi.includes("pi_partner_api_001"), `status=${paymentsExportApi.status} paymentIntent=${paymentsExportTextApi.includes("pi_partner_api_001")}`);
   ok("key date calendar export is importable", calendarExportApi.status === 200 && calendarExportApi.headers.get("content-type")?.startsWith("text/calendar") && calendarExportApi.headers.get("content-disposition")?.includes(`${DEFAULT_EVENT_ID}-partner-key-dates.ics`) && calendarExportTextApi.includes("BEGIN:VCALENDAR") && calendarExportTextApi.includes("BEGIN:VEVENT"));
-  const auditApi = await hit("GET", "/api/admin/audit?limit=500", null, true);
+  const [ordersMonitorApi, paymentEventsMonitorApi, fulfillmentMonitorApi, auditApi, snapshotsMonitorApi] = await Promise.all([
+    hit("GET", "/api/admin/orders?limit=500", null, true),
+    hit("GET", "/api/admin/payment-events?limit=500", null, true),
+    hit("GET", "/api/admin/fulfillment?limit=500", null, true),
+    hit("GET", "/api/admin/audit?limit=500", null, true),
+    hit("GET", "/api/admin/snapshots?limit=500", null, true)
+  ]);
+  const monitorResponses = [ordersMonitorApi, paymentEventsMonitorApi, fulfillmentMonitorApi, auditApi, snapshotsMonitorApi];
+  const nonSnapshotEnvelopes = [
+    ...(ordersMonitorApi.data.pendingOrders || []),
+    ...(paymentEventsMonitorApi.data.paymentEvents || []),
+    ...(fulfillmentMonitorApi.data.fulfillment || []),
+    ...(auditApi.data.audit || [])
+  ];
+  const snapshotEnvelopes = snapshotsMonitorApi.data.snapshots || [];
+  const monitorEnvelopes = [...nonSnapshotEnvelopes, ...snapshotEnvelopes];
+  ok(
+    "transaction monitor APIs withhold internal storage locations",
+    monitorResponses.every(item => item.status === 200)
+      && monitorEnvelopes.length > 0
+      && monitorEnvelopes.every(item => !Object.prototype.hasOwnProperty.call(item, "path"))
+      && nonSnapshotEnvelopes.every(item => !Object.prototype.hasOwnProperty.call(item, "file"))
+      && snapshotEnvelopes.length > 0
+      && snapshotEnvelopes.every(item => item.file && !item.file.includes("/") && !item.file.includes("..")),
+    `statuses=${monitorResponses.map(item => item.status).join(",")} records=${monitorEnvelopes.length} snapshots=${snapshotEnvelopes.length}`
+  );
   const serializedAudit = JSON.stringify(auditApi.data.audit || []);
   ok("admin audit never stores bearer credential fragments", auditApi.status === 200 && !serializedAudit.includes("tokenHint") && !serializedAudit.includes(TOKEN));
   ok("QuickBooks OAuth audit contains no authorization secrets", auditApi.data.audit?.some(item => item.record?.action === "accounting.quickbooks.authorize") && auditApi.data.audit?.some(item => item.record?.action === "accounting.quickbooks.connect") && auditApi.data.audit?.some(item => item.record?.action === "accounting.quickbooks.disconnect") && !serializedAudit.includes(quickBooksStateApi) && !serializedAudit.includes(quickBooksCodeApi) && !serializedAudit.includes(quickBooksRealmApi) && !serializedAudit.includes("quickbooks-private-refresh-token"));

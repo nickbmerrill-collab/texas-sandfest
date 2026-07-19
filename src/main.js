@@ -3435,13 +3435,12 @@ function orderRecordCard(item) {
   return `
     <article class="admin-record-card" data-ticket-order="${escapeAttr(order.id ?? "")}">
       <div>
-        <strong>${escapeHtml(order.id ?? item.file)}</strong>
+        <strong>${escapeHtml(order.id ?? "Order record")}</strong>
         <span>${escapeHtml(order.status ?? "unknown")}</span>
       </div>
       <p>${escapeHtml(lines)}</p>
       <p>${escapeHtml(adminMoney(order.totals?.knownAmount, "$0.00"))} · ${escapeHtml(order.customer?.email ?? "No buyer email")}${order.checkoutEnvironment === "board_sandbox" ? " · local sandbox" : ""}</p>
       ${boardRefundReady ? `<button class="button secondary" data-refund-board-ticket="${escapeAttr(order.id)}" type="button">Refund demo order</button>` : ""}
-      <code>${escapeHtml(item.path)}</code>
     </article>
   `;
 }
@@ -3451,11 +3450,10 @@ function paymentEventCard(item) {
   return `
     <article class="admin-record-card">
       <div>
-        <strong>${escapeHtml(event.type ?? event.id ?? item.file)}</strong>
+        <strong>${escapeHtml(event.type ?? event.id ?? "Payment event")}</strong>
         <span>${escapeHtml(event.fulfillmentStatus ?? "not_required")}</span>
       </div>
       <p>${escapeHtml(event.checkoutSessionId ?? event.objectId ?? "No checkout session attached")} · ${escapeHtml(event.verificationReason ?? "signature not checked")}</p>
-      <code>${escapeHtml(item.path)}</code>
     </article>
   `;
 }
@@ -3468,7 +3466,7 @@ function fulfillmentCard(item) {
   return `
     <article class="admin-record-card" data-fulfillment-id="${escapeAttr(fulfillment.id)}">
       <div>
-        <strong>${escapeHtml(fulfillment.name ?? fulfillment.productId ?? item.file)}</strong>
+        <strong>${escapeHtml(fulfillment.name ?? fulfillment.productId ?? "Fulfillment record")}</strong>
         <span>${escapeHtml(fulfillment.fulfillmentType ?? "manual_review")}</span>
       </div>
       <p>${escapeHtml(fulfillment.orderId ?? "No order")} · ${escapeHtml(fulfillment.holder?.email ?? "No holder email")}</p>
@@ -3476,43 +3474,60 @@ function fulfillmentCard(item) {
         <select aria-label="Fulfillment status">${statusOptions}</select>
         <button class="button secondary" data-save-fulfillment="${escapeAttr(fulfillment.id)}" data-requires-permission="fulfillment:update" type="button">Update</button>
       </div>
-      <code>${escapeHtml(item.path)}</code>
     </article>
   `;
 }
 
+function adminRecordDisplayLabel(value, fallback = "Recorded change") {
+  const text = String(value || "")
+    .replace(/[._-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return text ? `${text[0].toUpperCase()}${text.slice(1)}` : fallback;
+}
+
 function auditCard(item) {
   const audit = item.record;
-  const target = audit.target ? `${audit.target.type}:${audit.target.id}` : "unknown target";
+  const targetType = adminRecordDisplayLabel(audit.target?.type, "Record");
+  const targetName = audit.after?.organizationName
+    || audit.before?.organizationName
+    || audit.after?.title
+    || audit.before?.title
+    || audit.after?.name
+    || audit.before?.name;
+  const target = targetName || targetType;
   const fields = audit.metadata?.changedFields?.length
-    ? audit.metadata.changedFields.join(", ")
-    : audit.metadata?.severity ?? "recorded";
+    ? `Changed: ${audit.metadata.changedFields.map(field => adminRecordDisplayLabel(field)).join(", ")}`
+    : adminRecordDisplayLabel(audit.metadata?.severity, "Recorded");
+  const actor = adminRecordDisplayLabel(audit.actor?.role || audit.actor?.type, "System");
+  const timestamp = new Date(audit.createdAt);
+  const timeLabel = Number.isNaN(timestamp.getTime())
+    ? "Timestamp unavailable"
+    : timestamp.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
   return `
-    <article class="admin-record-card">
+    <article class="admin-record-card" data-audit-action="${escapeAttr(audit.action ?? "recorded")}">
       <div>
-        <strong>${escapeHtml(audit.action ?? audit.id ?? item.file)}</strong>
+        <strong>${escapeHtml(adminRecordDisplayLabel(audit.action))}</strong>
         <span>${escapeHtml(target)}</span>
       </div>
-      <p>${escapeHtml(fields)} · ${escapeHtml(audit.createdAt ?? "No timestamp")}</p>
-      <code>${escapeHtml(item.path)}</code>
+      <p>${escapeHtml(fields)} · ${escapeHtml(actor)} · ${escapeHtml(timeLabel)}</p>
     </article>
   `;
 }
 
 function snapshotCard(item) {
   const snapshot = item.record;
-  const target = snapshot.target ? `${snapshot.target.type}:${snapshot.target.id}` : "unknown target";
+  const target = adminRecordDisplayLabel(snapshot.target?.type, "Configuration");
   return `
     <article class="admin-record-card" data-snapshot-file="${escapeAttr(item.file)}">
       <div>
-        <strong>${escapeHtml(snapshot.reason ?? snapshot.id ?? item.file)}</strong>
+        <strong>${escapeHtml(snapshot.reason ?? snapshot.id ?? "Configuration snapshot")}</strong>
         <span>${escapeHtml(target)}</span>
       </div>
-      <p>${escapeHtml(snapshot.createdAt ?? "No timestamp")}</p>
+      <p>${snapshot.createdAt ? escapeHtml(new Date(snapshot.createdAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })) : "Timestamp unavailable"}</p>
       <div class="snapshot-actions">
         <button class="button secondary" data-restore-snapshot="${escapeAttr(item.file)}" data-requires-permission="config:rollback" type="button">Restore</button>
       </div>
-      <code>${escapeHtml(item.path)}</code>
     </article>
   `;
 }

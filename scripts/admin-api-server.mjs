@@ -1963,6 +1963,13 @@ function clampLimit(value, fallback = 50) {
   return Number.isFinite(limit) && limit > 0 ? Math.min(limit, 500) : fallback;
 }
 
+function projectAdminRecordEnvelopes(items, { includeFile = false } = {}) {
+  return (Array.isArray(items) ? items : []).map(item => ({
+    ...(includeFile && item?.file ? { file: item.file } : {}),
+    record: item?.record ?? null
+  }));
+}
+
 function allowedOrigin(request) {
   const origin = request.headers.origin;
   if (!origin) return null;
@@ -7844,7 +7851,7 @@ async function handleRequest(request, response) {
     if (method === "GET" && pathname === "/api/admin/audit") {
       if (!(await requirePermission(request, response, "audit:read"))) return;
       sendJson(request, response, 200, {
-        audit: await storage.audit.list(clampLimit(url.searchParams.get("limit")))
+        audit: projectAdminRecordEnvelopes(await storage.audit.list(clampLimit(url.searchParams.get("limit"))))
       });
       return;
     }
@@ -7852,7 +7859,10 @@ async function handleRequest(request, response) {
     if (method === "GET" && pathname === "/api/admin/snapshots") {
       if (!(await requirePermission(request, response, "snapshot:read"))) return;
       sendJson(request, response, 200, {
-        snapshots: await storage.snapshots.list(clampLimit(url.searchParams.get("limit")))
+        snapshots: projectAdminRecordEnvelopes(
+          await storage.snapshots.list(clampLimit(url.searchParams.get("limit"))),
+          { includeFile: true }
+        )
       });
       return;
     }
@@ -7890,7 +7900,7 @@ async function handleRequest(request, response) {
     if (method === "GET" && pathname === "/api/admin/orders") {
       if (!(await requirePermission(request, response, "orders:read"))) return;
       sendJson(request, response, 200, {
-        pendingOrders: await storage.orders.list(clampLimit(url.searchParams.get("limit")))
+        pendingOrders: projectAdminRecordEnvelopes(await storage.orders.list(clampLimit(url.searchParams.get("limit"))))
       });
       return;
     }
@@ -7904,7 +7914,7 @@ async function handleRequest(request, response) {
     if (method === "GET" && pathname === "/api/admin/payment-events") {
       if (!(await requirePermission(request, response, "payments:read"))) return;
       sendJson(request, response, 200, {
-        paymentEvents: await storage.paymentEvents.list(clampLimit(url.searchParams.get("limit")))
+        paymentEvents: projectAdminRecordEnvelopes(await storage.paymentEvents.list(clampLimit(url.searchParams.get("limit"))))
       });
       return;
     }
@@ -7912,7 +7922,7 @@ async function handleRequest(request, response) {
     if (method === "GET" && pathname === "/api/admin/fulfillment") {
       if (!(await requirePermission(request, response, "fulfillment:read"))) return;
       sendJson(request, response, 200, {
-        fulfillment: await storage.fulfillment.list(clampLimit(url.searchParams.get("limit")))
+        fulfillment: projectAdminRecordEnvelopes(await storage.fulfillment.list(clampLimit(url.searchParams.get("limit"))))
       });
       return;
     }

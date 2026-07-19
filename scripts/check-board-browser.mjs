@@ -297,6 +297,7 @@ if (visitorUrl && operationsUrl) {
         return delivered.some(item => item.textContent?.includes("transactional automation"))
           && delivered.some(item => item.textContent?.includes("campaign-approved automation"));
       }, null, { timeout: timeoutMs });
+      await page.waitForFunction(() => document.querySelectorAll("#admin-audit-list [data-audit-action]").length > 0, null, { timeout: timeoutMs });
       observations.operations = await page.evaluate(() => ({
         title: document.title,
         heading: document.querySelector("#admin-config h1")?.textContent?.trim(),
@@ -401,6 +402,9 @@ if (visitorUrl && operationsUrl) {
         partnerActivity: document.querySelectorAll("#admin-partner-activity [data-partner-activity]").length,
         partnerActivityCategories: [...new Set([...document.querySelectorAll("#admin-partner-activity [data-category]")].map(item => item.dataset.category))],
         partnerActivityText: document.querySelector("#admin-partner-activity")?.textContent?.trim(),
+        auditEntries: document.querySelectorAll("#admin-audit-list [data-audit-action]").length,
+        transactionRecordPathBlocks: document.querySelectorAll("#admin-system-monitor .admin-record-card code").length,
+        transactionMonitorLeaksStoragePath: /data\/processed|db:\/\/|admin-audit\//.test(document.querySelector("#admin-system-monitor")?.textContent || ""),
         resetReady: document.querySelector("#admin-reset-board-demo")?.hidden === false,
         overflowPixels: Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth)
       }));
@@ -457,10 +461,13 @@ if (visitorUrl && operationsUrl) {
         || !item.partnerActivityText?.includes("Payment recorded")
         || !/partner messages? prepared/i.test(item.partnerActivityText || "")
         || /activity_|demo_[sv]app|followup_/.test(item.partnerActivityText || "")
+        || item?.auditEntries < 1
+        || item?.transactionRecordPathBlocks !== 0
+        || item?.transactionMonitorLeaksStoragePath !== false
       ) {
         throw new Error("One or more board workflow queues did not render their prepared records.");
       }
-      return `${item.partnerApplications} applications and ${item.partnerActivity} grouped updates render every operating category without internal record IDs.`;
+      return `${item.partnerApplications} applications and ${item.partnerActivity} grouped updates render every operating category without internal record IDs; Systems shows ${item.auditEntries} readable audit entries without storage paths.`;
     });
     await inspect("finance_dates", "Payment and key-date tracking", "Inspect receivables, payment totals, and partner milestone controls.", async () => {
       const item = observations.operations;
