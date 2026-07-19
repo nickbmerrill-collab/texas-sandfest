@@ -227,7 +227,7 @@ try {
   const runtimeMarker = JSON.parse(await readFile(path.join(targetRoot, "board-runtime.json"), "utf8"));
   check("runtime root resolves outside repository data", resolved === targetRoot && resolved !== ROOT);
   check("board runtime records its compatibility schema", runtimeMarker.kind === "synthetic-board-demonstration" && runtimeMarker.schemaVersion === BOARD_RUNTIME_SCHEMA_VERSION);
-  check("board seed covers core operations", prepared.applications === 4 && prepared.invoices === 1 && prepared.payments === 1 && prepared.tasks === 10 && prepared.prospects === 1 && prepared.safetySmsRecipients === 1);
+  check("board seed covers core operations", prepared.applications === 4 && prepared.invoices === 1 && prepared.payments === 1 && prepared.tasks === 10 && prepared.prospects === 2 && prepared.safetySmsRecipients === 1);
   check("board seed covers field operations", prepared.cameras === 8 && prepared.volunteerShifts === 12 && prepared.documents === 4);
   check("production refuses synthetic board conditions", await productionRejectsSyntheticConditions(targetRoot));
 
@@ -348,17 +348,19 @@ try {
   check("seeded sponsor and vendor finance is visible", seeded.status === 200 && seeded.data.applications?.length === 4 && seeded.data.summary?.applications?.vendors === 2 && seeded.data.summary?.applications?.sponsors === 2 && seeded.data.applications?.some(item => item.type === "vendor" && item.offeringId === "food-beverage-booth" && item.expectedAmountCents === 175000) && seededMarlin?.packageId === "marlin" && seededMarlin?.expectedAmountCents === 1500000 && seededSailfish?.packageId === "sailfish" && seededSailfish?.expectedAmountCents === 1000000 && seeded.data.invoices?.length === 1 && seeded.data.payments?.length === 1 && seeded.data.receivables?.totals?.collectedCents === 1000000);
   check("seeded sponsor brand kit contains two approved private assets", seeded.data.brandAssets?.filter(item => item.label?.startsWith("Gulf Shore Credit Union") && item.status === "approved").length === 2);
   check("revenue is current-event and includes site-native finance", revenue.status === 200 && revenue.data.eventId === DEFAULT_EVENT_ID && revenue.data.sources?.imported?.entries === 3 && revenue.data.sources?.partnerOperations?.entries === 1 && revenue.data.summary?.totals?.grossCents === 1750000 && revenue.data.summary?.tickets?.sold === 100 && revenue.data.entries?.every(item => item.eventId === DEFAULT_EVENT_ID) && revenue.data.imports?.length === 3 && revenue.data.imports?.every(item => item.fileName?.endsWith("-demo.csv")));
-  check("seeded work and outreach are visible", seeded.data.tasks?.length === 10 && seeded.data.followups?.length >= 4 && outreach.status === 200 && outreach.data.prospects?.length === 1 && outreach.data.campaigns?.length === 1);
+  check("seeded work and outreach are visible", seeded.data.tasks?.length === 10 && seeded.data.followups?.length >= 4 && outreach.status === 200 && outreach.data.prospects?.length === 2 && outreach.data.campaigns?.length === 2);
   const seededAssignmentTypes = new Set(seeded.data.tasks?.filter(item => item.assigneeId).map(item => item.assigneeType));
   check("board work demonstrates direct staff, volunteer, and team delegation", seededAssignmentTypes.has("staff") && seededAssignmentTypes.has("volunteer") && seededAssignmentTypes.has("team") && seeded.data.tasks?.some(item => item.assigneeType === "staff" && item.assigneeId === "staff_operations" && item.assigneeName === "Jamie Torres") && seeded.data.taskBoard?.totals?.unassigned === 0);
   const readyVendor = seeded.data.vendorReadiness?.vendors?.find(item => item.organizationName === "Coastal Bites");
   const blockedVendor = seeded.data.vendorReadiness?.vendors?.find(item => item.organizationName === "Island Art Market");
   check("board vendor onboarding shows completed and intervention paths", seeded.data.vendorReadiness?.totals?.ready === 1 && seeded.data.vendorReadiness?.totals?.blocked === 1 && readyVendor?.profileStatus === "approved" && readyVendor?.compliance?.approved === readyVendor?.compliance?.required && readyVendor?.assignmentStatus === "confirmed" && readyVendor?.boothNumber === "F-14" && blockedVendor?.status === "blocked");
   check("board staff routing is current and private", seeded.data.staffDirectory?.ready === true && seeded.data.staffDirectory?.activeStaff === 7 && seeded.data.staffDirectory?.routedTeams === 7 && seeded.data.assignmentDirectory?.teams?.every(item => item.notificationReady === true) && seeded.data.assignmentDirectory?.staff?.every(item => !("email" in item)));
-  const seededSponsorProspect = outreach.data.prospects?.[0];
-  const seededOutreachCampaign = outreach.data.campaigns?.[0];
-  check("seeded outreach has accountable follow-up", seededSponsorProspect?.ownerId === "sponsor" && seededSponsorProspect?.nextActionAt && outreach.data.summary?.nextActionsScheduled === 1 && outreach.data.summary?.unassigned === 0);
-  check("seeded outreach exposes bounded campaign approval", seededOutreachCampaign?.deliveryMode === "approved_sequence" && seededOutreachCampaign?.dailySendLimit === 5 && seededOutreachCampaign?.automation?.enabled === true && seededOutreachCampaign?.automation?.active === false);
+  const seededSponsorProspect = outreach.data.prospects?.find(item => item.organizationName === "Island Harbor Hotel");
+  const seededReviewProspect = outreach.data.prospects?.find(item => item.organizationName === "Coastal Bend Community Bank");
+  const seededOutreachCampaign = outreach.data.campaigns?.find(item => item.deliveryMode === "approved_sequence");
+  const seededReviewCampaign = outreach.data.campaigns?.find(item => item.deliveryMode === "review_first");
+  check("seeded outreach has accountable follow-up", seededSponsorProspect?.ownerId === "sponsor" && seededSponsorProspect?.nextActionAt && seededReviewProspect?.ownerId === "sponsor" && seededReviewProspect?.nextActionAt && outreach.data.summary?.nextActionsScheduled === 2 && outreach.data.summary?.unassigned === 0);
+  check("seeded outreach exposes automated and review-first control", seededOutreachCampaign?.dailySendLimit === 5 && seededOutreachCampaign?.automation?.enabled === true && seededOutreachCampaign?.automation?.active === false && seededReviewCampaign?.status === "active" && seededReviewCampaign?.automation?.enabled === false && seededReviewCampaign?.automation?.blockedReason?.includes("individual review"));
   const boardSponsorInvitation = await request(base, "POST", `/api/admin/outreach/prospects/${seededSponsorProspect?.id}/sponsor-invitation`, {
     action: "issue",
     packageId: "tarpon"
@@ -373,6 +375,8 @@ try {
     return message?.status === "sent" && message?.deliveryStatus === "delivered" ? { workspace, message } : null;
   });
   check("board-approved outreach sequence delivers through the local sandbox", boardCampaignActivation.status === 200 && boardCampaignActivation.data.automation?.active === true && outreachWorkerOutput.includes("outreach_campaign_v1") && deliveredOutreach?.message?.automationPolicy === "outreach_campaign_v1" && deliveredOutreach?.message?.body?.includes(boardSponsorInvitation.data.invitation?.url));
+  const reviewFirstDraft = deliveredOutreach?.workspace?.data.followups?.find(item => item.campaignId === seededReviewCampaign?.id);
+  check("review-first outreach stays in the staff approval queue", reviewFirstDraft?.status === "draft_ready" && !reviewFirstDraft?.automationPolicy && reviewFirstDraft?.subject?.includes("Coastal Bend Community Bank"));
   const boardPublicInvitation = await request(base, "POST", "/api/public/sponsor-invitation", { token: boardSponsorInvitationToken });
   const boardInvitedSponsor = await request(base, "POST", "/api/public/sponsor-inquiries", {
     organizationName: seededSponsorProspect?.organizationName,

@@ -7094,7 +7094,21 @@ function renderAdminPartners(payload, outreach) {
       </div>`).join("")}</div>` : ""}
     </article>`;
   }).join("") || '<article class="empty-state"><span>No applications yet.</span></article>';
-  followups.innerHTML = (payload.followups || []).map(item => {
+  const followupPriority = new Map([
+    ["draft_ready", 0],
+    ["failed", 1],
+    ["approved", 2],
+    ["queued", 3],
+    ["sending", 4],
+    ["pending", 5],
+    ["sent", 6],
+    ["dismissed", 7]
+  ]);
+  followups.innerHTML = [...(payload.followups || [])].sort((left, right) => {
+    const priority = (followupPriority.get(left.status) ?? 99) - (followupPriority.get(right.status) ?? 99);
+    if (priority) return priority;
+    return String(right.updatedAt || right.createdAt || "").localeCompare(String(left.updatedAt || left.createdAt || ""));
+  }).map(item => {
     const deliveryStatus = item.deliveryStatus || (item.status === "sent" ? "accepted" : null);
     const deliveryAt = item.clickedAt || item.openedAt || item.deliveredAt || item.failedAt || item.acceptedAt || item.sentAt;
     return `<article data-followup="${escapeAttr(item.id)}" ${deliveryStatus ? `data-delivery-status="${escapeAttr(deliveryStatus)}"` : ""}>

@@ -213,6 +213,9 @@ if (visitorUrl && operationsUrl) {
           .filter(item => item.textContent?.includes("transactional automation")).length,
         deliveredCampaignMessages: [...document.querySelectorAll('#admin-partner-followups [data-delivery-status="delivered"]')]
           .filter(item => item.textContent?.includes("campaign-approved automation")).length,
+        reviewReadyOutreachMessages: [...document.querySelectorAll("#admin-partner-followups [data-followup]")]
+          .filter(item => item.querySelector("[data-review-followup]") && item.textContent?.includes("outreach sequence")).length,
+        reviewQueueStartsActionable: Boolean(document.querySelector('#admin-partner-followups [data-followup]:first-child [data-review-followup][data-action="approve"]')),
         documents: document.querySelectorAll("#admin-document-list [data-admin-document]").length,
         extractionReady: document.querySelectorAll('#admin-document-list .admin-document-extraction[data-state="ready"]').length,
         extractedPreviews: document.querySelectorAll("#admin-document-list .admin-document-preview").length,
@@ -231,6 +234,8 @@ if (visitorUrl && operationsUrl) {
         invitationReadyProspects: [...document.querySelectorAll("#admin-outreach-prospects [data-outreach-prospect]")]
           .filter(item => item.querySelector('[data-sponsor-invitation-action="issue"]:not(:disabled)')).length,
         outreachCampaigns: document.querySelectorAll("#admin-outreach-campaigns [data-outreach-campaign]").length,
+        reviewFirstCampaigns: [...document.querySelectorAll("#admin-outreach-campaigns [data-outreach-campaign]")]
+          .filter(item => item.textContent?.includes("review every message")).length,
         geofencedCampaigns: [...document.querySelectorAll("#admin-outreach-campaigns [data-outreach-campaign]")]
           .filter(item => item.textContent?.includes("mi around")).length,
         quickBooksState: document.querySelector("#admin-quickbooks-connection")?.dataset?.state,
@@ -302,6 +307,8 @@ if (visitorUrl && operationsUrl) {
         || item?.deliveredFollowups < 2
         || item?.deliveredTransactionalMessages < 1
         || item?.deliveredCampaignMessages < 1
+        || item?.reviewReadyOutreachMessages < 1
+        || item?.reviewQueueStartsActionable !== true
         || item?.tasks < 9
         || !item?.taskSummary?.includes("active")
         || requiredAssignmentTypes.some(type => !item.taskAssignmentTypes?.includes(type))
@@ -310,7 +317,7 @@ if (visitorUrl && operationsUrl) {
       ) {
         throw new Error("Local message automation or three-way assignment proof is incomplete.");
       }
-      return `${item.deliveredFollowups} loopback messages include transactional and campaign-approved delivery proof; ${item.tasks} tasks cover staff, volunteer, and team owners.`;
+      return `${item.deliveredFollowups} loopback messages include transactional and campaign-approved delivery proof, while ${item.reviewReadyOutreachMessages} outreach draft remains staff-controlled; ${item.tasks} tasks cover staff, volunteer, and team owners.`;
     });
     await inspect("fulfillment_outreach", "Fulfillment and geofenced outreach", "Inspect sponsor branding, vendor readiness, and targeted campaign records.", async () => {
       const item = observations.operations;
@@ -325,6 +332,7 @@ if (visitorUrl && operationsUrl) {
         || item?.locatedProspects < 1
         || item?.invitationReadyProspects < 1
         || item?.outreachCampaigns < 1
+        || item?.reviewFirstCampaigns < 1
         || item?.geofencedCampaigns < 1
       ) {
         throw new Error("Sponsor, vendor, or geofenced outreach proof is incomplete.");

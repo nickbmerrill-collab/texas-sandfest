@@ -1365,6 +1365,14 @@ test("operations command summary fits a 1280x720 board viewport", async ({ page 
   }));
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
   expect(commandBounds.every(bounds => bounds.top >= 0 && bounds.bottom <= 720)).toBe(true);
+  await page.locator('[data-command-signal="messages"]').click();
+  await expect(page).toHaveURL(/#admin-partner-followups$/);
+  const firstFollowup = page.locator("#admin-partner-followups [data-followup]").first();
+  await expect(firstFollowup.locator('[data-review-followup][data-action="approve"]')).toBeVisible();
+  const reviewReadyOutreach = page.locator("#admin-partner-followups [data-followup]")
+    .filter({ hasText: "outreach sequence" })
+    .filter({ has: page.locator('[data-review-followup][data-action="approve"]') });
+  await expect(reviewReadyOutreach).toHaveCount(1);
   await assertNoHorizontalOverflow(page);
 });
 
