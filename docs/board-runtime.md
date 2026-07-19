@@ -181,6 +181,8 @@ its startup output or `npm run board:check` is authoritative for that session.
 - Document intake: `http://127.0.0.1:5175/admin.html?apiBase=http://127.0.0.1:8806#admin-documents`
 - Partner operations: `http://127.0.0.1:5175/admin.html?apiBase=http://127.0.0.1:8806#admin-partners`
 
+The Visitor Live Beach footer opens the exact Operations URL in a new tab and preserves the supervisor-selected API base, so the handoff remains authenticated and reload-stable without losing the visitor walkthrough.
+
 The operations console uses the local-only token `board-demo-local-admin-token-change-me`. This fixed credential is scoped to the development command above, auto-loads the synthetic workspace, is rejected by production readiness, and must never be used in a deployed environment.
 
 Begin the operations walkthrough at the Festival command summary. Its eight

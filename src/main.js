@@ -550,6 +550,11 @@ const navCtaHref = ADMIN_ENTRY && BOARD_DEMO_ACCESS.enabled
       return url.toString();
     })()
   : "https://www.texassandfest.org/";
+const operationsSurfaceHref = (() => {
+  const url = new URL(sitePath("admin.html"), window.location.origin);
+  url.searchParams.set("apiBase", defaultPublicApiBase());
+  return url.toString();
+})();
 let boardDemoWorkspaceLoaded = false;
 let boardDemoWorkspaceLoad = null;
 
@@ -831,7 +836,7 @@ app.innerHTML = `
 
       <p class="lb-foot">
         ${LIVE_BEACH_DEMO_ENABLED ? "Board demonstration data is synthetic and remains local to this development build." : "Live Beach activates only from reviewed event content and current, privacy-safe operational metrics."}
-        ${OPS_DEMO_ENABLED ? `<a href="#admin">Open the operator view →</a>` : ""}
+        ${OPS_DEMO_ENABLED ? `<a data-operations-handoff href="${escapeAttr(operationsSurfaceHref)}" target="_blank" rel="noreferrer">Open the operator view →</a>` : ""}
       </p>
     </section>
 

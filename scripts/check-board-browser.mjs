@@ -224,6 +224,8 @@ if (visitorUrl && operationsUrl) {
         title: document.title,
         heading: document.querySelector("h1")?.textContent?.trim(),
         network: document.querySelector("#network-status")?.textContent?.trim(),
+        operationsHandoff: document.querySelector("[data-operations-handoff]")?.href,
+        operationsHandoffTarget: document.querySelector("[data-operations-handoff]")?.target,
         sponsorTiers: document.querySelectorAll("#public-sponsor-tiers [data-package-id]").length,
         sponsorPackageIds: [...document.querySelectorAll("#public-sponsor-tiers [data-package-id]")].map(item => item.dataset.packageId),
         sponsorAmounts: Object.fromEntries([...document.querySelectorAll("#public-sponsor-tiers [data-package-id]")].map(item => [item.dataset.packageId, item.querySelector("span")?.textContent?.trim()])),
@@ -255,10 +257,17 @@ if (visitorUrl && operationsUrl) {
 
     await inspect("visitor_shell", "Visitor presentation shell", "Reload the visitor link and inspect its board-mode bootstrap.", async () => {
       const item = observations.visitor;
-      if (!item || item.title !== "Texas SandFest | Port Aransas" || item.heading !== "Texas SandFest" || item.network !== "Demo") {
+      if (
+        !item
+        || item.title !== "Texas SandFest | Port Aransas"
+        || item.heading !== "Texas SandFest"
+        || item.network !== "Demo"
+        || item.operationsHandoff !== operationsUrl
+        || item.operationsHandoffTarget !== "_blank"
+      ) {
         throw new Error(observations.visitorError || "The visitor shell did not reach board-demo mode.");
       }
-      return "Visitor title, festival heading, and visible Demo state rendered.";
+      return "Visitor title, festival heading, visible Demo state, and the exact reload-stable Operations handoff rendered.";
     });
     await inspect("public_intake", "Vendor and sponsor intake", "Inspect the public catalog API and signup form controls.", async () => {
       const item = observations.visitor;
