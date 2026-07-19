@@ -4,6 +4,7 @@ on:
   push:
     branches: [main, "feature/**"]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   platform:
@@ -22,6 +23,9 @@ jobs:
           --health-retries 10
     steps:
       - uses: actions/checkout@v5
+      - name: Record manual verification scope
+        if: github.event_name == 'workflow_dispatch'
+        run: echo "::notice::Manual CI verifies commit $GITHUB_SHA only. Public release still requires a successful push-triggered main run."
       - uses: actions/setup-node@v5
         with:
           node-version: "20"

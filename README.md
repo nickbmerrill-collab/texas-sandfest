@@ -39,7 +39,7 @@ Unified visitor and operations platform for Texas SandFest, with production-gate
 - Board deck: `docs/presentations/SandFest-Board-Platform-Briefing.pptx`.
 - Enterprise scale path: atomic/mutex JSON or Postgres (`lib/platform-data.mjs`), body size caps, public-write rate limits, HTML escaping, empty admin token field. See `docs/enterprise-scale.md`.
 - Shared rate limits via Redis/Upstash (`lib/rate-limit.mjs`), async SMS worker (`npm run worker`), ticket-linked voting, and separately built visitor/admin deployment artifacts.
-- CI: `.github/workflows/ci.yml` (tests, API smoke, build, load-test, Swift parse).
+- CI: `.github/workflows/ci.yml` (tests, API smoke, build, load-test, Swift parse). A verification-only manual dispatch can prove the exact current `main` commit when GitHub misses a merge-triggered run, but it cannot satisfy the push-gated Pages release workflow.
 - Installable/offline-capable public web shell for spotty event-day connectivity.
 
 ## Commands
