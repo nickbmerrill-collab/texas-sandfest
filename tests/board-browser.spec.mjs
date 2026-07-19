@@ -1534,6 +1534,13 @@ test("WCAG A and AA checks cover public intake, partner status, concierge, and o
     expect(targetBox?.width).toBeGreaterThanOrEqual(24);
     expect(targetBox?.height).toBeGreaterThanOrEqual(24);
   }
+  const discoveryCandidateTargets = page.locator('#admin-discover-businesses input[name="discoveredSourceRef"]');
+  expect(await discoveryCandidateTargets.count()).toBeGreaterThan(0);
+  for (let index = 0; index < await discoveryCandidateTargets.count(); index += 1) {
+    const targetBox = await discoveryCandidateTargets.nth(index).boundingBox();
+    expect(targetBox?.width).toBeGreaterThanOrEqual(28);
+    expect(targetBox?.height).toBeGreaterThanOrEqual(28);
+  }
   await assertNoAccessibilityViolations(page, "Operations workspace");
 
   await page.setViewportSize({ width: 390, height: 844 });
