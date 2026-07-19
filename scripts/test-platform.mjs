@@ -691,7 +691,7 @@ console.log("\n=== Pure library suite ===\n");
       summary: {
         applications: { total: 4, vendors: 2, sponsors: 2 },
         finance: { amountExpectedCents: 3_800_000, amountPaidCents: 1_000_000, balanceCents: 2_800_000 },
-        outreach: { prospects: 1, qualified: 1, campaigns: 1, nextActionsScheduled: 1, unassigned: 0 }
+        outreach: { prospects: 2, qualified: 2, campaigns: 2, draftsAwaitingReview: 1, nextActionsScheduled: 2, unassigned: 0 }
       },
       invoices: [{ id: "demo_invoice", status: "approved" }],
       payments: [{ id: "demo_payment", status: "succeeded" }],
@@ -702,7 +702,8 @@ console.log("\n=== Pure library suite ===\n");
       })),
       followups: [
         ...Array.from({ length: 4 }, (_, index) => ({ id: `demo_ack_${index + 1}`, kind: "application_received", status: "draft_ready" })),
-        ...Array.from({ length: 3 }, (_, index) => ({ id: `demo_task_notice_${index + 1}`, kind: "task_assignment", status: "draft_ready" }))
+        ...Array.from({ length: 3 }, (_, index) => ({ id: `demo_task_notice_${index + 1}`, kind: "task_assignment", status: "draft_ready" })),
+        { id: "demo_review_outreach", kind: "sponsor_outreach", status: "draft_ready", campaignId: "demo_review_campaign", automationPolicy: null }
       ],
       tasks: [
         { id: "demo_staff_task", assigneeType: "staff", assigneeId: "staff_operations" },
@@ -758,21 +759,21 @@ console.log("\n=== Pure library suite ===\n");
   localAutomationBoardState.partners.automationMode = "transactional_auto";
   localAutomationBoardState.partners.automation.active = true;
   localAutomationBoardState.partners.followups = [
-    ...localAutomationBoardState.partners.followups.map((item, index) => ({
-      ...item,
-      status: "sent",
-      deliveryStatus: "delivered",
-      automationPolicy: "partner_transactional_v1",
-      provider: "brevo",
-      providerMessageId: `board-mail-${String(index + 1).padStart(32, "0")}`,
-      deliveredAt: "2026-07-16T12:00:00.000Z",
-      deliveryEvents: [{
+    ...localAutomationBoardState.partners.followups.map((item, index) => item.kind === "sponsor_outreach" ? item : ({
+        ...item,
+        status: "sent",
+        deliveryStatus: "delivered",
+        automationPolicy: "partner_transactional_v1",
         provider: "brevo",
-        providerEventId: `board_${String(index + 1).padStart(64, "0")}`,
-        type: "delivered",
-        status: "delivered"
-      }]
-    })),
+        providerMessageId: `board-mail-${String(index + 1).padStart(32, "0")}`,
+        deliveredAt: "2026-07-16T12:00:00.000Z",
+        deliveryEvents: [{
+          provider: "brevo",
+          providerEventId: `board_${String(index + 1).padStart(64, "0")}`,
+          type: "delivered",
+          status: "delivered"
+        }]
+      })),
     {
       id: "demo_campaign_delivery",
       kind: "outreach_sequence",
@@ -799,6 +800,11 @@ console.log("\n=== Pure library suite ===\n");
   missingLocalCampaignProof.partners.followups = missingLocalCampaignProof.partners.followups
     .filter(item => item.automationPolicy !== "outreach_campaign_v1");
   const missingLocalCampaignReport = evaluateBoardDemoReadiness(missingLocalCampaignProof);
+  const missingReviewFirstProof = structuredClone(localAutomationBoardState);
+  missingReviewFirstProof.partners.followups = missingReviewFirstProof.partners.followups
+    .filter(item => !(item.kind === "sponsor_outreach" && item.status === "draft_ready" && !item.automationPolicy));
+  missingReviewFirstProof.partners.summary.outreach.draftsAwaitingReview = 0;
+  const missingReviewFirstReport = evaluateBoardDemoReadiness(missingReviewFirstProof);
   const missingDurableDeliveryProof = structuredClone(localAutomationBoardState);
   delete missingDurableDeliveryProof.partners.followups.at(-1).deliveryEvents;
   const missingDurableDeliveryReport = evaluateBoardDemoReadiness(missingDurableDeliveryProof);
@@ -821,6 +827,7 @@ console.log("\n=== Pure library suite ===\n");
   ok("board demo readiness requires loopback delivery proof in automatic mode", localAutomationBoardReport.ok
     && localAutomationBoardReport.checks.find(item => item.id === "operations")?.detail.includes("locally delivered messages")
     && missingLocalCampaignReport.checks.find(item => item.id === "operations")?.ok === false
+    && missingReviewFirstReport.checks.find(item => item.id === "operations")?.ok === false
     && missingDurableDeliveryReport.checks.find(item => item.id === "operations")?.ok === false);
   ok("board demo readiness survives a fresh sandbox process when durable delivery proof is present", restartedLocalAutomationBoardReport.ok);
   const directionalCameraIds = ["harbor-island-entrance", "harbor-island-stacking", "ferry-loading", "ferry-stacking"];

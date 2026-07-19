@@ -17,13 +17,13 @@ The command rebuilds `.sandfest-runtime/board-2027` from governed source data. I
 - sponsor brand profile, logo review, and package deliverables;
 - vendor onboarding with one approved, compliance-cleared, partner-confirmed booth assignment beside one intentionally blocked application;
 - key dates, consent-backed acknowledgments, and direct volunteer, staff, and team tasks that exercise each private assignment-notification route;
-- geofenced sponsor outreach with an accountable owner, next action, due timestamp, and urgency-sorted follow-up queue;
+- geofenced sponsor outreach with accountable owners, next actions, due timestamps, an approved local-automation sequence, and a separate review-first draft that remains in the staff approval queue;
 - staff-issued sponsor invitations that convert a qualified prospect into the real public sponsor application, brand center, fulfillment plan, key dates, task, finance record, and private portal only after recipient consent;
 - four private source documents in received, review, and approved states, with staff-only text previews and checksum-verified downloads;
 - volunteer coverage, fleet checkout, voting, and Sculpture Passport activity;
 - eight synthetic camera metric lanes plus visibly synthetic weather and ferry snapshots. Optional signed playback continuously exercises source activation, heartbeat, anonymous metric ingestion, freshness, and public/admin condition rendering through the real API contract. Real NWS and TxDOT checks remain a separate post-presentation/live-tool lane.
 
-The generated public bootstrap labels both visitor and operations surfaces as a board demonstration. Every ticket price is marked as demo-only, every email uses a reserved example domain, the seeded safety subscriber uses a fictional `555-01xx` number, and generation performs no external provider calls. The standalone `board:runtime` command begins in `review_first`. The supervised `board:demo` stack prepares a presentation-specific local-automation seed: consent-backed partner notices and one explicitly approved geofenced campaign run through the loopback mailbox and authenticated webhook before readiness turns green. Site-native ticket and partner receipts, payments, reversals, aging, and exports remain interactive; QuickBooks stays visibly not connected because the board runtime never carries accounting credentials.
+The generated public bootstrap labels both visitor and operations surfaces as a board demonstration. Every ticket price is marked as demo-only, every email uses a reserved example domain, the seeded safety subscriber uses a fictional `555-01xx` number, and generation performs no external provider calls. The standalone `board:runtime` command begins in `review_first`. The supervised `board:demo` stack prepares a presentation-specific local-automation seed: consent-backed partner notices and one explicitly approved geofenced campaign run through the loopback mailbox and authenticated webhook before readiness turns green, while a second campaign keeps its opening message in explicit staff review. Site-native ticket and partner receipts, payments, reversals, aging, and exports remain interactive; QuickBooks stays visibly not connected because the board runtime never carries accounting credentials.
 
 ## Run
 
@@ -68,7 +68,7 @@ The command first repeats the nine service and data checks, then opens the
 session's credential-free Visitor and Operations links in local headless
 Chromium. It rejects remote or mismatched URLs and verifies the rendered signup
 catalogs, local ticket-payment readiness, approved sponsor branding, eight-camera conditions grid, command
-signals, payment and key-date tracking, delivered local automation, staff,
+signals, payment and key-date tracking, delivered local automation, a review-first outreach draft, staff,
 volunteer, and team assignments, sponsor/vendor fulfillment, geofenced
 outreach with an invitation-ready prospect, private document extraction,
 deferred live-accounting label, browser
