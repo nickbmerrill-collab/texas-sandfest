@@ -107,6 +107,7 @@ import {
 } from "../lib/outreach-discovery.mjs";
 import {
   OUTREACH_CAMPAIGN_AUTOMATION_POLICY,
+  PARTNER_PORTAL_RECOVERY_WINDOW_MS,
   PARTNER_TRANSACTIONAL_AUTOMATION_POLICY,
   PARTNER_TRANSACTIONAL_FOLLOWUP_KINDS,
   applyOutreachCampaignAutomation,
@@ -149,6 +150,7 @@ import {
   recordPartnerInvoiceReconciliation,
   recordPartnerInvoiceSync,
   recordPartnerPayment,
+  requestPartnerPortalRecovery,
   reversePartnerPayment,
   reviewFollowup,
   reviewPartnerBrandAsset,
@@ -2233,6 +2235,34 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   ok("partner portal capability token", portalToken?.startsWith("tsfp_") && verifyPartnerPortalToken(created.application, portalToken, { config: portalConfig }) && !verifyPartnerPortalToken(created.application, `${portalToken}x`, { config: portalConfig }));
   ok("partner portal fragment link", partnerPortalPath(created.application, portalToken).startsWith("/#partner-status?") && portalUrl.includes("#partner-status?"));
   ok("partner portal resolves a legacy duplicate reference by capability", legacyCollisionAccess.ok && legacyCollisionAccess.application.id === legacyCollisionApplication.id);
+  const recovery = requestPartnerPortalRecovery(created.doc, {
+    reference: created.application.reference.toLowerCase(),
+    contactEmail: applicationInput.contactEmail.toUpperCase()
+  }, { idFactory, now, portalUrlForApplication: () => portalUrl });
+  const missedRecovery = requestPartnerPortalRecovery(created.doc, {
+    reference: created.application.reference,
+    contactEmail: "wrong@example.com"
+  }, { idFactory, now, portalUrlForApplication: () => portalUrl });
+  const duplicateRecovery = requestPartnerPortalRecovery(recovery.doc, {
+    reference: created.application.reference,
+    contactEmail: applicationInput.contactEmail
+  }, { idFactory, now: "2026-07-16T12:14:59.999Z", portalUrlForApplication: () => portalUrl });
+  const nextRecovery = requestPartnerPortalRecovery(recovery.doc, {
+    reference: created.application.reference,
+    contactEmail: applicationInput.contactEmail
+  }, { idFactory, now: new Date(Date.parse(now) + PARTNER_PORTAL_RECOVERY_WINDOW_MS).toISOString(), portalUrlForApplication: () => portalUrl });
+  const changedRecoveryRecipient = queueFollowupDelivery({
+    ...recovery.doc,
+    applications: recovery.doc.applications.map(item => item.id === created.application.id
+      ? { ...item, contactEmail: "changed@example.com" }
+      : item)
+  }, recovery.followup.id, { now });
+  const recoveryActivity = recovery.doc.activity.at(-1);
+  ok("partner portal recovery creates approved current-link delivery", recovery.ok && recovery.changed && recovery.matched && recovery.followup.status === "approved" && recovery.followup.body.includes(portalUrl) && recovery.followup.recipient === applicationInput.contactEmail);
+  ok("partner portal recovery misses without mutation", missedRecovery.ok && !missedRecovery.matched && !missedRecovery.changed && missedRecovery.followup === null && missedRecovery.doc.followups.length === created.doc.followups.length);
+  ok("partner portal recovery enforces a sliding cooldown", duplicateRecovery.duplicate && duplicateRecovery.followup.id === recovery.followup.id && nextRecovery.changed && nextRecovery.followup.id !== recovery.followup.id);
+  ok("partner portal recovery revalidates recipient before queue", !changedRecoveryRecipient.ok && changedRecoveryRecipient.error.includes("no longer matches"));
+  ok("partner portal recovery activity is privacy minimized", recoveryActivity.type === "application.portal_access_requested" && !JSON.stringify(recoveryActivity).includes(applicationInput.contactEmail) && !JSON.stringify(recoveryActivity).includes(portalToken));
   const scheduled = generateDuePartnerFollowups(created.doc, { idFactory, now, leadDays: 3, portalUrlForApplication: () => portalUrl });
   const scheduledAgain = generateDuePartnerFollowups(scheduled.doc, { idFactory, now, leadDays: 3 });
   ok("scheduled milestone draft", scheduled.changed && scheduled.generated.length === 1 && scheduled.generated[0].status === "draft_ready" && scheduled.generated[0].sourceVersion === "schedule:1:phase:upcoming" && scheduled.generated[0].body.includes(portalUrl));
@@ -5951,6 +5981,14 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
   const conflictingPartnerIntake = await hit("POST", "/api/public/vendor-applications", { ...apiIntakeBody, organizationName: "Changed Portal Test" }, false, intakeHeaders);
   const invalidKeyIntake = await hit("POST", "/api/public/vendor-applications", apiIntakeBody, false, { "idempotency-key": "short" });
   ok("POST partner intake returns portal access", partnerIntake.status === 201 && partnerIntake.data.portalAccess?.token?.startsWith("tsfp_"), `status=${partnerIntake.status} error=${partnerIntake.data.error || "none"}`);
+  if (child) {
+    const unavailableRecovery = await hit("POST", "/api/public/partner-portal-recovery", {
+      reference: partnerIntake.data.application?.reference,
+      contactEmail: apiIntakeBody.contactEmail,
+      botToken: "valid-portal-recovery-token"
+    }, false, { "idempotency-key": "platform-api-portal-recovery-0001" });
+    ok("partner portal recovery fails closed without transactional email", unavailableRecovery.status === 503 && !JSON.stringify(unavailableRecovery.data).includes(apiIntakeBody.contactEmail));
+  }
   ok("POST partner intake replay", repeatedPartnerIntake.status === 200 && repeatedPartnerIntake.data.duplicate === true && repeatedPartnerIntake.data.application?.id === partnerIntake.data.application?.id && repeatedPartnerIntake.data.portalAccess?.token === partnerIntake.data.portalAccess?.token && repeatedPartnerIntake.data.acknowledgment === "already_received");
   ok("POST partner intake idempotency conflict", conflictingPartnerIntake.status === 409 && invalidKeyIntake.status === 400);
   const idempotentPartnerWorkspace = await hit("GET", "/api/admin/partners", null, true);

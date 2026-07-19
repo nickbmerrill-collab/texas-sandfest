@@ -5001,6 +5001,16 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 }
 .partner-status-form { align-content: start; display: grid; gap: 14px; }
 .partner-status-form > p:not(.partner-form-status) { color: var(--muted); font-size: 13px; line-height: 1.5; margin: 0; }
+.partner-recovery-form {
+  align-content: start;
+  border-top: 1px solid #b8cecb;
+  display: grid;
+  gap: 12px;
+  padding-top: 20px;
+}
+.partner-recovery-form .partner-form-title h3 { font-size: 19px; }
+.partner-recovery-form > p:not(.partner-form-status) { color: var(--muted); font-size: 13px; line-height: 1.5; margin: 0; }
+.partner-recovery-form .button { justify-self: start; }
 .partner-status-fields { display: grid; gap: 10px; }
 .partner-status-fields label { color: var(--muted); display: grid; font-size: 12px; font-weight: 700; gap: 5px; }
 .partner-status-fields input {
@@ -5016,7 +5026,7 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .partner-status-form .button { justify-self: start; }
 .partner-status-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; }
 .partner-status-actions .button[hidden] { display: none; }
-.partner-status-result { align-content: start; display: grid; gap: 14px; min-width: 0; }
+.partner-status-result { align-content: start; display: grid; gap: 14px; grid-column: 2; grid-row: 1 / span 2; min-width: 0; }
 .partner-status-empty { align-content: center; border: 1px dashed #9db9b5; display: grid; gap: 6px; min-height: 190px; padding: 24px; }
 .partner-status-empty strong { color: var(--deep); font-size: 18px; }
 .partner-status-empty span { color: var(--muted); line-height: 1.5; }
@@ -5788,6 +5798,7 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
   .admin-partner-columns,
   .admin-conditions-columns,
   .admin-campaign-fields { grid-template-columns: 1fr; }
+  .partner-status-result { grid-column: auto; grid-row: auto; }
   .admin-incident-create,
   .admin-incident-controls { grid-template-columns: 1fr 1fr; }
   .partner-brand-preview { grid-template-columns: auto minmax(0, 1fr); }

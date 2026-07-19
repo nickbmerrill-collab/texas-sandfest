@@ -796,6 +796,24 @@ PG-B-01,${EVENT_ID},PG-EV-V-01,PG-EV-V-01,Postgres Booth Vendor,retail,vendor,po
     token: rotatedPortal.data.portalAccess?.token
   });
   check("partner portal rotation persists", rotatedPortal.status === 200 && stalePortal.status === 404 && currentPortal.status === 200);
+  const recoveryInput = {
+    reference: sponsorIntake.data.application?.reference,
+    contactEmail: "sponsor@postgres-test.example"
+  };
+  const matchedPortalRecovery = await request(base, "POST", "/api/public/partner-portal-recovery", recoveryInput, {
+    headers: { "idempotency-key": "postgres-portal-recovery-match-0001" }
+  });
+  const duplicatePortalRecovery = await request(base, "POST", "/api/public/partner-portal-recovery", recoveryInput, {
+    headers: { "idempotency-key": "postgres-portal-recovery-replay-0001" }
+  });
+  const missedPortalRecovery = await request(base, "POST", "/api/public/partner-portal-recovery", {
+    ...recoveryInput,
+    contactEmail: "unknown@postgres-test.example"
+  }, { headers: { "idempotency-key": "postgres-portal-recovery-miss-0001" } });
+  const recoveryWorkspace = await request(base, "GET", "/api/admin/partners", undefined, { auth: true });
+  const recoveryFollowups = recoveryWorkspace.data.followups?.filter(item => item.applicationId === sponsorApplication.id && item.kind === "portal_access_recovery") || [];
+  check("partner portal recovery response prevents enumeration", matchedPortalRecovery.status === 202 && duplicatePortalRecovery.status === 202 && missedPortalRecovery.status === 202 && JSON.stringify(matchedPortalRecovery.data) === JSON.stringify(missedPortalRecovery.data) && !JSON.stringify(matchedPortalRecovery.data).includes(sponsorIntake.data.application?.reference) && !JSON.stringify(matchedPortalRecovery.data).includes("sponsor@"));
+  check("partner portal recovery queues one durable cooldown-bound message", recoveryFollowups.length === 1 && recoveryFollowups[0]?.status === "queued");
 
   const vendorIntake = intakes[0];
   const postgresVendorReplays = intakes.filter(item => item.data.application?.id === vendorIntake.data.application?.id);
@@ -1503,9 +1521,9 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
     SANDFEST_WORKER_BATCH: "50"
   }, "Postgres worker");
   const jobs = await listJobs(ROOT, { limit: 100 });
-  check("worker completed intake, extraction, and dispatch jobs", jobs.length === 16 && jobs.every(job => job.status === "done"), `${jobs.filter(job => job.status === "done").length}/${jobs.length} done`);
+  check("worker completed intake, extraction, recovery, and dispatch jobs", jobs.length === 17 && jobs.every(job => job.status === "done"), `${jobs.filter(job => job.status === "done").length}/${jobs.length} done`);
   const workerStatus = await readPlatformDoc(ROOT, "workerStatus", null);
-  check("worker heartbeat persisted", workerStatus?.state === "stopped" && workerStatus?.lastBatchSize === 16);
+  check("worker heartbeat persisted", workerStatus?.state === "stopped" && workerStatus?.lastBatchSize === 17);
   const postgresDocumentsAfterWorker = await request(base, "GET", "/api/admin/documents", undefined, { auth: true });
   const extractedPostgresBoardBriefing = postgresDocumentsAfterWorker.data.documents?.find(item => item.id === postgresBoardBriefingUpload.data.document?.id);
   check("Postgres worker persists extracted board briefing", extractedPostgresBoardBriefing?.extractionStatus === "ready" && extractedPostgresBoardBriefing?.textPreview?.includes("TEXAS SANDFEST") && extractedPostgresBoardBriefing?.extractedCharacterCount > 5_000 && extractedPostgresBoardBriefing?.extractedChunkCount > 0 && !JSON.stringify(extractedPostgresBoardBriefing).includes("extractionChunks"));
@@ -1513,6 +1531,9 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
   const repairedPostgresDocumentTasks = partnerDocAfterWorker?.tasks?.filter(task => task.relatedEntityType === "incoming_document" && task.relatedEntityId === postgresDocument.id) || [];
   check("worker repairs missing document review routing", workerStatus?.lastReconciledDocumentReviewTasks === 1 && repairedPostgresDocumentTasks.length === 1 && repairedPostgresDocumentTasks[0]?.status === "in_progress" && repairedPostgresDocumentTasks[0]?.assigneeId === "operations");
   const sponsorAcknowledgment = partnerDocAfterWorker?.followups?.find(item => item.applicationId === sponsorApplication.id && item.kind === "application_received");
+  const deliveredPortalRecovery = partnerDocAfterWorker?.followups?.find(item => item.applicationId === sponsorApplication.id && item.kind === "portal_access_recovery");
+  const portalRecoveryDelivery = emailMock.deliveries.find(item => item.body.subject === "Your Texas SandFest partner portal link");
+  check("worker delivers the current recovered portal capability", deliveredPortalRecovery?.status === "sent" && portalRecoveryDelivery?.body.to?.[0]?.email === "sponsor@postgres-test.example" && portalRecoveryDelivery?.body.textContent?.includes(rotatedPortal.data.portalAccess?.url));
   check("worker acknowledgment includes secure portal link", sponsorAcknowledgment?.status === "draft_ready" && sponsorAcknowledgment.body.includes("#partner-status?reference="));
   const sponsorMilestoneReminder = partnerDocAfterWorker?.followups?.find(item => item.milestoneId === defaultSponsorMilestone?.id && item.kind === "milestone_reminder");
   check("worker persists versioned milestone reminder", sponsorMilestoneReminder?.sourceVersion === "schedule:2:phase:upcoming" && sponsorMilestoneReminder?.status === "draft_ready");
@@ -1579,7 +1600,7 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
   }, "Postgres email delivery worker");
   const partnerDocAfterDelivery = await readPlatformDoc(ROOT, "partnerOps", null);
   const deliveredAcknowledgment = partnerDocAfterDelivery?.followups?.find(item => item.id === sponsorAcknowledgment.id);
-  const acknowledgmentDelivery = emailMock.deliveries.find(item => item.body.to?.[0]?.email === "sponsor@postgres-test.example");
+  const acknowledgmentDelivery = emailMock.deliveries.find(item => item.body.to?.[0]?.email === "sponsor@postgres-test.example" && item.body.subject === deliveredAcknowledgment?.subject);
   check("approved acknowledgment queues for delivery", approvedAcknowledgment.data.followup?.status === "approved" && queuedAcknowledgment.status === 202);
   check("worker persists applicant email delivery proof", deliveredAcknowledgment?.status === "sent" && deliveredAcknowledgment.providerMessageId === acknowledgmentDelivery?.messageId && acknowledgmentDelivery?.body.textContent?.includes("#partner-status?reference=") && acknowledgmentDelivery?.body.replyTo?.email === "info@texassandfest.org");
 

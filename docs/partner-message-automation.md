@@ -17,6 +17,14 @@ It also covers assignment and bounded weekly-overdue notices for active tasks as
 
 Sponsor prospect outreach and incident dispatch messages are never eligible. They continue through staff review and explicit queueing.
 
+## User-initiated portal recovery
+
+`POST /api/public/partner-portal-recovery` is a separate transactional path and does not depend on `transactional_auto`. It is allowed only when the partner portal and transactional email provider are ready. Production also requires a valid Cloudflare Turnstile challenge for action `partner_access_recovery`.
+
+The server normalizes the submitted application reference and email, then requires an exact match to the current consented application contact. A match creates an approved `portal_access_recovery` follow-up containing the current HMAC capability URL, queues it through the same crash-recoverable worker, and revalidates consent and the stored recipient before provider submission. Repeated requests for the same application and portal-access version reuse the existing message for 15 minutes. A portal rotation naturally permits a new message for the new capability.
+
+Matches, invalid inputs, unknown references, wrong emails, and cooldown replays all return the same `202` response with `Cache-Control: no-store`. The public response contains no match flag, application identity, recipient, follow-up ID, job ID, or portal token. Only a successful match creates a privacy-minimized staff activity record. Queue failures remain visible to operators as failed follow-ups while the public response stays generic.
+
 ## Delivery lifecycle
 
 1. Intake or an operations change creates a pending message with a stable workflow key.
@@ -62,4 +70,4 @@ Content-Type: application/json
 
 Use `{"mode":"review_first"}` to stop new automatic approvals. Unqueued automation-approved drafts return to `draft_ready`; already queued work retains its delivery proof and may finish. Each policy change writes both partner activity and an admin audit event.
 
-The board demo remains in `review_first` until an operator deliberately enables automatic mode. `npm run board:mailbox`, `npm run board:api`, and `npm run board:worker:watch` configure a loopback-only Brevo-compatible sandbox that accepts reserved example-domain recipients, rejects attachments, and returns delivery through the authenticated webhook route. This proves the delivery lifecycle without external email. Production enablement still requires real Brevo credentials and the same sender/webhook configuration in both the API and worker environments.
+The board demo remains in `review_first` until an operator deliberately enables automatic mode. User-requested portal recovery can still be demonstrated because it is independent of that broad policy. `npm run board:mailbox`, `npm run board:api`, and `npm run board:worker:watch` configure a loopback-only Brevo-compatible sandbox that accepts reserved example-domain recipients, rejects attachments, and returns delivery through the authenticated webhook route. This proves the delivery lifecycle without external email. Production enablement still requires real Brevo credentials and the same sender/webhook configuration in both the API and worker environments.

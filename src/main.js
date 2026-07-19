@@ -2045,6 +2045,17 @@ app.innerHTML = `
           </div>
           <p class="partner-form-status" aria-live="polite"></p>
         </form>
+        <form id="partner-portal-recovery-form" class="partner-recovery-form" data-turnstile-action="partner_access_recovery">
+          <div class="partner-form-title"><span>Lost your link?</span><h3>Email private access</h3></div>
+          <p>Enter the application reference and contact email used to apply. For privacy, every request receives the same confirmation.</p>
+          <div class="partner-status-fields">
+            <label>Application reference<input name="reference" required maxlength="80" autocomplete="off" placeholder="TSF-V-000000" /></label>
+            <label>Contact email<input name="contactEmail" required type="email" maxlength="254" autocomplete="email" placeholder="name@business.com" /></label>
+          </div>
+          <div class="partner-verification" data-turnstile-verification hidden><div data-turnstile-widget></div></div>
+          <button class="button secondary" type="submit">Email private access link</button>
+          <p class="partner-form-status" aria-live="polite"></p>
+        </form>
         <div id="partner-status-result" class="partner-status-result" aria-live="polite">
           <div class="partner-status-empty">
             <strong>Your SandFest partnership, in one place</strong>
@@ -4845,6 +4856,48 @@ async function submitPartnerForm(form, endpoint) {
   }
 }
 
+async function submitPartnerPortalRecovery(form) {
+  const button = form.querySelector('button[type="submit"]');
+  const status = form.querySelector(".partner-form-status");
+  if (TURNSTILE_SITE_KEY && !partnerBotProtection.enabled) await initPartnerBotProtection();
+  if (TURNSTILE_SITE_KEY && !partnerBotProtection.tokenFor(form)) {
+    setFormStatus(status, "Complete the security check and try again.", "error");
+    return;
+  }
+  const fallbackKey = () => `recovery_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
+  const idempotencyKey = form.dataset.idempotencyKey || globalThis.crypto?.randomUUID?.() || fallbackKey();
+  form.dataset.idempotencyKey = idempotencyKey;
+  button.disabled = true;
+  setFormStatus(status, "Requesting access...", "loading");
+  try {
+    const response = await fetchWithTimeout(`${publicApiBase()}/api/public/partner-portal-recovery`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "idempotency-key": idempotencyKey },
+      body: JSON.stringify(formPayload(form))
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const requestError = new Error(data.error || `Access request failed with ${response.status}`);
+      requestError.status = response.status;
+      requestError.retryAfter = response.headers.get("retry-after");
+      throw requestError;
+    }
+    setFormStatus(status, data.message || "If the reference and email match an application, a private access link will be sent shortly.", "ok");
+    delete form.dataset.idempotencyKey;
+    form.elements.contactEmail.value = "";
+    partnerBotProtection.reset(form);
+  } catch (error) {
+    if ([400, 401, 403, 422].includes(error.status)) delete form.dataset.idempotencyKey;
+    const message = error.status === 429
+      ? `Too many attempts. Wait${error.retryAfter ? ` ${error.retryAfter} seconds` : " a moment"} and try again.`
+      : friendlyRequestError(error, "Private access email is temporarily unavailable. Try again shortly.");
+    setFormStatus(status, message, "error");
+    partnerBotProtection.reset(form);
+  } finally {
+    button.disabled = false;
+  }
+}
+
 function sponsorPackageOptions(packages = publicSponsorPackages, selectedId = "") {
   return packages.map((item, index) => `<option value="${escapeAttr(item.id)}" ${(selectedId ? item.id === selectedId : index === 0) ? "selected" : ""}>${escapeHtml(item.name)} - ${escapeHtml(item.publicLabel || adminMoney(item.amount))}</option>`).join("");
 }
@@ -6843,6 +6896,7 @@ const adminPartnerActivityTypes = {
   "application.created": { category: "intake", one: "Application received", many: "Applications received" },
   "application.updated": { category: "intake", one: "Application status updated", many: "Application statuses updated" },
   "application.portal_access_rotated": { category: "intake", one: "Partner portal access refreshed", many: "Partner portal links refreshed" },
+  "application.portal_access_requested": { category: "intake", one: "Partner portal access requested", many: "Partner portal access requests" },
   "invoice.created": { category: "finance", one: "Invoice created", many: "Invoices created" },
   "invoice.reconciled": { category: "finance", one: "Invoice reconciled", many: "Invoices reconciled" },
   "payment.recorded": { category: "finance", one: "Payment recorded", many: "Payments recorded" },
@@ -9339,6 +9393,10 @@ document.querySelector("#partner-status-form")?.addEventListener("submit", event
   event.preventDefault();
   const values = Object.fromEntries(new FormData(event.currentTarget).entries());
   loadPartnerPortalStatus({ reference: values.reference.trim(), token: values.token.trim() });
+});
+document.querySelector("#partner-portal-recovery-form")?.addEventListener("submit", event => {
+  event.preventDefault();
+  submitPartnerPortalRecovery(event.currentTarget);
 });
 document.querySelector("#partner-status-forget")?.addEventListener("click", clearPartnerPortalView);
 document.querySelector("#outreach-preferences-unsubscribe")?.addEventListener("click", unsubscribeOutreachPreference);
