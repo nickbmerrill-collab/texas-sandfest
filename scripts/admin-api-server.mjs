@@ -155,6 +155,7 @@ import {
   reconcilePartnerStripeRefund,
   recordPartnerPayment,
   recordPartnerInvoiceReconciliation,
+  requestPartnerPortalRecovery,
   reversePartnerPayment,
   confirmVendorAssignment,
   rotatePartnerPortalAccess,
@@ -2141,7 +2142,7 @@ function rateLimitProfile(pathname, method) {
     return { name: "checkout", limit: CHECKOUT_RATE_LIMIT };
   }
   if (method === "POST" && pathname === "/api/public/concierge") return { name: "concierge", limit: PUBLIC_RATE_LIMIT };
-  if (method === "POST" && ["/api/public/partner-status", "/api/public/partner-payment-checkout", "/api/public/outreach-preferences"].includes(pathname)) {
+  if (method === "POST" && ["/api/public/partner-status", "/api/public/partner-portal-recovery", "/api/public/partner-payment-checkout", "/api/public/outreach-preferences"].includes(pathname)) {
     return { name: "partner-status", limit: PARTNER_STATUS_RATE_LIMIT };
   }
   // Unauthenticated write paths get a stricter bucket (festival abuse protection).
@@ -4318,6 +4319,71 @@ async function handleRequest(request, response) {
           severity: incidentResult.incident.severity
         } : null
       });
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/public/partner-portal-recovery") {
+      const genericMessage = "If the reference and email match an application, a private access link will be sent shortly.";
+      const portalConfig = partnerPortalConfig();
+      const emailConfig = emailConfigFromEnv();
+      if (!portalConfig.ready || !emailConfig.ready) {
+        sendJson(request, response, 503, { error: "Partner portal recovery is temporarily unavailable." }, { "cache-control": "no-store" });
+        return;
+      }
+      const body = await readBody(request);
+      const recoveryIdentity = createHash("sha256").update([
+        String(body.reference || "").trim().toUpperCase(),
+        String(body.contactEmail || "").trim().toLowerCase(),
+        String(request.headers["idempotency-key"] || "")
+      ].join(":"), "utf8").digest("hex");
+      const botVerification = await verifyTurnstileToken({
+        token: body.botToken,
+        action: "partner_access_recovery",
+        remoteIp: requestIp(request),
+        idempotencyKey: recoveryIdentity
+      }, { config: TURNSTILE });
+      if (!botVerification.ok) {
+        sendJson(request, response, botVerification.unavailable ? 503 : 400, { error: botVerification.error }, { "cache-control": "no-store" });
+        return;
+      }
+
+      const now = new Date().toISOString();
+      const result = await mutatePartnerOperations(doc => {
+        const requested = requestPartnerPortalRecovery(doc, body, {
+          idFactory: prefix => `${prefix}_${randomUUID()}`,
+          now,
+          portalUrlForApplication: currentPartnerPortalUrl
+        });
+        if (!requested.ok || !requested.changed) return requested;
+        const queued = queueFollowupDelivery(requested.doc, requested.followup.id, { now });
+        return queued.ok ? { ...requested, doc: queued.doc, followup: queued.followup } : queued;
+      });
+      if (!result?.ok) {
+        sendJson(request, response, 503, { error: "Partner portal recovery is temporarily unavailable." }, { "cache-control": "no-store" });
+        return;
+      }
+      if (result.changed && result.followup?.status === "queued") {
+        try {
+          await enqueueJob(ROOT, {
+            type: "partner.followup.send",
+            payload: { followupId: result.followup.id },
+            maxAttempts: 5,
+            idempotencyKey: `portal-recovery:${result.followup.id}`
+          });
+        } catch (error) {
+          await updatePlatformDoc(ROOT, "partnerOps", current => {
+            const doc = normalizePartnerOperations(current);
+            const followups = doc.followups.map(item => item.id === result.followup.id ? {
+              ...item,
+              status: "failed",
+              lastError: `Queue failure: ${String(error.message).slice(0, 500)}`,
+              updatedAt: new Date().toISOString()
+            } : item);
+            return { ...doc, lastUpdated: new Date().toISOString(), followups };
+          }, { fallback: emptyPartnerOperations(CURRENT_EVENT_ID) });
+        }
+      }
+      sendJson(request, response, 202, { ok: true, message: genericMessage }, { "cache-control": "no-store" });
       return;
     }
 

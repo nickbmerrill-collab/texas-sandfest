@@ -1640,3 +1640,56 @@ test("WCAG A and AA checks cover public intake, partner status, concierge, and o
   await expect(page.locator("#vendor-application-form")).toBeVisible();
   await assertNoAccessibilityViolations(page, "Mobile visitor and partner intake surface");
 });
+
+test("partner portal recovery is private, delivered, and mobile-safe", async ({ page }) => {
+  const runId = randomUUID().slice(0, 8);
+  const organizationName = `Recovery Boardwalk Studio ${runId}`;
+  const contactEmail = `recovery.${runId}@example.com`;
+  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#sponsors`);
+
+  const vendor = page.locator("#vendor-application-form");
+  await vendor.locator('[name="organizationName"]').fill(organizationName);
+  await vendor.locator('[name="contactName"]').fill("Morgan Recovery");
+  await vendor.locator('[name="contactEmail"]').fill(contactEmail);
+  await vendor.locator('[name="category"]').selectOption("artisan");
+  await vendor.locator('[name="vendorOfferingId"]').selectOption("marketplace-booth");
+  await vendor.locator('[name="description"]').fill("Coastal art and a standard marketplace booth.");
+  await vendor.locator('[name="consentToContact"]').check();
+  const intake = await submitAndCapture(page, vendor, "/api/public/vendor-applications");
+
+  const recovery = page.locator("#partner-portal-recovery-form");
+  await recovery.locator('[name="reference"]').fill(intake.application.reference);
+  await recovery.locator('[name="contactEmail"]').fill(contactEmail);
+  const matchedResponsePromise = page.waitForResponse(response => new URL(response.url()).pathname === "/api/public/partner-portal-recovery" && response.request().method() === "POST");
+  await recovery.locator('button[type="submit"]').click();
+  const matchedResponse = await matchedResponsePromise;
+  const matchedPayload = await matchedResponse.json();
+  expect(matchedResponse.status()).toBe(202);
+  expect(matchedResponse.headers()["cache-control"]).toBe("no-store");
+  await expect(recovery.locator(".partner-form-status")).toHaveText(matchedPayload.message);
+  expect(JSON.stringify(matchedPayload)).not.toContain(intake.application.reference);
+  expect(JSON.stringify(matchedPayload)).not.toContain(contactEmail);
+  expect(matchedPayload).not.toHaveProperty("matched");
+
+  await recovery.locator('[name="contactEmail"]').fill(`unknown.${runId}@example.com`);
+  const missedResponsePromise = page.waitForResponse(response => new URL(response.url()).pathname === "/api/public/partner-portal-recovery" && response.request().method() === "POST");
+  await recovery.locator('button[type="submit"]').click();
+  const missedResponse = await missedResponsePromise;
+  const missedPayload = await missedResponse.json();
+  expect(missedResponse.status()).toBe(202);
+  expect(missedPayload).toEqual(matchedPayload);
+
+  await expect.poll(async () => {
+    const response = await fetch(`${apiBase}/api/admin/partners`, { headers: { authorization: `Bearer ${TOKEN}` } });
+    const payload = await response.json();
+    const messages = payload.followups?.filter(item => item.applicationId === intake.application.id && item.kind === "portal_access_recovery") || [];
+    return messages.length === 1 && messages[0].status === "sent" && messages[0].deliveryStatus === "delivered";
+  }, { timeout: 15_000 }).toBe(true);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(recovery).toBeVisible();
+  await recovery.scrollIntoViewIfNeeded();
+  await expect(recovery.locator('button[type="submit"]')).toBeInViewport();
+  await assertNoHorizontalOverflow(page);
+  await assertNoAccessibilityViolations(page, "Partner portal recovery");
+});
