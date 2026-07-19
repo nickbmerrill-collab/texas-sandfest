@@ -1830,6 +1830,7 @@ time {
   display: grid;
   gap: 14px;
   margin-top: 22px;
+  min-width: 0;
   padding: 18px;
 }
 
@@ -2212,6 +2213,7 @@ time {
   display: grid;
   gap: 16px;
   grid-template-columns: repeat(5, minmax(0, 1fr));
+  min-width: 0;
 }
 
 .admin-order-grid > div {
@@ -2227,6 +2229,7 @@ time {
 .admin-record-list {
   display: grid;
   gap: 10px;
+  min-width: 0;
 }
 
 .admin-record-card {
@@ -2266,6 +2269,8 @@ time {
   color: var(--muted);
   line-height: 1.45;
   margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .admin-record-card code {
@@ -2273,6 +2278,7 @@ time {
   border-radius: 7px;
   color: var(--deep);
   font-size: 12px;
+  min-width: 0;
   overflow-wrap: anywhere;
   padding: 8px;
 }
