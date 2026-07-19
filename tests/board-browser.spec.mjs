@@ -541,6 +541,7 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await expect(commandSignals.locator('[data-command-signal="messages"]')).toContainText("Provider ready");
   await expect(commandSignals.locator('[data-command-signal="assignments"]')).toContainText("staff / volunteer / team");
   await expect(commandSignals.locator('[data-command-signal="key-dates"]')).toContainText("upcoming");
+  await expect(commandSignals.locator('[data-command-signal="key-dates"]')).toContainText(/[1-9]\d* due soon/);
   await expect(commandSignals.locator('[data-command-signal="sponsors"]')).toContainText("assets approved");
   await expect(commandSignals.locator('[data-command-signal="vendors"]')).toContainText("blocked");
   await expect(commandSignals.locator('[data-command-signal="outreach"]')).toContainText("qualified");
@@ -1270,7 +1271,7 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   await expect(deliveredMilestoneReminder).toHaveCount(1);
   await expect(deliveredMilestoneReminder).toHaveAttribute("data-delivery-status", "delivered");
   await expect(deliveredMilestoneReminder).toContainText(`Texas SandFest ${milestoneLabel.toLowerCase()} reminder`);
-  await expect(deliveredMilestoneReminder).toContainText("transactional automation");
+  await expect(deliveredMilestoneReminder).toContainText("automatic key-date reminder");
   const freshSponsorMilestone = page.locator(`#admin-partner-milestones [data-admin-milestone="${createdSponsorMilestone.id}"]`);
   await expect(freshSponsorMilestone).toContainText(milestoneLabel);
   await expect(freshSponsorMilestone).toContainText("latest reminder upcoming (sent)");

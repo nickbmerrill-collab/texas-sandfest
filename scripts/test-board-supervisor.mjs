@@ -246,6 +246,7 @@ try {
   const emailSandboxResponse = await fetch(`${initial.endpoints.emailBase}/health`);
   const emailSandbox = await emailSandboxResponse.json();
   const deliveredMessages = (partnerWorkspace.followups || []).filter(item => item.status === "sent" && item.deliveryStatus === "delivered");
+  const deliveredMilestoneReminders = deliveredMessages.filter(item => item.kind === "milestone_reminder" && item.automationPolicy === "partner_transactional_v1");
   const reviewReadyOutreach = (partnerWorkspace.followups || []).filter(item => item.kind === "sponsor_outreach" && item.status === "draft_ready" && !item.automationPolicy);
   const localAutomationReady = partnerResponse.ok
     && emailSandboxResponse.ok
@@ -253,12 +254,13 @@ try {
     && partnerWorkspace.automation?.active === true
     && deliveredMessages.some(item => item.automationPolicy === "partner_transactional_v1")
     && deliveredMessages.some(item => item.automationPolicy === "outreach_campaign_v1")
+    && deliveredMilestoneReminders.length >= 1
     && reviewReadyOutreach.length >= 1
     && emailSandbox.acceptedMessages >= 2
     && emailSandbox.deliveryCallbacks >= 2
     && emailSandbox.callbackFailures === 0;
   if (!localAutomationReady) throw new Error("Board startup did not produce loopback-only transactional and campaign delivery proof.");
-  console.log(`  ok local automation delivers ${deliveredMessages.length} synthetic messages and preserves ${reviewReadyOutreach.length} outreach draft for staff review`);
+  console.log(`  ok local automation delivers ${deliveredMessages.length} synthetic messages including ${deliveredMilestoneReminders.length} key-date reminder and preserves ${reviewReadyOutreach.length} outreach draft for staff review`);
 
   const initialReport = await preflight(sessionFile);
   console.log(`  ok board:check discovers the active session and passes ${initialReport.passed}/${initialReport.total}`);

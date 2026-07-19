@@ -691,6 +691,7 @@ console.log("\n=== Pure library suite ===\n");
       summary: {
         applications: { total: 4, vendors: 2, sponsors: 2 },
         finance: { amountExpectedCents: 3_800_000, amountPaidCents: 1_000_000, balanceCents: 2_800_000 },
+        operations: { dueSoonMilestones: 1 },
         outreach: { prospects: 2, qualified: 2, campaigns: 2, draftsAwaitingReview: 1, nextActionsScheduled: 2, unassigned: 0 }
       },
       invoices: [{ id: "demo_invoice", status: "approved" }],
@@ -703,6 +704,7 @@ console.log("\n=== Pure library suite ===\n");
       followups: [
         ...Array.from({ length: 4 }, (_, index) => ({ id: `demo_ack_${index + 1}`, kind: "application_received", status: "draft_ready" })),
         ...Array.from({ length: 3 }, (_, index) => ({ id: `demo_task_notice_${index + 1}`, kind: "task_assignment", status: "draft_ready" })),
+        { id: "demo_milestone_reminder", kind: "milestone_reminder", status: "draft_ready", milestoneId: "demo_milestone_1" },
         { id: "demo_review_outreach", kind: "sponsor_outreach", status: "draft_ready", campaignId: "demo_review_campaign", automationPolicy: null }
       ],
       tasks: [
@@ -753,8 +755,8 @@ console.log("\n=== Pure library suite ===\n");
   };
   const readyBoardReport = evaluateBoardDemoReadiness(readyBoardState);
   const localAutomationBoardState = structuredClone(readyBoardState);
-  localAutomationBoardState.emailSandbox.acceptedMessages = 8;
-  localAutomationBoardState.emailSandbox.deliveryCallbacks = 8;
+  localAutomationBoardState.emailSandbox.acceptedMessages = 9;
+  localAutomationBoardState.emailSandbox.deliveryCallbacks = 9;
   localAutomationBoardState.emailSandbox.callbackFailures = 0;
   localAutomationBoardState.partners.automationMode = "transactional_auto";
   localAutomationBoardState.partners.automation.active = true;
@@ -805,6 +807,10 @@ console.log("\n=== Pure library suite ===\n");
     .filter(item => !(item.kind === "sponsor_outreach" && item.status === "draft_ready" && !item.automationPolicy));
   missingReviewFirstProof.partners.summary.outreach.draftsAwaitingReview = 0;
   const missingReviewFirstReport = evaluateBoardDemoReadiness(missingReviewFirstProof);
+  const missingAutomaticKeyDateProof = structuredClone(localAutomationBoardState);
+  missingAutomaticKeyDateProof.partners.followups = missingAutomaticKeyDateProof.partners.followups
+    .filter(item => item.kind !== "milestone_reminder");
+  const missingAutomaticKeyDateReport = evaluateBoardDemoReadiness(missingAutomaticKeyDateProof);
   const missingDurableDeliveryProof = structuredClone(localAutomationBoardState);
   delete missingDurableDeliveryProof.partners.followups.at(-1).deliveryEvents;
   const missingDurableDeliveryReport = evaluateBoardDemoReadiness(missingDurableDeliveryProof);
@@ -828,6 +834,7 @@ console.log("\n=== Pure library suite ===\n");
     && localAutomationBoardReport.checks.find(item => item.id === "operations")?.detail.includes("locally delivered messages")
     && missingLocalCampaignReport.checks.find(item => item.id === "operations")?.ok === false
     && missingReviewFirstReport.checks.find(item => item.id === "operations")?.ok === false
+    && missingAutomaticKeyDateReport.checks.find(item => item.id === "operations")?.ok === false
     && missingDurableDeliveryReport.checks.find(item => item.id === "operations")?.ok === false);
   ok("board demo readiness survives a fresh sandbox process when durable delivery proof is present", restartedLocalAutomationBoardReport.ok);
   const directionalCameraIds = ["harbor-island-entrance", "harbor-island-stacking", "ferry-loading", "ferry-stacking"];

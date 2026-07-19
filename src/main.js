@@ -7107,13 +7107,22 @@ function renderAdminPartners(payload, outreach) {
   followups.innerHTML = [...(payload.followups || [])].sort((left, right) => {
     const priority = (followupPriority.get(left.status) ?? 99) - (followupPriority.get(right.status) ?? 99);
     if (priority) return priority;
+    if (left.status === "sent" && right.status === "sent") {
+      const milestonePriority = Number(right.kind === "milestone_reminder") - Number(left.kind === "milestone_reminder");
+      if (milestonePriority) return milestonePriority;
+    }
     return String(right.updatedAt || right.createdAt || "").localeCompare(String(left.updatedAt || left.createdAt || ""));
   }).map(item => {
     const deliveryStatus = item.deliveryStatus || (item.status === "sent" ? "accepted" : null);
     const deliveryAt = item.clickedAt || item.openedAt || item.deliveredAt || item.failedAt || item.acceptedAt || item.sentAt;
+    const automationLabel = item.automationPolicy === "outreach_campaign_v1"
+      ? "campaign-approved automation"
+      : item.automationPolicy && item.kind === "milestone_reminder"
+        ? "automatic key-date reminder"
+        : item.automationPolicy ? "transactional automation" : "";
     return `<article data-followup="${escapeAttr(item.id)}" ${deliveryStatus ? `data-delivery-status="${escapeAttr(deliveryStatus)}"` : ""}>
       <header><strong>${escapeHtml(item.subject || conditionLabel(item.kind))}</strong><b>${escapeHtml(conditionLabel(deliveryStatus || item.status))}</b></header>
-      <p>${escapeHtml(item.recipientLabel || item.recipient || (item.recipientAvailable ? "Recipient on file" : "Recipient unavailable"))}${item.campaignId ? ` · outreach sequence ${escapeHtml(item.sequenceStepId || "")}` : ""}${item.taskId ? " · delegated task" : ""}${item.automationPolicy === "outreach_campaign_v1" ? " · campaign-approved automation" : item.automationPolicy ? " · transactional automation" : ""}</p>
+      <p>${escapeHtml(item.recipientLabel || item.recipient || (item.recipientAvailable ? "Recipient on file" : "Recipient unavailable"))}${item.campaignId ? ` · outreach sequence ${escapeHtml(item.sequenceStepId || "")}` : ""}${item.taskId ? " · delegated task" : ""}${automationLabel ? ` · ${escapeHtml(automationLabel)}` : ""}</p>
       ${item.body ? `<blockquote class="keyboard-scroll-region" tabindex="0" aria-label="${escapeAttr(`Message preview: ${item.subject || conditionLabel(item.kind)}`)}">${escapeHtml(item.body)}</blockquote>` : '<span>Draft worker pending</span>'}
       ${item.lastError ? `<span class="admin-delivery-error">${escapeHtml(item.lastError)}</span>` : ""}
       ${item.sentAt ? `<span>Provider accepted ${escapeHtml(new Date(item.sentAt).toLocaleString())}${item.providerMessageId ? ` · ${escapeHtml(item.providerMessageId)}` : ""}</span>` : ""}
