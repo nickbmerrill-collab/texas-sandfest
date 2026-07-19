@@ -5,7 +5,7 @@ import { access, readFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { prepareBoardRuntime } from "../lib/board-runtime.mjs";
+import { BOARD_RUNTIME_SCHEMA_VERSION, prepareBoardRuntime } from "../lib/board-runtime.mjs";
 import {
   boardDemoSessionPath,
   boardDemoSessionProcessAlive,
@@ -115,11 +115,26 @@ async function runtimeMarker(runtimeRoot) {
 async function prepareRuntime(runtimeRoot, { reset }) {
   const marker = await runtimeMarker(runtimeRoot);
   const eventId = eventContextConfig(process.env).eventId;
-  if (!reset && marker?.kind === "synthetic-board-demonstration" && marker.eventId === eventId) {
-    if (marker.messageMode !== PRESENTATION_MESSAGE_MODE) {
-      throw new Error("The existing board runtime does not include local automation proof. Re-run with --reset.");
+  if (!reset && marker?.kind === "synthetic-board-demonstration") {
+    const refreshReasons = [];
+    if (marker.schemaVersion !== BOARD_RUNTIME_SCHEMA_VERSION) {
+      refreshReasons.push(`schema ${marker.schemaVersion ?? "unversioned"} -> ${BOARD_RUNTIME_SCHEMA_VERSION}`);
     }
-    return { reused: true, targetRoot: runtimeRoot, eventId };
+    if (marker.eventId !== eventId) refreshReasons.push(`event ${marker.eventId || "missing"} -> ${eventId}`);
+    if (marker.messageMode !== PRESENTATION_MESSAGE_MODE) {
+      refreshReasons.push(`message mode ${marker.messageMode || "missing"} -> ${PRESENTATION_MESSAGE_MODE}`);
+    }
+    if (!refreshReasons.length) return { reused: true, targetRoot: runtimeRoot, eventId };
+
+    console.log(`[board-demo] Refreshing the recognized synthetic runtime (${refreshReasons.join("; ")}).`);
+    const refreshed = await prepareBoardRuntime({
+      sourceRoot: ROOT,
+      targetRoot: runtimeRoot,
+      eventId,
+      replace: true,
+      messageMode: PRESENTATION_MESSAGE_MODE
+    });
+    return { ...refreshed, refreshed: true, refreshReasons };
   }
   if (!reset && marker) {
     throw new Error(`The runtime at ${runtimeRoot} is not the current synthetic board runtime. Re-run with --reset.`);
@@ -324,6 +339,9 @@ const state = {
   updatedAt: startedAt,
   runtimeRoot: options.runtimeRoot,
   runtimeReused: runtime.reused === true,
+  runtimeRefreshed: runtime.refreshed === true,
+  runtimeRefreshReasons: runtime.refreshReasons || [],
+  runtimeSchemaVersion: BOARD_RUNTIME_SCHEMA_VERSION,
   endpoints,
   links: { visitor, operations },
   services: Object.fromEntries(SERVICE_ORDER.map(name => [name, {
@@ -349,6 +367,7 @@ let stopping = false;
 let resetting = false;
 let finalExitCode = 0;
 let verificationPromise = null;
+let activeVerification = null;
 let finishLifetime;
 const lifetime = new Promise(resolve => { finishLifetime = resolve; });
 
@@ -386,11 +405,14 @@ async function fatal(error) {
 
 async function verifyReady(label, timeoutMs = 60_000) {
   if (verificationPromise || stopping) return verificationPromise;
+  const verification = { label, cancelled: false };
+  activeVerification = verification;
   verificationPromise = (async () => {
     const deadline = Date.now() + timeoutMs;
     let last = null;
-    while (!stopping && Date.now() < deadline) {
+    while (!stopping && !verification.cancelled && Date.now() < deadline) {
       last = await runPreflight(preflightEnv);
+      if (verification.cancelled) return false;
       if (last.code === 0 && last.report?.ok) {
         state.status = "ready";
         state.lastReadyAt = new Date().toISOString();
@@ -406,18 +428,20 @@ async function verifyReady(label, timeoutMs = 60_000) {
         } else {
           console.log(`[board-demo] ${label} recovery complete; board preflight is ${last.report.passed}/${last.report.total}.`);
         }
-        return;
+        return true;
       }
       await delay(500);
     }
+    if (verification.cancelled) return false;
     if (!stopping) {
       const failed = last?.report?.checks?.filter(item => !item.ok).map(item => item.label).join(", ");
       throw new Error(`Board demo ${label} preflight timed out${failed ? `; failing checks: ${failed}` : last?.stderr ? `: ${last.stderr}` : "."}`);
     }
   })();
   try {
-    await verificationPromise;
+    return await verificationPromise;
   } finally {
+    if (activeVerification === verification) activeVerification = null;
     verificationPromise = null;
   }
 }
@@ -434,7 +458,7 @@ async function restartService(name) {
   const delayMs = RESTART_DELAYS_MS[Math.min(history.length - 1, RESTART_DELAYS_MS.length - 1)];
   console.warn(`[board-demo] ${name} stopped unexpectedly; restarting in ${delayMs}ms.`);
   await delay(delayMs);
-  if (stopping) return;
+  if (stopping || resetting) return;
   startService(name);
   await verifyReady(`${name}`, 45_000);
 }
@@ -491,11 +515,18 @@ async function resetBoardRuntime() {
   delete state.error;
   await persistState();
   try {
-    if (verificationPromise) await verificationPromise;
+    if (verificationPromise) {
+      console.log(`[board-demo] Reset requested during ${activeVerification?.label || "an active"} readiness check; replacing it.`);
+      if (activeVerification) activeVerification.cancelled = true;
+      await verificationPromise;
+    }
     for (const name of [...SERVICE_ORDER].reverse()) await stopChild(name);
     await stateWrites;
     const refreshedRuntime = await prepareRuntime(options.runtimeRoot, { reset: true });
     state.runtimeReused = false;
+    state.runtimeRefreshed = false;
+    state.runtimeRefreshReasons = [];
+    state.runtimeSchemaVersion = BOARD_RUNTIME_SCHEMA_VERSION;
     state.runtimeGeneratedAt = refreshedRuntime.generatedAt;
     restartHistory.clear();
     for (const name of SERVICE_ORDER) {
