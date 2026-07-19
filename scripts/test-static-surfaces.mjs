@@ -1,6 +1,7 @@
 import { access, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { gzipSync } from "node:zlib";
+import { parse as parseYaml } from "yaml";
 import { publicAppBootstrapSafety } from "../lib/public-bootstrap.mjs";
 import { publicMediaManifestSafety } from "../lib/public-media-manifest.mjs";
 import {
@@ -59,6 +60,7 @@ const publicSculptorRoster = JSON.parse(await readFile(path.join(publicDir, "dat
 const sourceVoting = JSON.parse(await readFile(path.join(root, "data", "processed", "peoples-choice.json"), "utf8"));
 const sourcePassport = JSON.parse(await readFile(path.join(root, "data", "processed", "sculpture-passport.json"), "utf8"));
 const vercelConfig = JSON.parse(await readFile(path.join(root, "vercel.json"), "utf8"));
+const pagesWorkflow = parseYaml(await readFile(path.join(root, ".github", "workflows", "pages.yml"), "utf8"));
 const mediaDerivatives = JSON.parse(await readFile(path.join(publicDir, "assets", "sandfest-media", "media-derivatives.json"), "utf8"));
 const publicMediaManifest = JSON.parse(await readFile(path.join(publicDir, "assets", "sandfest-media", "media-manifest.json"), "utf8"));
 const robots = await readFile(path.join(publicDir, "robots.txt"), "utf8");
@@ -89,6 +91,17 @@ assert(!(await exists(path.join(adminDir, "admin.html"))), "Admin artifact must 
 assert(vercelConfig.framework === "vite", "Vercel PR previews must use the Vite framework preset.");
 assert(vercelConfig.buildCommand === "node scripts/verify-vercel-project.mjs && SANDFEST_DEPLOYMENT_ENV=$VERCEL_ENV npm run build:public", "Vercel builds must verify project isolation, inherit the deployment environment, and build only the public surface.");
 assert(vercelConfig.outputDirectory === "dist-public", "Vercel PR previews must publish only the isolated public artifact.");
+const pagesDeferredIf = String(pagesWorkflow.jobs?.deferred?.if || "");
+const pagesBuildIf = String(pagesWorkflow.jobs?.build?.if || "");
+const pagesDeferredSteps = pagesWorkflow.jobs?.deferred?.steps || [];
+assert(pagesDeferredIf.includes("github.event.workflow_run.head_branch == 'main'")
+  && pagesDeferredIf.includes("vars.SANDFEST_TURNSTILE_SITE_KEY == ''"), "Pages must record an explicit deferred release only after successful main CI when production Turnstile is absent.");
+assert(pagesBuildIf.includes("github.event.workflow_run.conclusion == 'success'")
+  && pagesBuildIf.includes("github.event.workflow_run.event == 'push'")
+  && pagesBuildIf.includes("github.event.workflow_run.head_branch == 'main'")
+  && pagesBuildIf.includes("vars.SANDFEST_TURNSTILE_SITE_KEY != ''"), "Pages publishing must require successful main CI and the production Turnstile registration.");
+assert(pagesDeferredSteps.every(step => !step.uses), "The deferred Pages job must not upload or deploy an artifact.");
+assert(pagesWorkflow.jobs?.deploy?.needs === "build", "The Pages deployment must depend only on the gated production build.");
 assert(publicHtml.includes("Texas SandFest | Port Aransas"), "Public artifact does not contain the visitor entry.");
 assert(!publicHtml.includes("Texas SandFest Operations"), "Public artifact contains the admin entry.");
 assert(adminHtml.includes("Texas SandFest Operations"), "Admin artifact does not contain the ops entry.");

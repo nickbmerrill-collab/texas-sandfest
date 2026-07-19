@@ -15,11 +15,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  deferred:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      vars.SANDFEST_TURNSTILE_SITE_KEY == ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Record deferred production release
+        run: echo "::notice::Public release is deferred until the post-board production Turnstile site key is configured. No artifact was built or deployed."
+
   build:
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_branch == 'main'
+      github.event.workflow_run.head_branch == 'main' &&
+      vars.SANDFEST_TURNSTILE_SITE_KEY != ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
