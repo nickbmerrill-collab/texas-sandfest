@@ -5416,6 +5416,10 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .admin-campaign-fields label { color: var(--muted); display: grid; font-size: 11px; font-weight: 800; gap: 5px; text-transform: uppercase; }
 .admin-campaign-fields textarea { min-height: 96px; resize: vertical; text-transform: none; }
 .admin-campaign-wide { grid-column: 1 / -1; }
+.admin-campaign-center-preview { background: #eef6f5; border-left: 4px solid var(--gulf); color: var(--muted); display: grid; font-size: 11px; gap: 3px; line-height: 1.45; padding: 9px 11px; }
+.admin-campaign-center-preview strong { color: var(--deep); font-size: 12px; }
+.admin-campaign-center-preview[data-state="incomplete"] { background: var(--foam); border-left-color: var(--sun); }
+.admin-campaign-center-preview[data-state="unbounded"] { background: var(--foam); border-left-color: var(--line); }
 .admin-campaign-form > .button { justify-self: start; }
 .admin-campaign-list { max-height: 660px; }
 .admin-outreach-targeting-map { background: var(--white); border: 1px solid var(--line); border-left: 5px solid var(--gulf); border-radius: 8px; display: grid; gap: 14px; margin: 14px 0; padding: 16px; }

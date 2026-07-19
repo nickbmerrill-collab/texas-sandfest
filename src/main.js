@@ -259,6 +259,12 @@ const sponsorContactNotice = partnerContactNotice("sponsor");
 const vendorInterestContactNotice = partnerContactNotice("vendor", "interest");
 const taskBoardFilters = { status: "active", assignment: "all", query: "" };
 let incidentBoardFilter = "active";
+const SANDFEST_OUTREACH_CENTER = Object.freeze({
+  id: "sandfest",
+  label: "Texas SandFest, Port Aransas",
+  latitude: 27.8339,
+  longitude: -97.0611
+});
 
 const defaultEventGuide = {
   id: "texas-sandfest-2027",
@@ -1654,9 +1660,11 @@ app.innerHTML = `
               <label><span>Cities</span><input name="cities" maxlength="500" placeholder="Port Aransas, Corpus Christi" /></label>
               <label><span>States</span><input name="states" maxlength="100" value="TX" /></label>
               <label><span>ZIP codes</span><input name="postalCodes" maxlength="300" placeholder="78373, 78418" /></label>
+              <label class="admin-campaign-wide"><span>Center point</span><select name="centerSource"><option value="none">Business filters only (no radius)</option><option value="sandfest">Texas SandFest, Port Aransas</option><option value="custom">Custom coordinates</option></select></label>
               <label><span>Center latitude</span><input name="centerLatitude" type="number" min="-90" max="90" step="any" placeholder="27.8339" /></label>
               <label><span>Center longitude</span><input name="centerLongitude" type="number" min="-180" max="180" step="any" placeholder="-97.0611" /></label>
               <label><span>Radius miles</span><input name="radiusMiles" type="number" min="0.1" max="500" step="0.1" placeholder="25" /></label>
+              <output id="admin-campaign-center-preview" class="admin-campaign-center-preview admin-campaign-wide" aria-live="polite"><strong>Business filters only</strong><span>Add a center and radius when this campaign should be geographically bounded.</span></output>
               <label><span>Minimum fit</span><input name="minFitScore" type="number" min="0" max="100" value="60" /></label>
               <label><span>Delivery</span><select name="deliveryMode"><option value="review_first">Review every message</option><option value="approved_sequence">Automate approved sequence</option></select></label>
               <label><span>Daily send limit</span><input name="dailySendLimit" type="number" min="1" max="100" value="25" /></label>
@@ -7017,6 +7025,88 @@ function outreachMapPosition(prospect, geofence) {
   return { latitude, longitude, distanceMiles, northMiles, eastMiles };
 }
 
+function campaignCenterChoices(outreach) {
+  const locatedProspects = (outreach?.prospects || []).filter(prospect => (
+    validOutreachCoordinate(prospect.latitude, -90, 90) !== null
+    && validOutreachCoordinate(prospect.longitude, -180, 180) !== null
+  )).sort((left, right) => left.organizationName.localeCompare(right.organizationName));
+  return [
+    { id: "none", label: "Business filters only (no radius)", latitude: null, longitude: null },
+    SANDFEST_OUTREACH_CENTER,
+    ...locatedProspects.map(prospect => ({
+      id: `prospect:${prospect.id}`,
+      label: `${prospect.organizationName}${prospect.city ? `, ${prospect.city}` : ""}`,
+      latitude: Number(prospect.latitude),
+      longitude: Number(prospect.longitude)
+    })),
+    { id: "custom", label: "Custom coordinates", latitude: null, longitude: null }
+  ];
+}
+
+function renderCampaignCenterPreview(form, outreach) {
+  const preview = form?.querySelector("#admin-campaign-center-preview");
+  if (!form || !preview) return;
+  const latitude = validOutreachCoordinate(form.elements.centerLatitude.value, -90, 90);
+  const longitude = validOutreachCoordinate(form.elements.centerLongitude.value, -180, 180);
+  const radiusMiles = Number(form.elements.radiusMiles.value);
+  const sourceLabel = form.elements.centerSource.selectedOptions[0]?.textContent?.trim() || "Custom coordinates";
+  if (form.elements.centerSource.value === "none" && latitude === null && longitude === null && !form.elements.radiusMiles.value) {
+    preview.dataset.state = "unbounded";
+    preview.innerHTML = "<strong>Business filters only</strong><span>This campaign will use industry, city, state, ZIP, fit, qualification, contact basis, and suppression without a radius.</span>";
+    return;
+  }
+  if (latitude === null || longitude === null || !Number.isFinite(radiusMiles) || radiusMiles <= 0) {
+    preview.dataset.state = "incomplete";
+    preview.innerHTML = `<strong>${escapeHtml(sourceLabel)}</strong><span>Complete the center latitude, longitude, and radius to preview geographic coverage.</span>`;
+    return;
+  }
+  const geofence = { latitude, longitude, radiusMiles };
+  const located = (outreach?.prospects || []).map(prospect => outreachMapPosition(prospect, geofence)).filter(Boolean);
+  const insideCount = located.filter(position => position.distanceMiles <= radiusMiles).length;
+  preview.dataset.state = "ready";
+  preview.innerHTML = `<strong>${escapeHtml(sourceLabel)}</strong><span>Coverage includes ${insideCount} of ${located.length} located business${located.length === 1 ? "" : "es"} inside a ${radiusMiles}-mile radius. Server qualification applies every other campaign filter.</span>`;
+}
+
+function renderCampaignCenterChoices(outreach) {
+  const form = document.querySelector("#admin-create-campaign");
+  const select = form?.elements.centerSource;
+  if (!form || !select) return;
+  const choices = campaignCenterChoices(outreach);
+  const existingValue = select.value || "none";
+  const hasCoordinateInput = [form.elements.centerLatitude.value, form.elements.centerLongitude.value, form.elements.radiusMiles.value]
+    .some(value => String(value || "").trim());
+  select.innerHTML = choices.map(choice => `<option value="${escapeAttr(choice.id)}">${escapeHtml(choice.label)}</option>`).join("");
+  select.value = existingValue === "none" && hasCoordinateInput
+    ? "custom"
+    : choices.some(choice => choice.id === existingValue)
+      ? existingValue
+      : hasCoordinateInput ? "custom" : "none";
+
+  const applyChoice = () => {
+    const choice = choices.find(item => item.id === select.value);
+    if (choice?.id === "none") {
+      form.elements.centerLatitude.value = "";
+      form.elements.centerLongitude.value = "";
+      form.elements.radiusMiles.value = "";
+    } else if (choice && choice.id !== "custom") {
+      form.elements.centerLatitude.value = String(choice.latitude);
+      form.elements.centerLongitude.value = String(choice.longitude);
+      if (!form.elements.radiusMiles.value) form.elements.radiusMiles.value = "25";
+    }
+    renderCampaignCenterPreview(form, outreach);
+  };
+  select.onchange = applyChoice;
+  [form.elements.centerLatitude, form.elements.centerLongitude].forEach(input => {
+    input.oninput = () => {
+      if (select.value !== "custom") select.value = "custom";
+      renderCampaignCenterPreview(form, outreach);
+    };
+  });
+  form.elements.radiusMiles.oninput = () => renderCampaignCenterPreview(form, outreach);
+  if (select.value !== "none" && select.value !== "custom") applyChoice();
+  else renderCampaignCenterPreview(form, outreach);
+}
+
 function renderAdminOutreachCoverage(outreach) {
   const root = document.querySelector("#admin-outreach-targeting-map");
   if (!root) return;
@@ -7128,6 +7218,7 @@ function renderAdminPartners(payload, outreach) {
   const campaigns = document.querySelector("#admin-outreach-campaigns");
   const automationForm = document.querySelector("#admin-partner-automation");
   if (!kpis || !summary) return;
+  renderCampaignCenterChoices(outreach);
   renderAdminOutreachCoverage(outreach);
   kpis.innerHTML = [
     revenueKpiCard("Applications", `${summary.applications.total}`, `${summary.applications.vendors} vendors · ${summary.applications.sponsors} sponsors`),
