@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 
-import { boardDemoCheckEndpoints, evaluateBoardDemoReadiness } from "../lib/board-demo-readiness.mjs";
+import {
+  boardDemoCheckEndpoints,
+  boardDemoPresentationLinks,
+  evaluateBoardDemoReadiness
+} from "../lib/board-demo-readiness.mjs";
 import {
   BOARD_DEMO_SESSION_SCHEMA_VERSION,
   assessBoardDemoSourceRevision,
@@ -26,6 +30,7 @@ try {
   process.exit(1);
 }
 const { webUrl, webOrigin, apiBase, emailBase, smsBase } = endpoints;
+const links = boardDemoPresentationLinks(checkEnvironment);
 const adminToken = checkEnvironment.SANDFEST_BOARD_ADMIN_TOKEN || "board-demo-local-admin-token-change-me";
 const configuredTimeoutMs = Number(checkEnvironment.SANDFEST_BOARD_CHECK_TIMEOUT_MS || 5000);
 const timeoutMs = Number.isFinite(configuredTimeoutMs) ? Math.max(1000, configuredTimeoutMs) : 5000;
@@ -117,11 +122,13 @@ const readiness = evaluateBoardDemoReadiness({
   });
 const checks = [await sourceRevisionCheck(), ...readiness.checks];
 const passed = checks.filter(item => item.ok).length;
+const ok = passed === checks.length;
 const report = {
   checkedAt: new Date().toISOString(),
-  ok: passed === checks.length,
+  ok,
   passed,
   total: checks.length,
+  links: ok ? links : { visitor: null, operations: null },
   checks
 };
 
@@ -132,6 +139,10 @@ if (jsonOutput) {
   for (const item of report.checks) {
     console.log(`${item.ok ? "[PASS]" : "[FAIL]"} ${item.label}: ${item.detail}`);
     if (!item.ok && item.action) console.log(`       ${item.action}`);
+  }
+  if (report.ok) {
+    console.log(`Visitor:    ${report.links.visitor}`);
+    console.log(`Operations: ${report.links.operations}`);
   }
 }
 
