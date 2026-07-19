@@ -4838,6 +4838,17 @@ body.mode-ops header nav a[data-audience="public"] {
 .partner-tier strong { color: var(--deep); font-size: 18px; }
 .partner-tier span { color: var(--coral); font-size: 20px; font-weight: 900; }
 .partner-tier p { color: var(--muted); font-size: 13px; line-height: 1.45; margin: 0; }
+.partner-tier small {
+  align-self: end;
+  border-top: 1px solid var(--line);
+  color: var(--gulf);
+  font-size: 11px;
+  font-weight: 900;
+  margin-top: 3px;
+  padding-top: 9px;
+  text-transform: uppercase;
+}
+.partner-tier.is-selected small { color: var(--deep); }
 .partner-program-note {
   align-items: center;
   color: var(--muted);
