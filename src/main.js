@@ -5039,7 +5039,8 @@ function bindSponsorTierButtons() {
     if (form && !form.elements.packageId.disabled) {
       form.elements.packageId.value = button.dataset.packageId;
       renderSponsorPackageSummary();
-      form.scrollIntoView({ behavior: "smooth", block: "start" });
+      if (window.location.hash !== "#sponsor-inquiry-form") window.location.hash = "sponsor-inquiry-form";
+      else form.scrollIntoView({ behavior: "smooth", block: "start" });
       form.elements.packageId.focus({ preventScroll: true });
     }
   }));
