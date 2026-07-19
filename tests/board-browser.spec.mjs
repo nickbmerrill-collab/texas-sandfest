@@ -539,6 +539,9 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await expect(partnerKpis.locator("article").filter({ hasText: "Received" })).toContainText("0 accounts paid in full");
   await expect(partnerKpis.locator("article").filter({ hasText: "QuickBooks" })).toContainText("Post-board");
   await expect(partnerKpis.locator("article").filter({ hasText: "Online invoices" })).toContainText("Post-board");
+  const messagingKpi = partnerKpis.locator("article").filter({ hasText: "Messaging" });
+  await expect(messagingKpi).toContainText("Review first");
+  await expect(messagingKpi).toContainText(/\d+ drafts? awaiting staff review/);
   const commandSignals = page.locator("#admin-command-signals");
   await expect(commandSignals).toHaveAttribute("aria-busy", "false");
   await expect(commandSignals.locator("[data-command-signal]")).toHaveCount(8);
@@ -546,6 +549,7 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await expect(commandSignals.locator('[data-command-signal="applications"]')).toContainText(/\d+ vendors/);
   await expect(commandSignals.locator('[data-command-signal="receivables"]')).toContainText("received of");
   await expect(commandSignals.locator('[data-command-signal="messages"]')).toContainText("Provider ready");
+  await expect(commandSignals.locator('[data-command-signal="messages"]')).toContainText("staff review required");
   await expect(commandSignals.locator('[data-command-signal="assignments"]')).toContainText("staff / volunteer / team");
   await expect(commandSignals.locator('[data-command-signal="key-dates"]')).toContainText("upcoming");
   await expect(commandSignals.locator('[data-command-signal="key-dates"]')).toContainText(/[1-9]\d* due soon/);
@@ -1212,6 +1216,8 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   await automationForm.locator('button[type="submit"]').click();
   expect((await automationResponse).status()).toBe(200);
   await expect(page.locator("#admin-api-status")).toContainText("Transactional partner automation is active.");
+  await expect(messagingKpi).toContainText("Automatic");
+  await expect(commandSignals.locator('[data-command-signal="messages"]')).toContainText("automatic follow-up");
 
   const sponsorRecipient = `riley.${runId}@example.com`;
   const sponsorAcknowledgmentSubject = `Texas SandFest sponsorship application ${sponsorResult.application.reference}`;
