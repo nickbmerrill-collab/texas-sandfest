@@ -6967,6 +6967,10 @@ function renderAdminPartnerActivity(payload, outreach) {
 function renderAdminPartners(payload, outreach) {
   adminPartnerState = { payload, outreach };
   const summary = payload.summary;
+  const activePaymentCount = (payload.payments || [])
+    .filter(item => ["succeeded", "partially_refunded"].includes(item.status)).length;
+  const paidInFullCount = Number(summary?.applications?.paid || 0);
+  const boardProvidersDeferred = BOARD_DEMO_ACCESS.enabled;
   const kpis = document.querySelector("#admin-partner-kpis");
   const applications = document.querySelector("#admin-partner-applications");
   const followups = document.querySelector("#admin-partner-followups");
@@ -6977,9 +6981,25 @@ function renderAdminPartners(payload, outreach) {
   kpis.innerHTML = [
     revenueKpiCard("Applications", `${summary.applications.total}`, `${summary.applications.vendors} vendors · ${summary.applications.sponsors} sponsors`),
     revenueKpiCard("Expected", adminMoney(summary.finance.amountExpectedCents, "$0.00"), `${adminMoney(summary.finance.balanceCents, "$0.00")} open`),
-    revenueKpiCard("Paid", adminMoney(summary.finance.amountPaidCents, "$0.00"), `${summary.applications.paid} paid records`),
-    revenueKpiCard("QuickBooks", payload.quickbooks?.canSyncPartnerInvoices ? "Ready" : "Not connected", `${summary.finance.invoicesSynced || 0} synced · ${summary.finance.invoicesPendingSync || 0} pending`),
-    revenueKpiCard("Online invoices", payload.stripePartnerPayments?.ready ? "Ready" : "Off", `${(payload.paymentCheckouts || []).filter(item => item.status === "open").length} open checkout${(payload.paymentCheckouts || []).filter(item => item.status === "open").length === 1 ? "" : "s"}`),
+    revenueKpiCard(
+      "Received",
+      adminMoney(summary.finance.amountPaidCents, "$0.00"),
+      `${activePaymentCount} active payment${activePaymentCount === 1 ? "" : "s"} · ${paidInFullCount} account${paidInFullCount === 1 ? "" : "s"} paid in full`
+    ),
+    revenueKpiCard(
+      "QuickBooks",
+      boardProvidersDeferred ? "Post-board" : payload.quickbooks?.canSyncPartnerInvoices ? "Ready" : "Not connected",
+      boardProvidersDeferred
+        ? `${summary.finance.invoicesPendingSync || 0} local invoice${summary.finance.invoicesPendingSync === 1 ? "" : "s"} awaiting connection`
+        : `${summary.finance.invoicesSynced || 0} synced · ${summary.finance.invoicesPendingSync || 0} pending`
+    ),
+    revenueKpiCard(
+      "Online invoices",
+      boardProvidersDeferred ? "Post-board" : payload.stripePartnerPayments?.ready ? "Ready" : "Off",
+      boardProvidersDeferred
+        ? "Site-native receivables active"
+        : `${(payload.paymentCheckouts || []).filter(item => item.status === "open").length} open checkout${(payload.paymentCheckouts || []).filter(item => item.status === "open").length === 1 ? "" : "s"}`
+    ),
     revenueKpiCard("Work board", `${summary.operations.openTasks}`, `${summary.operations.overdueTasks} overdue · ${summary.operations.blockedTasks || 0} blocked`),
     revenueKpiCard("Staff routing", payload.staffDirectory?.ready ? "Ready" : "Needs review", `${payload.staffDirectory?.activeStaff || 0} active · ${payload.staffDirectory?.routedTeams || 0}/${payload.staffDirectory?.totalTeams || 0} teams`),
     revenueKpiCard("Vendor readiness", `${payload.vendorReadiness?.totals?.ready || 0}/${payload.vendorReadiness?.totals?.vendors || 0} ready`, `${payload.vendorReadiness?.totals?.requirementsMissing || 0} missing · ${payload.vendorReadiness?.totals?.requirementsAwaitingReview || 0} pending`),
@@ -7497,7 +7517,10 @@ function renderAdminPartners(payload, outreach) {
 
 async function loadAdminPartners({ quiet = false } = {}) {
   const button = document.querySelector("#admin-load-partners");
-  if (button) button.disabled = true;
+  if (button) {
+    button.disabled = true;
+    button.textContent = adminPartnerState?.payload ? "Refreshing partner workspace..." : "Loading partner workspace...";
+  }
   try {
     const [partners, outreach] = await Promise.all([
       adminFetch("/api/admin/partners"),
@@ -7510,7 +7533,10 @@ async function loadAdminPartners({ quiet = false } = {}) {
     if (!quiet) setAdminStatus(error.message, "error");
     throw error;
   } finally {
-    if (button) button.disabled = false;
+    if (button) {
+      button.disabled = false;
+      button.textContent = adminPartnerState?.payload ? "Refresh partner workspace" : "Load partner workspace";
+    }
   }
 }
 
@@ -7827,7 +7853,10 @@ function renderAdminConditions(payload) {
 
 async function loadAdminConditions({ quiet = false } = {}) {
   const button = document.querySelector("#admin-load-conditions");
-  if (button) button.disabled = true;
+  if (button) {
+    button.disabled = true;
+    button.textContent = adminConditionsState ? "Refreshing island operations..." : "Loading island operations...";
+  }
   try {
     const data = await adminFetch("/api/admin/island-conditions");
     if (!adminSessionState) await loadAdminSession();
@@ -7838,7 +7867,10 @@ async function loadAdminConditions({ quiet = false } = {}) {
     if (!quiet) setAdminStatus(error.message, "error");
     throw error;
   } finally {
-    if (button) button.disabled = false;
+    if (button) {
+      button.disabled = false;
+      button.textContent = adminConditionsState ? "Refresh island operations" : "Load island operations";
+    }
   }
 }
 
