@@ -1826,7 +1826,13 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
   check("Postgres final expired attempt is terminal", terminalLease[0]?.id === terminalJob.id && terminalRetry.length === 0 && queueHealth.failed === 1 && queueHealth.unhandledFailed === 1 && queueHealth.staleRunning === 0 && !queueHealth.operational && queueHealth.needsAttention);
   const terminalHandled = await markTerminalJobHandled(ROOT, terminalJob.id, { now: terminalClaimAt + leaseMs + 2 });
   const handledQueueHealth = await getQueueHealth(ROOT, { now: terminalClaimAt + leaseMs + 2, leaseMs });
-  check("Postgres handled failure clears queue incident", terminalHandled.ok && handledQueueHealth.failed === 1 && handledQueueHealth.unhandledFailed === 0 && handledQueueHealth.operational && !handledQueueHealth.needsAttention);
+  check("Postgres handled failure clears queue incident", terminalHandled.ok
+    && terminalHandled.job?.failureHandledAt === terminalHandled.handledAt
+    && !("leaseToken" in terminalHandled.job)
+    && handledQueueHealth.failed === 1
+    && handledQueueHealth.unhandledFailed === 0
+    && handledQueueHealth.operational
+    && !handledQueueHealth.needsAttention);
 
   const terminalAcknowledgment = partnerDocAfterDelivery?.followups?.find(item => item.kind === "application_received" && item.id !== sponsorAcknowledgment.id);
   await updatePlatformDoc(ROOT, "partnerOps", current => ({

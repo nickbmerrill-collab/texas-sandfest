@@ -78,6 +78,7 @@ import {
 import { applyStamp, DEFAULT_HUNT_ID, normalizeHunt, parsePassportPayload, summarizePassport } from "../lib/passport.mjs";
 import { applyVote, tallyVotes, summarizeVoting, normalizeTicketRef, publicVotingPublication } from "../lib/voting.mjs";
 import { claimNextJobs, completeJob, enqueueJob, getQueueHealth, listJobs, markTerminalJobHandled } from "../lib/job-queue.mjs";
+import { adminJobView, jobResolutionNote, validAdminJobId } from "../lib/job-operations.mjs";
 import { publicBoothPins, summarizeBooths } from "../lib/booths.mjs";
 import {
   EVENTENY_BOOTH_IMPORT_MAX_ROWS,
@@ -2058,7 +2059,33 @@ staff_production,${importEventId},Jordan Davis,jordan.davis@staff.example,active
 
 // Job queue (file mode)
 {
+  const projectedFailure = adminJobView({
+    id: "job_projection-probe",
+    type: "partner.followup.send",
+    status: "failed",
+    attempts: 5,
+    maxAttempts: 5,
+    payload: { recipient: "private.person@example.com", accessToken: "secret-token" },
+    lastError: "Provider rejected private.person@example.com with secret-token",
+    createdAt: "2026-07-18T12:00:00.000Z",
+    updatedAt: "2026-07-18T12:05:00.000Z"
+  });
+  const projectedJson = JSON.stringify(projectedFailure);
+  ok("admin job projection is actionable and privacy minimized", projectedFailure.label === "Partner message delivery"
+    && projectedFailure.workspaceHref === "#admin-partner-followups-workspace"
+    && projectedFailure.requiresAcknowledgement
+    && !projectedJson.includes("private.person@example.com")
+    && !projectedJson.includes("secret-token")
+    && !projectedJson.includes("payload")
+    && !projectedJson.includes("lastError"));
+  ok("job acknowledgment validates notes and opaque references", !jobResolutionNote("too short").ok
+    && jobResolutionNote("Retried in the partner workflow.").ok
+    && validAdminJobId("job_01234567-89ab-cdef")
+    && !validAdminJobId("../../private/job_secret"));
+
   const dir = await mkdtemp(path.join(tmpdir(), "sandfest-jobs-"));
+  const invalidHandled = await markTerminalJobHandled(dir, "../../private/job_secret");
+  ok("queue acknowledgment refuses path-shaped job references", !invalidHandled.ok && invalidHandled.reason === "invalid_job_id");
   const leaseMs = 10_000;
   const job = await enqueueJob(dir, { type: "quickbooks.sync_stub", payload: { orderId: "order_x" }, maxAttempts: 3 });
   ok("enqueue job", job.id.startsWith("job_"));
@@ -2102,7 +2129,9 @@ staff_production,${importEventId},Jordan Davis,jordan.davis@staff.example,active
   const terminalClaim = await claimNextJobs(dir, { limit: 5, types: ["terminal.crash"], workerId: "suite-worker-a", leaseMs, now: terminalClaimAt });
   const terminalRetry = await claimNextJobs(dir, { limit: 5, types: ["terminal.crash"], workerId: "suite-worker-b", leaseMs, now: terminalClaimAt + leaseMs + 1 });
   const terminalHealth = await getQueueHealth(dir, { now: terminalClaimAt + leaseMs + 1, leaseMs });
+  const newestTerminalJob = await listJobs(dir, { limit: 1, leaseMs });
   ok("expired final attempt becomes terminal", terminalClaim[0]?.id === terminal.id && terminalRetry.length === 0 && terminalHealth.failed === 1 && terminalHealth.unhandledFailed === 1 && !terminalHealth.operational && terminalHealth.needsAttention);
+  ok("file queue lists the newest terminal failure first", newestTerminalJob[0]?.id === terminal.id && newestTerminalJob[0]?.status === "failed");
   const handled = await markTerminalJobHandled(dir, terminal.id, { now: terminalClaimAt + leaseMs + 2 });
   const handledHealth = await getQueueHealth(dir, { now: terminalClaimAt + leaseMs + 2, leaseMs });
   ok("terminal workflow reconciliation is recorded", handled.ok === true && handledHealth.failed === 1 && handledHealth.unhandledFailed === 0 && handledHealth.operational && !handledHealth.needsAttention);
@@ -5071,6 +5100,92 @@ try {
   ok("deployment exposes configured outreach discovery gate", deployment.data.deployment?.checks?.outreachDiscovery?.ok === true && deployment.data.deployment?.checks?.outreachDiscovery?.message.includes("fixture"));
   ok("deployment exposes sponsor package integrity gate", deployment.data.deployment?.checks?.sponsorPackages?.ok === true && deployment.data.deployment?.checks?.sponsorPackages?.message.includes("active sponsor packages"));
   ok("admin queue health summary", queueStatus.status === 200 && queueStatus.data.summary?.operational === true && Array.isArray(queueStatus.data.jobs));
+  if (child) {
+    const previousQueueDir = process.env.SANDFEST_JOB_QUEUE_DIR;
+    process.env.SANDFEST_JOB_QUEUE_DIR = isolatedJobQueueDir;
+    try {
+      const privateQueueRecipient = "queue.private@example.com";
+      const terminalApiJob = await enqueueJob(isolatedRuntimeRoot, {
+        type: "queue.terminal.api_probe",
+        payload: { followupId: "followup_queue_probe", recipient: privateQueueRecipient },
+        maxAttempts: 1
+      });
+      const [terminalApiClaim] = await claimNextJobs(isolatedRuntimeRoot, {
+        limit: 1,
+        types: ["queue.terminal.api_probe"],
+        workerId: "platform-api-terminal-probe"
+      });
+      await completeJob(isolatedRuntimeRoot, terminalApiClaim, { error: `Provider rejected ${privateQueueRecipient}` });
+      const failedQueueStatus = await hit("GET", "/api/admin/jobs?limit=50", null, true);
+      const failedQueueJob = failedQueueStatus.data.jobs?.find(item => item.id === terminalApiJob.id);
+      const failedQueueJson = JSON.stringify(failedQueueStatus.data.jobs || []);
+      const unauthenticatedQueueAcknowledgement = await hit("POST", `/api/admin/jobs/${terminalApiJob.id}/acknowledge`, {
+        resolutionNote: "Reviewed in the partner workflow."
+      });
+      const invalidQueueAcknowledgement = await hit("POST", "/api/admin/jobs/%2E%2E%2Fprivate%2Fjob_secret/acknowledge", {
+        resolutionNote: "Reviewed in the partner workflow."
+      }, true);
+      const malformedQueueAcknowledgement = await hit("POST", "/api/admin/jobs/job_%ZZ/acknowledge", {
+        resolutionNote: "Reviewed in the partner workflow."
+      }, true);
+      const shortQueueAcknowledgement = await hit("POST", `/api/admin/jobs/${terminalApiJob.id}/acknowledge`, {
+        resolutionNote: "Reviewed"
+      }, true);
+      const queueAcknowledgement = await hit("POST", `/api/admin/jobs/${terminalApiJob.id}/acknowledge`, {
+        resolutionNote: "Retried from the owning partner message workflow."
+      }, true);
+      const duplicateQueueAcknowledgement = await hit("POST", `/api/admin/jobs/${terminalApiJob.id}/acknowledge`, {
+        resolutionNote: "Duplicate acknowledgement should not be accepted."
+      }, true);
+      const acknowledgedQueueStatus = await hit("GET", "/api/admin/jobs?limit=50", null, true);
+      const acknowledgedQueueJob = acknowledgedQueueStatus.data.jobs?.find(item => item.id === terminalApiJob.id);
+      const acknowledgementAudit = await hit("GET", "/api/admin/audit?limit=50", null, true);
+      const acknowledgementAuditRecord = acknowledgementAudit.data.audit?.find(item => item.record?.action === "automation.job.acknowledge")?.record;
+      const projectedQueueSafe = failedQueueStatus.status === 200
+        && failedQueueStatus.data.summary?.unhandledFailed === 1
+        && failedQueueJob?.label === "Background automation"
+        && failedQueueJob?.requiresAcknowledgement === true
+        && !failedQueueJson.includes(privateQueueRecipient)
+        && !failedQueueJson.includes("payload")
+        && !failedQueueJson.includes("lastError")
+        && !failedQueueJson.includes("lockedBy");
+      ok("admin job API withholds payloads and raw provider errors", projectedQueueSafe, projectedQueueSafe ? "" : JSON.stringify({
+        status: failedQueueStatus.status,
+        summary: failedQueueStatus.data.summary,
+        failedQueueJob,
+        error: failedQueueStatus.data.error
+      }));
+      const acknowledgementProtected = unauthenticatedQueueAcknowledgement.status === 401
+        && invalidQueueAcknowledgement.status === 400
+        && malformedQueueAcknowledgement.status === 400
+        && shortQueueAcknowledgement.status === 400
+        && queueAcknowledgement.status === 200
+        && queueAcknowledgement.data.summary?.unhandledFailed === 0
+        && duplicateQueueAcknowledgement.status === 409;
+      ok("automation failure acknowledgment is protected, validated, and conflict safe", acknowledgementProtected, acknowledgementProtected ? "" : JSON.stringify({
+        unauthenticated: unauthenticatedQueueAcknowledgement,
+        invalid: invalidQueueAcknowledgement,
+        malformed: malformedQueueAcknowledgement,
+        short: shortQueueAcknowledgement,
+        acknowledged: queueAcknowledgement,
+        duplicate: duplicateQueueAcknowledgement
+      }));
+      const acknowledgementRecorded = acknowledgedQueueStatus.data.summary?.operational === true
+        && acknowledgedQueueJob?.requiresAcknowledgement === false
+        && Boolean(acknowledgedQueueJob?.failureHandledAt)
+        && acknowledgementAuditRecord?.target?.id === terminalApiJob.id
+        && acknowledgementAuditRecord?.metadata?.resolutionNote === "Retried from the owning partner message workflow."
+        && !JSON.stringify(acknowledgementAuditRecord).includes(privateQueueRecipient);
+      ok("automation acknowledgment clears the queue incident and writes a safe audit record", acknowledgementRecorded, acknowledgementRecorded ? "" : JSON.stringify({
+        status: acknowledgedQueueStatus.data.summary,
+        acknowledgedQueueJob,
+        acknowledgementAuditRecord
+      }));
+    } finally {
+      if (previousQueueDir === undefined) delete process.env.SANDFEST_JOB_QUEUE_DIR;
+      else process.env.SANDFEST_JOB_QUEUE_DIR = previousQueueDir;
+    }
+  }
   ok("deployment exposes current event guide gate", health.data.eventGuideReady === true && deployment.data.deployment?.checks?.eventGuide?.ok === true);
   ok("deployment identifies operational documents awaiting 2027 rollover", health.data.currentEventId === DEFAULT_EVENT_ID && health.data.currentEventReady === false && deployment.data.deployment?.checks?.currentEvent?.severity === "warning" && deployment.data.deployment?.checks?.currentEvent?.message.includes("fleet=texas-sandfest-2026"));
 

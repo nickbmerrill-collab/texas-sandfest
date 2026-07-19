@@ -412,6 +412,10 @@ if (visitorUrl && operationsUrl) {
         partnerActivityCategories: [...new Set([...document.querySelectorAll("#admin-partner-activity [data-category]")].map(item => item.dataset.category))],
         partnerActivityText: document.querySelector("#admin-partner-activity")?.textContent?.trim(),
         auditEntries: document.querySelectorAll("#admin-audit-list [data-audit-action]").length,
+        automationJobs: document.querySelectorAll("#admin-job-list [data-admin-job]").length,
+        completedAutomationJobs: document.querySelectorAll('#admin-job-list [data-job-status="done"]').length,
+        automationSummary: document.querySelector("#admin-job-summary")?.textContent?.trim(),
+        automationText: document.querySelector("#admin-job-list")?.textContent?.trim(),
         transactionRecordPathBlocks: document.querySelectorAll("#admin-system-monitor .admin-record-card code").length,
         transactionMonitorLeaksStoragePath: /data\/processed|db:\/\/|admin-audit\//.test(document.querySelector("#admin-system-monitor")?.textContent || ""),
         resetReady: document.querySelector("#admin-reset-board-demo")?.hidden === false,
@@ -471,12 +475,17 @@ if (visitorUrl && operationsUrl) {
         || !/partner messages? prepared/i.test(item.partnerActivityText || "")
         || /activity_|demo_[sv]app|followup_/.test(item.partnerActivityText || "")
         || item?.auditEntries < 1
+        || item?.automationJobs < 1
+        || item?.completedAutomationJobs !== item?.automationJobs
+        || !item?.automationSummary?.includes("0 need review")
+        || !item?.automationText?.includes("Partner message delivery")
+        || /job_|followup_|@/.test(item?.automationText || "")
         || item?.transactionRecordPathBlocks !== 0
         || item?.transactionMonitorLeaksStoragePath !== false
       ) {
         throw new Error("One or more board workflow queues did not render their prepared records.");
       }
-      return `${item.partnerApplications} applications and ${item.partnerActivity} grouped updates render every operating category without internal record IDs; Systems shows ${item.auditEntries} readable audit entries without storage paths.`;
+      return `${item.partnerApplications} applications and ${item.partnerActivity} grouped updates render every operating category without internal record IDs; Systems shows ${item.automationJobs} completed automation records and ${item.auditEntries} readable audit entries without private payloads or storage paths.`;
     });
     await inspect("finance_dates", "Payment and key-date tracking", "Inspect receivables, payment totals, and partner milestone controls.", async () => {
       const item = observations.operations;
