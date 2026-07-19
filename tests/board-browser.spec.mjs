@@ -1116,9 +1116,24 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   await campaignForm.locator('[name="industries"]').fill(prospectIndustry);
   await campaignForm.locator('[name="cities"]').fill("Port Aransas");
   await campaignForm.locator('[name="postalCodes"]').fill("78373");
-  await campaignForm.locator('[name="centerLatitude"]').fill("27.8339");
-  await campaignForm.locator('[name="centerLongitude"]').fill("-97.0611");
+  const centerSource = campaignForm.locator('[name="centerSource"]');
+  const centerLatitude = campaignForm.locator('[name="centerLatitude"]');
+  const centerLongitude = campaignForm.locator('[name="centerLongitude"]');
+  const centerPreview = campaignForm.locator("#admin-campaign-center-preview");
+  await expect(centerSource.locator("option").filter({ hasText: prospectName })).toHaveCount(1);
+  await centerSource.selectOption("sandfest");
+  await expect(centerLatitude).toHaveValue("27.8339");
+  await expect(centerLongitude).toHaveValue("-97.0611");
+  await centerLatitude.fill("27.834");
+  await expect(centerSource).toHaveValue("custom");
+  await centerSource.selectOption(`prospect:${createdProspect.id}`);
+  await expect(centerLatitude).toHaveValue("27.8339");
+  await expect(centerLongitude).toHaveValue("-97.0611");
   await campaignForm.locator('[name="radiusMiles"]').fill("5");
+  await expect(centerPreview).toHaveAttribute("data-state", "ready");
+  await expect(centerPreview).toContainText(prospectName);
+  await expect(centerPreview).toContainText("inside a 5-mile radius");
+  await expect(centerPreview).toContainText("Server qualification applies every other campaign filter");
   await campaignForm.locator('[name="minFitScore"]').fill("0");
   await campaignForm.locator('[name="deliveryMode"]').selectOption("approved_sequence");
   await campaignForm.locator('[name="dailySendLimit"]').fill("3");
@@ -1127,6 +1142,9 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   const createdCampaignResponse = await campaignResponse;
   expect(createdCampaignResponse.status()).toBe(201);
   const createdCampaign = (await createdCampaignResponse.json()).campaign;
+  await expect(centerSource).toHaveValue(`prospect:${createdProspect.id}`);
+  await expect(centerLatitude).toHaveValue("27.8339");
+  await expect(centerLongitude).toHaveValue("-97.0611");
   const campaignCard = page.locator(`[data-outreach-campaign="${createdCampaign.id}"]`);
   await expect(campaignCard).toContainText(campaignName);
   await expect(campaignCard).toContainText("1 matched");
@@ -1434,6 +1452,8 @@ test("critical public and operations views fit a mobile viewport", async ({ page
   await expect(page.locator("#admin-quickbooks-status")).toContainText("deferred until post-presentation setup");
   await expect(page.locator("#admin-outreach-targeting-map")).toBeVisible();
   await expect(page.locator("#admin-outreach-targeting-map .admin-outreach-map-summary")).toBeVisible();
+  await expect(page.locator('#admin-create-campaign [name="centerSource"]')).toBeVisible();
+  await expect(page.locator("#admin-campaign-center-preview")).toBeVisible();
   const workspaceNav = page.locator(".admin-workspace-nav");
   const workspaceLinks = workspaceNav.locator("a");
   await expect(workspaceLinks).toHaveCount(7);
@@ -1558,6 +1578,7 @@ test("WCAG A and AA checks cover public intake, partner status, concierge, and o
     expect(targetBox?.width).toBeGreaterThanOrEqual(28);
     expect(targetBox?.height).toBeGreaterThanOrEqual(28);
   }
+  await expect(page.locator("#admin-campaign-center-preview")).toHaveAttribute("aria-live", "polite");
   await assertNoAccessibilityViolations(page, "Operations workspace");
 
   await page.setViewportSize({ width: 390, height: 844 });
