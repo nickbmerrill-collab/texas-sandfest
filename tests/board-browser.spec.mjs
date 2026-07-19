@@ -474,7 +474,16 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await vendor.locator('[name="consentToContact"]').check();
   const vendorResult = await submitAndCapture(page, vendor, "/api/public/vendor-applications");
   await expect(vendor.locator(".partner-form-status")).toContainText("Application received.");
+  await expect(page).toHaveURL(/#partner-status$/);
   await expect(page.locator("#partner-status-result")).toContainText(vendorName);
+  await expect(page.locator("#partner-status-result")).toBeFocused();
+  await assertTargetClearsTopbar(page, "#partner-status", 12);
+  await expect(page.locator('#partner-status-form [name="reference"]')).toHaveValue(vendorResult.application.reference);
+  await page.reload();
+  await expect(page).toHaveURL(/#partner-status$/);
+  await expect(page.locator("#partner-status-result")).toContainText(vendorName);
+  await expect(page.locator("#partner-status-result")).toBeFocused();
+  await assertTargetClearsTopbar(page, "#partner-status", 12);
   await expect(page.locator('#partner-status-form [name="reference"]')).toHaveValue(vendorResult.application.reference);
   const freshVendorProfile = page.locator("#partner-vendor-profile-form");
   await expect(page.locator(".partner-vendor-center")).toContainText("0 / 5 requirements cleared");

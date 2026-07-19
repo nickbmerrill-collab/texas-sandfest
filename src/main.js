@@ -2075,7 +2075,7 @@ app.innerHTML = `
           <button class="button secondary" type="submit">Email private access link</button>
           <p class="partner-form-status" aria-live="polite"></p>
         </form>
-        <div id="partner-status-result" class="partner-status-result" aria-live="polite">
+        <div id="partner-status-result" class="partner-status-result" aria-live="polite" tabindex="-1">
           <div class="partner-status-empty">
             <strong>Your SandFest partnership, in one place</strong>
             <span>Review progress, payments, invoices, and upcoming dates are shown here after secure access.</span>
@@ -4845,10 +4845,15 @@ async function loadPartnerPortalStatus(access, options = {}) {
     renderPartnerPortalStatus(data.application);
     if (forgetButton) forgetButton.hidden = false;
     setFormStatus(status, `Secure status loaded for ${data.application.reference}.`, "ok");
-    if (options.scroll) document.querySelector("#partner-status")?.scrollIntoView({
-      behavior: options.scrollBehavior === "auto" ? "auto" : "smooth",
-      block: "start"
-    });
+    if (options.scroll) {
+      const section = document.querySelector("#partner-status");
+      if (window.location.hash !== "#partner-status") window.location.hash = "partner-status";
+      else section?.scrollIntoView({
+        behavior: options.scrollBehavior === "auto" ? "auto" : "smooth",
+        block: "start"
+      });
+      result?.focus({ preventScroll: true });
+    }
   } catch (error) {
     if (loadVersion !== partnerPortalLoadVersion) return;
     const accessRejected = shouldForgetPartnerPortalAccess(responseStatus);
