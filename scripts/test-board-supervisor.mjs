@@ -140,6 +140,17 @@ function rememberServicePids(session) {
   }
 }
 
+function startSupervisor(args, env) {
+  const child = spawn(process.execPath, ["scripts/board-demo.mjs", ...args], {
+    cwd: ROOT,
+    env,
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+  child.stdout.on("data", chunk => { output += String(chunk); });
+  child.stderr.on("data", chunk => { output += String(chunk); });
+  return child;
+}
+
 try {
   console.log("\n=== Board demo supervisor ===\n");
   temporary = await mkdtemp(path.join(tmpdir(), "sandfest-board-supervisor-test-"));
@@ -171,21 +182,14 @@ try {
     QB_REALM_ID: "inherited-test-realm",
     QB_REFRESH_TOKEN: "inherited-test-refresh"
   };
-  supervisor = spawn(process.execPath, [
-    "scripts/board-demo.mjs",
+  supervisor = startSupervisor([
     "--runtime", runtimeRoot,
     "--session-file", sessionFile,
     "--web-port", String(webPort),
     "--api-port", String(apiPort),
     "--email-port", String(emailPort),
     "--sms-port", String(smsPort)
-  ], {
-    cwd: ROOT,
-    env: supervisorEnvironment,
-    stdio: ["ignore", "pipe", "pipe"]
-  });
-  supervisor.stdout.on("data", chunk => { output += String(chunk); });
-  supervisor.stderr.on("data", chunk => { output += String(chunk); });
+  ], supervisorEnvironment);
 
   const initial = await waitFor(async () => {
     const session = await readBoardDemoSession(sessionFile);
@@ -359,10 +363,53 @@ try {
   if (supervisor.exitCode !== 0) throw new Error(`Supervisor exited ${supervisor.exitCode}:\n${output.slice(-12_000)}`);
   const finalSession = await readBoardDemoSession(sessionFile);
   if (finalSession?.status !== "stopped") throw new Error(`Final session status is ${finalSession?.status || "missing"}.`);
+  const lingeringAfterFirstStop = [...observedPids].filter(processAlive);
+  if (lingeringAfterFirstStop.length) throw new Error(`Board child processes remained alive after shutdown: ${lingeringAfterFirstStop.join(", ")}`);
+  console.log(`  ok stop command shuts down the supervisor and all ${observedPids.size} observed child processes`);
+
+  const restartPorts = {
+    web: Number(new URL(finalSession.endpoints.webBase).port),
+    api: Number(new URL(finalSession.endpoints.apiBase).port),
+    email: Number(new URL(finalSession.endpoints.emailBase).port),
+    sms: Number(new URL(finalSession.endpoints.smsBase).port)
+  };
+  output = "";
+  supervisor = startSupervisor([
+    "--runtime", runtimeRoot,
+    "--session-file", sessionFile,
+    "--web-port", String(restartPorts.web),
+    "--api-port", String(restartPorts.api),
+    "--email-port", String(restartPorts.email),
+    "--sms-port", String(restartPorts.sms),
+    "--strict-ports"
+  ], supervisorEnvironment);
+  const restarted = await waitFor(async () => {
+    const session = await readBoardDemoSession(sessionFile);
+    if (session?.status !== "ready" || session?.lastPreflight?.passed !== 9) return null;
+    rememberServicePids(session);
+    return session;
+  }, 90_000, "Board supervisor restart");
+  if (restarted.runtimeReused !== true || restarted.runtimeRefreshed !== false) {
+    throw new Error("Normal supervisor restart unexpectedly replaced the compatible board runtime.");
+  }
+  const restartedEmailResponse = await fetch(`${restarted.endpoints.emailBase}/health`);
+  const restartedEmail = await restartedEmailResponse.json();
+  if (!restartedEmailResponse.ok || restartedEmail.acceptedMessages !== 0 || restartedEmail.deliveryCallbacks !== 0) {
+    throw new Error("Fresh loopback mailbox did not begin with empty in-memory counters after restart.");
+  }
+  const restartedReport = await preflight(sessionFile);
+  console.log(`  ok normal restart reuses durable delivery proof and returns to ${restartedReport.passed}/${restartedReport.total} readiness`);
+
+  const restartedStop = await run(process.execPath, ["scripts/stop-board-demo.mjs", "--session-file", sessionFile], process.env, 25_000);
+  if (restartedStop.code !== 0) throw new Error(`Restarted board stop command failed:\n${restartedStop.stderr}\n${restartedStop.stdout}`);
+  await waitFor(async () => supervisor.exitCode != null, 10_000, "Restarted supervisor exit");
+  if (supervisor.exitCode !== 0) throw new Error(`Restarted supervisor exited ${supervisor.exitCode}:\n${output.slice(-12_000)}`);
+  const restartedFinalSession = await readBoardDemoSession(sessionFile);
+  if (restartedFinalSession?.status !== "stopped") throw new Error(`Restarted session status is ${restartedFinalSession?.status || "missing"}.`);
   const lingering = [...observedPids].filter(processAlive);
   if (lingering.length) throw new Error(`Board child processes remained alive after shutdown: ${lingering.join(", ")}`);
-  console.log(`  ok stop command shuts down the supervisor and all ${observedPids.size} observed child processes`);
-  console.log("\nBoard demo supervisor: 13/13 checks passed.\n");
+  console.log(`  ok second stop shuts down every process observed across both supervisor lifecycles`);
+  console.log("\nBoard demo supervisor: 15/15 checks passed.\n");
 } catch (error) {
   console.error(`\nBoard demo supervisor test failed: ${error.message}`);
   process.exitCode = 1;
