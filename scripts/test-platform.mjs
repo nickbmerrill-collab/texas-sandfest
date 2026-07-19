@@ -16,7 +16,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { boardDemoAccessConfig } from "../lib/board-demo-access.mjs";
 import { boardDemoCheckEndpoints, boardDemoLoopbackUrl, evaluateBoardDemoReadiness } from "../lib/board-demo-readiness.mjs";
 import { boardDemoAccessPlugin } from "../vite.config.js";
-import { buildRevenueLedgerView, partnerRevenueEntries, summarizeLedger } from "../lib/revenue.mjs";
+import { buildRevenueLedgerView, partnerRevenueEntries, summarizeLedger, ticketRevenueEntries } from "../lib/revenue.mjs";
 import {
   applyRevenueImport,
   parseRevenueCsv,
@@ -670,8 +670,18 @@ console.log("\n=== Pure library suite ===\n");
   const readyBoardState = {
     web: { ok: true, status: 200, html: "<script>globalThis.__SANDFEST_BOARD_ADMIN_TOKEN__ = 'hidden';</script>" },
     webOrigin: "http://127.0.0.1:5175",
-    health: { ok: true, service: "sandfest-admin-api", publicSiteUrl: "http://127.0.0.1:5175" },
+    health: {
+      ok: true,
+      service: "sandfest-admin-api",
+      publicSiteUrl: "http://127.0.0.1:5175",
+      ticketCheckoutReady: true,
+      ticketCheckoutEnvironment: "board_sandbox"
+    },
     bootstrap: { runtime: { mode: "board_demo" } },
+    tickets: {
+      checkoutEnvironment: "board_sandbox",
+      products: Array.from({ length: 4 }, (_, index) => ({ id: `demo_ticket_${index + 1}`, availableForCheckout: true }))
+    },
     ready: { ok: true, checks: { workerStatus: { healthy: true }, queueStatus: { operational: true, unhandledFailed: 0 } } },
     emailSandbox: { ok: true, service: "sandfest-board-email-sandbox", mode: "board_demo" },
     smsSandbox: { ok: true, service: "sandfest-board-sms-sandbox", mode: "board_demo" },
@@ -1563,6 +1573,15 @@ console.log("\n=== Pure library suite ===\n");
   ok("partner revenue projects receipts and reversals", partnerEntries.length === 3 && partnerEntries.some(entry => entry.entryType === "refund" && entry.grossCents === -250000) && !partnerEntries.some(entry => entry.sourceRecordId === "payment_pending"));
   ok("revenue excludes stale event imports", currentView.sources.imported.entries === 0 && currentView.sources.imported.excludedEntries === ledger.entries.length && currentView.sources.partnerOperations.entries === 3);
   ok("revenue summary separates gross receipts from refunds", currentSummary.totals.grossCents === 1250000 && currentSummary.totals.refundCents === 250000 && currentSummary.totals.netCents === 1000000);
+  const ticketOrders = [
+    { record: { id: "order_revenue_paid", eventId: "texas-sandfest-2027", status: "paid", provider: "stripe", checkoutEnvironment: "stripe", stripeCheckoutSessionId: "cs_revenue_paid", paymentIntentId: "pi_revenue_paid", totals: { knownAmount: 9000, currency: "usd" }, lineItems: [{ name: "GA", quantity: 2 }], createdAt: "2026-07-16T14:00:00.000Z", paidAt: "2026-07-16T14:05:00.000Z", updatedAt: "2026-07-16T14:05:00.000Z" } },
+    { record: { id: "order_revenue_refunded", eventId: "texas-sandfest-2027", status: "refunded", provider: "stripe", checkoutEnvironment: "board_sandbox", stripeCheckoutSessionId: "cs_revenue_refund", paymentIntentId: "pi_revenue_refund", totals: { knownAmount: 3000, currency: "usd" }, lineItems: [{ name: "GA", quantity: 1 }], refundedAmountCents: 3000, createdAt: "2026-07-16T15:00:00.000Z", paidAt: "2026-07-16T15:05:00.000Z", refundedAt: "2026-07-16T15:10:00.000Z", updatedAt: "2026-07-16T15:10:00.000Z" } }
+  ];
+  const ticketEntries = ticketRevenueEntries(ticketOrders, { eventId: "texas-sandfest-2027" });
+  const ticketView = buildRevenueLedgerView({}, {}, { eventId: "texas-sandfest-2027", ticketOrders });
+  const ticketSummary = summarizeLedger(ticketView.entries);
+  ok("ticket orders project receipts and full-refund reversals", ticketEntries.length === 3 && ticketEntries.some(entry => entry.origin === "board_ticket_sandbox" && entry.entryType === "refund" && entry.quantity === -1));
+  ok("ticket revenue updates net sales without counting refunded admissions", ticketView.sources.ticketOrders.entries === 3 && ticketSummary.totals.grossCents === 12000 && ticketSummary.totals.refundCents === 3000 && ticketSummary.totals.netCents === 9000 && ticketSummary.tickets.sold === 2);
 
   const settlementCsv = `transaction_id,transaction_date,revenue_category,gross,fees,net,qty,payout_id,payout_date,reconciled,entry_type,note
 evt_settlement_1,2026-07-16,tickets,"$1,250.00",36.55,"$1,213.45",25,payout_eventeny_1,2026-07-17,yes,receipt,Advance admission
@@ -5466,9 +5485,12 @@ B-API-WRONG,texas-sandfest-2026,EV-V-WRONG,EV-V-WRONG,Wrong Event Booth,retail,v
   });
   const ticketOrdersAfterRefund = await hit("GET", "/api/admin/orders?limit=20", null, true);
   const ticketFulfillmentAfterRefund = await hit("GET", "/api/admin/fulfillment?limit=20", null, true);
+  const ticketRevenueAfterRefund = await hit("GET", "/api/admin/revenue", null, true);
   const refundedTicketOrder = ticketOrdersAfterRefund.data.pendingOrders?.find(item => item.record?.id === ticketCheckoutApi.data.orderId)?.record;
   const refundedTicketFulfillment = ticketFulfillmentAfterRefund.data.fulfillment?.filter(item => item.record?.orderId === ticketCheckoutApi.data.orderId) || [];
+  const refundedTicketRevenue = ticketRevenueAfterRefund.data.entries?.filter(item => item.sourceRecordId === ticketCheckoutApi.data.orderId) || [];
   ok("signed ticket refund closes the order and fulfillment", ticketRefundWebhook.status === 200 && ticketRefundWebhook.data.record?.ticketReconciliation?.status === "refunded" && refundedTicketOrder?.status === "refunded" && refundedTicketOrder?.refundedAmountCents === 9000 && refundedTicketFulfillment.length === 2 && refundedTicketFulfillment.every(item => item.record?.status === "refunded"));
+  ok("site-native ticket orders flow into revenue and reverse cleanly", ticketRevenueAfterRefund.status === 200 && refundedTicketRevenue.length === 2 && refundedTicketRevenue.some(item => item.entryType === "receipt" && item.grossCents === 9000 && item.quantity === 2) && refundedTicketRevenue.some(item => item.entryType === "refund" && item.grossCents === -9000 && item.quantity === -2) && ticketRevenueAfterRefund.data.sources?.ticketOrders?.entries >= 2);
 
   const revenueImportCsvApi = `external_ref,date,category,gross_amount,fee_amount,net_amount,quantity,payout_id,payout_date,reconciled,entry_type
 api_square_settlement_1,2026-07-16,merch,100.00,3.00,97.00,2,square_payout_api_1,2026-07-17,yes,receipt
@@ -5504,7 +5526,12 @@ api_square_invalid,2026-07-16,merch,20.00,1.00,20.00,1,square_payout_api_1,2026-
   ok("revenue CSV API preview gate", staleRevenueImportApi.status === 409);
   ok("revenue CSV API commit persists current-event provenance", revenueImportCommitApi.status === 201 && revenueImportCommitApi.data.summary?.imported === 1 && committedRevenueEntryApi?.eventId === DEFAULT_EVENT_ID && committedRevenueEntryApi?.importBatchId === revenueImportCommitApi.data.batchId && revenueAfterCommitApi.data.imports?.[0]?.fileName === "square-api.csv");
   ok("revenue CSV API replay is idempotent", revenueImportReplayApi.status === 200 && revenueImportReplayApi.data.replay === true && revenueAfterCommitApi.data.entries?.filter(item => item.externalRef === "api_square_settlement_1").length === 1 && revenueAfterCommitApi.data.imports?.length === 1);
-  ok("revenue dashboard includes committed settlement", revenueAfterCommitApi.data.sources?.imported?.entries === 1 && revenueAfterCommitApi.data.summary?.totals?.grossCents === 10000 && revenueAfterCommitApi.data.summary?.totals?.feeCents === 300 && revenueAfterCommitApi.data.summary?.totals?.netCents === 9700);
+  ok("revenue dashboard includes committed settlement", revenueAfterCommitApi.data.sources?.imported?.entries === 1
+    && revenueAfterCommitApi.data.sources?.ticketOrders?.entries === 2
+    && revenueAfterCommitApi.data.summary?.totals?.grossCents === 19000
+    && revenueAfterCommitApi.data.summary?.totals?.refundCents === 9000
+    && revenueAfterCommitApi.data.summary?.totals?.feeCents === 300
+    && revenueAfterCommitApi.data.summary?.totals?.netCents === 9700);
 
   const eventenyPartnerEmailApi = "eventeny-vendor-api@example.com";
   const eventenyPartnerCsvApi = `application_id,type,business_name,contact_name,contact_email,category,offering_id,package_id,status,reported_amount,event_id

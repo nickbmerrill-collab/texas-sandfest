@@ -32,11 +32,12 @@ async function request(url, { json = true, headers = {}, readBody = true } = {})
 }
 
 const authorization = { authorization: `Bearer ${adminToken}` };
-const [web, health, ready, bootstrap, emailSandbox, smsSandbox, conditions, partners, documents, sponsors] = await Promise.all([
+const [web, health, ready, bootstrap, tickets, emailSandbox, smsSandbox, conditions, partners, documents, sponsors] = await Promise.all([
   request(webUrl, { json: false }),
   request(`${apiBase}/health`),
   request(`${apiBase}/ready`),
   request(`${apiBase}/api/public/bootstrap`),
+  request(`${apiBase}/api/public/tickets`),
   request(`${emailBase}/health`),
   request(`${smsBase}/health`),
   request(`${apiBase}/api/public/island-conditions`),
@@ -58,6 +59,7 @@ const report = {
     health: health.body,
     ready: ready.body,
     bootstrap: bootstrap.body,
+    tickets: tickets.body,
     emailSandbox: emailSandbox.body,
     smsSandbox: smsSandbox.body,
     conditions: conditions.body,

@@ -22,6 +22,7 @@ const TOKEN = "board-runtime-test-admin-token-change-me";
 const CAMERA_SECRET = "board-runtime-camera-secret-0123456789abcdef0123456789";
 const EMAIL_API_KEY = "board-runtime-email-api-key-0123456789abcdef";
 const EMAIL_WEBHOOK_TOKEN = "board-runtime-email-webhook-token-0123456789abcdef";
+const BOARD_TICKET_SECRET = "board-runtime-ticket-secret-0123456789abcdef";
 const SMS_ACCOUNT_SID = "AC00000000000000000000000000000001";
 const SMS_AUTH_TOKEN = "board-runtime-twilio-auth-token-0123456789";
 const SMS_FROM_NUMBER = "+13615550100";
@@ -75,6 +76,8 @@ async function startApi(port, runtimeRoot, emailPort, smsPort) {
     SANDFEST_OUTREACH_PREFERENCES_SECRET: "board-runtime-outreach-preferences-secret-0123456789",
     OUTREACH_DISCOVERY_ENABLED: "true",
     OUTREACH_DISCOVERY_PROVIDER: "fixture",
+    SANDFEST_BOARD_TICKET_SANDBOX: "true",
+    SANDFEST_BOARD_TICKET_SECRET: BOARD_TICKET_SECRET,
     SANDFEST_PUBLIC_SITE_URL: "https://www.texassandfest.org",
     SANDFEST_API_PUBLIC_BASE_URL: `http://127.0.0.1:${port}`,
     SANDFEST_INCOMING_DOCUMENT_DIR: path.join(runtimeRoot, "private", "incoming-documents"),
@@ -253,13 +256,14 @@ try {
   });
   const health = await request(base, "GET", "/health");
   check("isolated runtime is current-event ready", health.status === 200 && health.data.currentEventReady === true && health.data.currentEventId === DEFAULT_EVENT_ID);
-  check("health identifies isolated runtime data", health.data.runtimeDataMode === "isolated" && health.data.cameraIngestReady === true && health.data.safetySmsReady === true);
+  check("health identifies isolated runtime data", health.data.runtimeDataMode === "isolated" && health.data.cameraIngestReady === true && health.data.safetySmsReady === true && health.data.ticketCheckoutEnvironment === "board_sandbox");
   check("health exposes the generated capability-link origin", health.data.publicSiteUrl === child.processEnv.SANDFEST_PUBLIC_SITE_URL);
   const bootstrap = await request(base, "GET", "/api/public/bootstrap");
   const publicPassport = await request(base, "GET", "/api/public/passport");
   const publicVoting = await request(base, "GET", "/api/public/voting");
   const publicVendorCatalog = await request(base, "GET", "/api/public/vendors");
   const publicSponsorCatalog = await request(base, "GET", "/api/public/sponsors");
+  const publicTicketCatalog = await request(base, "GET", "/api/public/tickets");
   check("board runtime is visibly labeled as synthetic", bootstrap.status === 200 && bootstrap.data.runtime?.mode === "board_demo" && bootstrap.data.runtime?.label?.includes("No external messages or payments are sent"));
   check("board bootstrap preserves the public privacy boundary", publicAppBootstrapSafety(bootstrap.data, { allowBoardRuntime: true }).ready
     && bootstrap.data.schedule?.every(item => item.category !== "Staff")
@@ -269,6 +273,7 @@ try {
   check("board runtime publishes its synthetic ballot only in demo mode", publicVoting.status === 200 && publicVoting.data.votingOpen === true && publicVoting.data.entries?.length === 6 && publicVoting.data.leaderboard?.length === 6);
   check("board runtime publishes synthetic application offerings", publicVendorCatalog.status === 200 && publicVendorCatalog.data.vendorOfferings?.length === 3 && publicVendorCatalog.data.vendorOfferings?.every(item => item.intakeMode === "application" && item.description.includes("Synthetic board-demo")) && publicVendorCatalog.data.vendorOfferings?.some(item => item.id === "marketplace-booth" && item.amount === 125000));
   check("board runtime publishes the current sponsor program", publicSponsorCatalog.status === 200 && publicSponsorCatalog.data.sponsorPackages?.length === 11 && publicSponsorCatalog.data.sponsorPackages?.find(item => item.id === "marlin")?.amount === 1500000 && publicSponsorCatalog.data.sponsorPackages?.find(item => item.id === "whale")?.amount === 5000000 && publicSponsorCatalog.data.sponsorPackages?.find(item => item.id === "the-kraken")?.amount === 25000000);
+  check("board runtime publishes provider-private local ticket checkout", publicTicketCatalog.status === 200 && publicTicketCatalog.data.checkoutEnvironment === "board_sandbox" && publicTicketCatalog.data.products?.filter(item => item.availableForCheckout).length === 4 && publicTicketCatalog.data.products?.find(item => item.id === "general-admission-3-day")?.unitAmount === 3000 && !JSON.stringify(publicTicketCatalog.data).includes("stripePriceId"));
   const publicBoardSponsor = publicSponsorCatalog.data.sponsors?.find(item => item.displayName === "Gulf Shore Credit Union");
   const publicBoardSponsorJson = JSON.stringify(publicBoardSponsor || {});
   const publicBoardSponsorLogo = await requestRaw(base, publicBoardSponsor?.logo?.path || "/api/public/sponsor-showcase/assets/missing");

@@ -52,6 +52,26 @@ STRIPE_SUCCESS_URL=https://sandfest.heyelab.com/tickets/success?session_id={CHEC
 STRIPE_CANCEL_URL=https://sandfest.heyelab.com/#tickets
 ```
 
+## Board Presentation Sandbox
+
+`npm run board:demo` exposes four synthetic GA/VIP products through a separate,
+loopback-only payment sandbox. It reuses the production cart validation, order
+storage, reconciliation, deterministic fulfillment, full-refund, audit, and
+revenue projection paths, but it never calls Stripe and never accepts a card.
+The visitor UI labels every amount as demo pricing and states that no external
+charge occurs.
+
+The board sandbox fails closed unless the API identifies the isolated
+`board_demo` runtime, runs outside production, binds to loopback, and receives
+both `SANDFEST_BOARD_TICKET_SANDBOX=true` and a 32-character-or-longer signing
+secret. Its signed checkout token expires after four hours. The completion and
+refund routes reject ordinary development, remote, and production requests.
+
+This presentation proof does not satisfy the go-live checklist below. Real
+launch acceptance still requires Stripe test-mode Checkout, signed webhook
+replay/mismatch testing, Postgres persistence, sandbox refunds, Apple Pay device
+verification, and finance reconciliation before live keys are introduced.
+
 ## Partner Invoice Checkout
 
 Vendor and sponsor charges use a separate, review-gated path from ticket sales:

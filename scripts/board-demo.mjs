@@ -19,6 +19,7 @@ const ADMIN_TOKEN = "board-demo-local-admin-token-change-me";
 const CAMERA_SECRET = "board-demo-local-camera-secret-change-me";
 const BREVO_API_KEY = "board-demo-local-brevo-api-key-change-me";
 const BREVO_WEBHOOK_TOKEN = "board-demo-local-brevo-webhook-token-change-me";
+const BOARD_TICKET_SECRET = "board-demo-local-ticket-secret-change-me-0123456789";
 const TWILIO_ACCOUNT_SID = "AC00000000000000000000000000000001";
 const TWILIO_AUTH_TOKEN = "board-demo-local-twilio-auth-token-change-me";
 const TWILIO_FROM_NUMBER = "+13615550100";
@@ -162,6 +163,8 @@ function processEnvironment(runtimeRoot, endpoints) {
     OUTREACH_DISCOVERY_ENABLED: "true",
     OUTREACH_DISCOVERY_PROVIDER: "fixture",
     STRIPE_TICKETING_ENABLED: "false",
+    SANDFEST_BOARD_TICKET_SANDBOX: "true",
+    SANDFEST_BOARD_TICKET_SECRET: BOARD_TICKET_SECRET,
     STRIPE_PARTNER_PAYMENTS_ENABLED: "false",
     STRIPE_SECRET_KEY: "",
     STRIPE_WEBHOOK_SECRET: "",
