@@ -65,6 +65,8 @@ jobs:
         env:
           SANDFEST_POSTGRES_TEST_ADMIN_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable
         run: npm run test:postgres
+      - name: iOS event data alignment
+        run: npm run test:ios-event
       - name: Production build isolation (visitor + admin)
         run: npm run build:surfaces
       - name: Load test (public GETs)
@@ -90,3 +92,5 @@ jobs:
             swiftc -parse "$f"
           done
           plutil -lint ../TexasSandFest.xcodeproj/project.pbxproj
+          swiftc Models.swift LiveTimeline.swift ../TimelineSmoke/main.swift -o /tmp/sandfest-timeline-smoke
+          /tmp/sandfest-timeline-smoke

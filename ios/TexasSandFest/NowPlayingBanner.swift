@@ -31,7 +31,7 @@ struct NowPlayingBanner: View {
     }
 
     private func liveBlock(_ item: ScheduleItem) -> some View {
-        let minutesLeft = LiveTimeline.minutesLeft(for: item, at: summary.referenceDate)
+        let minutesLeft = LiveTimeline.minutesLeft(for: item, guide: summary.guide, at: summary.referenceDate)
         return HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {

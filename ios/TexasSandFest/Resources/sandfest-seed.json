@@ -1,10 +1,25 @@
 {
   "guide": {
-    "id": "texas-sandfest-2026",
+    "id": "texas-sandfest-2027",
     "name": "Texas SandFest",
-    "dateRange": "April 17-19, 2026",
-    "location": "Port Aransas beach",
-    "lastUpdated": "2026-04-30T00:00:00Z"
+    "startDate": "2027-04-16",
+    "endDate": "2027-04-18",
+    "dateRange": "April 16-18, 2027",
+    "dailyOpen": "09:00",
+    "dailyClose": "19:30",
+    "hours": "9:00 AM - 7:30 PM daily",
+    "timeZone": "America/Chicago",
+    "location": "On the beach, Port Aransas, TX 78373",
+    "mission": "The largest beach sand sculpture competition in the USA, supporting local nonprofit organizations and scholarships.",
+    "phone": "361-267-2474",
+    "email": "info@texassandfest.org",
+    "address": "200 S. Alister Street, Suite E, Port Aransas, TX 78373",
+    "sourceUrl": "https://www.texassandfest.org/knowbeforeyougo",
+    "sourceCheckedAt": "2026-07-17T00:00:00.000Z",
+    "status": "published",
+    "publishedAt": "2026-07-17T00:00:00.000Z",
+    "publishedBy": "content-import:official-site",
+    "lastUpdated": "2026-07-17T00:00:00.000Z"
   },
   "alert": {
     "id": "alert_none",

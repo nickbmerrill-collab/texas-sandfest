@@ -20,7 +20,7 @@ final class UserTicketsStore: ObservableObject {
 
     /// Add a ticket from a scanned QR payload. The payload is treated as the
     /// canonical ticket id (gate scanners read the same string).
-    func importFromQR(_ payload: String, holderHint: String? = nil) -> Ticket {
+    func importFromQR(_ payload: String, eventGuide: EventGuide, holderHint: String? = nil) -> Ticket {
         // Heuristic mapping until Eventeny gives us a real schema.
         let band: TicketBand = {
             let lower = payload.lowercased()
@@ -36,7 +36,7 @@ final class UserTicketsStore: ObservableObject {
             id: payload,
             band: band,
             holder: holderHint ?? "Imported wristband",
-            dayPass: "All 3 days · Apr 17–19",
+            dayPass: "All 3 days · \(LiveTimeline.shortDateRange(for: eventGuide))",
             seat: nil,
             purchaseSource: payload.lowercased().contains("eventeny") ? "Eventeny (scanned)" : "Scanned QR",
             issuedAt: Date(),

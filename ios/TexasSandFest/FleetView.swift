@@ -106,7 +106,7 @@ enum FleetSampleData {
             qrPayload: "tsf:asset:cart-01",
             activeCheckout: FleetCheckout(
                 id: "co_seed_001", assetId: "cart-01", checkedOutTo: "Maya R.",
-                team: "site-ops", checkOutAt: "2026-04-18T07:15:00-05:00",
+                team: "site-ops", checkOutAt: "2027-04-17T07:15:00-05:00",
                 startCondition: "good", startChargePct: 100, method: "ios_scan"
             ),
             lastLocation: FleetLocation(
@@ -131,7 +131,7 @@ enum FleetSampleData {
             qrPayload: "tsf:asset:cart-04",
             activeCheckout: FleetCheckout(
                 id: "co_seed_002", assetId: "cart-04", checkedOutTo: "Jordan L.",
-                team: "ada", checkOutAt: "2026-04-18T07:40:00-05:00",
+                team: "ada", checkOutAt: "2027-04-17T07:40:00-05:00",
                 startCondition: "excellent", startChargePct: 95, method: "ios_scan"
             ),
             lastLocation: FleetLocation(
@@ -146,7 +146,7 @@ enum FleetSampleData {
             qrPayload: "tsf:asset:utv-01",
             activeCheckout: FleetCheckout(
                 id: "co_seed_003", assetId: "utv-01", checkedOutTo: "Chris P.",
-                team: "site-ops", checkOutAt: "2026-04-18T06:50:00-05:00",
+                team: "site-ops", checkOutAt: "2027-04-17T06:50:00-05:00",
                 startCondition: "good", method: "kiosk"
             ),
             lastLocation: FleetLocation(
@@ -161,7 +161,7 @@ enum FleetSampleData {
             qrPayload: "tsf:asset:gen-01",
             activeCheckout: FleetCheckout(
                 id: "co_seed_004", assetId: "gen-01", checkedOutTo: "Stage crew",
-                team: "production", checkOutAt: "2026-04-17T14:00:00-05:00",
+                team: "production", checkOutAt: "2027-04-16T14:00:00-05:00",
                 startCondition: "good", method: "manual"
             ),
             lastLocation: nil

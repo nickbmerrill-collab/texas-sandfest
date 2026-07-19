@@ -22,14 +22,14 @@ struct ScheduleView: View {
     @StateObject private var notifications = NotificationManager.shared
 
     @State private var mode: ScheduleMode = ScheduleView.initialMode()
-    @State private var selectedDay: String = LiveTimeline.currentFestivalDay() ?? "Friday"
+    @State private var selectedDay = "Friday"
     @State private var myScheduleOnly = false
     @State private var permissionAlertVisible = false
 
     private let days = ["Friday", "Saturday", "Sunday"]
 
     private var liveSummary: LiveTimeline.LiveSummary {
-        LiveTimeline.summarize(dataStore.payload.schedule)
+        LiveTimeline.summarize(dataStore.payload.schedule, guide: dataStore.payload.guide)
     }
 
     private static func initialMode() -> ScheduleMode {
@@ -95,6 +95,9 @@ struct ScheduleView: View {
                 Button("OK") {}
             } message: {
                 Text("To remind you 15 min before your starred sets, enable notifications in Settings → Texas SandFest.")
+            }
+            .onAppear {
+                selectedDay = LiveTimeline.currentFestivalDay(for: dataStore.payload.guide) ?? selectedDay
             }
         }
     }
@@ -201,12 +204,7 @@ struct ScheduleView: View {
     }
 
     private func dayDate(for day: String) -> String {
-        switch day {
-        case "Friday":   "Apr 17"
-        case "Saturday": "Apr 18"
-        case "Sunday":   "Apr 19"
-        default: ""
-        }
+        LiveTimeline.shortDate(for: day, guide: dataStore.payload.guide)
     }
 
     // MARK: Star handling
@@ -248,24 +246,7 @@ struct ScheduleView: View {
     }
 
     private func scheduledDate(for item: ScheduleItem) -> Date? {
-        // Convert "Friday 11:30 AM" → Apr 17, 2026 11:30 AM Central.
-        var comps = DateComponents()
-        comps.timeZone = TimeZone(identifier: "America/Chicago")
-        comps.year = 2026
-        switch item.day {
-        case "Friday":   comps.month = 4; comps.day = 17
-        case "Saturday": comps.month = 4; comps.day = 18
-        case "Sunday":   comps.month = 4; comps.day = 19
-        default: return nil
-        }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "h:mm a"
-        formatter.timeZone = comps.timeZone
-        guard let parsed = formatter.date(from: item.time) else { return nil }
-        let timeComps = Calendar(identifier: .gregorian).dateComponents([.hour, .minute], from: parsed)
-        comps.hour = timeComps.hour
-        comps.minute = timeComps.minute
-        return Calendar(identifier: .gregorian).date(from: comps)
+        LiveTimeline.date(for: item, guide: dataStore.payload.guide)
     }
 
     private func notificationTitle(for item: ScheduleItem) -> String {
