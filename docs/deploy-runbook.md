@@ -15,6 +15,12 @@ This runbook gets you to those URLs in three phases. Public web first (zero risk
 
 A workflow at `.github/workflows/pages.yml` builds the Vite app only after the full `CI` workflow succeeds for a direct push to `main`. Pull-request and feature-branch runs cannot publish, and there is no manual bypass around the release gate.
 
+Until the post-board production Turnstile site key is configured, that workflow
+records a successful deferred-release notice and performs no checkout, build,
+artifact upload, or deployment. This keeps the intentional provider deferral
+visible without turning every otherwise-green `main` run red. Once the variable
+exists, only the gated production build and deploy jobs can publish.
+
 Repository configuration, workflow success, the GitHub Pages URL, custom DNS, and customer-visible rendering must each be verified directly before this phase is marked live. A local build or committed workflow is not deploy proof.
 
 The production visitor build injects a CSP meta policy before any loadable resource, uses only self-hosted brand fonts, restricts executable scripts and frames to the app plus Cloudflare Turnstile, and publishes `no-referrer`. The narrow `style-src-attr 'unsafe-inline'` allowance is required by the interactive maps, meters, and canvas sizing; `script-src` does not allow inline or evaluated code. Build verification fails if these boundaries drift.
@@ -26,7 +32,7 @@ This static meta policy does not replace response headers. In particular, browse
 **Enable Pages once:**
 1. Go to https://github.com/nickbmerrill-collab/texas-sandfest/settings/pages
 2. Under **Build and deployment → Source**, choose **GitHub Actions**.
-3. Under **Settings → Secrets and variables → Actions → Variables**, create `SANDFEST_TURNSTILE_SITE_KEY` with the public key from the production Cloudflare Turnstile widget. Configure that widget to allow the Pages hostname and every planned custom public hostname. The production visitor build intentionally fails when this variable is missing or is a Cloudflare test key.
+3. Under **Settings → Secrets and variables → Actions → Variables**, create `SANDFEST_TURNSTILE_SITE_KEY` with the public key from the production Cloudflare Turnstile widget. Configure that widget to allow the Pages hostname and every planned custom public hostname. The release remains explicitly deferred while this variable is missing, and the production visitor build rejects Cloudflare test keys.
 
 The next successful `CI` run for a direct `main` push publishes to:
 
