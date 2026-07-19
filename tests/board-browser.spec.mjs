@@ -318,8 +318,8 @@ test("board workflows operate through the public and staff interfaces", async ({
   const pageErrors = [];
   page.on("pageerror", error => pageErrors.push(error.message));
   const runId = randomUUID().slice(0, 8);
-  const vendorName = `Browser Boardwalk Arts ${runId}`;
-  const sponsorName = `Browser Coastal Health ${runId}`;
+  const vendorName = "Port A Coastal Makers";
+  const sponsorName = "Coastal Community Bank";
   const taskTitle = `Browser volunteer welcome desk ${runId}`;
   const milestoneLabel = `Browser sponsor artwork due ${runId}`;
   const milestoneDueInput = new Date(Date.now() + 2 * 86_400_000).toISOString().slice(0, 16);
@@ -494,14 +494,16 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
 
   const vendor = page.locator("#vendor-application-form");
   await expect(vendor).toBeVisible();
-  await vendor.locator('[name="organizationName"]').fill(vendorName);
-  await vendor.locator('[name="contactName"]').fill("Casey Browser");
-  await vendor.locator('[name="contactEmail"]').fill(`casey.${runId}@example.com`);
-  await vendor.locator('[name="category"]').selectOption("artisan");
-  await expect(vendor.locator('[name="vendorOfferingId"] option[value="marketplace-booth"]')).toHaveCount(1);
-  await vendor.locator('[name="vendorOfferingId"]').selectOption("marketplace-booth");
-  await vendor.locator('[name="city"]').fill("Port Aransas");
-  await vendor.locator('[name="description"]').fill("Locally made beach art and one standard marketplace booth.");
+  const vendorPreset = vendor.locator('[data-board-partner-preset="vendor"]');
+  await expect(vendorPreset).toHaveText("Use demo vendor");
+  await vendorPreset.click();
+  await expect(vendor.locator('[name="organizationName"]')).toHaveValue("Port A Coastal Makers");
+  await expect(vendor.locator('[name="contactEmail"]')).toHaveValue(/^casey\.vendor\.[a-z0-9-]+@example\.com$/);
+  await expect(vendor.locator('[name="contactPhone"]')).toHaveValue("+13615550132");
+  await expect(vendor.locator('[name="category"]')).toHaveValue("artisan");
+  await expect(vendor.locator('[name="vendorOfferingId"]')).toHaveValue("marketplace-booth");
+  await expect(vendor.locator('[name="consentToContact"]')).not.toBeChecked();
+  await expect(vendor.locator(".partner-form-status")).toHaveText("Synthetic details are ready. Contact consent remains unchecked.");
   await vendor.locator('[name="consentToContact"]').check();
   const vendorResult = await submitAndCapture(page, vendor, "/api/public/vendor-applications");
   await expect(vendor.locator(".partner-form-status")).toContainText("Application received.");
@@ -547,10 +549,16 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
 
   await page.locator('[data-package-id="tarpon"]').click();
   const sponsor = page.locator("#sponsor-inquiry-form");
-  await sponsor.locator('[name="organizationName"]').fill(sponsorName);
-  await sponsor.locator('[name="contactName"]').fill("Riley Browser");
-  await sponsor.locator('[name="contactEmail"]').fill(`riley.${runId}@example.com`);
-  await sponsor.locator('[name="description"]').fill("Community health partner with a beach activation and digital logo placement.");
+  const sponsorPreset = sponsor.locator('[data-board-partner-preset="sponsor"]');
+  await expect(sponsorPreset).toHaveText("Use demo sponsor");
+  await sponsorPreset.click();
+  await expect(sponsor.locator('[name="organizationName"]')).toHaveValue("Coastal Community Bank");
+  await expect(sponsor.locator('[name="contactEmail"]')).toHaveValue(/^morgan\.sponsor\.[a-z0-9-]+@example\.com$/);
+  await expect(sponsor.locator('[name="contactPhone"]')).toHaveValue("+13615550131");
+  await expect(sponsor.locator('[name="packageId"]')).toHaveValue("tarpon");
+  await expect(sponsor.locator('[name="consentToContact"]')).not.toBeChecked();
+  await expect(sponsor.locator(".partner-form-status")).toHaveText("Synthetic details are ready. Contact consent remains unchecked.");
+  const sponsorRecipient = await sponsor.locator('[name="contactEmail"]').inputValue();
   await sponsor.locator('[name="consentToContact"]').check();
   const sponsorResult = await submitAndCapture(page, sponsor, "/api/public/sponsor-inquiries");
   await expect(sponsor.locator(".partner-form-status")).toContainText("Application received.");
@@ -1401,7 +1409,6 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   await expect(messagingKpi).toContainText("Automatic");
   await expect(commandSignals.locator('[data-command-signal="messages"]')).toContainText("automatic follow-up");
 
-  const sponsorRecipient = `riley.${runId}@example.com`;
   const sponsorAcknowledgmentSubject = `Texas SandFest sponsorship application ${sponsorResult.application.reference}`;
   let deliveredSponsorAcknowledgmentId = null;
   await expect.poll(async () => {
@@ -1746,6 +1753,22 @@ test("critical public and operations views fit a mobile viewport", async ({ page
   await expect(page).toHaveURL(/#admin-island-conditions$/);
   await assertAnchorClearsWorkspaceNav(page, "#admin-island-conditions", -1);
   await assertNoHorizontalOverflow(page);
+});
+
+test("mobile vendor signup anchors remain aligned while public data renders", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor`);
+  await expect(page.locator("#network-status")).toHaveText("Demo");
+  const vendorLink = page.locator("#vendor-intake-cta");
+  await vendorLink.scrollIntoViewIfNeeded();
+  await vendorLink.click();
+  await expect(page).toHaveURL(/#vendor-application-form$/);
+  await expect.poll(async () => {
+    const form = await page.locator("#vendor-application-form").boundingBox();
+    const topbar = await page.locator(".topbar").boundingBox();
+    return Boolean(form && topbar && form.y >= topbar.y + topbar.height && form.y < 220);
+  }, { timeout: 2_000 }).toBe(true);
+  await expect(page.locator("#vendor-application-form")).toBeInViewport({ ratio: 0.2 });
 });
 
 test("WCAG A and AA checks cover public intake, partner status, concierge, and operations", async ({ page }) => {

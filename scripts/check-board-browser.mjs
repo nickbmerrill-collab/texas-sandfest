@@ -164,6 +164,10 @@ if (visitorUrl && operationsUrl) {
         sponsorAmounts: Object.fromEntries([...document.querySelectorAll("#public-sponsor-tiers [data-package-id]")].map(item => [item.dataset.packageId, item.querySelector("span")?.textContent?.trim()])),
         vendorOfferings: document.querySelectorAll('#vendor-application-form [name="vendorOfferingId"] option[value]').length,
         vendorApplicationAction: document.querySelector('#vendors-map a[href="#vendor-application-form"]')?.textContent?.trim(),
+        sponsorPresetVisible: document.querySelector('[data-board-partner-preset="sponsor"]')?.getClientRects().length > 0,
+        vendorPresetVisible: document.querySelector('[data-board-partner-preset="vendor"]')?.getClientRects().length > 0,
+        sponsorConsentChecked: document.querySelector('#sponsor-inquiry-form [name="consentToContact"]')?.checked === true,
+        vendorConsentChecked: document.querySelector('#vendor-application-form [name="consentToContact"]')?.checked === true,
         vendorSubmitEnabled: !document.querySelector('#vendor-application-form button[type="submit"]')?.disabled,
         sponsorSubmitEnabled: !document.querySelector('#sponsor-inquiry-form button[type="submit"]')?.disabled,
         checkoutProducts: document.querySelectorAll('#ticket-product-grid [data-ticket-action="increase"]').length,
@@ -194,10 +198,10 @@ if (visitorUrl && operationsUrl) {
     await inspect("public_intake", "Vendor and sponsor intake", "Inspect the public catalog API and signup form controls.", async () => {
       const item = observations.visitor;
       const expectedSponsorPackages = ["flounder", "trout", "tarpon", "sailfish", "marlin", "shark", "vip-tent-sponsor", "whale", "giant-squid", "megalodon", "the-kraken"];
-      if (item?.sponsorTiers !== 11 || item?.sponsorPackageIds?.join(",") !== expectedSponsorPackages.join(",") || item?.sponsorAmounts?.marlin !== "$15,000 sponsorship" || item?.sponsorAmounts?.whale !== "$50,000 sponsorship" || item?.sponsorAmounts?.["the-kraken"] !== "$250,000 sponsorship" || item?.vendorOfferings < 1 || item?.vendorApplicationAction !== "Apply as a vendor" || !item?.vendorSubmitEnabled || !item?.sponsorSubmitEnabled || item?.checkoutProducts < 4 || item?.checkoutLabel !== "Local payment sandbox" || item?.checkoutButton !== "Open demo checkout") {
+      if (item?.sponsorTiers !== 11 || item?.sponsorPackageIds?.join(",") !== expectedSponsorPackages.join(",") || item?.sponsorAmounts?.marlin !== "$15,000 sponsorship" || item?.sponsorAmounts?.whale !== "$50,000 sponsorship" || item?.sponsorAmounts?.["the-kraken"] !== "$250,000 sponsorship" || item?.vendorOfferings < 1 || item?.vendorApplicationAction !== "Apply as a vendor" || !item?.sponsorPresetVisible || !item?.vendorPresetVisible || item?.sponsorConsentChecked || item?.vendorConsentChecked || !item?.vendorSubmitEnabled || !item?.sponsorSubmitEnabled || item?.checkoutProducts < 4 || item?.checkoutLabel !== "Local payment sandbox" || item?.checkoutButton !== "Open demo checkout") {
         throw new Error("The public signup catalogs or submit actions are incomplete.");
       }
-      return `${item.sponsorTiers} sponsor packages, ${item.vendorOfferings} category-compatible vendor offering${item.vendorOfferings === 1 ? "" : "s"}, and ${item.checkoutProducts} local-checkout ticket products are actionable.`;
+      return `${item.sponsorTiers} sponsor packages, ${item.vendorOfferings} category-compatible vendor offering${item.vendorOfferings === 1 ? "" : "s"}, consent-safe board presets, and ${item.checkoutProducts} local-checkout ticket products are actionable.`;
     });
     await inspect("sponsor_brand", "Sponsor branding", "Inspect the approved board sponsor asset and showcase projection.", async () => {
       const item = observations.visitor;
