@@ -5070,8 +5070,19 @@ body.mode-ops header nav a[data-audience="public"] {
   gap: 16px;
   padding: 22px;
 }
+.partner-form-heading {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
 .partner-form-title span { color: var(--coral); font-size: 12px; font-weight: 900; text-transform: uppercase; }
 .partner-form-title h3 { color: var(--deep); margin: 4px 0 0; }
+.partner-demo-preset {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 9px 12px;
+}
 .partner-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .partner-fields label { color: var(--muted); display: grid; font-size: 12px; font-weight: 700; gap: 5px; }
 .partner-fields input,
@@ -6000,6 +6011,8 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
   .admin-conditions-columns,
   .admin-campaign-fields { grid-template-columns: 1fr; }
   .partner-status-result { grid-column: auto; grid-row: auto; }
+  .partner-form-heading { align-items: stretch; flex-direction: column; }
+  .partner-demo-preset { align-self: flex-start; }
   .admin-incident-create,
   .admin-incident-controls { grid-template-columns: 1fr 1fr; }
   .partner-brand-preview { grid-template-columns: auto minmax(0, 1fr); }

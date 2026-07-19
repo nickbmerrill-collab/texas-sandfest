@@ -377,6 +377,7 @@ import { DEFAULT_EVENT_ID, eventContextConfig, eventContextReadiness } from "../
 import { publicSculptorRosterPublication } from "../lib/public-roster.mjs";
 import { boardDemoEngagement } from "../lib/board-runtime.mjs";
 import { boardDemoSyntheticConditions } from "../lib/board-conditions.mjs";
+import { boardPartnerFormPreset } from "../src/board-demo/partner-form-presets.js";
 import { developmentPublicApiBase } from "../src/dev-public-api-base.js";
 import { eventArchiveDigest, planEventRollover, ROLLOVER_DOCUMENT_KEYS } from "../lib/event-rollover.mjs";
 import {
@@ -641,6 +642,25 @@ console.log("\n=== Pure library suite ===\n");
     && !boardDemoAccessConfig({ development: true, authMode: "oidc", apiBase: "http://127.0.0.1:8806", token: boardDemoAccess.token }).enabled
     && !boardDemoAccessConfig({ development: true, authMode: "token", apiBase: "https://sandfest-api.heyelab.com", token: boardDemoAccess.token }).enabled
     && !boardDemoAccessConfig({ development: true, authMode: "token", apiBase: "http://127.0.0.1.evil.example:8806", token: boardDemoAccess.token }).enabled);
+  const sponsorPreset = boardPartnerFormPreset("sponsor", "preset-1234");
+  const vendorPreset = boardPartnerFormPreset("vendor", "preset-5678");
+  let invalidPresetRejected = false;
+  try {
+    boardPartnerFormPreset("sponsor", "bad id");
+  } catch {
+    invalidPresetRejected = true;
+  }
+  ok("board partner presets stay fictional and consent-neutral", sponsorPreset.fields.contactEmail === "morgan.sponsor.preset-1234@example.com"
+    && sponsorPreset.fields.contactPhone === "+13615550131"
+    && sponsorPreset.fields.packageId === "tarpon"
+    && sponsorPreset.fields.website.endsWith(".example/")
+    && vendorPreset.fields.contactEmail === "casey.vendor.preset-5678@example.com"
+    && vendorPreset.fields.contactPhone === "+13615550132"
+    && vendorPreset.fields.vendorOfferingId === "marketplace-booth"
+    && vendorPreset.fields.website.endsWith(".example/")
+    && !Object.hasOwn(sponsorPreset.fields, "consentToContact")
+    && !Object.hasOwn(vendorPreset.fields, "consentToContact")
+    && invalidPresetRejected);
   const boardDemoPlugin = boardDemoAccessPlugin({ SANDFEST_BOARD_DEMO_ADMIN_TOKEN: boardDemoAccess.token });
   const injectedBoardDemoHtml = boardDemoPlugin.transformIndexHtml();
   let remoteBindRejected = false;

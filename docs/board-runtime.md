@@ -194,6 +194,13 @@ names. It demonstrates intake, finance, key-date, messaging, work-board,
 branding, vendor, and outreach automation in one staff-only history without
 rendering raw activity, application, follow-up, or capability identifiers.
 
+On the sponsor and vendor signup cards, **Use demo sponsor** and **Use demo
+vendor** fill reserved synthetic contact details while leaving contact consent
+unchecked. Review the selected tier or offering, check consent deliberately,
+and submit through the normal public intake path. These controls require the
+isolated loopback board session and do not render in an ordinary or production
+visitor session.
+
 For the visitor ticket walkthrough, add a GA or VIP demo product and choose
 **Open demo checkout**. The inline panel repeats the synthetic price and states
 that no external charge will occur. Completing payment creates the same private

@@ -539,6 +539,9 @@ const BOARD_DEMO_ACCESS = boardDemoAccessConfig({
   apiBase: defaultPublicApiBase(),
   token: BOARD_DEMO_INJECTED_TOKEN
 });
+const BOARD_PARTNER_PRESET_LOADER = import.meta.env.DEV
+  ? () => import("./board-demo/partner-form-presets.js")
+  : null;
 const navCtaHref = ADMIN_ENTRY && BOARD_DEMO_ACCESS.enabled
   ? (() => {
       const url = new URL(siteBase, window.location.origin);
@@ -2021,7 +2024,10 @@ app.innerHTML = `
       <p class="partner-program-note"><a href="https://www.texassandfest.org/sponsorship" target="_blank" rel="noopener noreferrer">View the current sponsorship program</a><span>Package availability and final fulfillment details are confirmed during review.</span></p>
       <div class="partner-form-grid">
         <form id="sponsor-inquiry-form" class="partner-form" data-turnstile-action="sponsor_inquiry">
-          <div class="partner-form-title"><span>Sponsorship</span><h3>Start a partnership</h3></div>
+          <div class="partner-form-heading">
+            <div class="partner-form-title"><span>Sponsorship</span><h3>Start a partnership</h3></div>
+            ${import.meta.env.DEV && BOARD_DEMO_ACCESS.enabled ? '<button class="button secondary partner-demo-preset" type="button" data-board-partner-preset="sponsor">Use demo sponsor</button>' : ""}
+          </div>
           <div id="sponsor-invitation" class="sponsor-invitation" hidden><strong>SandFest invitation</strong><span id="sponsor-invitation-copy"></span></div>
           <div class="partner-fields">
             <label>Business or organization<input name="organizationName" required maxlength="160" autocomplete="organization" /></label>
@@ -2040,7 +2046,10 @@ app.innerHTML = `
           <p class="partner-form-status" aria-live="polite"></p>
         </form>
         <form id="vendor-application-form" class="partner-form" data-turnstile-action="vendor_application">
-          <div class="partner-form-title"><span id="vendor-intake-label">Vendor interest</span><h3 id="vendor-intake-heading">Join the vendor interest list</h3></div>
+          <div class="partner-form-heading">
+            <div class="partner-form-title"><span id="vendor-intake-label">Vendor interest</span><h3 id="vendor-intake-heading">Join the vendor interest list</h3></div>
+            ${import.meta.env.DEV && BOARD_DEMO_ACCESS.enabled ? '<button class="button secondary partner-demo-preset" type="button" data-board-partner-preset="vendor">Use demo vendor</button>' : ""}
+          </div>
           <div class="partner-fields">
             <label>Business name<input name="organizationName" required maxlength="160" autocomplete="organization" /></label>
             <label>Contact name<input name="contactName" required maxlength="120" autocomplete="name" /></label>
@@ -4010,6 +4019,38 @@ function formPayload(form) {
   }
   if (TURNSTILE_SITE_KEY) payload.botToken = partnerBotProtection.tokenFor(form);
   return payload;
+}
+
+async function fillBoardPartnerPreset(kind) {
+  if (!import.meta.env.DEV || !BOARD_DEMO_ACCESS.enabled || !BOARD_PARTNER_PRESET_LOADER || !["sponsor", "vendor"].includes(kind)) return;
+  const form = document.querySelector(kind === "sponsor" ? "#sponsor-inquiry-form" : "#vendor-application-form");
+  if (!form) return;
+  const status = form.querySelector(".partner-form-status");
+  if (kind === "sponsor" && activeSponsorInvitationToken) {
+    setFormStatus(status, "This form is already using a sponsor invitation.", "error");
+    return;
+  }
+
+  try {
+    const runId = globalThis.crypto?.randomUUID?.().slice(0, 8) || `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    const { boardPartnerFormPreset } = await BOARD_PARTNER_PRESET_LOADER();
+    const preset = boardPartnerFormPreset(kind, runId);
+    form.reset();
+    delete form.dataset.idempotencyKey;
+    if (kind === "vendor") {
+      form.elements.category.value = preset.fields.category;
+      renderVendorOfferingChoices();
+    }
+    for (const [name, value] of Object.entries(preset.fields)) {
+      if (form.elements[name]) form.elements[name].value = value;
+    }
+    if (kind === "sponsor") renderSponsorPackageSummary();
+    form.elements.consentToContact.checked = false;
+    setFormStatus(status, "Synthetic details are ready. Contact consent remains unchecked.", "ok");
+    form.elements.organizationName.focus({ preventScroll: true });
+  } catch {
+    setFormStatus(status, "Synthetic details could not be loaded. Try again.", "error");
+  }
 }
 
 function setFormStatus(status, message, state = "idle", { html = false } = {}) {
@@ -9550,6 +9591,11 @@ document.querySelector("#vendor-application-form")?.addEventListener("submit", e
   event.preventDefault();
   submitPartnerForm(event.currentTarget, "/api/public/vendor-applications");
 });
+if (import.meta.env.DEV && BOARD_DEMO_ACCESS.enabled) {
+  document.querySelectorAll("[data-board-partner-preset]").forEach(button => button.addEventListener("click", () => {
+    void fillBoardPartnerPreset(button.dataset.boardPartnerPreset);
+  }));
+}
 document.querySelector("#partner-status-form")?.addEventListener("submit", event => {
   event.preventDefault();
   const values = Object.fromEntries(new FormData(event.currentTarget).entries());
@@ -10105,6 +10151,9 @@ function stabilizeRenderedHashTarget() {
   }, 1500);
 }
 
-window.addEventListener("hashchange", () => scrollToRenderedHashTarget({ behavior: "smooth" }));
+window.addEventListener("hashchange", () => {
+  if (ADMIN_ENTRY) scrollToRenderedHashTarget({ behavior: "smooth" });
+  else stabilizeRenderedHashTarget();
+});
 window.addEventListener("load", scrollToRenderedHashTarget);
 scrollToRenderedHashTarget();
