@@ -293,6 +293,8 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
 
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#sponsors`);
   await expect(page.locator("#network-status")).toHaveText("Demo");
+  await expect(page.locator("#mobile-nav-toggle")).toBeHidden();
+  await expect(page.locator("#public-navigation")).toBeVisible();
   await expect(page.locator("#experience")).toBeHidden();
   await expect(page.locator("#port-a")).toBeHidden();
   await expect(page.locator('header nav a[href="#port-a"]')).toBeHidden();
@@ -1467,8 +1469,37 @@ test("operations command summary fits a 1280x720 board viewport", async ({ page 
 
 test("critical public and operations views fit a mobile viewport", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 740 });
-  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#island-conditions`);
+  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor`);
+  const mobileNavigationToggle = page.locator("#mobile-nav-toggle");
+  const mobileNavigation = page.locator("#public-navigation");
+  await expect(mobileNavigationToggle).toBeVisible();
+  await expect(mobileNavigationToggle).toHaveAttribute("aria-expanded", "false");
+  await expect(mobileNavigation).toBeHidden();
+  await mobileNavigationToggle.click();
+  await expect(mobileNavigationToggle).toHaveAttribute("aria-expanded", "true");
+  await expect(mobileNavigation).toBeVisible();
+  for (const name of ["Tickets", "Vendors", "Island", "Sponsors", "Status"]) {
+    await expect(mobileNavigation.getByRole("link", { name, exact: true })).toBeVisible();
+  }
+  await assertNoAccessibilityViolations(page, "Open mobile visitor navigation");
+  await mobileNavigation.getByRole("link", { name: "Sponsors", exact: true }).click();
+  await expect(page).toHaveURL(/#sponsors$/);
+  await expect(page.locator("#sponsors .partner-heading")).toBeInViewport({ ratio: 0.5 });
+  await expect(mobileNavigation).toBeHidden();
+  await expect(mobileNavigationToggle).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator("#sponsors")).toBeFocused();
+
+  await mobileNavigationToggle.click();
+  await page.keyboard.press("Escape");
+  await expect(mobileNavigation).toBeHidden();
+  await expect(mobileNavigationToggle).toHaveAttribute("aria-expanded", "false");
+  await expect(mobileNavigationToggle).toBeFocused();
+
+  await mobileNavigationToggle.click();
+  await mobileNavigation.getByRole("link", { name: "Island", exact: true }).click();
+  await expect(page).toHaveURL(/#island-conditions$/);
   await expect(page.locator("#refresh-island-conditions")).toBeVisible();
+  await expect(mobileNavigation).toBeHidden();
   await assertNoHorizontalOverflow(page);
 
   await page.setViewportSize({ width: 390, height: 844 });
