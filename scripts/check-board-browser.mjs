@@ -213,6 +213,9 @@ if (visitorUrl && operationsUrl) {
           .filter(item => item.textContent?.includes("transactional automation")).length,
         deliveredCampaignMessages: [...document.querySelectorAll('#admin-partner-followups [data-delivery-status="delivered"]')]
           .filter(item => item.textContent?.includes("campaign-approved automation")).length,
+        deliveredMilestoneReminders: [...document.querySelectorAll('#admin-partner-followups [data-delivery-status="delivered"]')]
+          .filter(item => item.textContent?.includes("automatic key-date reminder")).length,
+        reviewQueueShowsAutomaticReminder: document.querySelector("#admin-partner-followups [data-followup]:nth-child(2)")?.textContent?.includes("automatic key-date reminder") === true,
         reviewReadyOutreachMessages: [...document.querySelectorAll("#admin-partner-followups [data-followup]")]
           .filter(item => item.querySelector("[data-review-followup]") && item.textContent?.includes("outreach sequence")).length,
         reviewQueueStartsActionable: Boolean(document.querySelector('#admin-partner-followups [data-followup]:first-child [data-review-followup][data-action="approve"]')),
@@ -277,7 +280,7 @@ if (visitorUrl && operationsUrl) {
         || item?.partnerActivity < 15
         || requiredActivityCategories.some(category => !item.partnerActivityCategories?.includes(category))
         || !item.partnerActivityText?.includes("Payment recorded")
-        || !item.partnerActivityText?.includes("Partner message prepared")
+        || !/partner messages? prepared/i.test(item.partnerActivityText || "")
         || /activity_|demo_[sv]app|followup_/.test(item.partnerActivityText || "")
       ) {
         throw new Error("One or more board workflow queues did not render their prepared records.");
@@ -293,6 +296,8 @@ if (visitorUrl && operationsUrl) {
         || !item?.receivablesSummary?.includes("outstanding")
         || !item?.commandSignalText?.receivables?.includes("received of")
         || !item?.commandSignalText?.["key-dates"]?.includes("upcoming")
+        || !item?.commandSignalText?.["key-dates"]?.includes("1 due soon")
+        || !item?.keyDateSummary?.includes("1 due soon")
         || item?.quickBooksState !== "deferred"
       ) {
         throw new Error("Receivables or partner key-date proof is incomplete.");
@@ -307,6 +312,8 @@ if (visitorUrl && operationsUrl) {
         || item?.deliveredFollowups < 2
         || item?.deliveredTransactionalMessages < 1
         || item?.deliveredCampaignMessages < 1
+        || item?.deliveredMilestoneReminders < 1
+        || item?.reviewQueueShowsAutomaticReminder !== true
         || item?.reviewReadyOutreachMessages < 1
         || item?.reviewQueueStartsActionable !== true
         || item?.tasks < 9
@@ -317,7 +324,7 @@ if (visitorUrl && operationsUrl) {
       ) {
         throw new Error("Local message automation or three-way assignment proof is incomplete.");
       }
-      return `${item.deliveredFollowups} loopback messages include transactional and campaign-approved delivery proof, while ${item.reviewReadyOutreachMessages} outreach draft remains staff-controlled; ${item.tasks} tasks cover staff, volunteer, and team owners.`;
+      return `${item.deliveredFollowups} loopback messages include transactional, automatic key-date, and campaign-approved delivery proof, while ${item.reviewReadyOutreachMessages} outreach draft remains staff-controlled; ${item.tasks} tasks cover staff, volunteer, and team owners.`;
     });
     await inspect("fulfillment_outreach", "Fulfillment and geofenced outreach", "Inspect sponsor branding, vendor readiness, and targeted campaign records.", async () => {
       const item = observations.operations;

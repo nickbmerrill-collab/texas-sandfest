@@ -345,8 +345,11 @@ try {
   const revenue = await request(base, "GET", "/api/admin/revenue", undefined, { auth: true });
   const seededMarlin = seeded.data.applications?.find(item => item.organizationName === "Gulf Shore Credit Union");
   const seededSailfish = seeded.data.applications?.find(item => item.organizationName === "Port Aransas Marine Supply");
+  const seededCreativeMilestone = seeded.data.milestones?.find(item => item.label === "Sponsor homepage creative approval");
+  const seededCreativeReminder = seeded.data.followups?.find(item => item.milestoneId === seededCreativeMilestone?.id && item.kind === "milestone_reminder");
   check("seeded sponsor and vendor finance is visible", seeded.status === 200 && seeded.data.applications?.length === 4 && seeded.data.summary?.applications?.vendors === 2 && seeded.data.summary?.applications?.sponsors === 2 && seeded.data.applications?.some(item => item.type === "vendor" && item.offeringId === "food-beverage-booth" && item.expectedAmountCents === 175000) && seededMarlin?.packageId === "marlin" && seededMarlin?.expectedAmountCents === 1500000 && seededSailfish?.packageId === "sailfish" && seededSailfish?.expectedAmountCents === 1000000 && seeded.data.invoices?.length === 1 && seeded.data.payments?.length === 1 && seeded.data.receivables?.totals?.collectedCents === 1000000);
   check("seeded sponsor brand kit contains two approved private assets", seeded.data.brandAssets?.filter(item => item.label?.startsWith("Gulf Shore Credit Union") && item.status === "approved").length === 2);
+  check("seeded sponsor creative date enters the automatic follow-up window", seededCreativeMilestone?.source === "custom" && seededCreativeMilestone?.assigneeTeam === "sponsor" && seededCreativeMilestone?.reminderLeadDays === 3 && seeded.data.summary?.operations?.dueSoonMilestones === 1 && seededCreativeReminder?.status === "draft_ready" && seededCreativeReminder?.reminderPhase === "upcoming");
   check("revenue is current-event and includes site-native finance", revenue.status === 200 && revenue.data.eventId === DEFAULT_EVENT_ID && revenue.data.sources?.imported?.entries === 3 && revenue.data.sources?.partnerOperations?.entries === 1 && revenue.data.summary?.totals?.grossCents === 1750000 && revenue.data.summary?.tickets?.sold === 100 && revenue.data.entries?.every(item => item.eventId === DEFAULT_EVENT_ID) && revenue.data.imports?.length === 3 && revenue.data.imports?.every(item => item.fileName?.endsWith("-demo.csv")));
   check("seeded work and outreach are visible", seeded.data.tasks?.length === 10 && seeded.data.followups?.length >= 4 && outreach.status === 200 && outreach.data.prospects?.length === 2 && outreach.data.campaigns?.length === 2);
   const seededAssignmentTypes = new Set(seeded.data.tasks?.filter(item => item.assigneeId).map(item => item.assigneeType));
@@ -448,21 +451,31 @@ try {
   check("worker prepares one private notice per assigned task", taskAssignmentMessages.length === activeAssignedTaskIds.size && taskAssignmentMessages.every(item => item.status === "draft_ready" && item.recipientAvailable === true && item.recipientLabel && !("recipient" in item)));
   check("all board applications stay in 2027", afterWorker.data.applications?.every(item => item.eventId === DEFAULT_EVENT_ID));
   const automationEnabled = await request(base, "PATCH", "/api/admin/partners/automation", { mode: "transactional_auto" }, { auth: true });
-  const automatedWorkerOutput = await runWorker(child.processEnv);
-  const deliveredWorkspace = await waitFor(async () => {
-    const workspace = await request(base, "GET", "/api/admin/partners", undefined, { auth: true });
-    const applicationMessages = workspace.data.followups?.filter(item => item.kind === "application_received") || [];
-    const assignmentMessages = workspace.data.followups?.filter(item => item.kind === "task_assignment" && activeAssignedTaskIds.has(item.taskId)) || [];
-    return applicationMessages.length >= 7
-      && applicationMessages.every(item => item.status === "sent" && item.deliveryStatus === "delivered")
-      && assignmentMessages.length === activeAssignedTaskIds.size
-      && assignmentMessages.every(item => item.status === "sent" && item.deliveryStatus === "delivered")
-      ? workspace
-      : null;
-  });
+  const automatedWorkerOutputs = [];
+  let deliveredWorkspace = null;
+  for (let attempt = 0; attempt < 3 && !deliveredWorkspace; attempt += 1) {
+    automatedWorkerOutputs.push(await runWorker(child.processEnv));
+    deliveredWorkspace = await waitFor(async () => {
+      const workspace = await request(base, "GET", "/api/admin/partners", undefined, { auth: true });
+      const applicationMessages = workspace.data.followups?.filter(item => item.kind === "application_received") || [];
+      const assignmentMessages = workspace.data.followups?.filter(item => item.kind === "task_assignment" && activeAssignedTaskIds.has(item.taskId)) || [];
+      const milestoneReminder = workspace.data.followups?.find(item => item.kind === "milestone_reminder" && item.milestoneId === seededCreativeMilestone?.id);
+      return applicationMessages.length >= 7
+        && applicationMessages.every(item => item.status === "sent" && item.deliveryStatus === "delivered")
+        && assignmentMessages.length === activeAssignedTaskIds.size
+        && assignmentMessages.every(item => item.status === "sent" && item.deliveryStatus === "delivered")
+        && milestoneReminder?.status === "sent"
+        && milestoneReminder?.deliveryStatus === "delivered"
+        ? workspace
+        : null;
+    }, 1_500);
+  }
+  const automatedWorkerOutput = automatedWorkerOutputs.join("\n");
   const latestWorkspace = deliveredWorkspace || await request(base, "GET", "/api/admin/partners", undefined, { auth: true });
   const emailHealth = await fetch(`${emailSandbox.url}/health`).then(response => response.json());
   const deliveredMessages = latestWorkspace?.data.followups?.filter(item => item.status === "sent") || [];
+  const projectedMilestoneReminders = latestWorkspace?.data.followups?.filter(item => item.kind === "milestone_reminder") || [];
+  const deliveredCreativeReminder = projectedMilestoneReminders.find(item => item.milestoneId === seededCreativeMilestone?.id);
   const automationProof = {
     enableStatus: automationEnabled.status,
     enableAutomation: automationEnabled.data.automation,
@@ -475,6 +488,11 @@ try {
   const transactionalMessages = deliveredMessages.filter(item => !item.campaignId);
   const automationPolicyScoped = approvedCampaignMessages.length === 1 && approvedCampaignMessages.every(item => item.automationPolicy === "outreach_campaign_v1") && transactionalMessages.every(item => item.automationPolicy === "partner_transactional_v1") && latestWorkspace?.data.email?.ready === true && latestWorkspace?.data.email?.deliveryTracking?.ready === true && latestWorkspace?.data.automation?.policy === "partner_transactional_v1";
   check("board transactional automation delivers known-partner messages locally", localDeliveryReady, localDeliveryReady ? "" : JSON.stringify(automationProof));
+  const creativeReminderReady = deliveredCreativeReminder?.status === "sent"
+    && deliveredCreativeReminder?.deliveryStatus === "delivered"
+    && deliveredCreativeReminder?.automationPolicy === "partner_transactional_v1"
+    && deliveredCreativeReminder?.subject?.includes("sponsor homepage creative approval reminder");
+  check("board transactional automation delivers the due-soon key-date reminder", creativeReminderReady, creativeReminderReady ? "" : JSON.stringify({ milestoneId: seededCreativeMilestone?.id, reminders: projectedMilestoneReminders }));
   check("board automation stays scoped to approved campaigns and transactional policy", automationPolicyScoped, automationPolicyScoped ? "" : JSON.stringify(automationProof));
 
   const conditions = await request(base, "GET", "/api/public/island-conditions");
