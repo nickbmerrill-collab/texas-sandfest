@@ -5710,13 +5710,15 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .admin-outreach-map-radius::after { background: rgba(22, 108, 112, .07); border-radius: inherit; content: ""; inset: 0; position: absolute; }
 .admin-outreach-map-axis { color: var(--gulf); font-size: 10px; font-weight: 900; position: absolute; }
 .admin-outreach-map-axis-north { left: 50%; top: 8px; transform: translateX(-50%); }
-.admin-outreach-map-center { left: 50%; position: absolute; top: 50%; transform: translate(-50%, -50%); }
+.admin-outreach-map-center { left: 50%; position: absolute; top: 50%; transform: translate(-50%, -50%); z-index: 3; }
 .admin-outreach-map-center i { background: var(--deep); border: 3px solid var(--white); border-radius: 50%; box-shadow: 0 0 0 2px var(--deep); display: block; height: 14px; width: 14px; }
 .admin-outreach-map-center b { background: var(--deep); color: var(--white); font-size: 9px; left: 50%; padding: 3px 5px; position: absolute; top: 18px; transform: translateX(-50%); white-space: nowrap; }
 .admin-outreach-map-point { left: var(--plot-x); position: absolute; top: var(--plot-y); transform: translate(-50%, -50%); z-index: 2; }
 .admin-outreach-map-point i { background: var(--coral); border: 3px solid var(--white); border-radius: 50%; box-shadow: 0 0 0 2px #9f3127; display: block; height: 13px; width: 13px; }
 .admin-outreach-map-point[data-inside="false"] i { background: var(--sun); box-shadow: 0 0 0 2px #7a4f00; }
 .admin-outreach-map-point b { background: var(--white); border: 1px solid var(--line); color: var(--deep); font-size: 9px; left: 50%; max-width: 150px; overflow: hidden; padding: 3px 5px; position: absolute; text-overflow: ellipsis; top: 17px; transform: translateX(-50%); white-space: nowrap; }
+.admin-outreach-map-point[data-at-center="true"] i { background: transparent; border-color: var(--coral); box-shadow: 0 0 0 2px var(--white), 0 0 0 4px #9f3127; height: 28px; width: 28px; }
+.admin-outreach-map-point[data-at-center="true"] b { top: 48px; }
 .admin-outreach-map-detail { align-content: start; display: grid; gap: 10px; min-width: 0; }
 .admin-outreach-map-legend { display: flex; flex-wrap: wrap; gap: 9px 12px; }
 .admin-outreach-map-legend span { align-items: center; color: var(--muted); display: inline-flex; font-size: 10px; font-weight: 800; gap: 5px; }
