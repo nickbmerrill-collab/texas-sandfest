@@ -1265,6 +1265,27 @@ time {
 .admin-consent-panel #admin-load-consent {
   justify-self: start;
 }
+.admin-board-sms-preference {
+  align-items: center;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--gulf);
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 14px 16px;
+}
+.admin-board-sms-preference[hidden] { display: none; }
+.admin-board-sms-preference[data-state="opted_out"] { border-left-color: var(--coral); }
+.admin-board-sms-preference > div:first-child { display: grid; gap: 3px; min-width: 0; }
+.admin-board-sms-preference strong { color: var(--deep); }
+.admin-board-sms-preference span { color: var(--muted); font-size: 13px; }
+.admin-board-sms-preference-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.admin-board-sms-preference-actions .button { min-height: 44px; padding: 8px 11px; }
+@media (max-width: 520px) {
+  .admin-board-sms-preference { grid-template-columns: 1fr; }
+}
 
 /* People's Choice */
 .voting-panel {

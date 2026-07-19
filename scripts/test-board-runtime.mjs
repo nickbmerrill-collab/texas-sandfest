@@ -378,21 +378,41 @@ try {
   ].join(" ");
   check("board safety alert delivers through the signed local SMS lifecycle", smsLifecycleReady, smsLifecycleDetail);
 
-  const smsBasicAuth = Buffer.from(`${SMS_ACCOUNT_SID}:${SMS_AUTH_TOKEN}`).toString("base64");
-  const simulateSmsPreference = body => fetch(`${smsSandbox.url}/simulate/inbound`, {
-    method: "POST",
-    headers: {
-      authorization: `Basic ${smsBasicAuth}`,
-      "content-type": "application/x-www-form-urlencoded"
-    },
-    body: new URLSearchParams({ From: SMS_RECIPIENT, Body: body })
-  });
+  const unauthenticatedSmsPreference = await request(base, "POST", "/api/admin/board-demo/sms-preference", { action: "STOP" });
+  const simulateSmsPreference = action => request(base, "POST", "/api/admin/board-demo/sms-preference", { action }, { auth: true });
   const stopSms = await simulateSmsPreference("STOP");
   const afterStopSms = await request(base, "GET", "/api/admin/sms", undefined, { auth: true });
   const startSms = await simulateSmsPreference("START");
   const afterStartSms = await request(base, "GET", "/api/admin/sms", undefined, { auth: true });
+  const secondStopSms = await simulateSmsPreference("STOP");
+  const secondStartSms = await simulateSmsPreference("START");
+  const afterSecondCycleSms = await request(base, "GET", "/api/admin/sms", undefined, { auth: true });
+  const smsPreferenceAudit = await request(base, "GET", "/api/admin/audit?limit=100", undefined, { auth: true });
   const preferenceHealth = await fetch(`${smsSandbox.url}/health`).then(response => response.json());
-  check("board SMS STOP and START traverse signed consent callbacks", stopSms.status === 201 && afterStopSms.data.eligibleSafetyRecipients === 0 && afterStopSms.data.summary?.preferences?.STOP === 1 && startSms.status === 201 && afterStartSms.data.eligibleSafetyRecipients === 1 && afterStartSms.data.summary?.preferences?.START === 1 && preferenceHealth.preferenceCallbacks === 2);
+  check("board SMS preference controls require an authenticated operator", unauthenticatedSmsPreference.status === 401);
+  check("board SMS STOP and START traverse repeatable signed consent callbacks", stopSms.status === 200
+    && stopSms.data.boardDemoPreference?.state === "opted_out"
+    && afterStopSms.data.eligibleSafetyRecipients === 0
+    && afterStopSms.data.summary?.preferences?.STOP === 1
+    && startSms.status === 200
+    && startSms.data.boardDemoPreference?.state === "opted_in"
+    && afterStartSms.data.eligibleSafetyRecipients === 1
+    && afterStartSms.data.summary?.preferences?.START === 1
+    && secondStopSms.status === 200
+    && secondStartSms.status === 200
+    && afterSecondCycleSms.data.eligibleSafetyRecipients === 1
+    && afterSecondCycleSms.data.summary?.preferences?.STOP === 2
+    && afterSecondCycleSms.data.summary?.preferences?.START === 2
+    && afterSecondCycleSms.data.boardDemoPreference?.signedCallbacks === 4
+    && preferenceHealth.preferenceCallbacks === 4
+    && !JSON.stringify([stopSms.data, startSms.data, secondStopSms.data, secondStartSms.data]).includes(SMS_RECIPIENT));
+  const preferenceAuditRecords = (smsPreferenceAudit.data.audit || []).filter(item => [
+    "sms.preference.webhook",
+    "board_demo.sms_preference.simulate"
+  ].includes(item.record?.action));
+  check("board SMS preference audit remains aggregate-only", preferenceAuditRecords.filter(item => item.record?.action === "sms.preference.webhook").length === 4
+    && preferenceAuditRecords.filter(item => item.record?.action === "board_demo.sms_preference.simulate").length === 4
+    && preferenceAuditRecords.every(item => item.record?.metadata?.action && !JSON.stringify(item).includes(SMS_RECIPIENT)));
   await request(base, "PATCH", "/api/admin/alert", {
     active: false,
     severity: "clear",

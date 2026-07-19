@@ -4073,9 +4073,17 @@ Research First,construction,Corpus Christi,,78401,,,,Find decision maker,`;
         authorization: `Basic ${basicAuth}`,
         "content-type": "application/x-www-form-urlencoded"
       },
-      body: new URLSearchParams({ From: recipient, Body: "STOP" })
+      body: new URLSearchParams({ From: recipient, Body: "STOP", SimulationId: "platform-stop-1" })
     });
-    for (let attempt = 0; attempt < 30 && callbackEvents.length < 2; attempt += 1) await new Promise(resolve => setTimeout(resolve, 10));
+    const repeatedPreferenceResponse = await fetch(`${sandbox.url}/simulate/inbound`, {
+      method: "POST",
+      headers: {
+        authorization: `Basic ${basicAuth}`,
+        "content-type": "application/x-www-form-urlencoded"
+      },
+      body: new URLSearchParams({ From: recipient, Body: "STOP", SimulationId: "platform-stop-2" })
+    });
+    for (let attempt = 0; attempt < 30 && callbackEvents.length < 3; attempt += 1) await new Promise(resolve => setTimeout(resolve, 10));
     const health = await fetch(`${sandbox.url}/health`).then(response => response.json());
     const signedCallbacks = callbackEvents.every(event => verifyTwilioFormRequest({
       signature: event.headers["x-twilio-signature"],
@@ -4083,9 +4091,16 @@ Research First,construction,Corpus Christi,,78401,,,,Find decision maker,`;
       params: event.params
     }, { config: smsConfig }));
     const statusEvent = callbackEvents.find(event => event.params.MessageStatus === "delivered");
-    const preferenceEvent = callbackEvents.find(event => event.params.OptOutType === "STOP");
+    const preferenceEvents = callbackEvents.filter(event => event.params.OptOutType === "STOP");
     ok("board SMS sandbox returns Twilio acceptance and signed delivery", delivery.ok && delivery.sid?.startsWith("SM") && statusEvent?.params.MessageSid === delivery.sid && signedCallbacks && health.acceptedMessages === 1 && health.deliveryCallbacks === 1);
-    ok("board SMS sandbox simulates signed STOP without exposing message data", preferenceResponse.status === 201 && preferenceEvent?.params.From === recipient && health.preferenceCallbacks === 1 && health.callbackFailures === 0 && !JSON.stringify(health).includes(recipient));
+    ok("board SMS sandbox simulates repeatable signed STOP without exposing message data", preferenceResponse.status === 201
+      && repeatedPreferenceResponse.status === 201
+      && preferenceEvents.length === 2
+      && preferenceEvents.every(event => event.params.From === recipient)
+      && new Set(preferenceEvents.map(event => event.params.MessageSid)).size === 2
+      && health.preferenceCallbacks === 2
+      && health.callbackFailures === 0
+      && !JSON.stringify(health).includes(recipient));
     ok("board SMS sandbox rejects non-reserved recipients", !rejectedRealRecipient.ok && rejectedRealRecipient.httpStatus === 422 && health.recipientPolicy === "reserved-555-01xx-only");
   } finally {
     await sandbox.close();
@@ -4992,10 +5007,12 @@ try {
   const invalidRequestId = "x".repeat(200);
   const requestIdProbe = await hitRaw("GET", "/health", undefined, { "x-request-id": invalidRequestId });
   const unavailableBoardReset = await hit("POST", "/api/admin/board-demo/reset", null, true);
+  const unavailableBoardSmsPreference = await hit("POST", "/api/admin/board-demo/sms-preference", { action: "STOP" }, true);
   ok("GET /health", health.status === 200 || health.status === 404 || health.data);
   ok("health exposes the active rate-limit backend", health.status === 200 && health.data.rateLimitBackend === "memory");
   ok("API replaces invalid request IDs", requestIdProbe.status === 200 && /^req_[A-Za-z0-9-]+$/.test(requestIdProbe.headers.get("x-request-id") || "") && requestIdProbe.headers.get("x-request-id") !== invalidRequestId);
   ok("ordinary development API hides presentation reset", health.data.boardDemoResetReady === false && unavailableBoardReset.status === 404);
+  ok("ordinary development API hides board SMS preference simulation", unavailableBoardSmsPreference.status === 404);
   const readiness = await hit("GET", "/ready");
   const deployment = await hit("GET", "/api/admin/deployment", null, true);
   const queueStatus = await hit("GET", "/api/admin/jobs?limit=12", null, true);

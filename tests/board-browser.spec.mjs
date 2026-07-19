@@ -17,10 +17,14 @@ const OUTREACH_SECRET = "board-browser-outreach-secret-0123456789abcdef";
 const EMAIL_API_KEY = "board-browser-email-api-key-0123456789abcdef";
 const EMAIL_WEBHOOK_TOKEN = "board-browser-email-webhook-token-0123456789abcdef";
 const BOARD_TICKET_SECRET = "board-browser-ticket-secret-0123456789abcdef";
+const SMS_ACCOUNT_SID = "AC00000000000000000000000000000001";
+const SMS_AUTH_TOKEN = "board-browser-twilio-auth-token-0123456789";
+const SMS_FROM_NUMBER = "+13615550100";
 let temporaryRoot;
 let apiProcess;
 let webProcess;
 let emailProcess;
+let smsProcess;
 let workerProcess;
 let apiBase;
 let webBase;
@@ -193,10 +197,11 @@ test.beforeAll(async () => {
     replace: true
   });
 
-  const [apiPort, webPort, emailPort] = await Promise.all([freePort(), freePort(), freePort()]);
+  const [apiPort, webPort, emailPort, smsPort] = await Promise.all([freePort(), freePort(), freePort(), freePort()]);
   apiBase = `http://127.0.0.1:${apiPort}`;
   webBase = `http://127.0.0.1:${webPort}`;
   const emailBase = `http://127.0.0.1:${emailPort}`;
+  const smsBase = `http://127.0.0.1:${smsPort}`;
   const emailEnvironment = {
     TRANSACTIONAL_EMAIL_ENABLED: "true",
     BREVO_API_KEY: EMAIL_API_KEY,
@@ -216,6 +221,26 @@ test.beforeAll(async () => {
     SANDFEST_BOARD_EMAIL_WEBHOOK_URL: `${apiBase}/api/webhooks/brevo`
   });
   await waitForHttp(`${emailBase}/health`, emailProcess);
+  const smsEnvironment = {
+    SMS_ENABLED: "true",
+    TWILIO_ACCOUNT_SID: SMS_ACCOUNT_SID,
+    TWILIO_AUTH_TOKEN: SMS_AUTH_TOKEN,
+    TWILIO_FROM_NUMBER: SMS_FROM_NUMBER,
+    TWILIO_API_BASE_URL: smsBase,
+    TWILIO_STATUS_CALLBACK_URL: `${apiBase}/api/webhooks/twilio/status`,
+    TWILIO_SAFETY_INBOUND_WEBHOOK_URL: `${apiBase}/api/webhooks/twilio/inbound/smsSafety`
+  };
+  smsProcess = startNodeProcess("Board browser SMS sandbox", ["scripts/board-sms-sandbox.mjs"], {
+    SANDFEST_ENV: "development",
+    SANDFEST_BOARD_SMS_SANDBOX: "true",
+    SANDFEST_BOARD_SMS_PORT: String(smsPort),
+    SANDFEST_BOARD_SMS_DELIVERY_DELAY_MS: "10",
+    BOARD_TWILIO_ACCOUNT_SID: SMS_ACCOUNT_SID,
+    BOARD_TWILIO_AUTH_TOKEN: SMS_AUTH_TOKEN,
+    BOARD_TWILIO_FROM_NUMBER: SMS_FROM_NUMBER,
+    SANDFEST_BOARD_SMS_INBOUND_WEBHOOK_URL: `${apiBase}/api/webhooks/twilio/inbound/smsSafety`
+  });
+  await waitForHttp(`${smsBase}/health`, smsProcess);
   apiProcess = startNodeProcess("Board browser API", ["scripts/admin-api-server.mjs"], {
     SANDFEST_RUNTIME_ROOT: runtimeRoot,
     SANDFEST_INCOMING_DOCUMENT_DIR: path.join(runtimeRoot, "private", "incoming-documents"),
@@ -246,7 +271,7 @@ test.beforeAll(async () => {
     QB_REDIRECT_URI: `${apiBase}/api/integrations/quickbooks/callback`,
     QB_TOKEN_ENCRYPTION_KEY: "board-browser-quickbooks-encryption-key-0123456789",
     ...emailEnvironment,
-    SMS_ENABLED: "false",
+    ...smsEnvironment,
     CAMERA_INGEST_ENABLED: "false"
   });
   await waitForHttp(`${apiBase}/health`, apiProcess);
@@ -263,7 +288,7 @@ test.beforeAll(async () => {
     SANDFEST_OUTREACH_PREFERENCES_SECRET: OUTREACH_SECRET,
     SANDFEST_WORKER_POLL_MS: "100",
     ...emailEnvironment,
-    SMS_ENABLED: "false"
+    ...smsEnvironment
   });
   await waitForJson(`${apiBase}/ready`, value => value.checks?.workerStatus?.healthy === true, workerProcess);
 
@@ -283,6 +308,7 @@ test.afterAll(async () => {
   await stopChild(workerProcess);
   await stopChild(webProcess);
   await stopChild(apiProcess);
+  await stopChild(smsProcess);
   await stopChild(emailProcess);
   if (temporaryRoot) await rm(temporaryRoot, { recursive: true, force: true });
 });
@@ -588,6 +614,31 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await expect(page.locator("#admin-island-conditions > strong").first()).toHaveText("Source health");
   await expect(page.locator("#admin-condition-feeds")).toContainText("Simulated · Current");
   await expect(page.locator("#admin-condition-feeds")).not.toContainText("Live · Live");
+  const smsPreference = page.locator("#admin-board-sms-preference");
+  const smsPreferenceStatus = page.locator("#admin-board-sms-preference-status");
+  const smsSafetyKpi = page.locator("#admin-consent-kpis article").filter({ hasText: "SMS safety" });
+  const stopSmsPreference = smsPreference.locator('[data-board-sms-preference="STOP"]');
+  const startSmsPreference = smsPreference.locator('[data-board-sms-preference="START"]');
+  await expect(smsPreference).toBeVisible();
+  await expect(smsPreferenceStatus).toHaveText("Opted in · 0 signed sandbox callbacks");
+  await expect(smsSafetyKpi.locator("strong")).toHaveText("1");
+  await expect(stopSmsPreference).toBeEnabled();
+  await expect(startSmsPreference).toBeDisabled();
+  await expect(smsPreference).not.toContainText("+13615550188");
+  const stopPreferenceResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/board-demo/sms-preference" && response.request().method() === "POST");
+  await stopSmsPreference.click();
+  expect((await stopPreferenceResponse).status()).toBe(200);
+  await expect(smsPreferenceStatus).toHaveText("Opted out · 1 signed sandbox callback");
+  await expect(smsSafetyKpi.locator("strong")).toHaveText("0");
+  await expect(stopSmsPreference).toBeDisabled();
+  await expect(startSmsPreference).toBeEnabled();
+  const startPreferenceResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/board-demo/sms-preference" && response.request().method() === "POST");
+  await startSmsPreference.click();
+  expect((await startPreferenceResponse).status()).toBe(200);
+  await expect(smsPreferenceStatus).toHaveText("Opted in · 2 signed sandbox callbacks");
+  await expect(smsSafetyKpi.locator("strong")).toHaveText("1");
+  await expect(stopSmsPreference).toBeEnabled();
+  await expect(startSmsPreference).toBeDisabled();
   const partnerKpis = page.locator("#admin-partner-kpis");
   await expect(partnerKpis.locator("article").filter({ hasText: "Received" })).toContainText("1 active payment");
   await expect(partnerKpis.locator("article").filter({ hasText: "Received" })).toContainText("0 accounts paid in full");
