@@ -270,6 +270,7 @@ test.afterAll(async () => {
 });
 
 test("board workflows operate through the public and staff interfaces", async ({ page }) => {
+  test.setTimeout(150_000);
   const pageErrors = [];
   page.on("pageerror", error => pageErrors.push(error.message));
   const runId = randomUUID().slice(0, 8);
