@@ -334,6 +334,7 @@ const environments = processEnvironment(options.runtimeRoot, endpoints);
 const definitions = serviceDefinitions(environments, ports);
 const preflightEnv = {
   ...process.env,
+  SANDFEST_BOARD_SESSION_FILE: sessionFile,
   SANDFEST_BOARD_PUBLIC_SITE_URL: endpoints.webBase,
   SANDFEST_BOARD_API_BASE: endpoints.apiBase,
   SANDFEST_BOARD_EMAIL_BASE: endpoints.emailBase,

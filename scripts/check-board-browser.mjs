@@ -194,6 +194,10 @@ if (visitorUrl && operationsUrl) {
         commandSignals: document.querySelectorAll("#admin-command-signals [data-command-signal]").length,
         commandSignalText: Object.fromEntries([...document.querySelectorAll("#admin-command-signals [data-command-signal]")]
           .map(item => [item.dataset.commandSignal, item.textContent?.replace(/\s+/g, " ").trim()])),
+        partnerKpis: Object.fromEntries([...document.querySelectorAll("#admin-partner-kpis article")]
+          .map(item => [item.querySelector("span")?.textContent?.trim(), item.textContent?.replace(/\s+/g, " ").trim()])),
+        partnerRefreshLabel: document.querySelector("#admin-load-partners")?.textContent?.trim(),
+        conditionsRefreshLabel: document.querySelector("#admin-load-conditions")?.textContent?.trim(),
         commandViewport: (() => {
           const cards = [...document.querySelectorAll("#admin-command-signals [data-command-signal]")];
           const lastCard = cards.at(-1)?.getBoundingClientRect();
@@ -274,6 +278,8 @@ if (visitorUrl && operationsUrl) {
         || item.commandViewport?.height !== 720
         || item.commandViewport?.allVisible !== true
         || !item.apiStatus?.includes("Loaded")
+        || item.partnerRefreshLabel !== "Refresh partner workspace"
+        || item.conditionsRefreshLabel !== "Refresh island operations"
         || item.resetReady !== true
       ) {
         throw new Error(observations.operationsError || "The operations command center did not finish loading.");
@@ -306,6 +312,10 @@ if (visitorUrl && operationsUrl) {
         || !item?.commandSignalText?.["key-dates"]?.includes("upcoming")
         || !item?.commandSignalText?.["key-dates"]?.includes("1 due soon")
         || !item?.keyDateSummary?.includes("1 due soon")
+        || !item?.partnerKpis?.Received?.includes("1 active payment")
+        || !item?.partnerKpis?.Received?.includes("0 accounts paid in full")
+        || !item?.partnerKpis?.QuickBooks?.includes("Post-board")
+        || !item?.partnerKpis?.["Online invoices"]?.includes("Post-board")
         || item?.quickBooksState !== "deferred"
       ) {
         throw new Error("Receivables or partner key-date proof is incomplete.");

@@ -183,6 +183,8 @@ try {
     QB_REALM_ID: "inherited-test-realm",
     QB_REFRESH_TOKEN: "inherited-test-refresh"
   };
+  // The CLI option must be sufficient for the supervisor's own preflight.
+  delete supervisorEnvironment.SANDFEST_BOARD_SESSION_FILE;
   supervisor = startSupervisor([
     "--runtime", runtimeRoot,
     "--session-file", sessionFile,

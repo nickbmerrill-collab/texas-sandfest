@@ -532,6 +532,13 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await expect(page.locator("#admin-config h1")).toHaveText("Festival operations command center");
   await expect(page.locator(".nav-cta")).toHaveAttribute("href", `${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor`);
   await expect(page.locator("#admin-deployment-summary")).toContainText("development · ready");
+  await expect(page.locator("#admin-load-partners")).toHaveText("Refresh partner workspace");
+  await expect(page.locator("#admin-load-conditions")).toHaveText("Refresh island operations");
+  const partnerKpis = page.locator("#admin-partner-kpis");
+  await expect(partnerKpis.locator("article").filter({ hasText: "Received" })).toContainText("1 active payment");
+  await expect(partnerKpis.locator("article").filter({ hasText: "Received" })).toContainText("0 accounts paid in full");
+  await expect(partnerKpis.locator("article").filter({ hasText: "QuickBooks" })).toContainText("Post-board");
+  await expect(partnerKpis.locator("article").filter({ hasText: "Online invoices" })).toContainText("Post-board");
   const commandSignals = page.locator("#admin-command-signals");
   await expect(commandSignals).toHaveAttribute("aria-busy", "false");
   await expect(commandSignals.locator("[data-command-signal]")).toHaveCount(8);
