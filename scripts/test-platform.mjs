@@ -840,7 +840,13 @@ console.log("\n=== Pure library suite ===\n");
     health: { ...readyBoardState.health, publicSiteUrl: "http://127.0.0.1:5176" },
     conditions: { ...readyBoardState.conditions, summary: { ...readyBoardState.conditions.summary, liveCameras: 0, healthyPipelines: 0, offlinePipelines: 8 } }
   });
-  ok("board demo readiness accepts the complete local stack", readyBoardReport.ok && readyBoardReport.passed === readyBoardReport.total && readyBoardReport.total === 9);
+  const readyBoardCameraCheck = readyBoardReport.checks.find(item => item.id === "camera_fleet");
+  ok("board demo readiness accepts the complete local stack", readyBoardReport.ok
+    && readyBoardReport.passed === readyBoardReport.total
+    && readyBoardReport.total === 9
+    && readyBoardCameraCheck?.detail.includes("synthetic playback")
+    && readyBoardCameraCheck?.detail.includes("current")
+    && !readyBoardCameraCheck?.detail.includes("live"));
   ok("board demo readiness requires loopback delivery proof in automatic mode", localAutomationBoardReport.ok
     && localAutomationBoardReport.checks.find(item => item.id === "operations")?.detail.includes("locally delivered messages")
     && missingLocalCampaignReport.checks.find(item => item.id === "operations")?.ok === false
