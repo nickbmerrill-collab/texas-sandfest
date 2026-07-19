@@ -37,8 +37,12 @@ The supervisor prepares or reuses the isolated runtime, selects unused loopback
 ports without stopping another local service, starts the web, API, worker,
 email, SMS, and eight-camera playback processes, and prints the exact Visitor
 and Operations links only after the same nine readiness checks pass. That gate
-requires delivered transactional and campaign-approved messages from the local
-mailbox, not merely a configured worker. Keep this
+requires sandbox-shaped provider acceptance plus authenticated, durable delivery
+events for transactional and campaign-approved messages, not merely a configured
+worker. A normal supervisor restart can therefore reuse those audited delivery
+events even though the loopback mailbox process begins with fresh in-memory
+counters; a newly prepared runtime must still traverse the mailbox and callback
+path before it can become ready. Keep this
 terminal open during the presentation. `npm run board:check` automatically
 discovers the active session even when the preferred ports were occupied. The
 presentation stack does not call NWS or TxDOT: its weather and ferry cards are
