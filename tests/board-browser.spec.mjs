@@ -1467,6 +1467,47 @@ test("operations command summary fits a 1280x720 board viewport", async ({ page 
   await assertNoHorizontalOverflow(page);
 });
 
+test("visitor hero and navigation stay ordered across intermediate widths", async ({ page }) => {
+  for (const width of [768, 1024, 1160]) {
+    await page.setViewportSize({ width, height: 720 });
+    await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor`);
+    await expect(page.locator(".hero h1")).toHaveText("Texas SandFest");
+    await expect(page.locator(".hero-actions")).toBeInViewport({ ratio: 1 });
+    await expect(page.locator("#public-navigation")).toBeHidden();
+    await expect(page.locator("#mobile-nav-toggle")).toBeVisible();
+    const layout = await page.locator(".hero").evaluate(hero => {
+      const rect = selector => hero.querySelector(selector).getBoundingClientRect();
+      const values = [".hero-content", ".motion-console", ".event-card"].map(rect);
+      return {
+        hero: hero.getBoundingClientRect().toJSON(),
+        content: values[0].toJSON(),
+        motion: values[1].toJSON(),
+        event: values[2].toJSON()
+      };
+    });
+    expect(layout.content.top).toBeGreaterThanOrEqual(layout.hero.top);
+    expect(layout.content.bottom).toBeLessThan(layout.motion.top);
+    expect(layout.content.bottom).toBeLessThan(layout.event.top);
+    expect(layout.motion.right).toBeLessThan(layout.event.left);
+    expect(layout.motion.bottom).toBeLessThanOrEqual(layout.hero.bottom);
+    expect(layout.event.bottom).toBeLessThanOrEqual(layout.hero.bottom);
+    await assertNoHorizontalOverflow(page);
+    if (width === 1024) {
+      await page.locator("#mobile-nav-toggle").click();
+      await expect(page.locator("#public-navigation")).toBeVisible();
+      await assertNoHorizontalOverflow(page);
+      await page.keyboard.press("Escape");
+      await expect(page.locator("#public-navigation")).toBeHidden();
+    }
+  }
+
+  await page.setViewportSize({ width: 1161, height: 720 });
+  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor`);
+  await expect(page.locator("#public-navigation")).toBeVisible();
+  await expect(page.locator("#mobile-nav-toggle")).toBeHidden();
+  await assertNoHorizontalOverflow(page);
+});
+
 test("critical public and operations views fit a mobile viewport", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 740 });
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor`);

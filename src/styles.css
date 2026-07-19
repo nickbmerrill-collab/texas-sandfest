@@ -2994,7 +2994,7 @@ time {
   text-underline-offset: 4px;
 }
 
-@media (max-width: 920px) {
+@media (max-width: 1160px) {
   .topbar .primary-nav {
     display: none;
   }
@@ -3037,6 +3037,12 @@ time {
     background: rgba(255, 253, 247, 0.98);
   }
 
+  .app-status-controls {
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 920px) {
   .site-footer {
     align-items: flex-start;
     flex-direction: column;
@@ -3049,10 +3055,6 @@ time {
     display: flex;
     flex-direction: column;
     gap: 2px;
-  }
-
-  .app-status-controls {
-    margin-left: auto;
   }
 
   .event-card {
@@ -3163,6 +3165,42 @@ time {
     min-height: 760px;
     padding-left: 24px;
     padding-right: 24px;
+  }
+}
+
+@media (min-width: 621px) and (max-width: 1160px) {
+  .hero {
+    align-content: start;
+    align-items: start;
+    column-gap: 16px;
+    grid-template-columns: minmax(0, 1.6fr) minmax(220px, 1fr);
+    grid-template-rows: auto minmax(24px, 1fr) auto;
+    padding-bottom: 24px;
+    padding-top: 48px;
+    row-gap: 18px;
+  }
+
+  .hero-content {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    max-width: 700px;
+  }
+
+  .motion-console {
+    grid-column: 1;
+    grid-row: 3;
+    inset: auto;
+    position: relative;
+    width: 100%;
+  }
+
+  .event-card {
+    grid-column: 2;
+    grid-row: 3;
+    inset: auto;
+    max-width: none;
+    position: relative;
+    width: 100%;
   }
 }
 
