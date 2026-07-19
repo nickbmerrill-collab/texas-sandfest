@@ -112,6 +112,7 @@ import {
 } from "../lib/outreach-discovery.mjs";
 import {
   OUTREACH_CAMPAIGN_AUTOMATION_POLICY,
+  PARTNER_INITIAL_REMINDER_GRACE_MS,
   PARTNER_PORTAL_RECOVERY_WINDOW_MS,
   PARTNER_TRANSACTIONAL_AUTOMATION_POLICY,
   PARTNER_TRANSACTIONAL_FOLLOWUP_KINDS,
@@ -2274,17 +2275,25 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   ok("partner portal recovery enforces a sliding cooldown", duplicateRecovery.duplicate && duplicateRecovery.followup.id === recovery.followup.id && nextRecovery.changed && nextRecovery.followup.id !== recovery.followup.id);
   ok("partner portal recovery revalidates recipient before queue", !changedRecoveryRecipient.ok && changedRecoveryRecipient.error.includes("no longer matches"));
   ok("partner portal recovery activity is privacy minimized", recoveryActivity.type === "application.portal_access_requested" && !JSON.stringify(recoveryActivity).includes(applicationInput.contactEmail) && !JSON.stringify(recoveryActivity).includes(portalToken));
-  const scheduled = generateDuePartnerFollowups(created.doc, { idFactory, now, leadDays: 3, portalUrlForApplication: () => portalUrl });
-  const scheduledAgain = generateDuePartnerFollowups(scheduled.doc, { idFactory, now, leadDays: 3 });
-  ok("scheduled milestone draft", scheduled.changed && scheduled.generated.length === 1 && scheduled.generated[0].status === "draft_ready" && scheduled.generated[0].sourceVersion === "schedule:1:phase:upcoming" && scheduled.generated[0].body.includes(portalUrl));
+  const immediateMilestoneReminder = generateDuePartnerFollowups(created.doc, { idFactory, now, leadDays: 3, portalUrlForApplication: () => portalUrl });
+  const expeditedMilestone = updatePartnerMilestone(created.doc, created.doc.milestones.find(item => item.kind === "opportunity_qualification").id, {
+    dueAt: new Date(Date.parse(now) + 86_400_000).toISOString()
+  }, { idFactory, actorId: "admin_1", now });
+  const expeditedMilestoneReminder = generateDuePartnerFollowups(expeditedMilestone.doc, { idFactory, now, leadDays: 3, portalUrlForApplication: () => portalUrl });
+  const reminderNow = new Date(Date.parse(now) + PARTNER_INITIAL_REMINDER_GRACE_MS).toISOString();
+  const scheduled = generateDuePartnerFollowups(created.doc, { idFactory, now: reminderNow, leadDays: 3, portalUrlForApplication: () => portalUrl });
+  const scheduledAgain = generateDuePartnerFollowups(scheduled.doc, { idFactory, now: reminderNow, leadDays: 3 });
+  ok("new intake acknowledgment has a reminder grace period", !immediateMilestoneReminder.changed && immediateMilestoneReminder.generated.length === 0);
+  ok("staff-rescheduled intake milestone bypasses the initial grace period", expeditedMilestoneReminder.generated.length === 1 && expeditedMilestoneReminder.generated[0].sourceVersion === "schedule:2:phase:upcoming");
+  ok("scheduled milestone draft after intake grace", scheduled.changed && scheduled.generated.length === 1 && scheduled.generated[0].status === "draft_ready" && scheduled.generated[0].sourceVersion === "schedule:1:phase:upcoming" && scheduled.generated[0].body.includes(portalUrl));
   ok("scheduled milestone idempotency", !scheduledAgain.changed && scheduledAgain.generated.length === 0);
-  const milestoneApproved = reviewFollowup(scheduled.doc, scheduled.generated[0].id, "approve", { actorId: "admin_1", now });
-  const milestoneQueued = queueFollowupDelivery(milestoneApproved.doc, scheduled.generated[0].id, { now });
-  const claimedMilestoneReminder = claimFollowupDelivery(milestoneQueued.doc, scheduled.generated[0].id, { deliveryClaimId: "job_milestone_reminder", now });
-  const rescheduledBeforeMilestoneHandoff = updatePartnerMilestone(claimedMilestoneReminder.doc, scheduled.generated[0].milestoneId, { dueAt: "2026-08-02T12:00:00.000Z" }, { idFactory, actorId: "admin_1", now });
-  const begunMilestoneReminder = beginFollowupProviderSubmission(claimedMilestoneReminder.doc, scheduled.generated[0].id, { deliveryClaimId: "job_milestone_reminder", now });
-  const completedAfterMilestoneHandoff = updatePartnerMilestone(begunMilestoneReminder.doc, scheduled.generated[0].milestoneId, { status: "completed" }, { idFactory, actorId: "admin_1", now });
-  const milestoneSent = recordFollowupDelivery(milestoneQueued.doc, scheduled.generated[0].id, { sent: true, provider: "brevo", providerMessageId: "msg_milestone_1" }, { now });
+  const milestoneApproved = reviewFollowup(scheduled.doc, scheduled.generated[0].id, "approve", { actorId: "admin_1", now: reminderNow });
+  const milestoneQueued = queueFollowupDelivery(milestoneApproved.doc, scheduled.generated[0].id, { now: reminderNow });
+  const claimedMilestoneReminder = claimFollowupDelivery(milestoneQueued.doc, scheduled.generated[0].id, { deliveryClaimId: "job_milestone_reminder", now: reminderNow });
+  const rescheduledBeforeMilestoneHandoff = updatePartnerMilestone(claimedMilestoneReminder.doc, scheduled.generated[0].milestoneId, { dueAt: "2026-08-02T12:00:00.000Z" }, { idFactory, actorId: "admin_1", now: reminderNow });
+  const begunMilestoneReminder = beginFollowupProviderSubmission(claimedMilestoneReminder.doc, scheduled.generated[0].id, { deliveryClaimId: "job_milestone_reminder", now: reminderNow });
+  const completedAfterMilestoneHandoff = updatePartnerMilestone(begunMilestoneReminder.doc, scheduled.generated[0].milestoneId, { status: "completed" }, { idFactory, actorId: "admin_1", now: reminderNow });
+  const milestoneSent = recordFollowupDelivery(milestoneQueued.doc, scheduled.generated[0].id, { sent: true, provider: "brevo", providerMessageId: "msg_milestone_1" }, { now: reminderNow });
   const overdueMilestone = generateDuePartnerFollowups(milestoneSent.doc, { idFactory, now: "2026-07-23T12:00:00.000Z", portalUrlForApplication: () => portalUrl });
   const overdueReminder = overdueMilestone.generated.find(item => item.milestoneId === scheduled.generated[0].milestoneId);
   const overdueMilestoneAgain = generateDuePartnerFollowups(overdueMilestone.doc, { idFactory, now: "2026-07-30T12:00:00.000Z" });
