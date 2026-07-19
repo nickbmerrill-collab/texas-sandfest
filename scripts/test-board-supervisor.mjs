@@ -124,8 +124,11 @@ async function preflight(sessionFile) {
   return report;
 }
 
-async function browserRehearsal(sessionFile) {
-  const result = await run(process.execPath, ["scripts/check-board-browser.mjs", "--json"], commandEnvironment(sessionFile), 60_000);
+async function browserRehearsal(sessionFile, environment = {}) {
+  const result = await run(process.execPath, ["scripts/check-board-browser.mjs", "--json"], {
+    ...commandEnvironment(sessionFile),
+    ...environment
+  }, 90_000);
   let report = null;
   try {
     report = JSON.parse(result.stdout);
@@ -233,6 +236,14 @@ try {
     "--sms-port", String(smsPort)
   ], supervisorEnvironment);
 
+  await waitFor(async () => {
+    const session = await readBoardDemoSession(sessionFile);
+    return session?.status === "starting" ? session : null;
+  }, 10_000, "Starting board demo session");
+  const eagerBrowserRehearsal = browserRehearsal(sessionFile, {
+    SANDFEST_BOARD_BROWSER_SESSION_WAIT_MS: "60000"
+  }).then(report => ({ report }), error => ({ error }));
+
   const initial = await waitFor(async () => {
     const session = await readBoardDemoSession(sessionFile);
     if (session?.status !== "ready" || session?.lastPreflight?.passed !== 10) return null;
@@ -333,8 +344,9 @@ try {
     throw new Error("Board preflight did not return the exact active Visitor and Operations links.");
   }
   console.log(`  ok board:check discovers the active session and passes ${initialReport.passed}/${initialReport.total}`);
-  const browserReport = await browserRehearsal(sessionFile);
-  console.log(`  ok board:rehearse renders the active visitor and operations session ${browserReport.passed}/${browserReport.total}`);
+  const eagerBrowserResult = await eagerBrowserRehearsal;
+  if (eagerBrowserResult.error) throw eagerBrowserResult.error;
+  console.log(`  ok board:rehearse waits through startup and renders the active visitor and operations session ${eagerBrowserResult.report.passed}/${eagerBrowserResult.report.total}`);
   const staleSourceSessionFile = path.join(temporary, "stale-source-session.json");
   await writeFile(staleSourceSessionFile, `${JSON.stringify({
     ...initial,
