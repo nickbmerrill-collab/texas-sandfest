@@ -5388,6 +5388,7 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .admin-discovery-categories label { align-items: center; color: var(--deep); display: flex; font-size: 12px; gap: 7px; min-width: 0; }
 .admin-discovery-categories input,
 .admin-discovery-select input { flex: 0 0 24px; height: 24px; margin: 0; width: 24px; }
+.admin-discovery-select input { flex-basis: 28px; height: 28px; min-height: 28px; min-width: 28px; width: 28px; }
 .admin-discovery-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .admin-discovery-result { border-top: 1px solid var(--line); display: grid; gap: 8px; }
 .admin-discovery-result:empty { display: none; }

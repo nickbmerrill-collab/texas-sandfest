@@ -6675,6 +6675,31 @@ function renderAdminQuickBooksConnection(quickbooks = {}) {
   };
 }
 
+function partnerAutomationPresentation(payload, draftsAwaitingReview = 0) {
+  const automation = payload?.automation || {};
+  const mode = automation.mode || payload?.automationMode || "review_first";
+  const providerReady = automation.providerReady === true;
+  const active = mode === "transactional_auto" && automation.active === true;
+  const reviewCount = Number(draftsAwaitingReview || 0);
+  const reviewDetail = `${reviewCount} draft${reviewCount === 1 ? "" : "s"} awaiting staff review`;
+  if (mode === "transactional_auto") {
+    return {
+      active,
+      commandDetail: `${providerReady ? "Provider ready" : "Provider unavailable"} · ${active ? "automatic follow-up" : "automation paused"}`,
+      detail: active ? reviewDetail : providerReady ? "Automation paused" : "Provider connection required",
+      label: active ? "Automatic" : "Needs attention",
+      mode
+    };
+  }
+  return {
+    active: false,
+    commandDetail: `${providerReady ? "Provider ready" : "Provider unavailable"} · staff review required`,
+    detail: reviewDetail,
+    label: "Review first",
+    mode
+  };
+}
+
 function renderAdminCommandSummary(payload, outreach) {
   const target = document.querySelector("#admin-command-signals");
   const updated = document.querySelector("#admin-command-updated");
@@ -6692,8 +6717,9 @@ function renderAdminCommandSummary(payload, outreach) {
   const vendor = payload.vendorReadiness?.totals || summary.vendorReadiness || {};
   const fulfillment = summary.fulfillment || payload.fulfillment || {};
   const outreachSummary = outreach?.summary || {};
+  const automationPresentation = partnerAutomationPresentation(payload, operations.draftsAwaitingReview);
   const automationReady = payload.automation?.providerReady === true
-    && (payload.automation?.active === true || payload.automationMode === "review_first");
+    && (automationPresentation.active || automationPresentation.mode === "review_first");
   const assignmentsReady = Number(taskTotals.active || 0) > 0
     && Number(taskTotals.unassigned || 0) === 0
     && assignmentCoverage.length === 3;
@@ -6726,7 +6752,7 @@ function renderAdminCommandSummary(payload, outreach) {
       id: "messages",
       label: "Messages",
       value: `${Number(operations.draftsAwaitingReview || 0)} to review`,
-      detail: `${payload.automation?.providerReady ? "Provider ready" : "Provider unavailable"} · ${conditionLabel(payload.automationMode || "review_first")}`,
+      detail: automationPresentation.commandDetail,
       action: "Review queue",
       href: "#admin-partner-followups",
       state: automationReady ? Number(operations.draftsAwaitingReview || 0) > 0 ? "attention" : "ready" : "blocked"
@@ -6971,6 +6997,7 @@ function renderAdminPartners(payload, outreach) {
     .filter(item => ["succeeded", "partially_refunded"].includes(item.status)).length;
   const paidInFullCount = Number(summary?.applications?.paid || 0);
   const boardProvidersDeferred = BOARD_DEMO_ACCESS.enabled;
+  const automationPresentation = partnerAutomationPresentation(payload, summary?.operations?.draftsAwaitingReview);
   const kpis = document.querySelector("#admin-partner-kpis");
   const applications = document.querySelector("#admin-partner-applications");
   const followups = document.querySelector("#admin-partner-followups");
@@ -7004,7 +7031,7 @@ function renderAdminPartners(payload, outreach) {
     revenueKpiCard("Staff routing", payload.staffDirectory?.ready ? "Ready" : "Needs review", `${payload.staffDirectory?.activeStaff || 0} active · ${payload.staffDirectory?.routedTeams || 0}/${payload.staffDirectory?.totalTeams || 0} teams`),
     revenueKpiCard("Vendor readiness", `${payload.vendorReadiness?.totals?.ready || 0}/${payload.vendorReadiness?.totals?.vendors || 0} ready`, `${payload.vendorReadiness?.totals?.requirementsMissing || 0} missing · ${payload.vendorReadiness?.totals?.requirementsAwaitingReview || 0} pending`),
     revenueKpiCard("Sponsor delivery", `${summary.fulfillment?.deliverables?.active || 0} active`, `${summary.fulfillment?.assets?.awaitingReview || 0} assets pending · ${summary.fulfillment?.deliverables?.awaitingPartnerReview || 0} sign-offs`),
-    revenueKpiCard("Drafts", `${summary.operations.draftsAwaitingReview}`, `${payload.automationMode.replace(/_/g, " ")} automation`),
+    revenueKpiCard("Messaging", automationPresentation.label, automationPresentation.detail),
     revenueKpiCard(
       "Email delivery",
       payload.email?.ready && payload.email?.deliveryTracking?.ready ? "Tracked" : payload.email?.ready ? "Send only" : "Off",

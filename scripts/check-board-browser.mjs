@@ -316,6 +316,8 @@ if (visitorUrl && operationsUrl) {
         || !item?.partnerKpis?.Received?.includes("0 accounts paid in full")
         || !item?.partnerKpis?.QuickBooks?.includes("Post-board")
         || !item?.partnerKpis?.["Online invoices"]?.includes("Post-board")
+        || !item?.partnerKpis?.Messaging?.includes("Automatic")
+        || !item?.partnerKpis?.Messaging?.includes("awaiting staff review")
         || item?.quickBooksState !== "deferred"
       ) {
         throw new Error("Receivables or partner key-date proof is incomplete.");
@@ -328,6 +330,7 @@ if (visitorUrl && operationsUrl) {
       if (
         item?.followups < 4
         || item?.deliveredFollowups < 2
+        || !item?.commandSignalText?.messages?.includes("automatic follow-up")
         || item?.deliveredTransactionalMessages < 1
         || item?.deliveredCampaignMessages < 1
         || item?.deliveredMilestoneReminders < 1
@@ -337,7 +340,6 @@ if (visitorUrl && operationsUrl) {
         || item?.tasks < 9
         || !item?.taskSummary?.includes("active")
         || requiredAssignmentTypes.some(type => !item.taskAssignmentTypes?.includes(type))
-        || !item?.commandSignalText?.messages?.includes("transactional auto")
         || !item?.commandSignalText?.assignments?.includes("staff / volunteer / team")
       ) {
         throw new Error("Local message automation or three-way assignment proof is incomplete.");
