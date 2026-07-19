@@ -7487,8 +7487,9 @@ function renderAdminOutreachCoverage(outreach) {
   const pointMarkup = visible.map(item => {
     const x = 50 + (item.eastMiles / plotLimitMiles) * 50;
     const y = 50 - (item.northMiles / plotLimitMiles) * 50;
+    const atCenter = item.distanceMiles < 0.05;
     const label = `${item.prospect.organizationName}, ${item.distanceMiles.toFixed(1)} miles from campaign center, ${item.inside ? "inside" : "outside"} radius`;
-    return `<span class="admin-outreach-map-point" data-outreach-map-prospect="${escapeAttr(item.prospect.id)}" data-inside="${item.inside}" style="--plot-x:${x.toFixed(3)}%;--plot-y:${y.toFixed(3)}%" title="${escapeAttr(label)}" aria-hidden="true"><i></i><b>${escapeHtml(item.prospect.organizationName)}</b></span>`;
+    return `<span class="admin-outreach-map-point" data-outreach-map-prospect="${escapeAttr(item.prospect.id)}" data-inside="${item.inside}" data-at-center="${atCenter}" style="--plot-x:${x.toFixed(3)}%;--plot-y:${y.toFixed(3)}%" title="${escapeAttr(label)}" aria-hidden="true"><i></i><b>${escapeHtml(item.prospect.organizationName)}</b></span>`;
   }).join("");
   const prospectRows = plotted.slice(0, 8).map(item => `<li data-outreach-map-row="${escapeAttr(item.prospect.id)}" data-inside="${item.inside}"><span><i aria-hidden="true"></i><strong>${escapeHtml(item.prospect.organizationName)}</strong></span><span>${item.distanceMiles.toFixed(1)} mi · ${item.inside ? "inside radius" : "outside radius"} · fit ${Number(item.prospect.fitScore || 0)}/100</span></li>`).join("");
   const radiusDiameter = (radiusMiles / plotLimitMiles) * 100;
