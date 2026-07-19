@@ -2483,7 +2483,12 @@ document.querySelector("#ticket-product-grid")?.addEventListener("click", event 
     setFormStatus(status, product.category === "sponsor"
       ? "Sponsor and hospitality packages begin with the partnership form below."
       : `${product.name} is not available for online checkout.`, "idle");
-    if (product.category === "sponsor") document.querySelector("#sponsor-inquiry-form")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (product.category === "sponsor") {
+      const form = document.querySelector("#sponsor-inquiry-form");
+      if (window.location.hash !== "#sponsor-inquiry-form") window.location.hash = "sponsor-inquiry-form";
+      else form?.scrollIntoView({ behavior: "smooth", block: "start" });
+      form?.elements.organizationName?.focus({ preventScroll: true });
+    }
   }
 });
 
