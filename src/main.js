@@ -562,7 +562,7 @@ app.innerHTML = `
       ${officialLogo ? `<img class="brand-logo" ${responsiveImageAttributes(mediaAssets.find(asset => asset.role === "official_brand"), "84px")} alt="Texas SandFest logo" decoding="async" />` : `<span class="brand-mark">TSF</span>`}
       <span>${ADMIN_ENTRY ? "SandFest Operations" : "Texas SandFest"}</span>
     </a>
-    ${ADMIN_ENTRY ? "" : `<nav>
+    ${ADMIN_ENTRY ? "" : `<nav id="public-navigation" class="primary-nav" aria-label="Primary navigation" data-open="false">
         <a href="#live-beach">Live Beach</a>
         <a href="#concierge">Concierge</a>
         <a href="#tickets">Tickets</a>
@@ -599,6 +599,11 @@ app.innerHTML = `
       <span id="network-status" class="network-status" data-state="online">Online</span>
       <button id="install-app-btn" class="install-app-btn" type="button" hidden>Install</button>
     </div>
+    ${ADMIN_ENTRY ? "" : `
+      <button id="mobile-nav-toggle" class="mobile-nav-toggle" type="button" aria-controls="public-navigation" aria-expanded="false" aria-label="Open navigation" title="Open navigation">
+        <span class="mobile-nav-icon" aria-hidden="true"><span></span><span></span><span></span></span>
+      </button>
+    `}
     <a class="nav-cta" href="${escapeAttr(navCtaHref)}" target="_blank" rel="noreferrer">${ADMIN_ENTRY ? "Visitor site" : "Official site"}</a>
   </header>
 
@@ -3603,6 +3608,57 @@ function setSiteMode(mode) {
   });
   try { localStorage.setItem("sandfest_site_mode", normalized); } catch { /* ignore */ }
   if (normalized === "ops" && BOARD_DEMO_ACCESS.enabled) void loadBoardDemoWorkspace();
+}
+
+function initMobileNavigation() {
+  const toggle = document.querySelector("#mobile-nav-toggle");
+  const navigation = document.querySelector("#public-navigation");
+  if (!toggle || !navigation) return;
+
+  const setOpen = (open, { restoreFocus = false } = {}) => {
+    const expanded = open === true;
+    navigation.dataset.open = String(expanded);
+    toggle.setAttribute("aria-expanded", String(expanded));
+    toggle.setAttribute("aria-label", expanded ? "Close navigation" : "Open navigation");
+    toggle.title = expanded ? "Close navigation" : "Open navigation";
+    document.body.classList.toggle("mobile-nav-open", expanded);
+    if (restoreFocus) toggle.focus();
+  };
+
+  toggle.addEventListener("click", () => {
+    setOpen(toggle.getAttribute("aria-expanded") !== "true");
+  });
+  navigation.addEventListener("click", event => {
+    const link = event.target instanceof Element ? event.target.closest("a") : null;
+    if (!link) return;
+    setOpen(false);
+    const targetId = link.hash.slice(1);
+    requestAnimationFrame(() => {
+      const target = targetId ? document.getElementById(targetId) : null;
+      if (!target) return;
+      const removeTabIndex = !target.hasAttribute("tabindex");
+      if (removeTabIndex) target.setAttribute("tabindex", "-1");
+      target.focus({ preventScroll: true });
+      if (removeTabIndex) target.addEventListener("blur", () => target.removeAttribute("tabindex"), { once: true });
+    });
+  });
+  document.querySelectorAll("[data-site-mode]").forEach(button => {
+    button.addEventListener("click", () => setOpen(false));
+  });
+  document.addEventListener("click", event => {
+    const clickedTopbar = event.target instanceof Element && event.target.closest(".topbar");
+    if (toggle.getAttribute("aria-expanded") === "true" && !clickedTopbar) setOpen(false);
+  });
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && toggle.getAttribute("aria-expanded") === "true") {
+      setOpen(false, { restoreFocus: true });
+    }
+  });
+  window.addEventListener("hashchange", () => setOpen(false));
+  const mobileViewport = window.matchMedia("(max-width: 920px)");
+  mobileViewport.addEventListener?.("change", event => {
+    if (!event.matches) setOpen(false);
+  });
 }
 
 function initSiteMode() {
@@ -9406,6 +9462,7 @@ bindVendorOfferingChoices();
 document.querySelector("#refresh-island-conditions")?.addEventListener("click", () => loadIslandConditions({ force: true, preserveOnError: true }));
 
 initSiteMode();
+initMobileNavigation();
 if (ADMIN_ENTRY) loadPublicBootstrap({ applyGuide: false }).catch(() => {});
 if (!ADMIN_ENTRY) {
   initSculptors();
