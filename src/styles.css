@@ -1323,6 +1323,7 @@ time {
   gap: 10px;
 }
 .booth-apply-link { white-space: nowrap; }
+#sponsor-inquiry-form,
 #vendor-application-form { scroll-margin-top: 92px; }
 .booths-section .booth-map-layout {
   display: grid;
