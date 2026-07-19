@@ -156,7 +156,12 @@ async function assertTargetClearsTopbar(page, selector, minimumGap = 0, maximumG
     const topbar = document.querySelector(".topbar");
     const target = document.querySelector(selector);
     if (!topbar || !target) return false;
-    const gap = target.getBoundingClientRect().top - topbar.getBoundingClientRect().bottom;
+    const notice = document.querySelector("#runtime-data-notice");
+    const obstructionBottom = Math.max(
+      topbar.getBoundingClientRect().bottom,
+      notice && getComputedStyle(notice).position === "sticky" ? notice.getBoundingClientRect().bottom : 0
+    );
+    const gap = target.getBoundingClientRect().top - obstructionBottom;
     return gap >= minimumGap && gap <= maximumGap;
   }, { selector, minimumGap, maximumGap });
   await expect.poll(targetHasSafeGap).toBe(true);
@@ -1573,6 +1578,16 @@ test("visitor hero and navigation stay ordered across intermediate widths", asyn
 test("critical public and operations views fit a mobile viewport", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 740 });
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor`);
+  const runtimeNotice = page.locator("#runtime-data-notice");
+  await expect(runtimeNotice).toContainText("Board demonstration · Synthetic 2027 data");
+  await expect(runtimeNotice).toContainText("No external messages, charges, or live-provider calls");
+  await expect(runtimeNotice).toHaveAccessibleName("Board demonstration. Synthetic 2027 data. No external messages, charges, or live-provider calls");
+  await page.evaluate(() => window.scrollTo({ top: 400, behavior: "instant" }));
+  await expect.poll(() => page.evaluate(() => {
+    const topbar = document.querySelector(".topbar")?.getBoundingClientRect();
+    const notice = document.querySelector("#runtime-data-notice")?.getBoundingClientRect();
+    return Boolean(topbar && notice && Math.abs(notice.top - topbar.bottom) <= 1 && notice.bottom <= window.innerHeight);
+  })).toBe(true);
   const mobileNavigationToggle = page.locator("#mobile-nav-toggle");
   const mobileNavigation = page.locator("#public-navigation");
   await expect(mobileNavigationToggle).toBeVisible();
@@ -1617,6 +1632,12 @@ test("critical public and operations views fit a mobile viewport", async ({ page
 
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#sponsors`, { waitUntil: "domcontentloaded" });
   await expect(page.locator("#vendor-application-form")).toBeVisible();
+  await expect(runtimeNotice).toBeInViewport();
+  await expect.poll(() => page.evaluate(() => {
+    const notice = document.querySelector("#runtime-data-notice")?.getBoundingClientRect();
+    const heading = document.querySelector("#sponsors .partner-heading")?.getBoundingClientRect();
+    return Boolean(notice && heading && heading.top >= notice.bottom + 12 && heading.top <= notice.bottom + 32);
+  })).toBe(true);
   await page.locator('[data-package-id="tarpon"]').click();
   await expect(page).toHaveURL(/#sponsor-inquiry-form$/);
   await expect(page.locator('#sponsor-inquiry-form [name="packageId"]')).toBeFocused();
@@ -1635,6 +1656,12 @@ test("critical public and operations views fit a mobile viewport", async ({ page
 
   await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#admin-partners`);
   await expect(page.locator("#admin-api-status")).toContainText("Loaded", { timeout: 25_000 });
+  await expect(runtimeNotice).toBeInViewport();
+  await expect.poll(() => page.evaluate(() => {
+    const notice = document.querySelector("#runtime-data-notice")?.getBoundingClientRect();
+    const navigation = document.querySelector(".admin-workspace-nav")?.getBoundingClientRect();
+    return Boolean(notice && navigation && navigation.top >= notice.bottom);
+  })).toBe(true);
   await expect(page.locator("#admin-command-signals [data-command-signal]")).toHaveCount(8);
   await expect(page.locator("#admin-create-task")).toBeVisible();
   await expect(page.locator("#admin-import-staff")).toBeVisible();
