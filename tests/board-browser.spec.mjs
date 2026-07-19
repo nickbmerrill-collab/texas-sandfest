@@ -335,8 +335,17 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await expect(page.locator('[data-package-id="marlin"] span')).toHaveText("$15,000 sponsorship");
   await expect(page.locator('[data-package-id="whale"] span')).toHaveText("$50,000 sponsorship");
   await expect(page.locator('[data-package-id="the-kraken"] span')).toHaveText("$250,000 sponsorship");
+  await expect(page.locator('[data-package-id="flounder"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator('[data-package-id="flounder"] [data-package-action]')).toHaveText("Selected");
+  await expect(page.locator('[data-package-id="the-kraken"] [data-package-action]')).toHaveText("Choose tier");
   await page.locator('[data-package-id="the-kraken"]').click();
   await expect(page.locator('#sponsor-inquiry-form [name="packageId"]')).toHaveValue("the-kraken");
+  await expect(page.locator('#sponsor-inquiry-form [name="packageId"]')).toBeFocused();
+  await expect(page.locator('#sponsor-inquiry-form [name="packageId"]')).toHaveAttribute("aria-describedby", "sponsor-package-summary");
+  await expect(page.locator('[data-package-id="flounder"]')).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator('[data-package-id="flounder"] [data-package-action]')).toHaveText("Choose tier");
+  await expect(page.locator('[data-package-id="the-kraken"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator('[data-package-id="the-kraken"] [data-package-action]')).toHaveText("Selected");
   await expect(page.locator("#sponsor-package-summary")).toContainText("Presenting sponsor recognition");
   await expect(page.locator("#sponsor-package-summary")).toContainText("$250,000 sponsorship");
   const sponsorSubmitBox = await page.locator('#sponsor-inquiry-form button[type="submit"]').boundingBox();
@@ -1474,6 +1483,10 @@ test("critical public and operations views fit a mobile viewport", async ({ page
 
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#sponsors`);
   await expect(page.locator("#vendor-application-form")).toBeVisible();
+  await page.locator('[data-package-id="tarpon"]').click();
+  await expect(page.locator('#sponsor-inquiry-form [name="packageId"]')).toBeFocused();
+  await expect(page.locator("#sponsor-inquiry-form")).toBeInViewport({ ratio: 0.1 });
+  await expect(page.locator('[data-package-id="tarpon"] [data-package-action]')).toHaveText("Selected");
   await assertNoHorizontalOverflow(page);
 
   await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#admin-partners`);

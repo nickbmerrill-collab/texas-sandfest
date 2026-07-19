@@ -1997,7 +1997,7 @@ app.innerHTML = `
             <label>Contact name<input name="contactName" required maxlength="120" autocomplete="name" /></label>
             <label>Email<input name="contactEmail" required type="email" maxlength="254" autocomplete="email" /></label>
             <label>Phone<input name="contactPhone" type="tel" maxlength="40" autocomplete="tel" /></label>
-            <label>Package<select name="packageId" required>${sponsorPackageOptions(publicSponsorPackages)}</select></label>
+            <label>Package<select name="packageId" aria-describedby="sponsor-package-summary" required>${sponsorPackageOptions(publicSponsorPackages)}</select></label>
             <label>Website<input name="website" type="url" maxlength="500" placeholder="https://" autocomplete="url" /></label>
             <label class="partner-field-wide">Partnership goals<textarea name="description" rows="4" maxlength="2000"></textarea></label>
           </div>
@@ -4858,10 +4858,11 @@ function sponsorPackageCardSummary(sponsorPackage) {
 
 function sponsorPackageCards(packages = publicSponsorPackages, selectedId = "") {
   return packages.map((item, index) => `
-    <button type="button" data-package-id="${escapeAttr(item.id)}" class="partner-tier ${(selectedId ? item.id === selectedId : index === 0) ? "is-selected" : ""}">
+    <button type="button" data-package-id="${escapeAttr(item.id)}" class="partner-tier ${(selectedId ? item.id === selectedId : index === 0) ? "is-selected" : ""}" aria-controls="sponsor-inquiry-form" aria-pressed="${(selectedId ? item.id === selectedId : index === 0) ? "true" : "false"}">
       <strong>${escapeHtml(item.name)}</strong>
       <span>${escapeHtml(item.publicLabel || adminMoney(item.amount))}</span>
       <p>${escapeHtml(sponsorPackageCardSummary(item))}</p>
+      <small data-package-action>${(selectedId ? item.id === selectedId : index === 0) ? "Selected" : "Choose tier"}</small>
     </button>
   `).join("");
 }
@@ -4875,7 +4876,13 @@ function renderSponsorPackageSummary() {
     ? `${selected.publicLabel || adminMoney(selected.amount)}. Includes ${selected.benefits.join("; ")}. Final availability is confirmed during SandFest review.`
     : "No active sponsorship package is currently available.";
   summary.dataset.state = selected ? "ready" : "unavailable";
-  document.querySelectorAll("[data-package-id]").forEach(item => item.classList.toggle("is-selected", item.dataset.packageId === selected?.id));
+  document.querySelectorAll("[data-package-id]").forEach(item => {
+    const isSelected = item.dataset.packageId === selected?.id;
+    item.classList.toggle("is-selected", isSelected);
+    item.setAttribute("aria-pressed", String(isSelected));
+    const action = item.querySelector("[data-package-action]");
+    if (action) action.textContent = isSelected ? "Selected" : "Choose tier";
+  });
 }
 
 function renderSponsorPackageChoices(selectedId = "") {
@@ -4899,6 +4906,7 @@ function bindSponsorTierButtons() {
       form.elements.packageId.value = button.dataset.packageId;
       renderSponsorPackageSummary();
       form.scrollIntoView({ behavior: "smooth", block: "center" });
+      form.elements.packageId.focus({ preventScroll: true });
     }
   }));
 }
