@@ -315,6 +315,16 @@ if (visitorUrl && operationsUrl) {
         conditionsRefreshLabel: document.querySelector("#admin-load-conditions")?.textContent?.trim(),
         conditionSourceHeading: document.querySelector("#admin-island-conditions > strong")?.textContent?.trim(),
         conditionFeedText: document.querySelector("#admin-condition-feeds")?.textContent?.replace(/\s+/g, " ").trim(),
+        operationsWorkspaceLayout: (() => {
+          const container = document.querySelector(".admin-conditions-columns")?.getBoundingClientRect();
+          const outreach = document.querySelector("#admin-outreach-prospects-workspace")?.getBoundingClientRect();
+          const conditions = document.querySelector("#admin-island-conditions")?.getBoundingClientRect();
+          if (!container || !outreach || !conditions) return null;
+          return {
+            fullWidth: Math.abs(conditions.left - container.left) < 1 && Math.abs(conditions.right - container.right) < 1,
+            stacked: conditions.top >= outreach.bottom + 13
+          };
+        })(),
         playbackSources: document.querySelectorAll('#admin-condition-cameras [data-source-mode="playback"]').length,
         playbackSourceLabels: [...document.querySelectorAll('#admin-condition-cameras [data-source-mode="playback"] header b')]
           .filter(item => item.textContent?.trim() === "Playback").length,
@@ -426,6 +436,8 @@ if (visitorUrl && operationsUrl) {
         || item.conditionSourceHeading !== "Source health"
         || !item.conditionFeedText?.includes("Simulated · Current")
         || item.conditionFeedText?.includes("Live · Live")
+        || item.operationsWorkspaceLayout?.fullWidth !== true
+        || item.operationsWorkspaceLayout?.stacked !== true
         || item.playbackSources !== 8
         || item.playbackSourceLabels !== 8
         || !item.playbackSourceText?.includes("metric simulated · heartbeat current")
@@ -433,7 +445,7 @@ if (visitorUrl && operationsUrl) {
       ) {
         throw new Error(observations.operationsError || "The operations command center did not finish loading.");
       }
-      return `${item.commandSignals} operating signals fit the 1280x720 board viewport and open their focused workspaces in at most ${item.commandNavigation.maxElapsedMs} ms, with keyboard activation, the presentation reset control, and persistent synthetic Demo label.`;
+      return `${item.commandSignals} operating signals fit the 1280x720 board viewport and open their focused workspaces in at most ${item.commandNavigation.maxElapsedMs} ms; outreach and Island conditions occupy distinct full-width rows, with keyboard activation, the presentation reset control, and persistent synthetic Demo label.`;
     });
     await inspect("operations_workflows", "Operations workflow queues", "Inspect partner, task, document, and accounting board data.", async () => {
       const item = observations.operations;

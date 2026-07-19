@@ -193,6 +193,10 @@ groups same-batch lifecycle events and resolves readable organization or task
 names. It demonstrates intake, finance, key-date, messaging, work-board,
 branding, vendor, and outreach automation in one staff-only history without
 rendering raw activity, application, follow-up, or capability identifiers.
+Sponsor outreach and Island conditions occupy separate full-width workspace
+rows. The board rehearsal checks that source health and all eight camera controls
+cannot be compressed beside or visually overlap prospect editing at the desktop
+presentation viewport.
 
 On the sponsor and vendor signup cards, **Use demo sponsor** and **Use demo
 vendor** fill reserved synthetic contact details while leaving contact consent

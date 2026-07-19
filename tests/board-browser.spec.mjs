@@ -622,6 +622,21 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await expect(page.locator("#admin-island-conditions > strong").first()).toHaveText("Source health");
   await expect(page.locator("#admin-condition-feeds")).toContainText("Simulated · Current");
   await expect(page.locator("#admin-condition-feeds")).not.toContainText("Live · Live");
+  const operationsWorkspaceLayout = await page.locator(".admin-conditions-columns").evaluate(container => {
+    const outreach = container.querySelector("#admin-outreach-prospects-workspace")?.getBoundingClientRect();
+    const conditions = container.querySelector("#admin-island-conditions")?.getBoundingClientRect();
+    const bounds = container.getBoundingClientRect();
+    return {
+      bounds: { left: bounds.left, right: bounds.right },
+      outreach: outreach ? { bottom: outreach.bottom } : null,
+      conditions: conditions ? { left: conditions.left, right: conditions.right, top: conditions.top } : null
+    };
+  });
+  expect(operationsWorkspaceLayout.outreach).not.toBeNull();
+  expect(operationsWorkspaceLayout.conditions).not.toBeNull();
+  expect(Math.abs(operationsWorkspaceLayout.conditions.left - operationsWorkspaceLayout.bounds.left)).toBeLessThan(1);
+  expect(Math.abs(operationsWorkspaceLayout.conditions.right - operationsWorkspaceLayout.bounds.right)).toBeLessThan(1);
+  expect(operationsWorkspaceLayout.conditions.top).toBeGreaterThanOrEqual(operationsWorkspaceLayout.outreach.bottom + 13);
   const smsPreference = page.locator("#admin-board-sms-preference");
   const smsPreferenceStatus = page.locator("#admin-board-sms-preference-status");
   const smsSafetyKpi = page.locator("#admin-consent-kpis article").filter({ hasText: "SMS safety" });

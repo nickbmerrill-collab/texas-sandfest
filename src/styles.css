@@ -5777,7 +5777,7 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .admin-sponsor-invitation-controls[data-state="converted"] { grid-template-columns: 1fr; }
 .admin-sponsor-invitation-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
 .admin-sponsor-invitation-actions .button { min-height: 38px; padding: 8px 10px; }
-.admin-conditions-columns { grid-template-columns: 1fr 2fr; }
+.admin-conditions-columns { grid-template-columns: 1fr; }
 .admin-condition-feeds { border-block: 1px solid var(--line); display: grid; margin: 8px 0 16px; }
 .admin-condition-feeds > span { color: var(--muted); font-size: 12px; padding: 10px 0; }
 .admin-condition-feed { align-items: center; display: grid; gap: 4px 12px; grid-template-columns: minmax(0, 180px) minmax(0, 1fr); padding: 10px 0; }
