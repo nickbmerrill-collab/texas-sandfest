@@ -1329,7 +1329,7 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
   const postgresDiscoveryResearched = await request(base, "GET", "/api/admin/outreach", undefined, { auth: true });
   check("outreach discovery contact research persists", postgresDiscoveryResearch.status === 200 && postgresDiscoveryResearched.data.prospects?.some(item => item.id === postgresDiscoveredProspect?.id && item.contactName === "Postgres Discovery Contact" && item.website === "https://postgres-discovery.example.com" && item.ownerId === "sponsor_research" && item.nextActionAt === "2027-01-25T15:00:00.000Z"));
 
-  const campaign = await request(base, "POST", "/api/admin/outreach/campaigns", {
+  const postgresCampaignPayload = {
     name: "Postgres Coastal Hospitality",
     objective: "Verify production data plane",
     targeting: {
@@ -1345,7 +1345,12 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
       subjectTemplate: "A SandFest partnership for {{organization}}",
       bodyTemplate: "Hello {{contactName}}, may we share the Texas SandFest sponsor program with {{organization}}?"
     }]
-  }, { auth: true });
+  };
+  const unauthenticatedPostgresCampaignPreview = await request(base, "POST", "/api/admin/outreach/campaigns/preview", postgresCampaignPayload);
+  const postgresCampaignPreview = await request(base, "POST", "/api/admin/outreach/campaigns/preview", postgresCampaignPayload, { auth: true });
+  const postgresAfterCampaignPreview = await request(base, "GET", "/api/admin/outreach", undefined, { auth: true });
+  check("Postgres campaign preflight is private and mutation-free", unauthenticatedPostgresCampaignPreview.status === 401 && postgresCampaignPreview.status === 200 && postgresCampaignPreview.data.preview?.matched === 1 && postgresCampaignPreview.data.preview?.matches?.[0]?.organizationName === "Postgres Island Hotel" && !("contactEmail" in postgresCampaignPreview.data.preview.matches[0]) && postgresCampaignPreview.data.preview.sample?.sequence?.[0]?.subject === "A SandFest partnership for Postgres Island Hotel" && postgresAfterCampaignPreview.data.campaigns?.length === postgresDiscoveryResearched.data.campaigns?.length);
+  const campaign = await request(base, "POST", "/api/admin/outreach/campaigns", postgresCampaignPayload, { auth: true });
   check("outreach campaign persisted", campaign.status === 201 && campaign.data.campaign?.id, `status ${campaign.status}`);
   const campaignId = campaign.data.campaign?.id;
   const activation = await request(base, "POST", `/api/admin/outreach/campaigns/${campaignId}/activate`, {}, { auth: true });

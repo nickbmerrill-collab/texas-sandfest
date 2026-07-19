@@ -1674,7 +1674,13 @@ app.innerHTML = `
               <label><span>Follow-up subject</span><input name="subject2" required maxlength="180" value="Following up with {{organization}}" /></label>
               <label class="admin-campaign-wide"><span>Follow-up message</span><textarea name="body2" required rows="4" maxlength="5000">Hello {{contactName}},\n\nI wanted to follow up on the Texas SandFest partnership opportunity. I would be glad to help identify the sponsorship level that best fits {{organization}}.\n\nTexas SandFest</textarea></label>
             </div>
-            <button class="button primary" type="submit">Create campaign draft</button>
+            <div class="admin-campaign-actions">
+              <button id="admin-preview-campaign" class="button secondary" type="button">Preview audience</button>
+              <button class="button primary" type="submit" disabled>Create campaign draft</button>
+            </div>
+            <section id="admin-campaign-audience-preview" class="admin-campaign-audience-preview" data-state="idle" aria-live="polite">
+              <strong>Audience preview required</strong><span>Check exact server-qualified businesses and message personalization before saving this campaign draft.</span>
+            </section>
           </form>
           <div>
             <strong>Campaigns</strong>
@@ -7107,6 +7113,79 @@ function renderCampaignCenterChoices(outreach) {
   else renderCampaignCenterPreview(form, outreach);
 }
 
+function campaignFormPayload(form) {
+  const values = Object.fromEntries(new FormData(form).entries());
+  const splitTargets = value => String(value || "").split(",").map(item => item.trim()).filter(Boolean);
+  return {
+    name: values.name,
+    objective: values.objective,
+    deliveryMode: values.deliveryMode,
+    dailySendLimit: Number(values.dailySendLimit),
+    targeting: {
+      industries: splitTargets(values.industries),
+      cities: splitTargets(values.cities),
+      states: splitTargets(values.states),
+      postalCodes: splitTargets(values.postalCodes),
+      geofence: [values.centerLatitude, values.centerLongitude, values.radiusMiles].some(value => String(value || "").trim())
+        ? { latitude: values.centerLatitude, longitude: values.centerLongitude, radiusMiles: values.radiusMiles }
+        : null,
+      minFitScore: Number(values.minFitScore)
+    },
+    sequence: [
+      { delayDays: 0, subjectTemplate: values.subject1, bodyTemplate: values.body1 },
+      { delayDays: Number(values.delay2), subjectTemplate: values.subject2, bodyTemplate: values.body2 }
+    ]
+  };
+}
+
+function campaignFormFingerprint(form) {
+  return JSON.stringify(campaignFormPayload(form));
+}
+
+function invalidateCampaignAudiencePreview(form, { force = false, message = "Targeting or message content changed. Preview the audience again before saving this campaign draft." } = {}) {
+  const preview = form?.querySelector("#admin-campaign-audience-preview");
+  const createButton = form?.querySelector('button[type="submit"]');
+  if (!form || !preview || !createButton) return;
+  createButton.disabled = true;
+  if (!force && !form.dataset.audiencePreviewFingerprint) return;
+  delete form.dataset.audiencePreviewFingerprint;
+  preview.dataset.state = "stale";
+  preview.innerHTML = `<strong>Audience preview needs refresh</strong><span>${escapeHtml(message)}</span>`;
+}
+
+function renderCampaignAudiencePreview(form, preview) {
+  const target = form?.querySelector("#admin-campaign-audience-preview");
+  const createButton = form?.querySelector('button[type="submit"]');
+  if (!target || !createButton) return;
+  const matched = Number(preview?.matched || 0);
+  const total = Number(preview?.totalProspects || 0);
+  const excluded = Number(preview?.excluded || 0);
+  const exclusions = (preview?.exclusions || []).map(item => `<li><strong>${Number(item.count || 0)}</strong><span>${escapeHtml(item.label || conditionLabel(item.reason))}</span></li>`).join("");
+  const matches = (preview?.matches || []).slice(0, 8).map(item => {
+    const location = [item.city, item.state].filter(Boolean).join(", ") || "Location not listed";
+    const context = [location, item.industry || "Industry not listed", `fit ${Number(item.fitScore || 0)}`].join(" · ");
+    return `<li><strong>${escapeHtml(item.organizationName)}</strong><span>${escapeHtml(context)}</span></li>`;
+  }).join("");
+  const sample = preview?.sample;
+  const opening = sample?.sequence?.[0];
+  const sampleMarkup = sample && opening ? `<div class="admin-campaign-sample">
+    <span>Personalized opening for ${escapeHtml(sample.prospect.organizationName)}</span>
+    <strong>${escapeHtml(opening.subject)}</strong>
+    <blockquote>${escapeHtml(opening.body)}</blockquote>
+  </div>` : '<div class="admin-campaign-sample admin-campaign-sample-empty"><span>No personalized sample is available until at least one business qualifies.</span></div>';
+  const delivery = preview?.deliveryMode === "approved_sequence"
+    ? `Approved automation · up to ${Number(preview.dailySendLimit || 0)} per day`
+    : "Every message requires staff review";
+  target.dataset.state = matched > 0 ? "ready" : "empty";
+  target.innerHTML = `<header><div><strong>${matched} business${matched === 1 ? " qualifies" : "es qualify"}</strong><span>${excluded} excluded from ${total} reviewed</span></div><b>${escapeHtml(delivery)}</b></header>
+    ${exclusions ? `<div class="admin-campaign-preview-section"><strong>Exclusion evidence</strong><ul class="admin-campaign-preview-metrics">${exclusions}</ul></div>` : ""}
+    <div class="admin-campaign-preview-section"><strong>Qualified businesses</strong><ul class="admin-campaign-preview-matches">${matches || "<li><span>No businesses match every current filter.</span></li>"}</ul>${preview?.matchesTruncated ? '<span>Additional qualified businesses are included in the campaign total.</span>' : ""}</div>
+    ${sampleMarkup}
+    <small>Recipient addresses are withheld here. Eligibility, suppression, contact basis, and provider readiness are checked again at activation and immediately before delivery.</small>`;
+  form.dataset.audiencePreviewFingerprint = campaignFormFingerprint(form);
+  createButton.disabled = !adminCan("outreach:write");
+}
+
 function renderAdminOutreachCoverage(outreach) {
   const root = document.querySelector("#admin-outreach-targeting-map");
   if (!root) return;
@@ -7218,6 +7297,10 @@ function renderAdminPartners(payload, outreach) {
   const campaigns = document.querySelector("#admin-outreach-campaigns");
   const automationForm = document.querySelector("#admin-partner-automation");
   if (!kpis || !summary) return;
+  const campaignForm = document.querySelector("#admin-create-campaign");
+  if (campaignForm?.dataset.audiencePreviewFingerprint) {
+    invalidateCampaignAudiencePreview(campaignForm, { force: true, message: "Outreach records refreshed. Preview again to use the latest qualification and suppression state." });
+  }
   renderCampaignCenterChoices(outreach);
   renderAdminOutreachCoverage(outreach);
   kpis.innerHTML = [
@@ -9172,40 +9255,60 @@ document.querySelector("#admin-commit-prospect-import")?.addEventListener("click
   }
 });
 
+document.querySelector("#admin-create-campaign")?.addEventListener("input", event => {
+  invalidateCampaignAudiencePreview(event.currentTarget);
+});
+
+document.querySelector("#admin-create-campaign")?.addEventListener("change", event => {
+  invalidateCampaignAudiencePreview(event.currentTarget);
+});
+
+document.querySelector("#admin-preview-campaign")?.addEventListener("click", async event => {
+  const button = event.currentTarget;
+  const form = button.form;
+  const preview = form.querySelector("#admin-campaign-audience-preview");
+  if (!form.reportValidity()) return;
+  button.disabled = true;
+  preview.dataset.state = "loading";
+  preview.innerHTML = "<strong>Checking the audience</strong><span>Applying qualification, contact, suppression, fit, business, and geographic rules on the server.</span>";
+  try {
+    const data = await adminFetch("/api/admin/outreach/campaigns/preview", {
+      method: "POST",
+      body: JSON.stringify(campaignFormPayload(form))
+    });
+    renderCampaignAudiencePreview(form, data.preview);
+    setAdminStatus(`Campaign preview found ${data.preview.matched} qualified business${data.preview.matched === 1 ? "" : "es"}.`, data.preview.matched ? "ok" : "warning");
+  } catch (error) {
+    invalidateCampaignAudiencePreview(form, { force: true, message: error.message });
+    preview.dataset.state = "error";
+    preview.querySelector("strong").textContent = "Audience preview failed";
+    setAdminStatus(error.message, "error");
+  } finally {
+    button.disabled = !adminCan("outreach:write");
+  }
+});
+
 document.querySelector("#admin-create-campaign")?.addEventListener("submit", async event => {
   event.preventDefault();
   const form = event.currentTarget;
-  const values = Object.fromEntries(new FormData(form).entries());
-  const splitTargets = value => String(value || "").split(",").map(item => item.trim()).filter(Boolean);
   const button = form.querySelector('button[type="submit"]');
+  if (!form.dataset.audiencePreviewFingerprint || form.dataset.audiencePreviewFingerprint !== campaignFormFingerprint(form)) {
+    invalidateCampaignAudiencePreview(form, { force: true });
+    setAdminStatus("Preview the current campaign audience before saving the draft.", "warning");
+    return;
+  }
   button.disabled = true;
   try {
     const data = await adminFetch("/api/admin/outreach/campaigns", {
       method: "POST",
-      body: JSON.stringify({
-        name: values.name,
-        objective: values.objective,
-        deliveryMode: values.deliveryMode,
-        dailySendLimit: Number(values.dailySendLimit),
-        targeting: {
-          industries: splitTargets(values.industries),
-          cities: splitTargets(values.cities),
-          states: splitTargets(values.states),
-          postalCodes: splitTargets(values.postalCodes),
-          geofence: [values.centerLatitude, values.centerLongitude, values.radiusMiles].some(value => String(value || "").trim())
-            ? { latitude: values.centerLatitude, longitude: values.centerLongitude, radiusMiles: values.radiusMiles }
-            : null,
-          minFitScore: Number(values.minFitScore)
-        },
-        sequence: [
-          { delayDays: 0, subjectTemplate: values.subject1, bodyTemplate: values.body1 },
-          { delayDays: Number(values.delay2), subjectTemplate: values.subject2, bodyTemplate: values.body2 }
-        ]
-      })
+      body: JSON.stringify(campaignFormPayload(form))
     });
     await loadAdminPartners({ quiet: true });
+    invalidateCampaignAudiencePreview(form, { force: true, message: "Campaign draft saved. Change the campaign name or targeting, then preview again before creating another draft." });
     setAdminStatus(`${data.campaign.name} saved as a reviewable campaign draft.`, "ok");
-  } catch (error) { setAdminStatus(error.message, "error"); } finally { button.disabled = false; }
+  } catch (error) { setAdminStatus(error.message, "error"); } finally {
+    button.disabled = !adminCan("outreach:write") || !form.dataset.audiencePreviewFingerprint;
+  }
 });
 
 document.querySelector("#sponsor-inquiry-form")?.addEventListener("submit", event => {

@@ -1138,8 +1138,31 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   await campaignForm.locator('[name="minFitScore"]').fill("0");
   await campaignForm.locator('[name="deliveryMode"]').selectOption("approved_sequence");
   await campaignForm.locator('[name="dailySendLimit"]').fill("3");
+  const audiencePreview = campaignForm.locator("#admin-campaign-audience-preview");
+  const previewButton = campaignForm.locator("#admin-preview-campaign");
+  const createCampaignButton = campaignForm.locator('button[type="submit"]');
+  await expect(createCampaignButton).toBeDisabled();
+  const campaignPreviewResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/outreach/campaigns/preview" && response.request().method() === "POST");
+  await previewButton.click();
+  const previewResult = await campaignPreviewResponse;
+  expect(previewResult.status()).toBe(200);
+  expect((await previewResult.json()).preview.matches[0]).not.toHaveProperty("contactEmail");
+  await expect(audiencePreview).toHaveAttribute("data-state", "ready");
+  await expect(audiencePreview).toContainText("1 business qualifies");
+  await expect(audiencePreview).toContainText(prospectName);
+  await expect(audiencePreview).toContainText(`A Texas SandFest partnership for ${prospectName}`);
+  await expect(audiencePreview).not.toContainText(prospectRecipient);
+  await expect(createCampaignButton).toBeEnabled();
+  await campaignForm.locator('[name="dailySendLimit"]').fill("4");
+  await expect(audiencePreview).toHaveAttribute("data-state", "stale");
+  await expect(createCampaignButton).toBeDisabled();
+  await campaignForm.locator('[name="dailySendLimit"]').fill("3");
+  const refreshedCampaignPreviewResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/outreach/campaigns/preview" && response.request().method() === "POST");
+  await previewButton.click();
+  expect((await refreshedCampaignPreviewResponse).status()).toBe(200);
+  await expect(createCampaignButton).toBeEnabled();
   const campaignResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/outreach/campaigns" && response.request().method() === "POST");
-  await campaignForm.locator('button[type="submit"]').click();
+  await createCampaignButton.click();
   const createdCampaignResponse = await campaignResponse;
   expect(createdCampaignResponse.status()).toBe(201);
   const createdCampaign = (await createdCampaignResponse.json()).campaign;
@@ -1455,6 +1478,8 @@ test("critical public and operations views fit a mobile viewport", async ({ page
   await expect(page.locator("#admin-outreach-targeting-map .admin-outreach-map-summary")).toBeVisible();
   await expect(page.locator('#admin-create-campaign [name="centerSource"]')).toBeVisible();
   await expect(page.locator("#admin-campaign-center-preview")).toBeVisible();
+  await expect(page.locator("#admin-preview-campaign")).toBeVisible();
+  await expect(page.locator("#admin-campaign-audience-preview")).toBeVisible();
   const workspaceNav = page.locator(".admin-workspace-nav");
   const workspaceLinks = workspaceNav.locator("a");
   await expect(workspaceLinks).toHaveCount(7);
@@ -1580,6 +1605,8 @@ test("WCAG A and AA checks cover public intake, partner status, concierge, and o
     expect(targetBox?.height).toBeGreaterThanOrEqual(28);
   }
   await expect(page.locator("#admin-campaign-center-preview")).toHaveAttribute("aria-live", "polite");
+  await expect(page.locator("#admin-campaign-audience-preview")).toHaveAttribute("aria-live", "polite");
+  await expect(page.locator("#admin-preview-campaign")).toHaveAccessibleName("Preview audience");
   await assertNoAccessibilityViolations(page, "Operations workspace");
 
   await page.setViewportSize({ width: 390, height: 844 });
