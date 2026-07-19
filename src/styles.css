@@ -5252,7 +5252,8 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .partner-status-form .button { justify-self: start; }
 .partner-status-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; }
 .partner-status-actions .button[hidden] { display: none; }
-.partner-status-result { align-content: start; display: grid; gap: 14px; grid-column: 2; grid-row: 1 / span 2; min-width: 0; }
+.partner-status-result { align-content: start; display: grid; gap: 14px; grid-column: 2; grid-row: 1 / span 2; min-width: 0; scroll-margin-top: 88px; }
+.partner-status-result:focus { outline: 2px solid var(--gulf); outline-offset: 3px; }
 .partner-status-empty { align-content: center; border: 1px dashed #9db9b5; display: grid; gap: 6px; min-height: 190px; padding: 24px; }
 .partner-status-empty strong { color: var(--deep); font-size: 18px; }
 .partner-status-empty span { color: var(--muted); line-height: 1.5; }
@@ -5312,6 +5313,7 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .partner-status-invoice small { color: var(--muted); }
 
 @media (max-width: 560px) {
+  .partner-status-next,
   .partner-status-invoice { grid-template-columns: 1fr; }
   .partner-status-invoice .button { justify-self: stretch; }
 }
@@ -6249,7 +6251,8 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
   }
   body.runtime-board-demo #sponsor-inquiry-form,
   body.runtime-board-demo #vendor-application-form,
-  body.runtime-board-demo #partner-status {
+  body.runtime-board-demo #partner-status,
+  body.runtime-board-demo #partner-status-result {
     scroll-margin-top: 136px;
   }
 }

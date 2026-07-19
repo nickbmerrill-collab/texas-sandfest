@@ -4912,11 +4912,9 @@ async function loadPartnerPortalStatus(access, options = {}) {
     if (forgetButton) forgetButton.hidden = false;
     setFormStatus(status, `Secure status loaded for ${data.application.reference}.`, "ok");
     if (options.scroll) {
-      const section = document.querySelector("#partner-status");
       if (window.location.hash !== "#partner-status") window.location.hash = "partner-status";
-      else section?.scrollIntoView({
-        behavior: options.scrollBehavior === "auto" ? "auto" : "smooth",
-        block: "start"
+      stabilizeRenderedHashTarget({
+        behavior: options.scrollBehavior === "auto" ? "instant" : "smooth"
       });
       result?.focus({ preventScroll: true });
     }
@@ -9599,7 +9597,7 @@ if (import.meta.env.DEV && BOARD_DEMO_ACCESS.enabled) {
 document.querySelector("#partner-status-form")?.addEventListener("submit", event => {
   event.preventDefault();
   const values = Object.fromEntries(new FormData(event.currentTarget).entries());
-  loadPartnerPortalStatus({ reference: values.reference.trim(), token: values.token.trim() });
+  loadPartnerPortalStatus({ reference: values.reference.trim(), token: values.token.trim() }, { scroll: true });
 });
 document.querySelector("#partner-portal-recovery-form")?.addEventListener("submit", event => {
   event.preventDefault();
@@ -10127,7 +10125,14 @@ function scrollToRenderedHashTarget(options = {}) {
   if (!target) return;
 
   const behavior = options?.behavior === "smooth" ? "smooth" : "instant";
-  const scroll = () => target.scrollIntoView({ behavior, block: "start" });
+  const scroll = () => {
+    const scrollTarget = target.id === "partner-status"
+      && activePartnerPortalApplication
+      && window.matchMedia("(max-width: 720px)").matches
+      ? document.querySelector("#partner-status-result") || target
+      : target;
+    scrollTarget.scrollIntoView({ behavior, block: "start" });
+  };
   requestAnimationFrame(() => {
     scroll();
     requestAnimationFrame(() => {
