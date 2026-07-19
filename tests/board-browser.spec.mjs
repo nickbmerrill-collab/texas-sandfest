@@ -1643,6 +1643,38 @@ test("operations command summary fits and navigates across board viewports", asy
   await assertNoHorizontalOverflow(page);
 });
 
+test("prepared partner portals land on authenticated status at mobile width", async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const admin = await context.newPage();
+  try {
+    await admin.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}`);
+    await expect(admin.locator("#admin-api-status")).toContainText("Loaded", { timeout: 25_000 });
+
+    for (const organizationName of ["Gulf Shore Credit Union", "Coastal Bites"]) {
+      const application = admin.locator("#admin-partner-applications [data-partner-application]").filter({ hasText: organizationName });
+      await expect(application).toHaveCount(1);
+      const popupPromise = admin.waitForEvent("popup");
+      await application.locator("[data-open-demo-portal]").click();
+      const portal = await popupPromise;
+      await expect(portal.locator("#partner-status-result")).toContainText(organizationName);
+      await expect(portal.locator("#partner-status-result")).toBeFocused();
+      await assertTargetClearsTopbar(portal, "#partner-status-result", 12);
+      await expect(portal.locator(".partner-status-heading h3")).toBeInViewport();
+      expect(await portal.locator(".partner-status-next").evaluate(nextStep => {
+        const [label, title, target] = nextStep.children;
+        const labelBounds = label.getBoundingClientRect();
+        const titleBounds = title.getBoundingClientRect();
+        const targetBounds = target.getBoundingClientRect();
+        return labelBounds.bottom <= titleBounds.top && titleBounds.bottom <= targetBounds.top;
+      })).toBe(true);
+      await assertNoHorizontalOverflow(portal);
+      await portal.close();
+    }
+  } finally {
+    await context.close();
+  }
+});
+
 test("visitor hero and navigation stay ordered across intermediate widths", async ({ page }) => {
   for (const width of [768, 1024, 1160]) {
     await page.setViewportSize({ width, height: 720 });
