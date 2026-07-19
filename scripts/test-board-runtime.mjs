@@ -352,12 +352,31 @@ try {
     sendSms: true
   }, { auth: true });
   const smsWorkerOutput = await runWorker(child.processEnv);
-  const deliveredSms = await waitFor(async () => {
-    const sms = await request(base, "GET", "/api/admin/sms", undefined, { auth: true });
-    return sms.data.campaigns?.[0]?.counts?.delivered === 1 ? sms : null;
-  });
-  const smsSandboxHealth = await fetch(`${smsSandbox.url}/health`).then(response => response.json());
-  check("board safety alert delivers through the signed local SMS lifecycle", boardAlert.status === 200 && boardAlert.data.sms?.queued === 1 && smsWorkerOutput.includes("sms.alert.send") && deliveredSms?.data.campaigns?.[0]?.counts?.delivered === 1 && smsSandboxHealth.acceptedMessages === 1 && smsSandboxHealth.deliveryCallbacks === 1 && smsSandboxHealth.callbackFailures === 0);
+  let deliveredSms = null;
+  let smsSandboxHealth = null;
+  const smsLifecycleComplete = await waitFor(async () => {
+    deliveredSms = await request(base, "GET", "/api/admin/sms", undefined, { auth: true });
+    smsSandboxHealth = await fetch(`${smsSandbox.url}/health`).then(response => response.json());
+    return deliveredSms.data.campaigns?.[0]?.counts?.delivered === 1
+      && smsSandboxHealth.acceptedMessages === 1
+      && smsSandboxHealth.deliveryCallbacks === 1
+      && smsSandboxHealth.callbackFailures === 0;
+  }, 15_000);
+  const smsLifecycleReady = boardAlert.status === 200
+    && boardAlert.data.sms?.queued === 1
+    && smsWorkerOutput.includes("sms.alert.send")
+    && smsLifecycleComplete === true;
+  const smsLifecycleDetail = smsLifecycleReady ? "" : [
+    `alert=${boardAlert.status}`,
+    `queued=${boardAlert.data.sms?.queued ?? "missing"}`,
+    `worker=${smsWorkerOutput.includes("sms.alert.send") ? "sent" : "missing"}`,
+    `delivered=${deliveredSms?.data.campaigns?.[0]?.counts?.delivered ?? "missing"}`,
+    `accepted=${smsSandboxHealth?.acceptedMessages ?? "missing"}`,
+    `callbacks=${smsSandboxHealth?.deliveryCallbacks ?? "missing"}`,
+    `callbackFailures=${smsSandboxHealth?.callbackFailures ?? "missing"}`,
+    `lastError=${smsSandboxHealth?.lastError || "none"}`
+  ].join(" ");
+  check("board safety alert delivers through the signed local SMS lifecycle", smsLifecycleReady, smsLifecycleDetail);
 
   const smsBasicAuth = Buffer.from(`${SMS_ACCOUNT_SID}:${SMS_AUTH_TOKEN}`).toString("base64");
   const simulateSmsPreference = body => fetch(`${smsSandbox.url}/simulate/inbound`, {
