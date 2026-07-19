@@ -6142,15 +6142,58 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
   }
 }
 .runtime-data-notice {
-  position: relative;
-  z-index: 1000;
-  width: 100%;
-  padding: 0.55rem 1rem;
+  align-items: center;
   border-bottom: 1px solid #7a4f00;
   background: #fff2bf;
   color: #402900;
+  display: flex;
   font-size: 0.78rem;
   font-weight: 700;
+  gap: 8px;
+  justify-content: center;
   line-height: 1.35;
+  min-height: 36px;
+  padding: 0.4rem 1rem;
+  position: relative;
   text-align: center;
+  width: 100%;
+  z-index: 19;
+}
+.runtime-data-notice strong {
+  font-size: inherit;
+  white-space: nowrap;
+}
+.runtime-data-notice span[hidden] {
+  display: none;
+}
+@media (max-width: 620px) {
+  body.runtime-board-demo .runtime-data-notice {
+    align-content: center;
+    display: grid;
+    gap: 0;
+    height: 56px;
+    padding: 5px 12px;
+    position: sticky;
+    top: 64px;
+  }
+  body.runtime-board-demo .runtime-data-notice strong {
+    font-size: 12px;
+  }
+  body.runtime-board-demo .runtime-data-notice span {
+    font-size: 11px;
+    overflow-wrap: anywhere;
+  }
+  body.runtime-board-demo .public-alert,
+  body.runtime-board-demo .admin-workspace-nav {
+    top: 120px;
+  }
+  /* Public sections already carry 86px of top padding. */
+  body.runtime-board-demo main > section {
+    scroll-margin-top: 56px;
+  }
+  body.runtime-board-demo #sponsor-inquiry-form,
+  body.runtime-board-demo #vendor-application-form,
+  body.runtime-board-demo #partner-status {
+    scroll-margin-top: 136px;
+  }
 }

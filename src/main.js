@@ -3106,8 +3106,21 @@ function applyRuntimeNotice(runtime) {
   notice.id = "runtime-data-notice";
   notice.className = "runtime-data-notice";
   notice.setAttribute("role", "status");
-  notice.textContent = String(runtime.label || "Board demonstration | Synthetic data").slice(0, 180);
-  if (!existing) document.body.prepend(notice);
+  const [stage = "Board demonstration", data = "Synthetic data", ...boundaries] = String(runtime.label || "Board demonstration | Synthetic data")
+    .slice(0, 180)
+    .split("|")
+    .map(part => part.trim())
+    .filter(Boolean);
+  const title = document.createElement("strong");
+  title.textContent = `${stage} · ${data}`;
+  const detail = document.createElement("span");
+  detail.textContent = boundaries.join(" · ");
+  detail.hidden = boundaries.length === 0;
+  notice.setAttribute("aria-label", [stage, data, ...boundaries].join(". "));
+  notice.replaceChildren(title, detail);
+  const topbar = document.querySelector(".topbar");
+  if (topbar && notice.previousElementSibling !== topbar) topbar.insertAdjacentElement("afterend", notice);
+  else if (!topbar && !existing) document.body.prepend(notice);
   const motionCopy = document.querySelector("#motion-status-copy");
   if (motionCopy) motionCopy.textContent = "Simulated crowd and traffic signals animate the beach layer.";
   const tideState = document.querySelector("#motion-tide-state");
