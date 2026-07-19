@@ -580,10 +580,14 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   }
   await expect(partnerActivity).toContainText("Payment recorded");
   await expect(partnerActivity).toContainText("Invoice created");
-  await expect(partnerActivity).toContainText("Partner message prepared");
   await expect(partnerActivity).toContainText(/assignment notices prepared/i);
   await expect(partnerActivity).toContainText("Brand profile approved");
   expect(await partnerActivity.textContent()).not.toMatch(/activity_|demo_[sv]app|followup_/);
+  const partnerMessages = page.locator("#admin-partner-followups");
+  await expect(partnerMessages).toContainText(`Texas SandFest vendor application ${vendorResult.application.reference}`);
+  await expect(partnerMessages).toContainText(`Texas SandFest sponsorship application ${sponsorResult.application.reference}`);
+  await expect(partnerMessages).not.toContainText(`review application reminder - ${vendorResult.application.reference}`);
+  await expect(partnerMessages).not.toContainText(`qualify opportunity reminder - ${sponsorResult.application.reference}`);
   const deferredRecovery = page.locator('#admin-deployment-checks [data-board-stage="post-presentation"]');
   await expect(deferredRecovery).toHaveCount(1);
   await expect(deferredRecovery).toContainText("Post-board");

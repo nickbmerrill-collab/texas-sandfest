@@ -456,8 +456,11 @@ try {
   const activeAssignedTaskIds = new Set((afterWorker.data.tasks || [])
     .filter(item => ["open", "in_progress", "blocked"].includes(item.status) && item.assigneeType !== "unassigned" && item.assigneeId)
     .map(item => item.id));
+  const newApplicationIds = new Set([vendor.data.application?.id, sponsor.data.application?.id].filter(Boolean));
+  const immediateIntakeReminders = (afterWorker.data.followups || []).filter(item => item.kind === "milestone_reminder" && newApplicationIds.has(item.applicationId));
   const taskAssignmentMessages = (afterWorker.data.followups || []).filter(item => item.kind === "task_assignment" && activeAssignedTaskIds.has(item.taskId));
   check("worker prepares review-first messages", workerOutput.includes("processed 3 job(s)") && afterWorker.data.applications?.length === 7 && afterWorker.data.followups?.filter(item => item.status === "draft_ready").length >= 7);
+  check("new partner acknowledgments are separated from milestone reminders", immediateIntakeReminders.length === 0);
   check("worker prepares one private notice per assigned task", taskAssignmentMessages.length === activeAssignedTaskIds.size && taskAssignmentMessages.every(item => item.status === "draft_ready" && item.recipientAvailable === true && item.recipientLabel && !("recipient" in item)));
   check("all board applications stay in 2027", afterWorker.data.applications?.every(item => item.eventId === DEFAULT_EVENT_ID));
   const automationEnabled = await request(base, "PATCH", "/api/admin/partners/automation", { mode: "transactional_auto" }, { auth: true });
