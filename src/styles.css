@@ -2264,6 +2264,7 @@ time {
 }
 
 .admin-order-grid > div {
+  align-content: start;
   display: grid;
   gap: 10px;
   min-width: 0;
@@ -2277,6 +2278,14 @@ time {
   display: grid;
   gap: 10px;
   min-width: 0;
+}
+
+.admin-order-grid .admin-record-list {
+  max-height: min(56vh, 560px);
+  overscroll-behavior: contain;
+  overflow-y: auto;
+  padding: 2px 5px 2px 2px;
+  scrollbar-gutter: stable;
 }
 
 .admin-record-card {
