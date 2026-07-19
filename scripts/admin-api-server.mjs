@@ -1827,7 +1827,9 @@ async function deploymentProfile(options = {}) {
       return checkStatus(
         (!required && !sms.enabled) || sms.ready,
         sms.ready
-          ? "Consent-safe Twilio safety messaging and signed callbacks are ready."
+          ? sms.providerMode === "sandbox"
+            ? "Local loopback SMS sandbox and signed delivery callbacks are ready; Twilio activation remains post-board."
+            : "Consent-safe Twilio safety messaging and signed callbacks are ready."
           : required
             ? `Required safety SMS is not ready. ${sms.reason}`
             : sms.reason,
@@ -1839,9 +1841,20 @@ async function deploymentProfile(options = {}) {
       const required = capabilityPolicy.required.has("transactional_email");
       const ready = email.ready && BREVO_WEBHOOK.ready;
       const reason = !email.ready ? email.reason : BREVO_WEBHOOK.reason;
+      const localSandbox = BOARD_DEMO_RUNTIME && (() => {
+        try {
+          return ["127.0.0.1", "localhost", "::1"].includes(new URL(email.endpoint).hostname);
+        } catch {
+          return false;
+        }
+      })();
       return checkStatus(
         (!required && !email.enabled) || ready,
-        ready ? "Brevo transactional email and authenticated delivery tracking are ready." : required ? `Required transactional email is not ready. ${reason}` : reason,
+        ready
+          ? localSandbox
+            ? "Local loopback email sandbox and authenticated delivery tracking are ready; Brevo activation remains post-board."
+            : "Brevo transactional email and authenticated delivery tracking are ready."
+          : required ? `Required transactional email is not ready. ${reason}` : reason,
         required || email.enabled ? "error" : "warning"
       );
     })(),
@@ -1858,7 +1871,11 @@ async function deploymentProfile(options = {}) {
       const required = capabilityPolicy.required.has("camera_ingest");
       return checkStatus(
         (!required && !ingest.enabled) || ingest.ready,
-        ingest.ready ? "Signed camera metric ingestion is ready." : required ? `Required camera metric ingestion is not ready. ${ingest.reason}` : ingest.reason,
+        ingest.ready
+          ? BOARD_DEMO_CONDITIONS_MODE === "synthetic"
+            ? "Signed eight-source synthetic metric playback is ready; production webcam edge agents remain post-board."
+            : "Signed camera metric ingestion is ready."
+          : required ? `Required camera metric ingestion is not ready. ${ingest.reason}` : ingest.reason,
         required || ingest.enabled ? "error" : "warning"
       );
     })(),

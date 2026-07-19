@@ -191,6 +191,8 @@ if (visitorUrl && operationsUrl) {
         runtimeLabel: document.querySelector("#runtime-data-notice")?.textContent?.trim(),
         apiStatus: document.querySelector("#admin-api-status")?.textContent?.trim(),
         deployment: document.querySelector("#admin-deployment-summary")?.textContent?.trim(),
+        activationBoundary: document.querySelector("#admin-board-stage-summary")?.textContent?.replace(/\s+/g, " ").trim(),
+        activationStages: document.querySelectorAll("#admin-board-stage-summary [data-board-stage]").length,
         commandSignals: document.querySelectorAll("#admin-command-signals [data-command-signal]").length,
         commandSignalText: Object.fromEntries([...document.querySelectorAll("#admin-command-signals [data-command-signal]")]
           .map(item => [item.dataset.commandSignal, item.textContent?.replace(/\s+/g, " ").trim()])),
@@ -280,7 +282,11 @@ if (visitorUrl && operationsUrl) {
         || item.heading !== "Festival operations command center"
         || item.network !== "Demo"
         || !item.runtimeLabel?.includes("Synthetic 2027 data")
-        || !item.runtimeLabel?.includes("No external messages or payments are sent")
+        || !item.runtimeLabel?.includes("No external messages, charges, or live-provider calls")
+        || !item.deployment?.includes("board demo · ready · live providers post-board")
+        || item.activationStages !== 2
+        || !item.activationBoundary?.includes("Real workflows with synthetic providers")
+        || !item.activationBoundary?.includes("Stripe, QuickBooks, Brevo, Twilio, NWS, TxDOT, eight webcam edge agents, OIDC, Turnstile, DNS, and managed recovery")
         || item.commandSignals !== 8
         || item.commandViewport?.width !== 1280
         || item.commandViewport?.height !== 720
