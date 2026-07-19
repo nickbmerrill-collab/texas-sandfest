@@ -1,11 +1,21 @@
 #!/usr/bin/env node
 
 import { boardDemoCheckEndpoints, evaluateBoardDemoReadiness } from "../lib/board-demo-readiness.mjs";
-import { boardDemoEnvironmentFromSession } from "../lib/board-demo-session.mjs";
+import {
+  BOARD_DEMO_SESSION_SCHEMA_VERSION,
+  assessBoardDemoSourceRevision,
+  boardDemoEnvironmentFromSession,
+  boardDemoSessionPath,
+  boardDemoSessionProcessAlive,
+  boardDemoSourceRevision,
+  readBoardDemoSession
+} from "../lib/board-demo-session.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const sessionFile = boardDemoSessionPath(process.env, { root: ROOT });
+const session = await readBoardDemoSession(sessionFile);
 const checkEnvironment = await boardDemoEnvironmentFromSession(process.env, { root: ROOT });
 
 let endpoints;
@@ -20,6 +30,45 @@ const adminToken = checkEnvironment.SANDFEST_BOARD_ADMIN_TOKEN || "board-demo-lo
 const configuredTimeoutMs = Number(checkEnvironment.SANDFEST_BOARD_CHECK_TIMEOUT_MS || 5000);
 const timeoutMs = Number.isFinite(configuredTimeoutMs) ? Math.max(1000, configuredTimeoutMs) : 5000;
 const jsonOutput = process.argv.includes("--json");
+
+async function sourceRevisionCheck() {
+  if (!session || !boardDemoSessionProcessAlive(session)) {
+    return {
+      id: "source_revision",
+      label: "Presentation source",
+      ok: false,
+      detail: "No active board supervisor session pins the presentation source.",
+      action: "Start the clean main stack with npm run board:demo."
+    };
+  }
+  if (session.schemaVersion !== BOARD_DEMO_SESSION_SCHEMA_VERSION) {
+    return {
+      id: "source_revision",
+      label: "Presentation source",
+      ok: false,
+      detail: `The session schema is ${session.schemaVersion ?? "missing"}; expected ${BOARD_DEMO_SESSION_SCHEMA_VERSION}.`,
+      action: "Restart the board stack from clean main."
+    };
+  }
+  try {
+    const assessment = assessBoardDemoSourceRevision(session.source, await boardDemoSourceRevision(ROOT));
+    return {
+      id: "source_revision",
+      label: "Presentation source",
+      ok: assessment.ok,
+      detail: assessment.detail,
+      action: assessment.ok ? null : "Commit or discard source changes, update main, and restart the board stack."
+    };
+  } catch (error) {
+    return {
+      id: "source_revision",
+      label: "Presentation source",
+      ok: false,
+      detail: error.message,
+      action: "Restore Git access and restart the board stack."
+    };
+  }
+}
 
 async function request(url, { json = true, headers = {}, readBody = true } = {}) {
   try {
@@ -51,9 +100,7 @@ const sponsorLogo = sponsorLogoPath.startsWith("/api/public/sponsor-showcase/ass
   ? await request(`${apiBase}${sponsorLogoPath}`, { json: false, readBody: false })
   : { ok: false, status: 0, body: null, contentType: "" };
 
-const report = {
-  checkedAt: new Date().toISOString(),
-  ...evaluateBoardDemoReadiness({
+const readiness = evaluateBoardDemoReadiness({
     web: { ok: web.ok, status: web.status, html: web.body },
     webOrigin,
     health: health.body,
@@ -67,7 +114,15 @@ const report = {
     documents: documents.body,
     sponsors: sponsors.body,
     sponsorLogo
-  })
+  });
+const checks = [await sourceRevisionCheck(), ...readiness.checks];
+const passed = checks.filter(item => item.ok).length;
+const report = {
+  checkedAt: new Date().toISOString(),
+  ok: passed === checks.length,
+  passed,
+  total: checks.length,
+  checks
 };
 
 if (jsonOutput) {

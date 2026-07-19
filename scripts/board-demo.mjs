@@ -7,8 +7,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { BOARD_RUNTIME_SCHEMA_VERSION, prepareBoardRuntime } from "../lib/board-runtime.mjs";
 import {
+  BOARD_DEMO_SESSION_SCHEMA_VERSION,
   boardDemoSessionPath,
   boardDemoSessionProcessAlive,
+  boardDemoSourceRevision,
   readBoardDemoSession,
   writeBoardDemoSession
 } from "../lib/board-demo-session.mjs";
@@ -308,6 +310,17 @@ if (previousSession && boardDemoSessionProcessAlive(previousSession)) {
   console.error(`[board-demo] Visitor: ${previousSession.links?.visitor || previousSession.endpoints?.webBase}`);
   process.exit(1);
 }
+const allowDirtySource = String(process.env.SANDFEST_BOARD_ALLOW_DIRTY_SOURCE || "").trim().toLowerCase() === "true";
+const requireMainSource = String(process.env.SANDFEST_BOARD_REQUIRE_MAIN || "").trim().toLowerCase() === "true";
+const sourceRevision = await boardDemoSourceRevision(ROOT);
+if (sourceRevision.dirty && !allowDirtySource) {
+  console.error(`[board-demo] Refusing a dirty worktree with ${sourceRevision.changeCount} changed path(s). Commit or stash the presentation source first.`);
+  process.exit(1);
+}
+if (requireMainSource && (sourceRevision.branch !== "main" || !sourceRevision.matchesOriginMain)) {
+  console.error(`[board-demo] Presentation source must be clean main at local origin/main; found ${sourceRevision.branch}@${sourceRevision.commit.slice(0, 8)}.`);
+  process.exit(1);
+}
 
 const ports = await selectPorts(options.ports, options.strictPorts);
 const endpoints = Object.fromEntries(Object.entries(ports).map(([name, port]) => [
@@ -331,7 +344,7 @@ const preflightEnv = {
 
 const startedAt = new Date().toISOString();
 const state = {
-  schemaVersion: 1,
+  schemaVersion: BOARD_DEMO_SESSION_SCHEMA_VERSION,
   mode: "board_demo_supervisor",
   status: "starting",
   pid: process.pid,
@@ -342,6 +355,12 @@ const state = {
   runtimeRefreshed: runtime.refreshed === true,
   runtimeRefreshReasons: runtime.refreshReasons || [],
   runtimeSchemaVersion: BOARD_RUNTIME_SCHEMA_VERSION,
+  source: {
+    ...sourceRevision,
+    allowDirty: allowDirtySource,
+    requireMain: requireMainSource,
+    capturedAt: startedAt
+  },
   endpoints,
   links: { visitor, operations },
   services: Object.fromEntries(SERVICE_ORDER.map(name => [name, {
@@ -420,7 +439,8 @@ async function verifyReady(label, timeoutMs = 60_000) {
         delete state.error;
         await persistState();
         if (label === "startup") {
-          console.log("\n[board-demo] Board presentation stack is ready (9/9 checks).\n");
+          console.log("\n[board-demo] Board presentation stack is ready (10/10 checks).\n");
+          console.log(`[board-demo] Source:     ${sourceRevision.branch}@${sourceRevision.commit.slice(0, 8)}${sourceRevision.matchesOriginMain ? " (origin/main)" : ""}`);
           console.log(`[board-demo] Visitor:    ${visitor}`);
           console.log(`[board-demo] Operations: ${operations}`);
           console.log(`[board-demo] Session:    ${sessionFile}`);
