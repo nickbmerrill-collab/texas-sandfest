@@ -257,6 +257,7 @@ try {
     })
   });
   const health = await request(base, "GET", "/health");
+  const deployment = await request(base, "GET", "/api/admin/deployment", undefined, { auth: true });
   check("isolated runtime is current-event ready", health.status === 200 && health.data.currentEventReady === true && health.data.currentEventId === DEFAULT_EVENT_ID);
   check("health identifies isolated runtime data", health.data.runtimeDataMode === "isolated" && health.data.cameraIngestReady === true && health.data.safetySmsReady === true && health.data.ticketCheckoutEnvironment === "board_sandbox");
   check("health exposes the generated capability-link origin", health.data.publicSiteUrl === child.processEnv.SANDFEST_PUBLIC_SITE_URL);
@@ -266,7 +267,14 @@ try {
   const publicVendorCatalog = await request(base, "GET", "/api/public/vendors");
   const publicSponsorCatalog = await request(base, "GET", "/api/public/sponsors");
   const publicTicketCatalog = await request(base, "GET", "/api/public/tickets");
-  check("board runtime is visibly labeled as synthetic", bootstrap.status === 200 && bootstrap.data.runtime?.mode === "board_demo" && bootstrap.data.runtime?.label?.includes("No external messages or payments are sent"));
+  check("board runtime is visibly labeled as synthetic", bootstrap.status === 200 && bootstrap.data.runtime?.mode === "board_demo" && bootstrap.data.runtime?.label?.includes("No external messages, charges, or live-provider calls"));
+  check("board deployment keeps live providers explicitly post-board", deployment.status === 200
+    && deployment.data.deployment?.checks?.sms?.message.includes("Local loopback SMS sandbox")
+    && deployment.data.deployment?.checks?.sms?.message.includes("Twilio activation remains post-board")
+    && deployment.data.deployment?.checks?.transactionalEmail?.message.includes("Local loopback email sandbox")
+    && deployment.data.deployment?.checks?.transactionalEmail?.message.includes("Brevo activation remains post-board")
+    && deployment.data.deployment?.checks?.cameraIngest?.message.includes("synthetic metric playback")
+    && deployment.data.deployment?.checks?.cameraIngest?.message.includes("webcam edge agents remain post-board"));
   check("board bootstrap preserves the public privacy boundary", publicAppBootstrapSafety(bootstrap.data, { allowBoardRuntime: true }).ready
     && bootstrap.data.schedule?.every(item => item.category !== "Staff")
     && bootstrap.data.zones?.every(item => !Object.hasOwn(item, "status"))

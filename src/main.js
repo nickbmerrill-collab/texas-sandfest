@@ -1082,16 +1082,16 @@ app.innerHTML = `
       </div>
       <div class="admin-readiness-grid">
         <article>
-          <strong>API subdomain</strong>
-          <span>sandfest-api.heyelab.com</span>
+          <strong>${BOARD_DEMO_ACCESS.enabled ? "API workspace" : "API subdomain"}</strong>
+          <span>${BOARD_DEMO_ACCESS.enabled ? "Local loopback presentation service" : "sandfest-api.heyelab.com"}</span>
         </article>
         <article>
-          <strong>Admin app</strong>
-          <span>sandfest-admin.heyelab.com</span>
+          <strong>${BOARD_DEMO_ACCESS.enabled ? "Admin access" : "Admin app"}</strong>
+          <span>${BOARD_DEMO_ACCESS.enabled ? "Local board session · production OIDC post-board" : "sandfest-admin.heyelab.com"}</span>
         </article>
         <article>
           <strong>Payments</strong>
-          <span>Provider readiness is enforced by the API</span>
+          <span>${BOARD_DEMO_ACCESS.enabled ? "Site-native sandbox · Stripe post-board" : "Provider readiness is enforced by the API"}</span>
         </article>
         <article>
           <strong>Price authority</strong>
@@ -1110,11 +1110,25 @@ app.innerHTML = `
           <span id="admin-job-summary">Not checked</span>
         </article>
       </div>
+      ${BOARD_DEMO_ACCESS.enabled ? `
+        <section id="admin-board-stage-summary" class="admin-board-stage-summary" aria-label="Board presentation activation boundary">
+          <div data-board-stage="presentation-ready">
+            <span>Board-ready</span>
+            <strong>Real workflows with synthetic providers</strong>
+            <p>Intake, receivables, key dates, delegated work, sponsor branding, outreach, and Island Conditions use the real application contracts.</p>
+          </div>
+          <div data-board-stage="post-presentation">
+            <span>Post-board</span>
+            <strong>Live provider activation</strong>
+            <p>Connect Stripe, QuickBooks, Brevo, Twilio, NWS, TxDOT, eight webcam edge agents, OIDC, Turnstile, DNS, and managed recovery.</p>
+          </div>
+        </section>
+      ` : ""}
       <div class="admin-launch-readiness" id="admin-launch-readiness">
         <div class="admin-launch-readiness-heading">
           <div>
             <p class="eyebrow">Launch control</p>
-            <h2>Production readiness</h2>
+            <h2>${BOARD_DEMO_ACCESS.enabled ? "Presentation and production readiness" : "Production readiness"}</h2>
             <p id="admin-deployment-check-count" class="admin-launch-readiness-count">Load the operations workspace to evaluate launch gates.</p>
           </div>
           <div class="admin-launch-readiness-actions">
@@ -2685,7 +2699,9 @@ function renderAdminDeployment(deployment) {
   if (!summary || !target) return;
   adminDeploymentState = deployment;
   const state = deployment.ok ? "ready" : "blocked";
-  summary.textContent = `${deployment.environment} · ${state} · ${deployment.warnings} warnings · ${deployment.errors} errors`;
+  summary.textContent = BOARD_DEMO_ACCESS.enabled
+    ? `board demo · ${state} · live providers post-board`
+    : `${deployment.environment} · ${state} · ${deployment.warnings} warnings · ${deployment.errors} errors`;
   summary.dataset.state = deployment.errors ? "error" : deployment.warnings ? "warning" : "ok";
 
   const checks = Object.values(deployment.checks || {});
@@ -2695,7 +2711,11 @@ function renderAdminDeployment(deployment) {
   const attentionCount = document.querySelector("#admin-deployment-attention-count");
   const totalCount = document.querySelector("#admin-deployment-total-count");
   if (checkCount) {
-    checkCount.textContent = `${checks.length - attention.length} passing · ${deployment.warnings} review · ${deployment.errors} blocked`;
+    const postBoardCount = BOARD_DEMO_ACCESS.enabled && attention.some(check => check.id === "backupRecovery") ? 1 : 0;
+    const reviewCount = Math.max(0, attention.length - postBoardCount);
+    checkCount.textContent = BOARD_DEMO_ACCESS.enabled
+      ? `${checks.length - attention.length} passing · ${postBoardCount} post-board · ${reviewCount} need review`
+      : `${checks.length - attention.length} passing · ${deployment.warnings} review · ${deployment.errors} blocked`;
   }
   if (attentionCount) attentionCount.textContent = String(attention.length);
   if (totalCount) totalCount.textContent = String(checks.length);
