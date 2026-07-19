@@ -13,7 +13,7 @@ This runbook gets you to those URLs in three phases. Public web first (zero risk
 
 ## Phase 1 — Public web on GitHub Pages (enablement pending)
 
-A workflow at `.github/workflows/pages.yml` builds the Vite app only after the full `CI` workflow succeeds for a direct push to `main`. Pull-request and feature-branch runs cannot publish, and there is no manual bypass around the release gate.
+A workflow at `.github/workflows/pages.yml` builds the Vite app only after the full `CI` workflow succeeds for a direct push to `main`. Pull-request, feature-branch, and manually dispatched runs cannot publish, and there is no manual bypass around the release gate.
 
 Until the post-board production Turnstile site key is configured, that workflow
 records a successful deferred-release notice and performs no checkout, build,
@@ -22,6 +22,30 @@ visible without turning every otherwise-green `main` run red. Once the variable
 exists, only the gated production build and deploy jobs can publish.
 
 Repository configuration, workflow success, the GitHub Pages URL, custom DNS, and customer-visible rendering must each be verified directly before this phase is marked live. A local build or committed workflow is not deploy proof.
+
+If GitHub does not record a CI run for a merged `main` commit, verify the exact
+current `origin/main` commit without enabling a release:
+
+```bash
+git fetch origin main
+expected_sha=$(git rev-parse origin/main)
+dispatched_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+gh workflow run CI --ref main
+run_id=""
+for attempt in {1..30}; do
+  run_id=$(gh run list --workflow CI --branch main --event workflow_dispatch --commit "$expected_sha" --created ">=$dispatched_at" --limit 1 --json databaseId --jq '.[0].databaseId')
+  [ -n "$run_id" ] && break
+  sleep 2
+done
+: "${run_id:?Manual CI run was not created for $expected_sha}"
+gh run watch "$run_id" --exit-status
+gh run view "$run_id" --json headSha,conclusion,event,url
+test "$(gh run view "$run_id" --json headSha --jq .headSha)" = "$expected_sha"
+```
+
+This is commit verification only. Both the deferred notice and the production
+build in the Pages workflow require `workflow_run.event == 'push'`, so a manual
+CI run cannot check out, upload, or deploy a public artifact.
 
 The production visitor build injects a CSP meta policy before any loadable resource, uses only self-hosted brand fonts, restricts executable scripts and frames to the app plus Cloudflare Turnstile, and publishes `no-referrer`. The narrow `style-src-attr 'unsafe-inline'` allowance is required by the interactive maps, meters, and canvas sizing; `script-src` does not allow inline or evaluated code. Build verification fails if these boundaries drift.
 

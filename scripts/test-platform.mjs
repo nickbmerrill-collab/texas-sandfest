@@ -1942,10 +1942,13 @@ staff_production,${importEventId},Jordan Davis,jordan.davis@staff.example,active
   const mismatchedSid = recordSmsStatusCallback(submitted.doc, { messageId, providerMessageSid: "SM_other", status: "delivered" }, { now: "2026-07-17T13:00:30.000Z" });
   const delivered = recordSmsStatusCallback(submitted.doc, { messageId, providerMessageSid: "SM_test", status: "delivered" }, { now: "2026-07-17T13:01:00.000Z" });
   const regressed = recordSmsStatusCallback(delivered.doc, { messageId, providerMessageSid: "SM_test", status: "sent" }, { now: "2026-07-17T13:02:00.000Z" });
+  const earlyDelivered = recordSmsStatusCallback(beginning.doc, { messageId, providerMessageSid: "SM_early", status: "delivered" }, { now: "2026-07-17T13:00:01.500Z" });
+  const lateSubmission = recordSmsSubmission(earlyDelivered.doc, messageId, { ok: true, status: "queued", sid: "SM_early" }, { now: "2026-07-17T13:00:02.000Z" });
   const preference = recordSmsPreferenceEvent(regressed.doc, { providerMessageSid: "SM_inbound", channel: "smsSafety", action: "STOP", recipientHash: campaignResult.messages[0].recipientHash });
   const preferenceDuplicate = recordSmsPreferenceEvent(preference.doc, { providerMessageSid: "SM_inbound", channel: "smsSafety", action: "STOP", recipientHash: campaignResult.messages[0].recipientHash });
   const privacyJson = JSON.stringify(preference.doc);
   ok("SMS delivery lifecycle is durable and monotonic", delivered.ok && delivered.message.status === "delivered" && regressed.ignoredRegression && regressed.message.status === "delivered");
+  ok("SMS early delivery callback survives late provider acceptance", lateSubmission.ignoredRegression && lateSubmission.message.status === "delivered" && lateSubmission.message.providerStatus === "delivered" && lateSubmission.message.providerMessageSid === "SM_early" && lateSubmission.message.submittedAt === "2026-07-17T13:00:02.000Z");
   ok("SMS status callback binds local message and provider SID", !mismatchedSid.ok && mismatchedSid.error.includes("did not match"));
   ok("SMS preference events are idempotent", !preference.duplicate && preferenceDuplicate.duplicate);
   ok("SMS operations retain no phone number or message body", !privacyJson.includes(rec.phone) && privacyJson.includes("Weather delay") && !privacyJson.includes("Safety test"));

@@ -60,6 +60,7 @@ const publicSculptorRoster = JSON.parse(await readFile(path.join(publicDir, "dat
 const sourceVoting = JSON.parse(await readFile(path.join(root, "data", "processed", "peoples-choice.json"), "utf8"));
 const sourcePassport = JSON.parse(await readFile(path.join(root, "data", "processed", "sculpture-passport.json"), "utf8"));
 const vercelConfig = JSON.parse(await readFile(path.join(root, "vercel.json"), "utf8"));
+const ciWorkflow = parseYaml(await readFile(path.join(root, ".github", "workflows", "ci.yml"), "utf8"));
 const pagesWorkflow = parseYaml(await readFile(path.join(root, ".github", "workflows", "pages.yml"), "utf8"));
 const mediaDerivatives = JSON.parse(await readFile(path.join(publicDir, "assets", "sandfest-media", "media-derivatives.json"), "utf8"));
 const publicMediaManifest = JSON.parse(await readFile(path.join(publicDir, "assets", "sandfest-media", "media-manifest.json"), "utf8"));
@@ -91,10 +92,20 @@ assert(!(await exists(path.join(adminDir, "admin.html"))), "Admin artifact must 
 assert(vercelConfig.framework === "vite", "Vercel PR previews must use the Vite framework preset.");
 assert(vercelConfig.buildCommand === "node scripts/verify-vercel-project.mjs && SANDFEST_DEPLOYMENT_ENV=$VERCEL_ENV npm run build:public", "Vercel builds must verify project isolation, inherit the deployment environment, and build only the public surface.");
 assert(vercelConfig.outputDirectory === "dist-public", "Vercel PR previews must publish only the isolated public artifact.");
+const ciTriggers = ciWorkflow.on || {};
+const ciPlatformSteps = ciWorkflow.jobs?.platform?.steps || [];
+const manualVerificationNotice = ciPlatformSteps.find(step => step.name === "Record manual verification scope");
+assert(ciTriggers.push?.branches?.includes("main"), "CI must run for direct pushes to main.");
+assert(Object.hasOwn(ciTriggers, "pull_request"), "CI must run for pull requests.");
+assert(Object.hasOwn(ciTriggers, "workflow_dispatch"), "CI must support verification-only manual dispatches.");
+assert(manualVerificationNotice?.if === "github.event_name == 'workflow_dispatch'"
+  && manualVerificationNotice.run?.includes("Public release still requires a successful push-triggered main run"), "Manual CI must identify itself as verification-only.");
 const pagesDeferredIf = String(pagesWorkflow.jobs?.deferred?.if || "");
 const pagesBuildIf = String(pagesWorkflow.jobs?.build?.if || "");
 const pagesDeferredSteps = pagesWorkflow.jobs?.deferred?.steps || [];
-assert(pagesDeferredIf.includes("github.event.workflow_run.head_branch == 'main'")
+assert(pagesDeferredIf.includes("github.event.workflow_run.conclusion == 'success'")
+  && pagesDeferredIf.includes("github.event.workflow_run.event == 'push'")
+  && pagesDeferredIf.includes("github.event.workflow_run.head_branch == 'main'")
   && pagesDeferredIf.includes("vars.SANDFEST_TURNSTILE_SITE_KEY == ''"), "Pages must record an explicit deferred release only after successful main CI when production Turnstile is absent.");
 assert(pagesBuildIf.includes("github.event.workflow_run.conclusion == 'success'")
   && pagesBuildIf.includes("github.event.workflow_run.event == 'push'")
