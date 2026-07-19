@@ -1241,10 +1241,19 @@ app.innerHTML = `
       </div>
       <div class="admin-order-monitor" id="admin-system-monitor">
         <div class="editor-heading">
-          <p class="eyebrow">Transaction + audit monitor</p>
-          <h2>Orders, webhooks, fulfillment, and admin changes</h2>
+          <p class="eyebrow">Systems monitor</p>
+          <h2>Automation, transactions, fulfillment, and audit</h2>
         </div>
-        <button id="admin-load-orders" class="button secondary" data-requires-permission="orders:read" type="button">Refresh transactions</button>
+        <button id="admin-load-orders" class="button secondary" data-requires-permission="orders:read" type="button">Refresh systems</button>
+        <section class="admin-automation-monitor" aria-labelledby="admin-automation-title">
+          <div class="admin-automation-heading">
+            <strong id="admin-automation-title">Automation queue</strong>
+            <span>Provider delivery, document extraction, accounting, and incident dispatch</span>
+          </div>
+          <div id="admin-job-list" class="admin-job-list keyboard-scroll-region" role="region" aria-label="Background automation queue" tabindex="0">
+            <article class="empty-state"><span>No automation records loaded.</span></article>
+          </div>
+        </section>
         <div class="admin-order-grid">
           <div>
             <strong>Pending checkout attempts</strong>
@@ -1392,7 +1401,7 @@ app.innerHTML = `
           <div id="admin-volunteer-import-history" class="admin-revenue-rows"><article class="empty-state"><span>No VolunteerLocal imports.</span></article></div>
         </div>
       </div>
-      <div class="admin-consent-panel">
+      <div class="admin-consent-panel" id="admin-consent">
         <div class="editor-heading">
           <p class="eyebrow">Consent &amp; SMS</p>
           <h2>Checkout opt-ins feeding Brevo + Twilio</h2>
@@ -1511,7 +1520,7 @@ app.innerHTML = `
             <button id="admin-disconnect-quickbooks" class="button secondary" data-requires-permission="finance:write" type="button" hidden>Disconnect</button>
           </div>
         </div>
-        <div class="admin-incident-board">
+        <div class="admin-incident-board" id="admin-incident-command">
           <div class="admin-task-board-heading"><strong>Island incident command</strong><span id="admin-incident-summary">Load island operations to view incidents.</span></div>
           <div id="admin-incident-kpis" class="admin-incident-kpis"><article class="empty-state"><span>No incident data loaded.</span></article></div>
           <div class="admin-incident-toolbar">
@@ -2807,10 +2816,84 @@ function renderAdminJobHealth(summary) {
   target.dataset.state = summary?.needsAttention ? "error" : "ok";
 }
 
+function adminJobTimeLabel(job) {
+  const source = job.status === "queued" ? job.runAfter : job.status === "running" ? job.leaseExpiresAt : job.updatedAt;
+  const timestamp = new Date(source || "");
+  if (Number.isNaN(timestamp.getTime())) return "Timestamp unavailable";
+  const prefix = job.status === "queued"
+    ? "Scheduled"
+    : job.status === "running"
+      ? "Lease ends"
+      : job.status === "done"
+        ? "Completed"
+        : job.failureHandledAt ? "Reviewed" : "Stopped";
+  return `${prefix} ${timestamp.toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}`;
+}
+
+function adminJobCard(job) {
+  const status = adminRecordDisplayLabel(job.status, "Unknown");
+  const attempt = job.maxAttempts
+    ? `${job.attempts} of ${job.maxAttempts} attempts used`
+    : `${job.attempts} attempts used`;
+  const failure = job.failureSummary ? `<p class="admin-delivery-error">${escapeHtml(job.failureSummary)}</p>` : "";
+  const resolution = job.requiresAcknowledgement ? `
+    <div class="admin-job-actions">
+      <a class="button secondary" href="${escapeAttr(job.workspaceHref)}">Open ${escapeHtml(job.workspaceLabel)}</a>
+      <form data-acknowledge-job="${escapeAttr(job.id)}" data-requires-permission="jobs:write">
+        <label><span>Resolution note</span><input name="resolutionNote" minlength="12" maxlength="500" required /></label>
+        <button class="button primary" type="submit">Acknowledge</button>
+      </form>
+    </div>` : job.status === "failed" ? `
+    <div class="admin-job-actions">
+      <a class="button secondary" href="${escapeAttr(job.workspaceHref)}">Open ${escapeHtml(job.workspaceLabel)}</a>
+      <span>Failure reviewed</span>
+    </div>` : "";
+  return `
+    <article class="admin-record-card admin-job-card" data-admin-job="${escapeAttr(job.id)}" data-job-status="${escapeAttr(job.status)}">
+      <div><strong>${escapeHtml(job.label)}</strong><span>${escapeHtml(status)}</span></div>
+      <p>${escapeHtml(attempt)} · ${escapeHtml(adminJobTimeLabel(job))}</p>
+      ${failure}
+      ${resolution}
+    </article>`;
+}
+
+function bindAdminJobActions() {
+  document.querySelectorAll("[data-acknowledge-job]").forEach(form => {
+    form.addEventListener("submit", async event => {
+      event.preventDefault();
+      const button = form.querySelector('button[type="submit"]');
+      button.disabled = true;
+      try {
+        const result = await adminFetch(`/api/admin/jobs/${encodeURIComponent(form.dataset.acknowledgeJob)}/acknowledge`, {
+          method: "POST",
+          body: JSON.stringify({ resolutionNote: form.elements.resolutionNote.value })
+        });
+        renderAdminJobHealth(result.summary);
+        await loadAdminJobHealth();
+        setAdminStatus(`${result.job.label} failure acknowledged.`, "ok");
+      } catch (error) {
+        setAdminStatus(error.message, "error");
+        button.disabled = !adminCan("jobs:write");
+      }
+    });
+  });
+}
+
+function renderAdminJobs(data) {
+  renderAdminJobHealth(data?.summary);
+  const target = document.querySelector("#admin-job-list");
+  if (!target) return;
+  target.innerHTML = data?.jobs?.length
+    ? data.jobs.map(adminJobCard).join("")
+    : '<article class="empty-state"><span>No background automation has run yet.</span></article>';
+  bindAdminJobActions();
+  if (adminSessionState) renderAdminSession(adminSessionState);
+}
+
 async function loadAdminJobHealth() {
   const data = await adminFetch("/api/admin/jobs?limit=12");
-  renderAdminJobHealth(data.summary);
-  return data.summary;
+  renderAdminJobs(data);
+  return data;
 }
 
 const adminDocumentStatusLabels = {
@@ -3485,6 +3568,7 @@ function fulfillmentCard(item) {
 
 function adminRecordDisplayLabel(value, fallback = "Recorded change") {
   const text = String(value || "")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
     .replace(/[._-]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -8481,13 +8565,15 @@ async function loadAdminTransactions() {
   const snapshotList = document.querySelector("#admin-snapshot-list");
   button.disabled = true;
   try {
-    const [orders, events, fulfillment, audit, snapshots] = await Promise.all([
+    const [jobs, orders, events, fulfillment, audit, snapshots] = await Promise.all([
+      adminFetch("/api/admin/jobs?limit=12"),
       adminFetch("/api/admin/orders?limit=12"),
       adminFetch("/api/admin/payment-events?limit=12"),
       adminFetch("/api/admin/fulfillment?limit=12"),
       adminFetch("/api/admin/audit?limit=12"),
       adminFetch("/api/admin/snapshots?limit=12")
     ]);
+    renderAdminJobs(jobs);
     orderList.innerHTML = orders.pendingOrders.length
       ? orders.pendingOrders.map(orderRecordCard).join("")
       : '<article class="empty-state"><span>No pending checkout attempts yet.</span></article>';
@@ -8507,7 +8593,7 @@ async function loadAdminTransactions() {
     bindBoardTicketRefundButtons();
     bindSnapshotButtons();
     if (adminSessionState) renderAdminSession(adminSessionState);
-    setAdminStatus(`Loaded ${orders.pendingOrders.length} order records, ${events.paymentEvents.length} payment events, ${fulfillment.fulfillment.length} fulfillment records, ${audit.audit.length} audit entries, and ${snapshots.snapshots.length} snapshots.`, "ok");
+    setAdminStatus(`Loaded ${jobs.jobs.length} automation records, ${orders.pendingOrders.length} order records, ${events.paymentEvents.length} payment events, ${fulfillment.fulfillment.length} fulfillment records, ${audit.audit.length} audit entries, and ${snapshots.snapshots.length} snapshots.`, "ok");
   } catch (error) {
     setAdminStatus(error.message, "error");
   } finally {

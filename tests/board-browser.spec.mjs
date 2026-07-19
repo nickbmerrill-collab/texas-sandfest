@@ -724,11 +724,21 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   const transactionRegions = page.locator("#admin-system-monitor .admin-record-list");
   await expect(transactionRegions).toHaveCount(5);
   expect(await transactionRegions.evaluateAll(regions => regions.every(region => region.getAttribute("role") === "region" && region.tabIndex === 0))).toBe(true);
+  const automationRegion = page.locator("#admin-job-list");
+  await expect(automationRegion).toHaveAttribute("role", "region");
+  await expect(automationRegion).toHaveAttribute("tabindex", "0");
+  const automationJobCount = await automationRegion.locator("[data-admin-job]").count();
+  expect(automationJobCount).toBeGreaterThan(0);
+  await expect(automationRegion.locator('[data-job-status="done"]')).toHaveCount(automationJobCount);
+  await expect(automationRegion).toContainText(/Partner message (preparation|delivery)/);
+  await expect(automationRegion).not.toContainText(/job_|followup_|@/);
+  await expect(page.locator("#admin-job-summary")).toContainText("0 need review");
   const initialTransactionRefresh = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/audit" && response.request().method() === "GET");
   await page.locator("#admin-load-orders").click();
   expect((await initialTransactionRefresh).status()).toBe(200);
   const systemMonitor = page.locator("#admin-system-monitor");
   expect(await page.locator("#admin-audit-list [data-audit-action]").count()).toBeGreaterThan(0);
+  await expect(page.locator("#admin-audit-list")).not.toContainText("EmailDeliveryWebhook");
   await expect(systemMonitor.locator(".admin-record-card code")).toHaveCount(0);
   await expect(systemMonitor).not.toContainText(/data\/processed|db:\/\/|admin-audit\//);
   const auditRegionMetrics = await page.locator("#admin-audit-list").evaluate(region => ({
@@ -1599,6 +1609,8 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   }));
   expect(populatedAuditRegionMetrics.scrollHeight).toBeGreaterThan(populatedAuditRegionMetrics.clientHeight);
   expect(await page.locator("#admin-audit-list [data-audit-action]").count()).toBeGreaterThan(0);
+  expect(await page.locator("#admin-job-list [data-admin-job]").count()).toBeGreaterThan(0);
+  await expect(page.locator("#admin-job-list")).not.toContainText(/job_|followup_|@/);
   await expect(page.locator("#admin-system-monitor .admin-record-card code")).toHaveCount(0);
   await expect(page.locator("#admin-system-monitor")).not.toContainText(/data\/processed|db:\/\/|admin-audit\//);
 

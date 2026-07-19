@@ -28,7 +28,8 @@ import { turnstileConfig, verifyTurnstileToken } from "../lib/turnstile.mjs";
 import { eventGuideReadiness, publicEventGuide, publishEventGuide } from "../lib/event-guide.mjs";
 import { eventContextConfig, eventContextReadiness } from "../lib/event-context.mjs";
 import { recoveryReadiness } from "../lib/recovery-readiness.mjs";
-import { enqueueJob, getQueueHealth, listJobs } from "../lib/job-queue.mjs";
+import { enqueueJob, getQueueHealth, listJobs, markTerminalJobHandled } from "../lib/job-queue.mjs";
+import { adminJobView, adminJobViews, jobResolutionNote, validAdminJobId } from "../lib/job-operations.mjs";
 import {
   applyCheckin,
   applyCheckout,
@@ -643,6 +644,7 @@ const rolePermissions = {
     "conditions:write",
     "fulfillment:read",
     "fulfillment:update",
+    "jobs:write",
     "audit:read",
     "snapshot:read"
   ],
@@ -7843,7 +7845,44 @@ async function handleRequest(request, response) {
       if (!(await requirePermission(request, response, "admin:read"))) return;
       sendJson(request, response, 200, {
         summary: await getQueueHealth(ROOT),
-        jobs: await listJobs(ROOT, { limit: clampLimit(url.searchParams.get("limit"), 50) })
+        jobs: adminJobViews(await listJobs(ROOT, { limit: clampLimit(url.searchParams.get("limit"), 50) }))
+      });
+      return;
+    }
+
+    const adminJobAcknowledgeMatch = pathname.match(/^\/api\/admin\/jobs\/([^/]+)\/acknowledge$/);
+    if (method === "POST" && adminJobAcknowledgeMatch) {
+      const session = await requirePermission(request, response, "jobs:write");
+      if (!session) return;
+      let jobId = "";
+      try {
+        jobId = decodeURIComponent(adminJobAcknowledgeMatch[1]);
+      } catch {
+        sendJson(request, response, 400, { error: "Invalid automation job reference." });
+        return;
+      }
+      if (!validAdminJobId(jobId)) {
+        sendJson(request, response, 400, { error: "Invalid automation job reference." });
+        return;
+      }
+      const resolution = jobResolutionNote((await readBody(request)).resolutionNote);
+      if (!resolution.ok) {
+        sendJson(request, response, 400, { error: resolution.error });
+        return;
+      }
+      const result = await markTerminalJobHandled(ROOT, jobId);
+      if (!result.ok) {
+        sendJson(request, response, 409, { error: "This automation failure is missing, active, or already acknowledged." });
+        return;
+      }
+      const job = adminJobView(result.job);
+      await writeAuditRecord(request, "automation.job.acknowledge", { type: "backgroundJob", id: jobId }, null, job, {
+        resolutionNote: resolution.note,
+        workflow: job.label
+      });
+      sendJson(request, response, 200, {
+        job,
+        summary: await getQueueHealth(ROOT)
       });
       return;
     }

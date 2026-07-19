@@ -161,7 +161,7 @@ Until Heyelab's IdP is live, `/ready` returns 503 and `GET /api/admin/deployment
 | Role | Intent |
 | --- | --- |
 | `super_admin` | Full local access |
-| `ops_admin` | Operations, documents, staff and volunteer routing, partner workflows, conditions, fulfillment, and audit |
+| `ops_admin` | Operations, documents, staff and volunteer routing, partner workflows, conditions, fulfillment, automation failure acknowledgment, and audit |
 | `ticketing_admin` | Ticket config, orders, payment events, fulfillment reads, audit |
 | `sponsor_admin` | Sponsor package config, orders, fulfillment reads, audit |
 | `finance_admin` | Finance reads plus partner payment posting/reversal and reviewed invoice create, approve, void, and sync |
@@ -501,6 +501,7 @@ In production, pair these app-level limits with Vercel Firewall or the chosen AP
 - Finance and checkout settings require elevated admin roles.
 - Route handlers enforce prototype permissions before mutations.
 - Snapshot restores require rollback permission and write a rollback audit record.
+- Background-job responses expose workflow status rather than payloads or raw provider errors. Only operations administrators can acknowledge an unresolved terminal failure, and every acknowledgment requires a resolution note and audit record.
 - Responses include `x-request-id`, `x-content-type-options`, `referrer-policy`, and `permissions-policy`.
 - Client-supplied request IDs are accepted only when they match the bounded trace-ID format; invalid values are replaced server-side.
 - Audit records never retain bearer-token fragments and recursively redact capability tokens, OAuth tokens, API keys, signatures, passwords, and secrets.

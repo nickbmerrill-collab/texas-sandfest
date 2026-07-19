@@ -57,7 +57,7 @@ The `sandfest_role` claim must contain one of these six string values (or an arr
 | Role | Capabilities |
 | --- | --- |
 | `super_admin` | Everything. |
-| `ops_admin` | Operations, documents, staff and volunteer routing, partner workflows, conditions, fulfillment, audit, and snapshots. |
+| `ops_admin` | Operations, documents, staff and volunteer routing, partner workflows, conditions, fulfillment, automation failure acknowledgment, audit, and snapshots. |
 | `ticketing_admin` | Ticket catalog writes, plus orders/payments/fulfillment reads. |
 | `sponsor_admin` | Sponsor package writes, plus orders/fulfillment reads. |
 | `finance_admin` | Finance reads plus review-gated partner invoice create, approve, void, and QuickBooks sync. |
