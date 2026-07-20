@@ -1756,6 +1756,19 @@ test("operations command summary fits and navigates across board viewports", asy
   await expect(reviewReadyOutreach).toHaveCount(1);
   await assertNoHorizontalOverflow(page);
 
+  await page.setViewportSize({ width: 768, height: 844 });
+  await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}`);
+  await expect(page.locator("#admin-api-status")).toContainText("Loaded", { timeout: 25_000 });
+  const readinessFilterButtons = page.locator(".admin-readiness-filter button");
+  await expect(readinessFilterButtons).toHaveCount(2);
+  for (const button of await readinessFilterButtons.all()) {
+    await expect.poll(() => button.evaluate(element => (
+      element.scrollWidth <= element.clientWidth + 1
+      && element.scrollHeight <= element.clientHeight + 1
+    ))).toBe(true);
+  }
+  await assertNoHorizontalOverflow(page);
+
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}`);
   await expect(page.locator("#admin-api-status")).toContainText("Loaded", { timeout: 25_000 });
@@ -2012,6 +2025,7 @@ test("critical public and operations views fit a mobile viewport", async ({ page
   await expect(page.locator("#sponsor-inquiry-form")).toBeInViewport({ ratio: 0.1 });
   await assertNoHorizontalOverflow(page);
 
+  await page.setViewportSize({ width: 320, height: 740 });
   await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#admin-partners`);
   await expect(page.locator("#admin-api-status")).toContainText("Loaded", { timeout: 25_000 });
   await expect(runtimeNotice).toBeInViewport();
@@ -2048,7 +2062,22 @@ test("critical public and operations views fit a mobile viewport", async ({ page
     "Systems"
   ]);
   await expect.poll(() => workspaceNav.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
-  for (const link of await workspaceLinks.all()) await expect(link).toBeInViewport();
+  for (const link of await workspaceLinks.all()) {
+    await expect(link).toBeInViewport();
+    await expect.poll(() => link.evaluate(element => (
+      element.scrollWidth <= element.clientWidth + 1
+      && element.scrollHeight <= element.clientHeight + 1
+    ))).toBe(true);
+  }
+  expect(await page.locator("button, input:not([type=hidden]):not([type=checkbox]):not([type=radio]), select, textarea, a[href], [role=button]").evaluateAll(controls => controls.filter(control => {
+    const bounds = control.getBoundingClientRect();
+    const styles = getComputedStyle(control);
+    return bounds.width > 0
+      && bounds.height > 0
+      && styles.display !== "none"
+      && styles.visibility !== "hidden"
+      && (bounds.width < 24 || bounds.height < 24);
+  }).map(control => control.getAttribute("aria-label") || control.textContent?.trim() || control.getAttribute("name") || control.id))).toEqual([]);
   const accountingLink = workspaceNav.getByRole("link", { name: "Accounting", exact: true });
   await expect(accountingLink).toHaveAttribute("href", "#admin-budget");
   await accountingLink.click();
