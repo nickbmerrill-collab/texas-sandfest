@@ -5093,18 +5093,23 @@ time {
   padding: 3px;
   gap: 2px;
 }
-.site-mode-toggle button {
+.site-mode-toggle button,
+.site-mode-toggle a {
+  align-items: center;
   border: 0;
   background: none;
   border-radius: 999px;
+  display: inline-flex;
   padding: 6px 12px;
   font-size: 12px;
   font-weight: 600;
   color: var(--muted);
   cursor: pointer;
+  text-decoration: none;
   white-space: nowrap;
 }
-.site-mode-toggle button.is-active {
+.site-mode-toggle button.is-active,
+.site-mode-toggle a.is-active {
   background: var(--deep);
   color: var(--sand);
 }
@@ -5196,7 +5201,8 @@ body.mode-ops header nav a[data-audience="public"] {
   }
 }
 @media (max-width: 900px) {
-  .site-mode-toggle button { padding: 6px 9px; }
+  .site-mode-toggle button,
+  .site-mode-toggle a { padding: 6px 9px; }
   .admin-shell-body #admin-config .section-heading { flex-direction: column; }
   .admin-shell-body #admin-config .section-heading h1 { font-size: 32px; }
 }

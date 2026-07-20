@@ -226,6 +226,9 @@ if (visitorUrl && operationsUrl) {
         network: document.querySelector("#network-status")?.textContent?.trim(),
         operationsHandoff: document.querySelector("[data-operations-handoff]")?.href,
         operationsHandoffTarget: document.querySelector("[data-operations-handoff]")?.target,
+        operationsSurface: document.querySelector("[data-operations-surface]")?.href,
+        operationsSurfaceTarget: document.querySelector("[data-operations-surface]")?.target,
+        operationsSurfaceTag: document.querySelector("[data-operations-surface]")?.tagName,
         visibleOperationsNavigation: [...document.querySelectorAll('#public-navigation a[data-audience="ops"]')]
           .filter(item => item.getClientRects().length > 0)
           .map(item => ({ label: item.textContent?.trim(), href: item.getAttribute("href") })),
@@ -271,10 +274,13 @@ if (visitorUrl && operationsUrl) {
         || item.network !== "Demo"
         || item.operationsHandoff !== operationsUrl
         || item.operationsHandoffTarget !== "_blank"
+        || item.operationsSurface !== operationsUrl
+        || item.operationsSurfaceTarget !== ""
+        || item.operationsSurfaceTag !== "A"
       ) {
         throw new Error(observations.visitorError || "The visitor shell did not reach board-demo mode.");
       }
-      return "Visitor title, festival heading, visible Demo state, exact reload-stable Operations handoff, and an operations-free visitor navigation rendered.";
+      return "Visitor title, festival heading, visible Demo state, same-tab Operations switch, new-tab operator handoff, and an operations-free visitor navigation rendered.";
     });
     await inspect("public_intake", "Vendor and sponsor intake", "Inspect the public catalog API and signup form controls.", async () => {
       const item = observations.visitor;

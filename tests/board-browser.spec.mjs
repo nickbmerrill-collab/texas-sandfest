@@ -344,6 +344,10 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await expect(page.locator("#experience")).toBeHidden();
   await expect(page.locator("#port-a")).toBeHidden();
   await expect(page.locator('header nav a[href="#port-a"]')).toBeHidden();
+  const operationsSurface = page.locator("[data-operations-surface]");
+  await expect(operationsSurface).toHaveAttribute("href", `${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}`);
+  await expect(operationsSurface).not.toHaveAttribute("target", /.+/);
+  await expect(page.locator('[data-site-mode="public"]')).toHaveAttribute("aria-current", "page");
   const operationsHandoff = page.locator("[data-operations-handoff]");
   await expect(operationsHandoff).toHaveAttribute("href", `${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}`);
   await expect(operationsHandoff).toHaveAttribute("target", "_blank");
@@ -1852,6 +1856,22 @@ test("visitor hero and navigation stay ordered across intermediate widths", asyn
   expect(await page.locator("#public-navigation").evaluate(navigation => [...navigation.querySelectorAll('a[data-audience="ops"]')]
     .filter(link => link.getClientRects().length > 0)
     .map(link => ({ label: link.textContent.trim(), href: link.getAttribute("href") })))).toEqual([]);
+  await assertNoHorizontalOverflow(page);
+});
+
+test("visitor view switch opens the dedicated operations portal", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor`);
+  const operationsSurface = page.locator("[data-operations-surface]");
+  await expect(operationsSurface).toBeVisible();
+  await expect(operationsSurface).toHaveAttribute("href", `${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}`);
+  await operationsSurface.click();
+  await expect(page).toHaveURL(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}`);
+  await expect(page).toHaveTitle("Texas SandFest Operations");
+  await expect(page.locator("#admin-config h1")).toHaveText("Festival operations command center");
+  await expect(page.locator("#admin-api-status")).toContainText("Loaded", { timeout: 25_000 });
+  await expect(page.locator("header nav")).toHaveCount(0);
+  await expect(page.locator(".admin-workspace-nav")).toBeVisible();
   await assertNoHorizontalOverflow(page);
 });
 
