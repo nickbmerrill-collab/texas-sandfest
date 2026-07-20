@@ -822,6 +822,44 @@ PG-B-01,${EVENT_ID},PG-EV-V-01,PG-EV-V-01,Postgres Booth Vendor,retail,vendor,po
   const vendorIntake = intakes[0];
   const postgresVendorReplays = intakes.filter(item => item.data.application?.id === vendorIntake.data.application?.id);
   check("concurrent intake replay returns one portal", postgresVendorReplays.length === 2 && new Set(postgresVendorReplays.map(item => item.data.portalAccess?.token)).size === 1);
+  const preferenceIntake = intakes[1];
+  const postgresPartnerPreferenceAccess = {
+    reference: preferenceIntake.data.application?.reference,
+    token: preferenceIntake.data.portalAccess?.token
+  };
+  const postgresPreferencePaused = await request(base, "POST", "/api/public/partner-contact-preferences", {
+    ...postgresPartnerPreferenceAccess,
+    consentToContact: false,
+    expectedVersion: 1
+  });
+  const postgresPreferenceReplay = await request(base, "POST", "/api/public/partner-contact-preferences", {
+    ...postgresPartnerPreferenceAccess,
+    consentToContact: false,
+    expectedVersion: 1
+  });
+  const postgresPreferenceStale = await request(base, "POST", "/api/public/partner-contact-preferences", {
+    ...postgresPartnerPreferenceAccess,
+    consentToContact: true,
+    expectedVersion: 1
+  });
+  const postgresPreferenceResumed = await request(base, "POST", "/api/public/partner-contact-preferences", {
+    ...postgresPartnerPreferenceAccess,
+    consentToContact: true,
+    expectedVersion: 2
+  });
+  const postgresPreferenceWorkspace = await request(base, "GET", "/api/admin/partners", undefined, { auth: true });
+  const persistedPreferenceApplication = postgresPreferenceWorkspace.data.applications?.find(item => item.id === preferenceIntake.data.application?.id);
+  const persistedPreferenceFollowups = postgresPreferenceWorkspace.data.followups?.filter(item => item.applicationId === preferenceIntake.data.application?.id) || [];
+  check("partner email preferences persist atomically in Postgres", postgresPreferencePaused.status === 200
+    && postgresPreferencePaused.data.application?.contactPreference?.allowed === false
+    && postgresPreferencePaused.data.application?.contactPreference?.version === 2
+    && postgresPreferencePaused.data.dismissedFollowups === 1
+    && postgresPreferenceReplay.data.replay === true
+    && postgresPreferenceStale.status === 409
+    && postgresPreferenceResumed.data.application?.contactPreference?.allowed === true
+    && postgresPreferenceResumed.data.application?.contactPreference?.version === 3
+    && persistedPreferenceApplication?.consentPreferenceVersion === 3
+    && persistedPreferenceFollowups.filter(item => item.status === "dismissed").length === 1);
   const vendorApplication = partners.data.applications?.find(item => item.id === vendorIntake.data.application?.id);
   check("concurrent vendor intake uses configured pricing", vendorApplication?.offeringId === "marketplace-booth" && vendorApplication?.expectedAmountCents === 125000);
   const approvedPostgresVendor = await request(base, "PATCH", `/api/admin/partners/applications/${vendorApplication.id}`, { status: "approved" }, { auth: true });
@@ -2046,10 +2084,12 @@ PG-EVENTENY-V-1,vendor,Postgres Eventeny Vendor,Postgres Import Contact,${postgr
   const serializedEventenyPartnerImportAudits = JSON.stringify(persistedAudits.rows.filter(row => row.data?.action === "partner.application.import"));
   const serializedStaffImportAudits = JSON.stringify(persistedAudits.rows.filter(row => row.data?.action === "staff_directory.import.commit"));
   const serializedBudgetAudits = JSON.stringify(persistedAudits.rows.filter(row => row.data?.action?.startsWith("budget.")));
+  const serializedContactPreferenceAudits = JSON.stringify(persistedAudits.rows.filter(row => row.data?.action === "partner.contact_preference.update"));
   check("append tables persisted", totals.completions === 1 && totals.votes === 1, `${totals.completions} completion, ${totals.votes} vote`);
   check("admin audits persisted", totals.audits >= 4, `${totals.audits} audit events`);
   check("event guide audit persists", serializedAudits.includes("content.event-guide.publish"));
   check("partner automation audit persists", serializedAudits.includes("partner.automation.update"));
+  check("partner email preference audit persists without capability or contact data", serializedContactPreferenceAudits.includes('"allowed":false') && serializedContactPreferenceAudits.includes('"allowed":true') && !serializedContactPreferenceAudits.includes(postgresPartnerPreferenceAccess.token) && !serializedContactPreferenceAudits.includes("vendor2@postgres-test.example"));
   check("revenue import audit persists", serializedAudits.includes("revenue.import.commit") && serializedAudits.includes("eventeny-postgres.csv"));
   check("budget audit persists without private vendor or payment references", serializedBudgetAudits.includes("budget.line.create")
     && serializedBudgetAudits.includes("budget.expense.submit") && serializedBudgetAudits.includes("budget.expense.approve")

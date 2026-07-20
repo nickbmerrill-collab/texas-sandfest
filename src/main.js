@@ -4810,6 +4810,7 @@ function renderPartnerPortalStatus(application) {
   const milestones = Array.isArray(application.milestones) ? application.milestones : [];
   const nextStep = application.nextStep;
   const isVendorInterest = application.type === "vendor" && application.intakeMode === "interest";
+  const contactPreference = application.contactPreference;
   result.innerHTML = `
     <header class="partner-status-heading">
       <div><span>${escapeHtml(isVendorInterest ? "Vendor interest" : application.type === "vendor" ? "Vendor application" : "Sponsorship inquiry")}</span><h3>${escapeHtml(application.organizationName)}</h3></div>
@@ -4827,6 +4828,12 @@ function renderPartnerPortalStatus(application) {
       <strong>${escapeHtml(nextStep?.label || "SandFest team review")}</strong>
       <small>${nextStep?.dueAt ? `Target ${escapeHtml(portalDate(nextStep.dueAt))}` : "We will add the next target date after review."}</small>
     </div>
+    <form id="partner-contact-preference-form" class="partner-status-interest" data-version="${contactPreference.version}">
+      <strong>Application emails ${contactPreference.allowed ? "enabled" : "paused"}</strong>
+      <label class="partner-consent"><input name="consentToContact" type="checkbox" ${contactPreference.allowed ? "checked" : ""} /><span>${escapeHtml(partnerContactNotice(application.type, application.intakeMode).checkboxLabel)}</span></label>
+      <button class="button secondary" type="submit" disabled>Save</button>
+      <p class="partner-form-status" aria-live="polite"></p>
+    </form>
     ${invoice ? `<div class="partner-status-invoice"><div><span>Invoice</span><strong>${escapeHtml(conditionLabel(invoice.status))}</strong><small>${escapeHtml(adminMoney(invoice.balanceCents, "$0.00"))} open${invoice.dueAt ? ` · due ${escapeHtml(portalDate(invoice.dueAt))}` : ""}</small></div>${checkoutAction}<p class="partner-payment-status" aria-live="polite"></p></div>` : ""}
     <div class="partner-status-milestones">
       <strong>Key dates</strong>
@@ -4838,6 +4845,7 @@ function renderPartnerPortalStatus(application) {
   bindPartnerBrandingActions();
   bindVendorOnboardingActions();
   bindPartnerPaymentActions();
+  bindPartnerContactPreference();
 }
 
 async function partnerPortalJson(endpoint, payload) {
@@ -4850,6 +4858,18 @@ async function partnerPortalJson(endpoint, payload) {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || `Partner update failed with ${response.status}`);
   return data;
+}
+
+function bindPartnerContactPreference() {
+  const form = document.querySelector("#partner-contact-preference-form");
+  if (!form || ADMIN_ENTRY) return;
+  import("./task-portal-ui.js").then(module => module.bindPartnerContactPreference(form, async currentForm => {
+    const data = await partnerPortalJson("/api/public/partner-contact-preferences", {
+      consentToContact: currentForm.elements.consentToContact.checked,
+      expectedVersion: currentForm.dataset.version
+    });
+    renderPartnerPortalStatus(data.application);
+  }));
 }
 
 function bindPartnerPaymentActions() {
@@ -5503,7 +5523,7 @@ function bindVendorOfferingChoices() {
   form.elements.category.addEventListener("change", renderVendorOfferingChoices);
   form.elements.vendorOfferingId.addEventListener("change", renderVendorOfferingChoices);
   renderVendorOfferingChoices();
-  if (!ADMIN_ENTRY) import("./vendor-application-prefill.js")
+  if (!ADMIN_ENTRY && /vendor(Category|Offering)=/.test(location.search)) import("./task-portal-ui.js")
     .then(module => module.applyVendorApplicationPrefill(form, renderVendorOfferingChoices));
 }
 

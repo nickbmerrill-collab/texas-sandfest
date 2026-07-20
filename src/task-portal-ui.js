@@ -1,5 +1,7 @@
-import { escapeHtml } from "../lib/html-escape.mjs";
-import { shouldForgetTaskPortalAccess, taskPortalSafeHash } from "../lib/partner-portal-session.mjs";
+const shouldForgetTaskPortalAccess = status => [400, 401, 403, 404].includes(Number(status));
+const taskPortalSafeHash = hash => String(hash || "").startsWith("#task-status?") ? "#task-status" : null;
+const TASK_HTML_ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+const escapeHtml = value => value == null ? "" : String(value).replace(/[&<>"']/g, character => TASK_HTML_ESCAPES[character]);
 
 export const TASK_PORTAL_SESSION_KEY = "sandfest_task_portal_v1";
 
@@ -207,4 +209,33 @@ export function createTaskPortalController(options) {
       return access ? load(access) : Promise.resolve();
     }
   };
+}
+
+export function applyVendorApplicationPrefill(form, render) {
+  const params = new URLSearchParams(location.search);
+  const category = params.get("vendorCategory");
+  if ([...form.elements.category.options].some(item => item.value === category)) {
+    form.elements.category.value = category;
+    render();
+  }
+  const offering = params.get("vendorOffering");
+  if ([...form.elements.vendorOfferingId.options].some(item => item.value === offering)) {
+    form.elements.vendorOfferingId.value = offering;
+    render();
+  }
+  if (location.hash === `#${form.id}`) form.scrollIntoView();
+}
+
+export function bindPartnerContactPreference(form, save) {
+  form.querySelector("button").disabled = false;
+  form.addEventListener("submit", event => {
+    event.preventDefault();
+    event.submitter.disabled = true;
+    save(form).catch(error => {
+      const status = form.querySelector("p");
+      status.dataset.state = "error";
+      status.textContent = error.message;
+      event.submitter.disabled = false;
+    });
+  });
 }
