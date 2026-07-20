@@ -1878,6 +1878,11 @@ test("visitor view switch opens the dedicated operations portal", async ({ page 
 test("critical public and operations views fit a mobile viewport", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 740 });
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor`);
+  const askInputBox = await page.locator("#ask-input").boundingBox();
+  const askSubmitBox = await page.locator("#ask-submit").boundingBox();
+  expect(askInputBox?.height).toBeGreaterThanOrEqual(44);
+  expect(askSubmitBox?.height).toBeGreaterThanOrEqual(44);
+  expect(Math.abs(Number(askInputBox?.width) - Number(askSubmitBox?.width))).toBeLessThanOrEqual(1);
   const runtimeNotice = page.locator("#runtime-data-notice");
   await expect(runtimeNotice).toContainText("Board demonstration · Synthetic 2027 data");
   await expect(runtimeNotice).toContainText("No external messages, charges, or live-provider calls");
