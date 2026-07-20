@@ -86,7 +86,7 @@ async function request(url, { json = true, headers = {}, readBody = true } = {})
 }
 
 const authorization = { authorization: `Bearer ${adminToken}` };
-const [web, health, ready, bootstrap, tickets, emailSandbox, smsSandbox, conditions, partners, budget, documents, sponsors] = await Promise.all([
+const [web, health, ready, bootstrap, tickets, emailSandbox, smsSandbox, conditions, partners, budget, budgetExport, expenseExport, documents, sponsors] = await Promise.all([
   request(webUrl, { json: false }),
   request(`${apiBase}/health`),
   request(`${apiBase}/ready`),
@@ -97,6 +97,8 @@ const [web, health, ready, bootstrap, tickets, emailSandbox, smsSandbox, conditi
   request(`${apiBase}/api/public/island-conditions`),
   request(`${apiBase}/api/admin/partners`, { headers: authorization }),
   request(`${apiBase}/api/admin/budget`, { headers: authorization }),
+  request(`${apiBase}/api/admin/exports/budget.csv`, { json: false, headers: authorization }),
+  request(`${apiBase}/api/admin/exports/expenses.csv`, { json: false, headers: authorization }),
   request(`${apiBase}/api/admin/documents`, { headers: authorization }),
   request(`${apiBase}/api/public/sponsors`)
 ]);
@@ -118,6 +120,8 @@ const readiness = evaluateBoardDemoReadiness({
     conditions: conditions.body,
     partners: partners.body,
     budget: budget.body,
+    budgetExport,
+    expenseExport,
     documents: documents.body,
     sponsors: sponsors.body,
     sponsorLogo

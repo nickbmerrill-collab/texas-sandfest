@@ -375,6 +375,8 @@ import {
   verifyOutreachDiscoveryPreview
 } from "../lib/outreach-discovery.mjs";
 import {
+  budgetAllocationsExport,
+  expenseRegisterExport,
   milestonesCalendarExport,
   outreachProspectsExport,
   partnerDirectoryExport,
@@ -1450,26 +1452,31 @@ async function readPartnerOperations() {
   );
 }
 
-function buildOperationsExport(name, doc, now = new Date().toISOString()) {
+function buildOperationsExport(name, docs, now = new Date().toISOString()) {
   switch (name) {
     case "partners.csv":
-      return partnerDirectoryExport(doc, CURRENT_EVENT_ID);
+      return partnerDirectoryExport(docs.partnerOperations, CURRENT_EVENT_ID);
     case "receivables.csv":
-      return receivablesExport(doc, CURRENT_EVENT_ID, now);
+      return receivablesExport(docs.partnerOperations, CURRENT_EVENT_ID, now);
     case "payments.csv":
-      return paymentsExport(doc, CURRENT_EVENT_ID);
+      return paymentsExport(docs.partnerOperations, CURRENT_EVENT_ID);
+    case "budget.csv":
+      return budgetAllocationsExport(docs.budgetControl, CURRENT_EVENT_ID);
+    case "expenses.csv":
+      return expenseRegisterExport(docs.budgetControl, CURRENT_EVENT_ID);
     case "tasks.csv":
-      return tasksExport(doc, CURRENT_EVENT_ID);
+      return tasksExport(docs.partnerOperations, CURRENT_EVENT_ID);
     case "outreach.csv":
-      return outreachProspectsExport(doc, CURRENT_EVENT_ID);
+      return outreachProspectsExport(docs.partnerOperations, CURRENT_EVENT_ID);
     case "milestones.ics":
-      return milestonesCalendarExport(doc, CURRENT_EVENT_ID, now);
+      return milestonesCalendarExport(docs.partnerOperations, CURRENT_EVENT_ID, now);
     default:
       return null;
   }
 }
 
 function operationsExportPermission(name) {
+  if (["budget.csv", "expenses.csv"].includes(name)) return "budget:read";
   if (["receivables.csv", "payments.csv"].includes(name)) return "payments:read";
   if (name === "outreach.csv") return "outreach:read";
   return "partners:read";
@@ -7022,12 +7029,15 @@ async function handleRequest(request, response) {
       return;
     }
 
-    const operationsExportMatch = pathname.match(/^\/api\/admin\/exports\/(partners\.csv|receivables\.csv|payments\.csv|tasks\.csv|outreach\.csv|milestones\.ics)$/);
+    const operationsExportMatch = pathname.match(/^\/api\/admin\/exports\/(partners\.csv|receivables\.csv|payments\.csv|budget\.csv|expenses\.csv|tasks\.csv|outreach\.csv|milestones\.ics)$/);
     if (method === "GET" && operationsExportMatch) {
       const name = operationsExportMatch[1];
       const session = await requirePermission(request, response, operationsExportPermission(name));
       if (!session) return;
-      const exported = buildOperationsExport(name, await readPartnerOperations());
+      const docs = ["budget.csv", "expenses.csv"].includes(name)
+        ? { budgetControl: await readBudgetControl() }
+        : { partnerOperations: await readPartnerOperations() };
+      const exported = buildOperationsExport(name, docs);
       await writeAuditRecord(request, "operations.export.download", { type: "operationsExport", id: name }, null, null, {
         format: exported.format,
         rowCount: exported.rowCount
