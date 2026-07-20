@@ -30,6 +30,39 @@ export function bindTaskAssignmentNoticeActions(tasks, { adminFetch, loadAdminPa
   }));
 }
 
+export function draftEditor(item) {
+  if (item.status !== "draft_ready") return "";
+  return `<details class="admin-followup-editor admin-dispatch-message">
+    <summary class="button secondary">Edit draft</summary>
+    <input aria-label="Message subject" maxlength="180" value="${escapeAttr(item.subject || "")}" />
+    <textarea aria-label="Message body" maxlength="7500" rows="7">${escapeHtml(item.body || "")}</textarea>
+    <button type="button" class="button primary" data-save-draft="${escapeAttr(item.id)}" value="${escapeAttr(item.updatedAt || "")}">Save changes</button>
+  </details>`;
+}
+
+export function bindDraftEditors(followups, { adminFetch, loadAdminPartners, setAdminStatus }) {
+  for (const button of followups.querySelectorAll("[data-save-draft]")) button.onclick = async () => {
+    const editor = button.parentNode;
+    button.disabled = true;
+    try {
+      await adminFetch(`/api/admin/partners/followups/${encodeURIComponent(button.dataset.saveDraft)}/draft`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          subject: editor.querySelector('input[aria-label="Message subject"]').value,
+          body: editor.querySelector('textarea[aria-label="Message body"]').value,
+          expectedUpdatedAt: button.value
+        })
+      });
+      await loadAdminPartners({ quiet: true });
+      setAdminStatus("Draft saved; approval still required.", "ok");
+    } catch (error) {
+      setAdminStatus(error.message, "error");
+    } finally {
+      button.disabled = false;
+    }
+  };
+}
+
 export function ticketPolicyEditorMarkup() {
   return `
     <form id="admin-ticket-policy-form" class="admin-ticket-policy" aria-labelledby="admin-ticket-policy-heading">

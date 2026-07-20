@@ -14,6 +14,7 @@ const root = path.resolve(import.meta.dirname, "..");
 const publicDir = path.join(root, "dist-public");
 const adminDir = path.join(root, "dist-admin");
 const visitorSource = await readFile(path.join(root, "src", "main.js"), "utf8");
+const adminOperationsSource = await readFile(path.join(root, "src", "admin-operations-ui.js"), "utf8");
 const taskPortalSource = await readFile(path.join(root, "src", "task-portal-ui.js"), "utf8");
 
 async function exists(file) {
@@ -344,6 +345,7 @@ assert(visitorSource.includes('/api/public/concierge') && visitorSource.includes
 assert(!visitorSource.includes("const knowledge = [") && !visitorSource.includes("What should the iOS app do first?"), "Public concierge still contains the internal hard-coded roadmap answer table.");
 assert(visitorSource.includes('id="checkout-status" class="checkout-status" role="status" aria-live="polite"'), "Ticket checkout is missing its live status region.");
 assert(visitorSource.includes('id="admin-api-status" class="checkout-status" role="status" aria-live="polite"'), "Admin operations are missing their live status region.");
+assert(adminOperationsSource.includes('class="admin-followup-editor ') && adminOperationsSource.includes('data-save-draft=') && adminOperationsSource.includes('expectedUpdatedAt: button.value'), "Operations cannot revise a message draft before approval.");
 assert(visitorSource.includes('id="admin-deployment-checks" class="admin-deployment-checks" aria-live="polite"'), "Deployment readiness checks are missing their live status region.");
 assert(visitorSource.includes('data-deployment-filter="attention" aria-pressed="true"') && visitorSource.includes('data-deployment-filter="all" aria-pressed="false"'), "Deployment readiness filters are missing pressed-state semantics.");
 assert(visitorSource.includes("const groupSummary = groupSummaries.get(group);") && visitorSource.includes("${passing}/${total} passing"), "Filtered deployment views do not preserve full-group readiness totals.");

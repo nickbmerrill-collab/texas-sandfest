@@ -158,6 +158,7 @@ import {
   activatePartnerPaymentCheckout,
   beginPartnerPaymentCheckout,
   emptyPartnerOperations,
+  editFollowupDraft,
   failPartnerPaymentCheckout,
   generateDueOutreachFollowups,
   generateDueTaskFollowups,
@@ -1504,6 +1505,20 @@ function adminPartnerFollowupView(followup) {
     ...safe,
     recipientAvailable: Boolean(recipient),
     recipientLabel: followup.taskAssigneeName || followup.taskAssigneeId || "Task assignee"
+  };
+}
+
+function adminPartnerFollowupAuditView(followup) {
+  if (!followup) return followup;
+  return {
+    id: followup.id,
+    kind: followup.kind,
+    status: followup.status,
+    editVersion: followup.editVersion || 0,
+    subjectLength: String(followup.subject || "").length,
+    bodyLength: String(followup.body || "").length,
+    editedAt: followup.editedAt || null,
+    updatedAt: followup.updatedAt || null
   };
 }
 
@@ -8072,6 +8087,26 @@ async function handleRequest(request, response) {
       }
       await writeAuditRecord(request, "partner.milestone.update", { type: "milestone", id: milestoneId }, before, result.milestone, { dismissedFollowups: result.dismissedFollowups });
       sendJson(request, response, 200, { milestone: result.milestone, dismissedFollowups: result.dismissedFollowups });
+      return;
+    }
+
+    const partnerFollowupDraftMatch = pathname.match(/^\/api\/admin\/partners\/followups\/([^/]+)\/draft$/);
+    if (method === "PATCH" && partnerFollowupDraftMatch) {
+      const session = await requirePermission(request, response, "partners:write");
+      if (!session) return;
+      const followupId = decodeURIComponent(partnerFollowupDraftMatch[1]);
+      const body = await readBody(request);
+      const result = await mutatePartnerOperations(doc => editFollowupDraft(doc, followupId, body, {
+        actorId: session.id,
+        idFactory: prefix => `${prefix}_${randomUUID()}`,
+        now: new Date().toISOString()
+      }));
+      if (!result?.ok) {
+        sendJson(request, response, result?.error === "Follow-up not found." ? 404 : result?.conflict ? 409 : 400, { error: result?.error || "Follow-up draft could not be edited." });
+        return;
+      }
+      await writeAuditRecord(request, "partner.followup.edit", { type: "followup", id: followupId }, adminPartnerFollowupAuditView(result.previous), adminPartnerFollowupAuditView(result.followup), result.change || { changed: false });
+      sendJson(request, response, 200, { changed: result.changed, followup: adminPartnerFollowupView(result.followup) });
       return;
     }
 
