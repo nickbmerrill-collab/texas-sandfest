@@ -541,7 +541,17 @@ try {
   const taskAssignmentMessages = (afterWorker.data.followups || []).filter(item => item.kind === "task_assignment" && activeAssignedTaskIds.has(item.taskId));
   check("worker prepares review-first messages", workerOutput.includes("processed 3 job(s)") && afterWorker.data.applications?.length === 7 && afterWorker.data.followups?.filter(item => item.status === "draft_ready").length >= 7);
   check("new partner acknowledgments are separated from milestone reminders", immediateIntakeReminders.length === 0);
-  check("worker prepares one private notice per assigned task", taskAssignmentMessages.length === activeAssignedTaskIds.size && taskAssignmentMessages.every(item => item.status === "draft_ready" && item.recipientAvailable === true && item.recipientLabel && !("recipient" in item)));
+  check("worker prepares one private notice per assigned task", taskAssignmentMessages.length === activeAssignedTaskIds.size && taskAssignmentMessages.every(item => item.status === "draft_ready" && item.recipientAvailable === true && item.recipientLabel && !("recipient" in item) && item.body?.includes("#task-status?task=") && item.body?.includes("&token=tsft_")));
+  const taskPortalMessage = taskAssignmentMessages.find(item => item.taskId && item.body?.includes("#task-status?task="));
+  const taskPortalUrl = taskPortalMessage?.body?.match(/https?:\/\/\S+#task-status\?\S+/)?.[0] || null;
+  const taskPortalLink = taskPortalUrl ? new URL(taskPortalUrl) : null;
+  const taskPortalParams = taskPortalLink ? new URLSearchParams(taskPortalLink.hash.split("?")[1] || "") : null;
+  const taskPortalAccess = taskPortalParams ? { taskId: taskPortalParams.get("task"), token: taskPortalParams.get("token") } : null;
+  const openedTaskPortal = taskPortalAccess ? await request(base, "POST", "/api/public/task-status", taskPortalAccess) : null;
+  const acknowledgedTaskPortal = taskPortalAccess ? await request(base, "POST", "/api/public/task-status/update", { ...taskPortalAccess, action: "acknowledge", note: "Synthetic assignee confirms the board-demo handoff." }) : null;
+  const taskWorkspaceAfterAcknowledgment = await request(base, "GET", "/api/admin/partners", undefined, { auth: true });
+  const acknowledgedBoardTask = taskWorkspaceAfterAcknowledgment.data.tasks?.find(item => item.id === taskPortalAccess?.taskId);
+  check("private task link closes the assignee-to-Operations loop", openedTaskPortal?.status === 200 && acknowledgedTaskPortal?.status === 200 && acknowledgedTaskPortal.data.task?.acknowledgedAt && acknowledgedBoardTask?.acknowledgedAt && acknowledgedBoardTask?.assigneeUpdates?.at(-1)?.note.includes("Synthetic assignee"));
   check("all board applications stay in 2027", afterWorker.data.applications?.every(item => item.eventId === DEFAULT_EVENT_ID));
   const automationEnabled = await request(base, "PATCH", "/api/admin/partners/automation", { mode: "transactional_auto" }, { auth: true });
   const automatedWorkerOutputs = [];

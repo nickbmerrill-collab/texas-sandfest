@@ -9,6 +9,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { prepareBoardRuntime } from "../lib/board-runtime.mjs";
 import { DEFAULT_EVENT_ID } from "../lib/event-context.mjs";
+import { taskPortalConfig, taskPortalUrlForTask } from "../lib/task-portal.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const TOKEN = "board-browser-admin-token-0123456789abcdef";
@@ -1672,26 +1673,75 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   const freshVolunteerTask = page.locator(`#admin-partner-tasks [data-task="${createdVolunteerTask.id}"]`);
   await expect(freshVolunteerTask).toContainText(taskTitle);
   await expect(freshVolunteerTask).toContainText("Notification · delivered · task assignment");
-  await freshVolunteerTask.locator('[name="status"]').selectOption("in_progress");
-  const startedTaskResponse = page.waitForResponse(response => new URL(response.url()).pathname === `/api/admin/partners/tasks/${createdVolunteerTask.id}` && response.request().method() === "PATCH");
-  await freshVolunteerTask.locator('[data-save-task]').click();
+  await expect(freshVolunteerTask).toContainText("Awaiting assignee acknowledgement");
+
+  const taskPortalConfigForBrowser = taskPortalConfig({
+    SANDFEST_ENV: "development",
+    SANDFEST_TASK_PORTAL_SECRET: PORTAL_SECRET,
+    SANDFEST_PUBLIC_SITE_URL: webBase
+  });
+  const taskPortalUrl = taskPortalUrlForTask(createdVolunteerTask, { config: taskPortalConfigForBrowser });
+  expect(taskPortalUrl).toContain("#task-status?task=");
+  const taskPortalBrowserUrl = new URL(taskPortalUrl);
+  taskPortalBrowserUrl.searchParams.set("apiBase", apiBase);
+  const taskPage = await page.context().newPage();
+  await taskPage.setViewportSize({ width: 360, height: 780 });
+  await taskPage.goto(taskPortalBrowserUrl.toString());
+  await expect(taskPage).toHaveURL(/#task-status$/);
+  await expect(taskPage.locator("#task-status-result")).toContainText(taskTitle);
+  await expect(taskPage.locator("#task-status-result")).toBeFocused();
+  await expect(taskPage.locator('[data-task-action="acknowledge"]')).toBeVisible();
+  await assertNoHorizontalOverflow(taskPage);
+
+  const acknowledgedTaskResponse = taskPage.waitForResponse(response => new URL(response.url()).pathname === "/api/public/task-status/update" && response.request().method() === "POST");
+  await taskPage.locator('[data-task-action="acknowledge"]').click();
+  expect((await acknowledgedTaskResponse).status()).toBe(200);
+  await expect(taskPage.locator("#task-status-result")).toContainText("Acknowledged");
+
+  const startedTaskResponse = taskPage.waitForResponse(response => new URL(response.url()).pathname === "/api/public/task-status/update" && response.request().method() === "POST");
+  await taskPage.locator('[data-task-action="start"]').click();
   const startedTaskResult = await startedTaskResponse;
   expect(startedTaskResult.status()).toBe(200);
   const startedTask = (await startedTaskResult.json()).task;
   expect(startedTask.status).toBe("in_progress");
   expect(startedTask.startedAt).toBeTruthy();
-  await expect(page.locator("#admin-api-status")).toContainText("Task assignment saved.");
-  await expect(freshVolunteerTask.locator('[name="status"]')).toHaveValue("in_progress");
+  await expect(taskPage.locator("#task-status-result")).toHaveAttribute("data-state", "in_progress");
+  await taskPage.locator('#task-status-update [name="note"]').fill("Need two more welcome packets at the north gate.");
+  const blockedTaskResponse = taskPage.waitForResponse(response => new URL(response.url()).pathname === "/api/public/task-status/update" && response.request().method() === "POST");
+  await taskPage.locator('[data-task-action="block"]').click();
+  expect((await blockedTaskResponse).status()).toBe(200);
+  await expect(taskPage.locator("#task-status-result")).toContainText("Need two more welcome packets at the north gate.");
 
-  await freshVolunteerTask.locator('[name="status"]').selectOption("done");
-  const completedTaskResponse = page.waitForResponse(response => new URL(response.url()).pathname === `/api/admin/partners/tasks/${createdVolunteerTask.id}` && response.request().method() === "PATCH");
-  await freshVolunteerTask.locator('[data-save-task]').click();
+  const assigneeReload = Promise.all([
+    page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/partners" && response.request().method() === "GET"),
+    page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/outreach" && response.request().method() === "GET")
+  ]);
+  await page.locator("#admin-load-partners").click();
+  await assigneeReload;
+  await expect(freshVolunteerTask).toContainText("Acknowledged");
+  await expect(freshVolunteerTask).toContainText("Latest assignee note");
+  await expect(freshVolunteerTask).toContainText("Need two more welcome packets at the north gate.");
+
+  await taskPage.locator('#task-status-update [name="note"]').fill("Welcome packets delivered and captain briefed.");
+  const completedTaskResponse = taskPage.waitForResponse(response => new URL(response.url()).pathname === "/api/public/task-status/update" && response.request().method() === "POST");
+  await taskPage.locator('[data-task-action="complete"]').click();
   const completedTaskResult = await completedTaskResponse;
   expect(completedTaskResult.status()).toBe(200);
   const completedTask = (await completedTaskResult.json()).task;
   expect(completedTask.status).toBe("done");
   expect(completedTask.startedAt).toBe(startedTask.startedAt);
   expect(completedTask.completedAt).toBeTruthy();
+  await expect(taskPage.locator("#task-status-result")).toHaveAttribute("data-state", "done");
+  await expect(taskPage.locator("#task-status-update")).toBeHidden();
+  await assertNoHorizontalOverflow(taskPage);
+  await taskPage.close();
+
+  const completedTaskReload = Promise.all([
+    page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/partners" && response.request().method() === "GET"),
+    page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/outreach" && response.request().method() === "GET")
+  ]);
+  await page.locator("#admin-load-partners").click();
+  await completedTaskReload;
   await page.locator("#admin-task-status-filter").selectOption("done");
   await expect(freshVolunteerTask).toContainText(taskTitle);
   await expect(freshVolunteerTask.locator('[name="status"]')).toHaveValue("done");
@@ -2201,6 +2251,29 @@ test("WCAG A and AA checks cover public intake, partner status, concierge, and o
   await submitAndCapture(page, vendor, "/api/public/vendor-applications");
   await expect(page.locator("#partner-status-result")).toContainText(`Accessible Boardwalk Arts ${runId}`);
   await assertNoAccessibilityViolations(page, "Concierge response and private partner status");
+
+  const taskWorkspaceResponse = await fetch(`${apiBase}/api/admin/partners`, { headers: { authorization: `Bearer ${TOKEN}` } });
+  const taskWorkspace = await taskWorkspaceResponse.json();
+  const accessibleTask = taskWorkspace.tasks?.find(item => ["open", "in_progress", "blocked"].includes(item.status) && item.assigneeId);
+  expect(accessibleTask).toBeTruthy();
+  const accessibleTaskUrl = new URL(taskPortalUrlForTask(accessibleTask, {
+    config: taskPortalConfig({
+      SANDFEST_ENV: "development",
+      SANDFEST_TASK_PORTAL_SECRET: PORTAL_SECRET,
+      SANDFEST_PUBLIC_SITE_URL: webBase
+    })
+  }));
+  accessibleTaskUrl.searchParams.set("apiBase", apiBase);
+  await page.goto(accessibleTaskUrl.toString());
+  await expect(page).toHaveURL(/#task-status$/);
+  await expect(page.locator("#task-status-result")).toContainText(accessibleTask.title);
+  const taskActionButtons = page.locator("#task-status-update [data-task-action]:visible");
+  expect(await taskActionButtons.count()).toBeGreaterThan(0);
+  for (let index = 0; index < await taskActionButtons.count(); index += 1) {
+    const bounds = await taskActionButtons.nth(index).boundingBox();
+    expect(bounds?.height).toBeGreaterThanOrEqual(44);
+  }
+  await assertNoAccessibilityViolations(page, "Private task assignment status");
 
   await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#admin-partners`);
   await expect(page.locator("#admin-api-status")).toContainText("Loaded", { timeout: 25_000 });

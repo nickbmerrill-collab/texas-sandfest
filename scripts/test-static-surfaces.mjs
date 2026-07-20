@@ -14,6 +14,7 @@ const root = path.resolve(import.meta.dirname, "..");
 const publicDir = path.join(root, "dist-public");
 const adminDir = path.join(root, "dist-admin");
 const visitorSource = await readFile(path.join(root, "src", "main.js"), "utf8");
+const taskPortalSource = await readFile(path.join(root, "src", "task-portal-ui.js"), "utf8");
 
 async function exists(file) {
   try {
@@ -41,6 +42,9 @@ const publicHtml = await readFile(path.join(publicDir, "index.html"), "utf8");
 const adminHtml = await readFile(path.join(adminDir, "index.html"), "utf8");
 const publicAssets = await readdir(path.join(publicDir, "assets"));
 const adminAssets = await readdir(path.join(adminDir, "assets"));
+const publicScriptFiles = publicAssets.filter(file => file.endsWith(".js"));
+const publicInitialScriptFiles = [...publicHtml.matchAll(/(?:src|href)="\/assets\/([^"?]+\.js)"/g)].map(match => match[1]);
+const publicOptionalScriptFiles = publicScriptFiles.filter(file => !publicInitialScriptFiles.includes(file));
 const publicStylesheets = (await Promise.all(
   publicAssets.filter(file => file.endsWith(".css")).map(file => readFile(path.join(publicDir, "assets", file), "utf8"))
 )).join("\n");
@@ -66,8 +70,10 @@ const mediaDerivatives = JSON.parse(await readFile(path.join(publicDir, "assets"
 const publicMediaManifest = JSON.parse(await readFile(path.join(publicDir, "assets", "sandfest-media", "media-manifest.json"), "utf8"));
 const robots = await readFile(path.join(publicDir, "robots.txt"), "utf8");
 const publicWorker = await readFile(path.join(publicDir, "sw.js"), "utf8");
-const [publicScripts, publicStyles, publicPreferredFonts, publicOfflineFonts, adminScripts, adminStyles] = await Promise.all([
-  assetSizeSummary(publicDir, publicAssets.filter(file => file.endsWith(".js"))),
+const [publicScripts, publicInitialScripts, publicOptionalScripts, publicStyles, publicPreferredFonts, publicOfflineFonts, adminScripts, adminStyles] = await Promise.all([
+  assetSizeSummary(publicDir, publicScriptFiles),
+  assetSizeSummary(publicDir, publicInitialScriptFiles),
+  assetSizeSummary(publicDir, publicOptionalScriptFiles),
   assetSizeSummary(publicDir, publicAssets.filter(file => file.endsWith(".css"))),
   assetSizeSummary(publicDir, publicAssets.filter(file => file.endsWith(".woff2"))),
   assetSizeSummary(publicDir, publicAssets.filter(file => /\.woff2?$/.test(file))),
@@ -142,7 +148,8 @@ assert(!publicHtml.includes("fonts.googleapis.com") && !publicHtml.includes("fon
 assert(publicStylesheets.includes("font-family:Inter") && publicStylesheets.includes("font-family:\"Instrument Serif\""), "Public artifact is missing its self-hosted brand fonts.");
 assert(publicAssets.some(file => file.endsWith(".woff2")), "Public artifact is missing bundled font files.");
 assert(Buffer.byteLength(publicHtml) <= 8 * KIB, "Public entry HTML exceeds the 8 KiB delivery budget.");
-assert(publicScripts.gzipBytes <= 105 * KIB, "Public JavaScript exceeds the 105 KiB gzip budget.");
+assert(publicInitialScripts.gzipBytes <= 105 * KIB, "Initial public JavaScript exceeds the 105 KiB gzip budget.");
+assert(publicOptionalScripts.gzipBytes <= 4 * KIB, "On-demand public JavaScript exceeds the 4 KiB gzip budget.");
 assert(publicStyles.gzipBytes <= 30 * KIB, "Public CSS exceeds the 30 KiB gzip budget.");
 assert(publicScripts.gzipBytes + publicStyles.gzipBytes <= 135 * KIB, "Public JavaScript and CSS exceed the 135 KiB combined gzip budget.");
 assert(publicPreferredFonts.rawBytes <= 200 * KIB, "Public preferred WOFF2 fonts exceed the 200 KiB delivery budget.");
@@ -385,6 +392,8 @@ assert(visitorSource.includes("armPartnerBotProtection();") && !visitorSource.in
 assert((visitorSource.match(/\bfetch\(/g) || []).length === 1 && visitorSource.includes("fetchWithTimeout"), "Browser requests are not consistently bounded by the shared timeout wrapper.");
 assert(visitorSource.includes("Your private access is still saved; try again.") && visitorSource.includes("!activePartnerPortalApplication"), "Transient partner-portal failures do not preserve private access and the last loaded view.");
 assert(visitorSource.includes('const portalAccess = partnerPortalAccessFromFragment();\n    if (portalAccess) {\n      loadPartnerPortalStatus(portalAccess, { scroll: true });')
+  && visitorSource.includes("if (taskPortalRequested())")
+  && visitorSource.includes("loadTaskPortalFromLocation({ scroll: true });")
   && visitorSource.includes('const outreachAccess = outreachPreferenceAccessFromFragment();\n    if (outreachAccess) {\n      loadOutreachPreference(outreachAccess, { scroll: true });'), "Same-document private links do not switch partner or outreach views.");
 assert(visitorSource.includes("const loadVersion = ++partnerPortalLoadVersion;")
   && visitorSource.includes("if (switchingAccess) {\n    activePartnerPortalApplication = null;")
@@ -397,15 +406,20 @@ assert(visitorSource.includes("const loadVersion = ++outreachPreferenceLoadVersi
   && visitorSource.includes("if (loadVersion !== outreachPreferenceLoadVersion) return;"), "Outreach preference links can erase valid access or render stale overlapping responses.");
 assert(visitorSource.includes("const loadVersion = ++sponsorInvitationLoadVersion;")
   && visitorSource.includes("if (loadVersion !== sponsorInvitationLoadVersion) return;"), "Overlapping sponsor invitation links can render an older invitation.");
+const outreachPreferenceLoader = visitorSource.slice(visitorSource.indexOf("async function loadOutreachPreference"), visitorSource.indexOf("function rememberPartnerPortalAccess"));
 assert(visitorSource.indexOf('window.location.hash.startsWith("#sponsor-invitation?")') < visitorSource.indexOf('body: JSON.stringify({ token })')
-  && visitorSource.indexOf('window.location.hash.startsWith("#outreach-preferences?")') < visitorSource.indexOf('body: JSON.stringify(access)'), "Private fragment capabilities are not concealed before provider requests.");
+  && taskPortalSource.indexOf("concealCapability();") < taskPortalSource.indexOf("body: JSON.stringify(access)")
+  && outreachPreferenceLoader.indexOf('window.location.hash.startsWith("#outreach-preferences?")') < outreachPreferenceLoader.indexOf("body: JSON.stringify(access)"), "Private fragment capabilities are not concealed before provider requests.");
+assert(visitorSource.includes('import("./task-portal-ui.js")')
+  && publicOptionalScriptFiles.some(file => file.startsWith("task-portal-ui-"))
+  && !publicInitialScriptFiles.some(file => file.startsWith("task-portal-ui-")), "The private task portal is not isolated as an on-demand public chunk.");
 assert(visitorSource.includes("[400, 401, 403, 409, 422].includes(error.status)") && visitorSource.includes("retry protection remains active"), "Partner intake does not distinguish correctable errors from retry-safe transient failures.");
 const publicAlertLoader = visitorSource.slice(visitorSource.indexOf("async function loadPublicAlert"), visitorSource.indexOf("function applyPublicEventGuide"));
 assert(publicAlertLoader && !publicAlertLoader.includes("renderPublicAlert(null)"), "A transient public-alert fetch failure clears the last known safety message.");
 assert(visitorSource.includes('loadIslandConditions({ force: true, preserveOnError: true })'), "Manual Island Conditions refresh does not preserve the last known reading on failure.");
-assert(visitorSource.includes('window.addEventListener("online", recoverPublicConnectivity)') && visitorSource.includes("recoveryLoads.push(loadPartnerPortalStatus(portalAccess))"), "Public connectivity recovery does not refresh live data and retained partner access.");
+assert(visitorSource.includes('window.addEventListener("online", recoverPublicConnectivity)') && visitorSource.includes("recoveryLoads.push(loadPartnerPortalStatus(portalAccess))") && visitorSource.includes("recoveryLoads.push(loadTaskPortalFromLocation())"), "Public connectivity recovery does not refresh live data and retained private access.");
 
 console.log(
   `Static entrypoint isolation verified: visitor entry is 2027-current, CSP-hardened, self-hosted, Turnstile-protected, public-only, and within delivery budgets ` +
-  `(public JS/CSS ${Math.ceil((publicScripts.gzipBytes + publicStyles.gzipBytes) / KIB)} KiB gzip; admin JS/CSS ${Math.ceil((adminScripts.gzipBytes + adminStyles.gzipBytes) / KIB)} KiB gzip).`
+  `(initial public JS ${Math.ceil(publicInitialScripts.gzipBytes / KIB)} KiB, optional JS ${Math.ceil(publicOptionalScripts.gzipBytes / KIB)} KiB, all public JS/CSS ${Math.ceil((publicScripts.gzipBytes + publicStyles.gzipBytes) / KIB)} KiB gzip; admin JS/CSS ${Math.ceil((adminScripts.gzipBytes + adminStyles.gzipBytes) / KIB)} KiB gzip).`
 );

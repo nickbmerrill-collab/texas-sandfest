@@ -13,6 +13,7 @@ import twilio from "twilio";
 import { emptyBudgetControl } from "../lib/budget-control.mjs";
 import { REQUIRED_TICKET_POLICY_NOTICES } from "../lib/ticket-policy-schema.mjs";
 import { BOARD_DEMO_VENDOR_OFFERINGS } from "../lib/vendor-offerings.mjs";
+import { issueTaskPortalToken, taskPortalConfig } from "../lib/task-portal.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ADMIN_URL = process.env.SANDFEST_POSTGRES_TEST_ADMIN_URL || "postgresql:///postgres?sslmode=disable";
@@ -1272,8 +1273,22 @@ postgres_eventeny_settlement_1,2026-07-16,vendor_fee,250.00,7.50,242.50,eventeny
     priority: "high",
     dueAt: new Date(Date.now() + 3 * 86_400_000).toISOString()
   }, { auth: true });
+  const postgresTaskPortalConfig = taskPortalConfig(commonEnv);
+  const postgresTaskPortalToken = issueTaskPortalToken(notifiedVolunteerTask.data.task, { config: postgresTaskPortalConfig });
+  const openedPostgresTaskPortal = await request(base, "POST", "/api/public/task-status", {
+    taskId: notifiedVolunteerTask.data.task?.id,
+    token: postgresTaskPortalToken
+  });
+  const acknowledgedPostgresTask = await request(base, "POST", "/api/public/task-status/update", {
+    taskId: notifiedVolunteerTask.data.task?.id,
+    token: postgresTaskPortalToken,
+    action: "acknowledge",
+    note: "Postgres volunteer confirms the north gate checklist."
+  });
   const taskWorkspace = await request(base, "GET", "/api/admin/partners", undefined, { auth: true });
+  const persistedAcknowledgedTask = taskWorkspace.data.tasks?.find(item => item.id === notifiedVolunteerTask.data.task?.id);
   check("task lifecycle and workload persisted", blockedTask.status === 200 && notifiedVolunteerTask.status === 201 && notifiedStaffTask.status === 201 && notifiedStaffTask.data.task?.assigneeName === "Postgres Incident Commander" && taskWorkspace.data.taskBoard?.totals?.blocked === 1 && taskWorkspace.data.taskBoard?.workload?.some(item => item.assigneeId === "operations") && taskWorkspace.data.taskBoard?.workload?.some(item => item.assigneeId === "vol_001") && taskWorkspace.data.taskBoard?.workload?.some(item => item.assigneeId === "staff_command"));
+  check("task assignee capability update persists in Postgres", openedPostgresTaskPortal.status === 200 && acknowledgedPostgresTask.status === 200 && acknowledgedPostgresTask.data.task?.acknowledgedAt && persistedAcknowledgedTask?.acknowledgedAt && persistedAcknowledgedTask?.assigneeUpdates?.at(-1)?.note.includes("Postgres volunteer"));
   check("assignment directory minimizes private contacts", taskWorkspace.data.staffDirectory?.ready === true && taskWorkspace.data.assignmentDirectory?.staff?.some(item => item.id === "staff_command" && item.emailAvailable === true && !("email" in item)) && taskWorkspace.data.assignmentDirectory?.volunteers?.some(item => item.id === "vol_001" && !("email" in item) && !("phone" in item)));
 
   const prospect = await request(base, "POST", "/api/admin/outreach/prospects", {
@@ -1602,7 +1617,7 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
   const volunteerTaskNotice = partnerDocAfterWorker?.followups?.find(item => item.taskId === notifiedVolunteerTask.data.task?.id && item.kind === "task_assignment");
   const taskWorkspaceAfterWorker = await request(base, "GET", "/api/admin/partners", undefined, { auth: true });
   const privateVolunteerTaskNotice = taskWorkspaceAfterWorker.data.followups?.find(item => item.id === volunteerTaskNotice?.id);
-  check("worker persists privacy-safe task assignment notice", volunteerTaskNotice?.status === "draft_ready" && volunteerTaskNotice?.recipient === "alex@example.com" && privateVolunteerTaskNotice?.recipientAvailable === true && privateVolunteerTaskNotice?.recipientLabel === "Alex Rivera" && !("recipient" in (privateVolunteerTaskNotice || {})));
+  check("worker persists privacy-safe task assignment notice", volunteerTaskNotice?.status === "draft_ready" && volunteerTaskNotice?.recipient === "alex@example.com" && volunteerTaskNotice?.body.includes("#task-status?task=") && volunteerTaskNotice?.body.includes("&token=tsft_") && privateVolunteerTaskNotice?.recipientAvailable === true && privateVolunteerTaskNotice?.recipientLabel === "Alex Rivera" && !("recipient" in (privateVolunteerTaskNotice || {})));
   const deliveredDispatchState = await request(base, "GET", "/api/admin/island-conditions", undefined, { auth: true });
   const deliveredDispatch = deliveredDispatchState.data.dispatches?.find(item => item.id === dispatchId);
   const dispatchDelivery = emailMock.deliveries.find(item => item.body.to?.[0]?.email === "postgres-traffic@example.com");
