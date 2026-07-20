@@ -4800,11 +4800,12 @@ function renderPartnerPortalStatus(application) {
   const finance = application.finance || {};
   const invoice = finance.invoice || null;
   const onlinePayment = finance.onlinePayment || {};
+  const localPayment = onlinePayment.provider === "board_sandbox";
   const canPayOnline = invoice && invoice.balanceCents > 0 && ["approved", "queued", "synced", "failed"].includes(invoice.status) && onlinePayment.ready;
   const checkoutAction = finance.checkout?.checkoutUrl
     ? `<a class="button primary" href="${escapeAttr(finance.checkout.checkoutUrl)}" rel="noopener noreferrer">Resume secure payment</a>`
     : canPayOnline
-      ? `<button class="button primary" type="button" data-partner-pay-invoice="${escapeAttr(invoice.id)}">Pay securely</button>`
+      ? `<button class="button primary" type="button" data-partner-pay-invoice="${escapeAttr(invoice.id)}">${localPayment ? "Pay in local sandbox" : "Pay securely"}</button>`
       : "";
   const milestones = Array.isArray(application.milestones) ? application.milestones : [];
   const nextStep = application.nextStep;
@@ -4863,6 +4864,19 @@ function bindPartnerPaymentActions() {
       const data = await partnerPortalJson("/api/public/partner-payment-checkout", {
         invoiceId: button.dataset.partnerPayInvoice
       });
+      if (import.meta.env.DEV && data.demoCheckout) {
+        const { showPartnerPaymentSandbox } = await import("./board-demo/partner-payment-sandbox.js");
+        showPartnerPaymentSandbox(data.demoCheckout, {
+          complete: (endpoint, token) => partnerPortalJson(endpoint, { token }),
+          onComplete: (application, receipt) => {
+            renderPartnerPortalStatus(application);
+            setFormStatus(document.querySelector(".partner-payment-status"), `${adminMoney(receipt.amountCents)} demonstration payment recorded.`, "ok");
+          }
+        });
+        status.dataset.state = "ok";
+        status.textContent = "Review the local invoice payment below. No external charge will be sent.";
+        return;
+      }
       const checkoutUrl = new URL(data.checkout?.checkoutUrl);
       if (checkoutUrl.protocol !== "https:") throw new Error("Stripe returned an invalid payment address.");
       status.dataset.state = "ok";
@@ -7842,9 +7856,9 @@ function renderAdminPartners(payload, outreach) {
     ),
     revenueKpiCard(
       "Online invoices",
-      boardProvidersDeferred ? "Post-board" : payload.stripePartnerPayments?.ready ? "Ready" : "Off",
+      boardProvidersDeferred ? "Local sandbox" : payload.stripePartnerPayments?.ready ? "Ready" : "Off",
       boardProvidersDeferred
-        ? "Site-native receivables active"
+        ? "Private portal payments active · Stripe post-board"
         : `${(payload.paymentCheckouts || []).filter(item => item.status === "open").length} open checkout${(payload.paymentCheckouts || []).filter(item => item.status === "open").length === 1 ? "" : "s"}`
     ),
     revenueKpiCard("Work board", `${summary.operations.openTasks}`, `${summary.operations.overdueTasks} overdue · ${summary.operations.blockedTasks || 0} blocked`),

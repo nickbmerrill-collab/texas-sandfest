@@ -295,7 +295,7 @@ try {
   const health = await request(base, "GET", "/health");
   const deployment = await request(base, "GET", "/api/admin/deployment", undefined, { auth: true });
   check("isolated runtime is current-event ready", health.status === 200 && health.data.currentEventReady === true && health.data.currentEventId === DEFAULT_EVENT_ID);
-  check("health identifies isolated runtime data", health.data.runtimeDataMode === "isolated" && health.data.cameraIngestReady === true && health.data.safetySmsReady === true && health.data.ticketCheckoutEnvironment === "board_sandbox");
+  check("health identifies isolated runtime data", health.data.runtimeDataMode === "isolated" && health.data.cameraIngestReady === true && health.data.safetySmsReady === true && health.data.ticketCheckoutEnvironment === "board_sandbox" && health.data.partnerPaymentCheckoutEnvironment === "board_sandbox");
   check("health exposes the generated capability-link origin", health.data.publicSiteUrl === child.processEnv.SANDFEST_PUBLIC_SITE_URL);
   const bootstrap = await request(base, "GET", "/api/public/bootstrap");
   const publicPassport = await request(base, "GET", "/api/public/passport");

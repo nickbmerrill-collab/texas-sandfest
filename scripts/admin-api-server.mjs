@@ -1581,7 +1581,9 @@ async function enqueueIncomingDocumentExtraction(document) {
 
 function publicPartnerStatus(doc, application) {
   const status = publicPartnerPortalStatus(doc, application);
-  status.finance.onlinePayment = publicStripePartnerPaymentsReadiness(STRIPE_PARTNER_PAYMENTS);
+  status.finance.onlinePayment = BOARD_TICKET_SANDBOX.enabled
+    ? { enabled: true, ready: true, provider: "board_sandbox" }
+    : publicStripePartnerPaymentsReadiness(STRIPE_PARTNER_PAYMENTS);
   return status;
 }
 
@@ -2324,7 +2326,7 @@ function rateLimitProfile(pathname, method) {
   if (method === "GET" && pathname === "/api/integrations/quickbooks/callback") return { name: "quickbooks-oauth", limit: PUBLIC_WRITE_RATE_LIMIT };
   if (method === "POST" && pathname === "/api/webhooks/brevo") return { name: "brevo-webhook", limit: PUBLIC_RATE_LIMIT };
   if (method === "POST" && pathname.startsWith("/api/webhooks/twilio/")) return { name: "twilio-webhook", limit: SMS_WEBHOOK_RATE_LIMIT };
-  if (["/api/stripe/create-checkout-session", "/api/public/board-ticket-checkout/complete"].includes(pathname)) {
+  if (["/api/stripe/create-checkout-session", "/api/public/board-ticket-checkout/complete", "/api/public/board-partner-checkout/complete"].includes(pathname)) {
     return { name: "checkout", limit: CHECKOUT_RATE_LIMIT };
   }
   if (method === "POST" && pathname === "/api/public/concierge") return { name: "concierge", limit: PUBLIC_RATE_LIMIT };
@@ -2823,6 +2825,69 @@ function boardTicketCheckout(order) {
     token: boardTicketToken(order),
     expiresAt: order.checkoutExpiresAt
   };
+}
+
+function boardPartnerCheckoutId(prefix, checkoutId) {
+  return `${prefix}_board_${createHash("sha256").update(checkoutId).digest("hex").slice(0, 24)}`;
+}
+
+function boardPartnerCheckoutToken(checkout) {
+  const payload = Buffer.from(JSON.stringify({
+    version: 1,
+    eventId: CURRENT_EVENT_ID,
+    checkoutId: checkout.id,
+    applicationId: checkout.applicationId,
+    invoiceId: checkout.invoiceId,
+    amountCents: checkout.amountCents,
+    currency: checkout.currency,
+    expiresAt: checkout.expiresAt
+  })).toString("base64url");
+  const signature = createHmac("sha256", BOARD_TICKET_SANDBOX.secret).update(payload).digest("base64url");
+  return `${payload}.${signature}`;
+}
+
+function boardPartnerCheckout(checkout) {
+  return {
+    mode: "board_sandbox",
+    amountCents: checkout.amountCents,
+    currency: checkout.currency,
+    completeEndpoint: "/api/public/board-partner-checkout/complete",
+    token: boardPartnerCheckoutToken(checkout),
+    expiresAt: checkout.expiresAt
+  };
+}
+
+function verifyBoardPartnerCheckoutToken(token) {
+  if (!BOARD_TICKET_SANDBOX.enabled || typeof token !== "string") return { ok: false, error: "Board partner checkout token is invalid." };
+  const [payload, signature, extra] = token.split(".");
+  if (!payload || !signature || extra || !/^[A-Za-z0-9_-]+$/.test(payload) || !/^[A-Za-z0-9_-]+$/.test(signature)) {
+    return { ok: false, error: "Board partner checkout token is invalid." };
+  }
+  const expected = Buffer.from(createHmac("sha256", BOARD_TICKET_SANDBOX.secret).update(payload).digest("base64url"));
+  const received = Buffer.from(signature);
+  if (expected.length !== received.length || !timingSafeEqual(expected, received)) {
+    return { ok: false, error: "Board partner checkout token is invalid." };
+  }
+  let value;
+  try {
+    value = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+  } catch {
+    return { ok: false, error: "Board partner checkout token is invalid." };
+  }
+  if (value.version !== 1
+    || value.eventId !== CURRENT_EVENT_ID
+    || !value.checkoutId
+    || !value.applicationId
+    || !value.invoiceId
+    || !Number.isInteger(value.amountCents)
+    || value.amountCents < 1
+    || !/^[a-z]{3}$/.test(value.currency || "")) {
+    return { ok: false, error: "Board partner checkout token is invalid." };
+  }
+  if (!Number.isFinite(new Date(value.expiresAt).getTime()) || new Date(value.expiresAt).getTime() < Date.now()) {
+    return { ok: false, error: "Board partner checkout token has expired." };
+  }
+  return { ok: true, value };
 }
 
 function verifyBoardTicketToken(token) {
@@ -3370,6 +3435,101 @@ async function handleBoardTicketCompletion(request, response) {
       currency: result.order.totals.currency,
       paidAt: result.order.paidAt,
       fulfillmentCount: result.record.fulfillmentRecordIds.length,
+      environment: "board_sandbox"
+    }
+  });
+}
+
+async function handleBoardPartnerCompletion(request, response) {
+  if (!BOARD_TICKET_SANDBOX.enabled || !requestSocketIsLoopback(request)) {
+    sendJson(request, response, 404, { error: "Not found." });
+    return;
+  }
+  const body = await readBody(request);
+  const verified = verifyBoardPartnerCheckoutToken(body.token);
+  if (!verified.ok) {
+    sendJson(request, response, 400, { error: verified.error });
+    return;
+  }
+  const value = verified.value;
+  const now = new Date().toISOString();
+  const providerSessionId = boardPartnerCheckoutId("cs", value.checkoutId);
+  const paymentIntentId = boardPartnerCheckoutId("pi", value.checkoutId);
+  const providerEventId = boardPartnerCheckoutId("evt", value.checkoutId);
+  const result = await mutatePartnerOperations(doc => {
+    const checkout = doc.paymentCheckouts.find(item => item.id === value.checkoutId);
+    if (!checkout || checkout.provider !== "board_sandbox") return { ok: false, notFound: true, error: "Board partner checkout was not found." };
+    if (checkout.applicationId !== value.applicationId
+      || checkout.invoiceId !== value.invoiceId
+      || checkout.amountCents !== value.amountCents
+      || checkout.currency !== value.currency) {
+      return { ok: false, conflict: true, error: "Board partner checkout no longer matches the approved invoice." };
+    }
+    if (checkout.status === "completed") {
+      const payment = doc.payments.find(item => item.providerCheckoutId === providerSessionId || item.externalRef === `board:${paymentIntentId}`) || null;
+      return {
+        ok: true,
+        reconciled: true,
+        duplicate: true,
+        checkout,
+        payment,
+        invoice: doc.invoices.find(item => item.id === checkout.invoiceId) || null,
+        doc
+      };
+    }
+    if (!["creating", "open"].includes(checkout.status)) {
+      return { ok: false, conflict: true, error: `This demonstration checkout cannot be paid from status ${checkout.status}.` };
+    }
+    return reconcilePartnerStripePayment(doc, {
+      checkoutId: checkout.id,
+      applicationId: checkout.applicationId,
+      invoiceId: checkout.invoiceId,
+      providerSessionId,
+      paymentIntentId,
+      providerEventId,
+      amountCents: checkout.amountCents,
+      currency: checkout.currency,
+      paymentStatus: "paid",
+      receivedAt: now
+    }, {
+      actorId: "board-payment-sandbox",
+      idFactory: prefix => `${prefix}_${randomUUID()}`,
+      now,
+      paymentMethod: "card",
+      paymentReferencePrefix: "board",
+      paymentNotes: `Local board payment sandbox checkout ${checkout.id}`
+    });
+  });
+  if (!result?.ok || !result.reconciled) {
+    sendJson(request, response, result?.notFound ? 404 : result?.conflict ? 409 : 400, {
+      error: result?.error || "The demonstration invoice payment could not be reconciled."
+    });
+    return;
+  }
+  const application = result.doc.applications.find(item => item.id === value.applicationId);
+  if (!application || !result.invoice) {
+    sendJson(request, response, 409, { error: "The demonstration invoice payment requires staff review." });
+    return;
+  }
+  if (!result.duplicate) {
+    await writeAuditRecord(request, "partner.payment_checkout.board_completed", { type: "payment_checkout", id: result.checkout.id }, null, {
+      applicationId: application.id,
+      invoiceId: result.invoice.id,
+      paymentId: result.payment?.id || null,
+      amountCents: value.amountCents,
+      environment: "board_sandbox"
+    });
+  }
+  sendJson(request, response, 200, {
+    ok: true,
+    duplicate: result.duplicate === true,
+    application: publicPartnerStatus(result.doc, application),
+    receipt: {
+      invoiceId: result.invoice.id,
+      paymentId: result.payment?.id || null,
+      amountCents: value.amountCents,
+      currency: value.currency,
+      paidAt: result.payment?.receivedAt || result.checkout.completedAt,
       environment: "board_sandbox"
     }
   });
@@ -4104,6 +4264,8 @@ async function handleRequest(request, response) {
         documentIngestionReady: deployment.checks.documentIngestion?.ok === true,
         outreachPreferencesReady: OUTREACH_PREFERENCES.ready,
         stripePartnerPaymentsReady: STRIPE_PARTNER_PAYMENTS.ready,
+        partnerPaymentCheckoutReady: BOARD_TICKET_SANDBOX.enabled || STRIPE_PARTNER_PAYMENTS.ready,
+        partnerPaymentCheckoutEnvironment: BOARD_TICKET_SANDBOX.enabled ? "board_sandbox" : STRIPE_PARTNER_PAYMENTS.ready ? "stripe" : "disabled",
         rateLimitBackend: rateLimiter.kind,
         runtimeDataMode: RUNTIME_ROOT.mode,
         boardDemoRuntime: BOARD_DEMO_RUNTIME,
@@ -4828,12 +4990,16 @@ async function handleRequest(request, response) {
     }
 
     if (method === "POST" && pathname === "/api/public/partner-payment-checkout") {
+      if (BOARD_TICKET_SANDBOX.enabled && !requestSocketIsLoopback(request)) {
+        sendJson(request, response, 404, { error: "Not found." });
+        return;
+      }
       const portalConfig = partnerPortalConfig();
       if (!portalConfig.ready) {
         sendJson(request, response, 503, { error: "Partner portal is temporarily unavailable." });
         return;
       }
-      if (!STRIPE_PARTNER_PAYMENTS.ready) {
+      if (!STRIPE_PARTNER_PAYMENTS.ready && !BOARD_TICKET_SANDBOX.enabled) {
         sendJson(request, response, 503, { error: "Online invoice payment is temporarily unavailable." });
         return;
       }
@@ -4848,7 +5014,8 @@ async function handleRequest(request, response) {
       const reservation = await mutatePartnerOperations(doc => beginPartnerPaymentCheckout(doc, access.application.id, invoiceId, {
         actorId: `partner:${access.application.reference}`,
         idFactory: prefix => `${prefix}_${randomUUID()}`,
-        now: new Date().toISOString()
+        now: new Date().toISOString(),
+        provider: BOARD_TICKET_SANDBOX.enabled ? "board_sandbox" : "stripe"
       }));
       if (!reservation?.ok) {
         const status = reservation?.error === "Invoice not found." ? 404 : reservation?.error === "This invoice has no open balance." ? 409 : 400;
@@ -4856,6 +5023,10 @@ async function handleRequest(request, response) {
         return;
       }
       if (reservation.duplicate) {
+        if (BOARD_TICKET_SANDBOX.enabled && ["creating", "open"].includes(reservation.checkout.status)) {
+          sendJson(request, response, 200, { duplicate: true, demoCheckout: boardPartnerCheckout(reservation.checkout) });
+          return;
+        }
         if (reservation.checkout.status === "open" && reservation.checkout.checkoutUrl) {
           sendJson(request, response, 200, {
             duplicate: true,
@@ -4869,6 +5040,16 @@ async function handleRequest(request, response) {
           return;
         }
         sendJson(request, response, 409, { error: "A payment checkout is already being prepared. Please retry shortly." });
+        return;
+      }
+      if (BOARD_TICKET_SANDBOX.enabled) {
+        await writeAuditRecord(request, "partner.payment_checkout.board_created", { type: "payment_checkout", id: reservation.checkout.id }, null, {
+          applicationId: reservation.checkout.applicationId,
+          invoiceId: reservation.checkout.invoiceId,
+          amountCents: reservation.checkout.amountCents,
+          environment: "board_sandbox"
+        });
+        sendJson(request, response, 201, { duplicate: false, demoCheckout: boardPartnerCheckout(reservation.checkout) });
         return;
       }
       try {
@@ -5412,6 +5593,11 @@ async function handleRequest(request, response) {
 
     if (method === "POST" && pathname === "/api/public/board-ticket-checkout/complete") {
       await handleBoardTicketCompletion(request, response);
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/public/board-partner-checkout/complete") {
+      await handleBoardPartnerCompletion(request, response);
       return;
     }
 

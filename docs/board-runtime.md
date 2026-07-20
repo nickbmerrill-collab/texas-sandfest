@@ -14,6 +14,7 @@ The command rebuilds `.sandfest-runtime/board-2027` from governed source data. I
 - four visibly priced GA/VIP board products whose loopback-only checkout creates a private order, deterministic payment evidence, wristband fulfillment, finance receipt, and full-refund reversal without contacting Stripe;
 - vendor and sponsor applications, including category-compatible vendor offerings whose captured fees flow directly into receivables and invoice drafts;
 - partial sponsor payment and receivables tracking, with one invoice-authoritative payment date shared by the finance ledger, key-date calendar, and follow-up engine;
+- a signed, loopback-only partner invoice checkout that records the approved balance through the real payment, receivables, audit, and key-date reconciliation contracts without contacting Stripe;
 - sponsor brand profile, logo review, and package deliverables;
 - vendor onboarding with one approved, compliance-cleared, partner-confirmed booth assignment beside one intentionally blocked application;
 - key dates with a due-soon sponsor creative approval and automatic loopback reminder, consent-backed acknowledgments, and direct volunteer, staff, and team tasks that exercise each private assignment-notification route;
@@ -114,10 +115,10 @@ component with bounded backoff and returns to ready only after another 10-of-10
 preflight. It stops instead of looping forever when a component repeatedly
 fails. External Stripe ticketing, sponsor checkout, and QuickBooks sync are
 explicitly disabled in this synthetic stack even if the parent shell contains
-provider credentials. Ticket checkout instead uses a signed, four-hour,
-loopback-only board token. Completion and refund endpoints refuse non-board,
-non-loopback, or production requests and are not a substitute for Stripe
-test-mode acceptance.
+provider credentials. Ticket and partner-invoice checkout instead use signed,
+short-lived, loopback-only board tokens. Completion and refund endpoints refuse
+non-board, non-loopback, or production requests and are not a substitute for
+Stripe test-mode acceptance.
 
 ### Manual fallback
 
@@ -228,6 +229,12 @@ access, opens the prepared sponsor brand center or vendor onboarding workspace
 against the active loopback API, removes the capability token from browser
 history, and invalidates the previous link. Production builds do not expose this
 shortcut; staff can still use **Copy new portal link** for the governed handoff.
+An approved invoice with an open balance exposes **Pay in local sandbox** in the
+private portal. The partner reviews the exact approved balance and explicitly
+completes the demonstration payment. The same invoice balance, payment ledger,
+receivables summary, audit trail, and payment key date reconcile immediately;
+the signed flow never opens Stripe or sends an external charge. Staff can use
+the existing governed reversal action to reopen the balance and key date.
 The production browser gate also creates a new artisan vendor through the public
 form, submits its operating profile and five category-specific compliance
 records, approves the same record in operations, publishes booth A-27 and its
