@@ -775,6 +775,7 @@ console.log("\n=== Pure library suite ===\n");
         ...Array.from({ length: 3 }, (_, index) => ({ id: `demo_task_notice_${index + 1}`, kind: "task_assignment", status: "draft_ready", body: `https://board.example/#task-status?task=task_${index + 1}&token=tsft_demo_${index + 1}` })),
         { id: "demo_milestone_reminder", kind: "milestone_reminder", status: "draft_ready", milestoneId: "demo_milestone_1" },
         { id: "demo_payment_received", kind: "payment_received", status: "draft_ready", paymentId: "demo_payment" },
+        { id: "demo_sponsor_proof_review", kind: "sponsor_deliverable_review", status: "draft_ready", deliverableId: "demo_deliverable" },
         { id: "demo_review_outreach", kind: "sponsor_outreach", status: "draft_ready", campaignId: "demo_review_campaign", automationPolicy: null }
       ],
       tasks: [
@@ -898,6 +899,10 @@ console.log("\n=== Pure library suite ===\n");
   missingPaymentConfirmationProof.partners.followups = missingPaymentConfirmationProof.partners.followups
     .filter(item => item.kind !== "payment_received");
   const missingPaymentConfirmationReport = evaluateBoardDemoReadiness(missingPaymentConfirmationProof);
+  const missingSponsorProofReview = structuredClone(localAutomationBoardState);
+  missingSponsorProofReview.partners.followups = missingSponsorProofReview.partners.followups
+    .filter(item => item.kind !== "sponsor_deliverable_review");
+  const missingSponsorProofReviewReport = evaluateBoardDemoReadiness(missingSponsorProofReview);
   const missingDurableDeliveryProof = structuredClone(localAutomationBoardState);
   delete missingDurableDeliveryProof.partners.followups.at(-1).deliveryEvents;
   const missingDurableDeliveryReport = evaluateBoardDemoReadiness(missingDurableDeliveryProof);
@@ -929,6 +934,7 @@ console.log("\n=== Pure library suite ===\n");
     && missingReviewFirstReport.checks.find(item => item.id === "operations")?.ok === false
     && missingAutomaticKeyDateReport.checks.find(item => item.id === "operations")?.ok === false
     && missingPaymentConfirmationReport.checks.find(item => item.id === "operations")?.ok === false
+    && missingSponsorProofReviewReport.checks.find(item => item.id === "operations")?.ok === false
     && missingDurableDeliveryReport.checks.find(item => item.id === "operations")?.ok === false);
   ok("board demo readiness survives a fresh sandbox process when durable delivery proof is present", restartedLocalAutomationBoardReport.ok);
   const directionalCameraIds = ["harbor-island-entrance", "harbor-island-stacking", "ferry-loading", "ferry-stacking"];
@@ -2565,6 +2571,8 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
     ...drafted.followup,
     id: `followup_auto_${index + 1}`,
     kind,
+    ...(kind === "sponsor_brand_changes" ? { brandProfileId: "automation_brand_profile", sourceVersion: `review:${now}` } : {}),
+    ...(kind === "sponsor_deliverable_review" ? { deliverableId: "automation_deliverable", sourceVersion: "proof:1" } : {}),
     status: "draft_ready",
     approvedBy: null,
     approvedAt: null,
@@ -2573,6 +2581,21 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   }));
   const automationInput = {
     ...drafted.doc,
+    brandProfiles: [...drafted.doc.brandProfiles, {
+      id: "automation_brand_profile",
+      applicationId: created.application.id,
+      status: "changes_requested",
+      updatedAt: now
+    }],
+    deliverables: [...drafted.doc.deliverables, {
+      id: "automation_deliverable",
+      applicationId: created.application.id,
+      status: "published",
+      proofUrl: "https://www.texassandfest.org/sponsors/automation-proof",
+      proofNotes: "",
+      proofVersion: 1,
+      partnerReviewStatus: "pending"
+    }],
     followups: [
       ...automationDrafts,
       { ...drafted.followup, id: "followup_outreach_review_gate", kind: "sponsor_outreach", status: "draft_ready" },
@@ -2865,7 +2888,33 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   }, { actorId: `partner:${created.application.id}`, idFactory, now });
   ok("sponsor brand profile submission", brandProfile.ok && brandProfile.profile.status === "submitted" && brandProfile.profile.primaryColor === "#005B63");
   ok("unapproved sponsor branding stays private", publicSponsorShowcase(brandProfile.doc).length === 0);
-  const approvedBrandProfile = reviewPartnerBrandProfile(brandProfile.doc, created.application.id, { action: "approve" }, { actorId: "sponsor_admin_1", idFactory, now });
+  const sponsorProfileChanges = reviewPartnerBrandProfile(brandProfile.doc, created.application.id, {
+    action: "request_changes",
+    reviewNotes: "Please add the approved community campaign tagline."
+  }, { actorId: "sponsor_admin_1", idFactory, portalUrl, now });
+  const duplicateSponsorProfileChanges = reviewPartnerBrandProfile(sponsorProfileChanges.doc, created.application.id, {
+    action: "request_changes",
+    reviewNotes: "Please add the approved community campaign tagline."
+  }, { actorId: "sponsor_admin_1", idFactory, portalUrl, now });
+  ok("sponsor brand profile change draft", sponsorProfileChanges.ok && sponsorProfileChanges.followupChanged && sponsorProfileChanges.followup.kind === "sponsor_brand_changes" && sponsorProfileChanges.followup.brandProfileId === brandProfile.profile.id && sponsorProfileChanges.followup.body.includes(portalUrl) && !sponsorProfileChanges.followup.body.includes(created.application.contactEmail));
+  ok("sponsor brand profile draft idempotency", duplicateSponsorProfileChanges.ok && !duplicateSponsorProfileChanges.followupChanged && duplicateSponsorProfileChanges.doc.followups.filter(item => item.kind === "sponsor_brand_changes").length === 1);
+  const revisedBrandProfile = updatePartnerBrandProfile(sponsorProfileChanges.doc, created.application.id, {
+    displayName: "Gulf Coast Bank",
+    website: "https://gulfcoast.example/",
+    tagline: "Banking for the coast and community",
+    primaryColor: "#005B63",
+    secondaryColor: "#F7B733",
+    instagramUrl: "https://instagram.com/gulfcoastbank",
+    linkedinUrl: "https://linkedin.com/company/gulfcoastbank",
+    usageNotes: "Keep clear space around the mark."
+  }, { actorId: `partner:${created.application.id}`, idFactory, now });
+  const staleProfileNoticeDoc = {
+    ...revisedBrandProfile.doc,
+    followups: revisedBrandProfile.doc.followups.map(item => item.id === sponsorProfileChanges.followup.id ? { ...item, status: "draft_ready" } : item)
+  };
+  const staleProfileNotice = reviewFollowup(staleProfileNoticeDoc, sponsorProfileChanges.followup.id, "approve", { actorId: "sponsor_admin_1", now });
+  ok("sponsor brand profile resubmission dismisses stale draft", revisedBrandProfile.dismissedFollowups === 1 && revisedBrandProfile.doc.followups.find(item => item.id === sponsorProfileChanges.followup.id)?.status === "dismissed" && !staleProfileNotice.ok && staleProfileNotice.error.includes("no longer actionable"));
+  const approvedBrandProfile = reviewPartnerBrandProfile(revisedBrandProfile.doc, created.application.id, { action: "approve" }, { actorId: "sponsor_admin_1", idFactory, portalUrl, now });
   ok("sponsor brand profile approval", approvedBrandProfile.ok && approvedBrandProfile.profile.status === "approved" && approvedBrandProfile.profile.approvedBy === "sponsor_admin_1");
   const invalidBrandProfile = updatePartnerBrandProfile(approvedBrandProfile.doc, created.application.id, { displayName: "Gulf Coast Bank", primaryColor: "teal" }, { idFactory, now });
   ok("sponsor brand profile validation", !invalidBrandProfile.ok && invalidBrandProfile.error.includes("six-digit"));
@@ -2879,20 +2928,38 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
     sourceUrl: "https://assets.gulfcoast.example/primary-logo.svg"
   }, { actorId: `partner:${created.application.id}`, idFactory, now });
   ok("sponsor brand asset idempotency", brandAsset.ok && !brandAsset.duplicate && duplicateBrandAsset.duplicate && duplicateBrandAsset.doc.brandAssets.length === 1);
-  const changedBrandAsset = reviewPartnerBrandAsset(brandAsset.doc, brandAsset.asset.id, { status: "changes_requested", reviewNotes: "Please provide a transparent-background version." }, { actorId: "sponsor_admin_1", idFactory, now });
-  ok("sponsor brand asset review", changedBrandAsset.ok && changedBrandAsset.asset.status === "changes_requested" && changedBrandAsset.asset.reviewNotes.includes("transparent"));
+  const changedBrandAsset = reviewPartnerBrandAsset(brandAsset.doc, brandAsset.asset.id, { status: "changes_requested", reviewNotes: "Please provide a transparent-background version." }, { actorId: "sponsor_admin_1", idFactory, portalUrl, now });
+  const duplicateBrandAssetChanges = reviewPartnerBrandAsset(changedBrandAsset.doc, brandAsset.asset.id, { status: "changes_requested", reviewNotes: "Please provide a transparent-background version." }, { actorId: "sponsor_admin_1", idFactory, portalUrl, now });
+  ok("sponsor brand asset review", changedBrandAsset.ok && changedBrandAsset.asset.status === "changes_requested" && changedBrandAsset.asset.reviewNotes.includes("transparent") && changedBrandAsset.followupChanged && changedBrandAsset.followup.kind === "sponsor_brand_changes" && changedBrandAsset.followup.brandAssetId === brandAsset.asset.id && changedBrandAsset.followup.body.includes(portalUrl));
+  ok("sponsor brand asset draft idempotency", duplicateBrandAssetChanges.ok && !duplicateBrandAssetChanges.followupChanged && duplicateBrandAssetChanges.doc.followups.filter(item => item.brandAssetId === brandAsset.asset.id).length === 1);
+  const replacementBrandAsset = createPartnerBrandAsset(changedBrandAsset.doc, created.application.id, {
+    kind: "primary_logo",
+    label: "Transparent primary logo",
+    sourceUrl: "https://assets.gulfcoast.example/primary-logo-transparent.svg"
+  }, { actorId: `partner:${created.application.id}`, idFactory, now });
+  const staleAssetNoticeDoc = {
+    ...replacementBrandAsset.doc,
+    followups: replacementBrandAsset.doc.followups.map(item => item.id === changedBrandAsset.followup.id ? { ...item, status: "draft_ready" } : item)
+  };
+  const staleAssetNotice = reviewFollowup(staleAssetNoticeDoc, changedBrandAsset.followup.id, "approve", { actorId: "sponsor_admin_1", now });
+  ok("sponsor replacement asset dismisses stale draft", replacementBrandAsset.dismissedFollowups === 1 && replacementBrandAsset.doc.followups.find(item => item.id === changedBrandAsset.followup.id)?.status === "dismissed" && !staleAssetNotice.ok && staleAssetNotice.error.includes("no longer actionable"));
   const deliverable = updatePartnerDeliverable(changedBrandAsset.doc, created.deliverables[0].id, {
     status: "published",
     ownerId: "sponsor_admin_1",
     dueAt: "2026-08-01T17:00:00.000Z",
     proofUrl: "https://www.texassandfest.org/sponsors/gulf-coast-bank",
     proofNotes: "Sponsor listing is live."
-  }, { actorId: "sponsor_admin_1", idFactory, now });
-  ok("sponsor deliverable proof gate", deliverable.ok && deliverable.deliverable.proofVersion === 1 && deliverable.deliverable.partnerReviewStatus === "pending");
+  }, { actorId: "sponsor_admin_1", idFactory, portalUrl, now });
+  ok("sponsor deliverable proof gate", deliverable.ok && deliverable.deliverable.proofVersion === 1 && deliverable.deliverable.partnerReviewStatus === "pending" && deliverable.followupChanged && deliverable.followup.kind === "sponsor_deliverable_review" && deliverable.followup.deliverableId === deliverable.deliverable.id && deliverable.followup.body.includes(portalUrl) && !deliverable.followup.body.includes(deliverable.deliverable.proofUrl));
   const signedOff = reviewPartnerDeliverable(deliverable.doc, deliverable.deliverable.id, { action: "approve" }, { actorId: `partner:${created.application.id}`, idFactory, now });
-  ok("sponsor deliverable sign-off", signedOff.ok && signedOff.deliverable.partnerReviewStatus === "approved" && signedOff.deliverable.partnerReviewedAt === now);
-  const revisedProof = updatePartnerDeliverable(signedOff.doc, deliverable.deliverable.id, { proofNotes: "Sponsor listing and homepage logo are live." }, { actorId: "sponsor_admin_1", idFactory, now });
-  ok("sponsor proof revision resets sign-off", revisedProof.ok && revisedProof.deliverable.proofVersion === 2 && revisedProof.deliverable.partnerReviewStatus === "pending");
+  ok("sponsor deliverable sign-off", signedOff.ok && signedOff.deliverable.partnerReviewStatus === "approved" && signedOff.deliverable.partnerReviewedAt === now && signedOff.dismissedFollowups === 1 && signedOff.doc.followups.find(item => item.id === deliverable.followup.id)?.status === "dismissed");
+  const revisedProof = updatePartnerDeliverable(signedOff.doc, deliverable.deliverable.id, { proofNotes: "Sponsor listing and homepage logo are live." }, { actorId: "sponsor_admin_1", idFactory, portalUrl, now });
+  const staleProofNoticeDoc = {
+    ...revisedProof.doc,
+    followups: revisedProof.doc.followups.map(item => item.id === deliverable.followup.id ? { ...item, status: "draft_ready" } : item)
+  };
+  const staleProofNotice = reviewFollowup(staleProofNoticeDoc, deliverable.followup.id, "approve", { actorId: "sponsor_admin_1", now });
+  ok("sponsor proof revision resets sign-off and notice", revisedProof.ok && revisedProof.deliverable.proofVersion === 2 && revisedProof.deliverable.partnerReviewStatus === "pending" && revisedProof.followupChanged && revisedProof.followup.sourceVersion === "proof:2" && !staleProofNotice.ok && staleProofNotice.error.includes("stale"));
   const noProof = updatePartnerDeliverable(changedBrandAsset.doc, created.deliverables[1].id, { status: "complete" }, { actorId: "sponsor_admin_1", idFactory, now });
   ok("sponsor completion requires proof", !noProof.ok && noProof.error.includes("proof"));
   const customDeliverable = createPartnerDeliverable(revisedProof.doc, created.application.id, { label: "VIP welcome banner", dueAt: "2026-08-05T17:00:00.000Z" }, { actorId: "sponsor_admin_1", idFactory, now });
@@ -6906,13 +6973,36 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
   const sponsorWorkspace = await hit("GET", "/api/admin/partners", null, true);
   const sponsorApplication = sponsorWorkspace.data.applications?.find(item => item.id === sponsorIntake.data.application?.id);
   const sponsorApplicationApproval = await hit("PATCH", `/api/admin/partners/applications/${encodeURIComponent(sponsorApplication?.id)}`, { status: "approved" }, true);
+  const sponsorProfileChangeReview = await hit("POST", `/api/admin/partners/applications/${encodeURIComponent(sponsorApplication?.id)}/brand-profile/review`, {
+    action: "request_changes",
+    reviewNotes: "Add the approved community campaign wording."
+  }, true);
+  const resubmittedProfile = await hit("POST", "/api/public/partner-brand-profile", {
+    ...sponsorAccess,
+    profile: {
+      displayName: "Platform Brand Sponsor",
+      website: "https://brand-sponsor.example/",
+      tagline: "Coastal service for the community",
+      primaryColor: "#005B63",
+      secondaryColor: "#F7B733",
+      usageNotes: "Use the primary mark on light backgrounds."
+    }
+  });
   const sponsorProfileReview = await hit("POST", `/api/admin/partners/applications/${encodeURIComponent(sponsorApplication?.id)}/brand-profile/review`, { action: "approve" }, true);
+  const sponsorAssetChangeReview = await hit("PATCH", `/api/admin/partners/brand-assets/${encodeURIComponent(uploadedAsset.data.asset?.id)}`, {
+    status: "changes_requested",
+    reviewNotes: "Confirm this is the transparent-background master."
+  }, true);
   const sponsorAssetReview = await hit("PATCH", `/api/admin/partners/brand-assets/${encodeURIComponent(uploadedAsset.data.asset?.id)}`, { status: "approved" }, true);
-  ok("admin approves sponsor branding", sponsorApplicationApproval.status === 200 && sponsorProfileReview.status === 200 && sponsorProfileReview.data.profile?.status === "approved" && sponsorAssetReview.status === 200 && sponsorAssetReview.data.asset?.status === "approved");
+  const reviewedSponsorWorkspace = await hit("GET", "/api/admin/partners", null, true);
+  const profileChangeNoticeApi = reviewedSponsorWorkspace.data.followups?.find(item => item.id === sponsorProfileChangeReview.data.followup?.id);
+  const assetChangeNoticeApi = reviewedSponsorWorkspace.data.followups?.find(item => item.id === sponsorAssetChangeReview.data.followup?.id);
+  ok("sponsor brand review API drafts private guidance", sponsorProfileChangeReview.status === 200 && sponsorProfileChangeReview.data.notificationDrafted === true && sponsorProfileChangeReview.data.followup?.kind === "sponsor_brand_changes" && sponsorProfileChangeReview.data.followup?.body.includes("#partner-status?") && sponsorAssetChangeReview.status === 200 && sponsorAssetChangeReview.data.notificationDrafted === true && sponsorAssetChangeReview.data.followup?.brandAssetId === uploadedAsset.data.asset?.id);
+  ok("resolved sponsor brand reviews dismiss stale guidance", resubmittedProfile.status === 200 && profileChangeNoticeApi?.status === "dismissed" && sponsorApplicationApproval.status === 200 && sponsorProfileReview.status === 200 && sponsorProfileReview.data.profile?.status === "approved" && sponsorAssetReview.status === 200 && sponsorAssetReview.data.asset?.status === "approved" && assetChangeNoticeApi?.status === "dismissed");
   const publicSponsorShowcaseApi = await hit("GET", "/api/public/sponsors");
   const publicSponsorApi = publicSponsorShowcaseApi.data.sponsors?.find(item => item.displayName === "Platform Brand Sponsor");
   const publicSponsorLogoApi = await hitRaw("GET", publicSponsorApi?.logo?.path, undefined);
-  ok("approved sponsor publishes to public API", publicSponsorApi?.tagline === "Coastal service" && publicSponsorApi?.logo?.contentType === "image/png" && !("applicationId" in publicSponsorApi) && !("contactEmail" in publicSponsorApi));
+  ok("approved sponsor publishes to public API", publicSponsorApi?.tagline === "Coastal service for the community" && publicSponsorApi?.logo?.contentType === "image/png" && !("applicationId" in publicSponsorApi) && !("contactEmail" in publicSponsorApi));
   ok("approved sponsor logo is public and immutable", publicSponsorLogoApi.status === 200 && Buffer.isBuffer(publicSponsorLogoApi.data) && publicSponsorLogoApi.data.equals(apiPng) && publicSponsorLogoApi.headers.get("cache-control") === "public, max-age=86400, immutable" && publicSponsorLogoApi.headers.get("content-disposition")?.startsWith("inline;"));
   const sponsorDeliverable = sponsorWorkspace.data.deliverables?.find(item => item.applicationId === sponsorApplication?.id);
   const publishedDeliverable = await hit("PATCH", `/api/admin/partners/deliverables/${encodeURIComponent(sponsorDeliverable?.id)}`, {
@@ -6925,7 +7015,9 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     ...sponsorAccess,
     action: "approve"
   });
-  ok("sponsor deliverable proof and sign-off API", publishedDeliverable.status === 200 && publishedDeliverable.data.deliverable?.partnerReviewStatus === "pending" && partnerSignoff.status === 200 && partnerSignoff.data.application?.branding?.deliverables?.find(item => item.id === sponsorDeliverable?.id)?.partnerReviewStatus === "approved");
+  const signedOffSponsorWorkspace = await hit("GET", "/api/admin/partners", null, true);
+  const proofReviewNoticeApi = signedOffSponsorWorkspace.data.followups?.find(item => item.id === publishedDeliverable.data.followup?.id);
+  ok("sponsor deliverable proof and sign-off API", publishedDeliverable.status === 200 && publishedDeliverable.data.deliverable?.partnerReviewStatus === "pending" && publishedDeliverable.data.notificationDrafted === true && publishedDeliverable.data.followup?.kind === "sponsor_deliverable_review" && publishedDeliverable.data.followup?.body.includes("#partner-status?") && partnerSignoff.status === 200 && partnerSignoff.data.application?.branding?.deliverables?.find(item => item.id === sponsorDeliverable?.id)?.partnerReviewStatus === "approved" && proofReviewNoticeApi?.status === "dismissed");
   const downloadedAsset = await hitRaw("POST", `/api/public/partner-brand-assets/${encodeURIComponent(uploadedAsset.data.asset?.id)}/content`, Buffer.from(JSON.stringify(sponsorAccess)), { "content-type": "application/json" });
   ok("private sponsor asset download", downloadedAsset.status === 200 && Buffer.isBuffer(downloadedAsset.data) && downloadedAsset.data.equals(apiPng) && downloadedAsset.headers.get("cache-control") === "private, no-store");
   const updatedSponsorWorkspace = await hit("GET", "/api/admin/partners", null, true);

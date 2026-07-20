@@ -928,12 +928,13 @@ PG-B-01,${EVENT_ID},PG-EV-V-01,PG-EV-V-01,Postgres Booth Vendor,retail,vendor,po
     ...currentSponsorAccess,
     action: "approve"
   });
-  check("sponsor brand review persists", persistedProfile?.status === "submitted" && profileApproval.status === 200 && assetApproval.status === 200 && publishedBenefit.data.deliverable?.partnerReviewStatus === "pending" && benefitSignoff.data.application?.branding?.deliverables?.some(item => item.id === persistedDeliverable?.id && item.partnerReviewStatus === "approved"));
+  check("sponsor brand review persists", persistedProfile?.status === "submitted" && profileApproval.status === 200 && assetApproval.status === 200 && publishedBenefit.data.deliverable?.partnerReviewStatus === "pending" && publishedBenefit.data.notificationDrafted === true && publishedBenefit.data.followup?.kind === "sponsor_deliverable_review" && benefitSignoff.data.application?.branding?.deliverables?.some(item => item.id === persistedDeliverable?.id && item.partnerReviewStatus === "approved"));
   const postgresPublicSponsors = await request(base, "GET", "/api/public/sponsors");
   const postgresPublicSponsor = postgresPublicSponsors.data.sponsors?.find(item => item.displayName === "Postgres Coastal Resort");
   check("approved sponsor publication reads Postgres safely", postgresPublicSponsor?.tagline === "Stay on the coast" && postgresPublicSponsor.logo === null && !Object.hasOwn(postgresPublicSponsor, "applicationId") && !Object.hasOwn(postgresPublicSponsor, "contactEmail"));
   const fulfillmentWorkspace = await request(base, "GET", "/api/admin/partners", undefined, { auth: true });
   check("sponsor fulfillment summary persists", fulfillmentWorkspace.data.fulfillment?.profiles?.approved === 1 && fulfillmentWorkspace.data.fulfillment?.assets?.approved === 1 && fulfillmentWorkspace.data.deliverables?.filter(item => item.applicationId === sponsorApplication.id).length === 6);
+  check("sponsor proof notice resolves durably", fulfillmentWorkspace.data.followups?.find(item => item.id === publishedBenefit.data.followup?.id)?.status === "dismissed");
 
   const defaultSponsorMilestone = fulfillmentWorkspace.data.milestones?.find(item => item.applicationId === sponsorApplication.id);
   const reminderDueAt = new Date(Date.now() + 86_400_000).toISOString();

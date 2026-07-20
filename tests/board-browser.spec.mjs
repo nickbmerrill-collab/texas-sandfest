@@ -1698,6 +1698,19 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
     deliveredMilestoneReminderId = reminder?.id || null;
     return Boolean(deliveredMilestoneReminderId);
   }, { timeout: 15_000 }).toBe(true);
+  let deliveredSponsorProofReviewId = null;
+  await expect.poll(async () => {
+    const response = await fetch(`${apiBase}/api/admin/partners`, { headers: { authorization: `Bearer ${TOKEN}` } });
+    const payload = await response.json();
+    const proofReview = payload.followups?.find(item => item.kind === "sponsor_deliverable_review"
+      && item.automationPolicy === "partner_transactional_v1"
+      && item.status === "sent"
+      && item.deliveryStatus === "delivered"
+      && item.body?.includes("private sponsor portal")
+      && !item.body?.includes("gulf-shore-credit-union"));
+    deliveredSponsorProofReviewId = proofReview?.id || null;
+    return Boolean(deliveredSponsorProofReviewId);
+  }, { timeout: 15_000 }).toBe(true);
   const reloadPartners = Promise.all([
     page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/partners" && response.request().method() === "GET"),
     page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/outreach" && response.request().method() === "GET")
@@ -1728,6 +1741,11 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   await expect(deliveredMilestoneReminder).toHaveAttribute("data-delivery-status", "delivered");
   await expect(deliveredMilestoneReminder).toContainText(`Texas SandFest ${milestoneLabel.toLowerCase()} reminder`);
   await expect(deliveredMilestoneReminder).toContainText("automatic key-date reminder");
+  const deliveredSponsorProofReview = page.locator(`#admin-partner-followups [data-followup="${deliveredSponsorProofReviewId}"]`);
+  await expect(deliveredSponsorProofReview).toHaveCount(1);
+  await expect(deliveredSponsorProofReview).toHaveAttribute("data-delivery-status", "delivered");
+  await expect(deliveredSponsorProofReview).toContainText("Texas SandFest sponsor proof ready");
+  await expect(deliveredSponsorProofReview).toContainText("automatic sponsor proof review");
   const freshSponsorMilestone = page.locator(`#admin-partner-milestones [data-admin-milestone="${createdSponsorMilestone.id}"]`);
   await expect(freshSponsorMilestone).toContainText(milestoneLabel);
   await expect(freshSponsorMilestone).toContainText("latest reminder upcoming (sent)");

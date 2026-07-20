@@ -7509,17 +7509,21 @@ async function handleRequest(request, response) {
       const body = await readBody(request);
       const beforeDoc = await readPartnerOperations();
       const before = beforeDoc.brandProfiles.find(item => item.applicationId === applicationId) ?? null;
-      const result = await mutatePartnerOperations(doc => reviewPartnerBrandProfile(doc, applicationId, body, {
-        actorId: session.id,
-        idFactory: prefix => `${prefix}_${randomUUID()}`,
-        now: new Date().toISOString()
-      }));
+      const result = await mutatePartnerOperations(doc => {
+        const application = doc.applications.find(item => item.id === applicationId);
+        return reviewPartnerBrandProfile(doc, applicationId, body, {
+          actorId: session.id,
+          idFactory: prefix => `${prefix}_${randomUUID()}`,
+          portalUrl: currentPartnerPortalUrl(application),
+          now: new Date().toISOString()
+        });
+      });
       if (!result?.ok) {
         sendJson(request, response, result?.error === "Brand profile not found." ? 404 : 400, { error: result?.error || "Brand profile review could not be saved." });
         return;
       }
       await writeAuditRecord(request, `partner.brand_profile.${result.profile.status}`, { type: "application", id: applicationId }, before, result.profile);
-      sendJson(request, response, 200, { profile: result.profile });
+      sendJson(request, response, 200, { profile: result.profile, followup: result.followup, notificationDrafted: result.followupChanged });
       return;
     }
 
@@ -7531,17 +7535,22 @@ async function handleRequest(request, response) {
       const body = await readBody(request);
       const beforeDoc = await readPartnerOperations();
       const before = beforeDoc.brandAssets.find(item => item.id === assetId) ?? null;
-      const result = await mutatePartnerOperations(doc => reviewPartnerBrandAsset(doc, assetId, body, {
-        actorId: session.id,
-        idFactory: prefix => `${prefix}_${randomUUID()}`,
-        now: new Date().toISOString()
-      }));
+      const result = await mutatePartnerOperations(doc => {
+        const asset = doc.brandAssets.find(item => item.id === assetId);
+        const application = doc.applications.find(item => item.id === asset?.applicationId);
+        return reviewPartnerBrandAsset(doc, assetId, body, {
+          actorId: session.id,
+          idFactory: prefix => `${prefix}_${randomUUID()}`,
+          portalUrl: currentPartnerPortalUrl(application),
+          now: new Date().toISOString()
+        });
+      });
       if (!result?.ok) {
         sendJson(request, response, result?.error === "Brand asset not found." ? 404 : 400, { error: result?.error || "Brand asset review could not be saved." });
         return;
       }
       await writeAuditRecord(request, `partner.brand_asset.${result.asset.status}`, { type: "brand_asset", id: assetId }, before, result.asset);
-      sendJson(request, response, 200, { asset: result.asset });
+      sendJson(request, response, 200, { asset: result.asset, followup: result.followup, notificationDrafted: result.followupChanged });
       return;
     }
 
@@ -7592,17 +7601,22 @@ async function handleRequest(request, response) {
       const body = await readBody(request);
       const beforeDoc = await readPartnerOperations();
       const before = beforeDoc.deliverables.find(item => item.id === deliverableId) ?? null;
-      const result = await mutatePartnerOperations(doc => updatePartnerDeliverable(doc, deliverableId, body, {
-        actorId: session.id,
-        idFactory: prefix => `${prefix}_${randomUUID()}`,
-        now: new Date().toISOString()
-      }));
+      const result = await mutatePartnerOperations(doc => {
+        const deliverable = doc.deliverables.find(item => item.id === deliverableId);
+        const application = doc.applications.find(item => item.id === deliverable?.applicationId);
+        return updatePartnerDeliverable(doc, deliverableId, body, {
+          actorId: session.id,
+          idFactory: prefix => `${prefix}_${randomUUID()}`,
+          portalUrl: currentPartnerPortalUrl(application),
+          now: new Date().toISOString()
+        });
+      });
       if (!result?.ok) {
         sendJson(request, response, result?.error === "Deliverable not found." ? 404 : 400, { error: result?.error || "Deliverable could not be updated." });
         return;
       }
       await writeAuditRecord(request, "partner.deliverable.update", { type: "deliverable", id: deliverableId }, before, result.deliverable);
-      sendJson(request, response, 200, { deliverable: result.deliverable });
+      sendJson(request, response, 200, { deliverable: result.deliverable, followup: result.followup, notificationDrafted: result.followupChanged });
       return;
     }
 

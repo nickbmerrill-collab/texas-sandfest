@@ -23,6 +23,7 @@ const CAMERA_SECRET = "board-demo-local-camera-secret-change-me";
 const BREVO_API_KEY = "board-demo-local-brevo-api-key-change-me";
 const BREVO_WEBHOOK_TOKEN = "board-demo-local-brevo-webhook-token-change-me";
 const BOARD_TICKET_SECRET = "board-demo-local-ticket-secret-change-me-0123456789";
+const PARTNER_PORTAL_SECRET = "board-demo-partner-portal-secret-change-me";
 const TWILIO_ACCOUNT_SID = "AC00000000000000000000000000000001";
 const TWILIO_AUTH_TOKEN = "board-demo-local-twilio-auth-token-change-me";
 const TWILIO_FROM_NUMBER = "+13615550100";
@@ -115,7 +116,8 @@ async function runtimeMarker(runtimeRoot) {
   }
 }
 
-async function prepareRuntime(runtimeRoot, { reset }, runtimeOwnerId) {
+async function prepareRuntime(runtimeRoot, options, runtimeOwnerId) {
+  const { reset } = options;
   const marker = await runtimeMarker(runtimeRoot);
   const eventId = eventContextConfig(process.env).eventId;
   if (marker?.kind === "synthetic-board-demonstration") {
@@ -144,6 +146,8 @@ async function prepareRuntime(runtimeRoot, { reset }, runtimeOwnerId) {
       eventId,
       replace: true,
       messageMode: PRESENTATION_MESSAGE_MODE,
+      publicSiteUrl: options.publicSiteUrl,
+      partnerPortalSecret: options.partnerPortalSecret,
       runtimeOwnerId
     });
     return { ...refreshed, refreshed: true, refreshReasons };
@@ -165,6 +169,8 @@ async function prepareRuntime(runtimeRoot, { reset }, runtimeOwnerId) {
     eventId,
     replace: reset,
     messageMode: PRESENTATION_MESSAGE_MODE,
+    publicSiteUrl: options.publicSiteUrl,
+    partnerPortalSecret: options.partnerPortalSecret,
     runtimeOwnerId
   });
 }
@@ -186,7 +192,7 @@ function processEnvironment(runtimeRoot, endpoints, runtimeOwnerId) {
     SANDFEST_ADMIN_RATE_LIMIT: "500",
     SANDFEST_TURNSTILE_ENABLED: "false",
     SANDFEST_BOARD_CONDITIONS_MODE: process.env.SANDFEST_BOARD_FEED_FIXTURE_BASE_URL ? "official" : "synthetic",
-    SANDFEST_PARTNER_PORTAL_SECRET: "board-demo-partner-portal-secret-change-me",
+    SANDFEST_PARTNER_PORTAL_SECRET: PARTNER_PORTAL_SECRET,
     SANDFEST_OUTREACH_PREFERENCES_SECRET: "board-demo-outreach-preferences-secret-change-me",
     SANDFEST_SPONSOR_INVITATION_SECRET: "board-demo-sponsor-invitation-secret-change-me",
     OUTREACH_DISCOVERY_ENABLED: "true",
@@ -342,7 +348,11 @@ const endpoints = Object.fromEntries(Object.entries(ports).map(([name, port]) =>
 const visitor = `${endpoints.webBase}/?apiBase=${encodeURIComponent(endpoints.apiBase)}&mode=visitor`;
 const operations = `${endpoints.webBase}/admin.html?apiBase=${encodeURIComponent(endpoints.apiBase)}`;
 const runtimeOwnerId = randomUUID();
-const runtime = await prepareRuntime(options.runtimeRoot, options, runtimeOwnerId);
+const runtime = await prepareRuntime(options.runtimeRoot, {
+  ...options,
+  publicSiteUrl: endpoints.webBase,
+  partnerPortalSecret: PARTNER_PORTAL_SECRET
+}, runtimeOwnerId);
 const environments = processEnvironment(options.runtimeRoot, endpoints, runtimeOwnerId);
 const definitions = serviceDefinitions(environments, ports);
 const preflightEnv = {
