@@ -27,6 +27,16 @@ From the repository root, `npm run test:ios-xcode` selects an available iPhone s
   - Finance
   - Setup
 
+The mode switch is intentionally available only when a validated public
+bootstrap identifies the API as `board_demo` and that API is running on a
+loopback origin. A normal, failed, or remote refresh leaves the app in Customer
+mode. The `-startMode admin` simulator argument selects the board screen only
+after that runtime check; it cannot grant access by itself.
+
+Admin currently presents bundled synthetic demonstration collections. It is
+not a production staff session. Native production Admin remains disabled until
+OIDC sign-in, role enforcement, and the authenticated app bootstrap are wired.
+
 ## Build direction
 
 The app should consume the same canonical SandFest API as the web platform. Guest mode gets the offline event guide, AI concierge, map, schedule, and alerts. Volunteer/staff mode gets check-in, captain instructions, zone status, and offline incident drafts.
@@ -70,4 +80,13 @@ For deterministic simulator acceptance, launch with an API base and a question:
 xcrun simctl launch booted com.portalcodex.texassandfest \
   -apiBase http://127.0.0.1:8806 \
   -conciergePrompt "What accessibility services are available?"
+```
+
+To open the explicitly labeled synthetic Admin demo, use the supervised local
+board API and request the mode at launch:
+
+```bash
+xcrun simctl launch booted com.portalcodex.texassandfest \
+  -apiBase http://127.0.0.1:8806 \
+  -startMode admin
 ```

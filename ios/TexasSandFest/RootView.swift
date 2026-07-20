@@ -6,7 +6,12 @@ struct RootView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            modePicker
+            if dataStore.staffAccessMode.allowsAdmin {
+                modePicker
+            }
+            if mode == .admin && dataStore.staffAccessMode == .boardDemo {
+                boardDemoBanner
+            }
 
             Group {
                 switch mode {
@@ -20,6 +25,10 @@ struct RootView: View {
         .background(Color.sandFestFoam.ignoresSafeArea())
         .task {
             await dataStore.refreshPublicData()
+            applyStaffAccess(dataStore.staffAccessMode)
+        }
+        .onChange(of: dataStore.staffAccessMode) { _, accessMode in
+            applyStaffAccess(accessMode)
         }
     }
 
@@ -33,6 +42,41 @@ struct RootView: View {
         .padding(.horizontal)
         .padding(.vertical, 10)
         .background(.bar)
+    }
+
+    private var boardDemoBanner: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "testtube.2")
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Synthetic board demo")
+                    .font(.caption.weight(.bold))
+                Text("No external messages, charges, or live-provider calls")
+                    .font(.caption2)
+            }
+            Spacer()
+        }
+        .foregroundStyle(Color.sandFestDeep)
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(Color.sandFestSun.opacity(0.32))
+    }
+
+    private func applyStaffAccess(_ accessMode: StaffAccessMode) {
+        guard accessMode.allowsAdmin else {
+            mode = .customer
+            return
+        }
+        if requestedAdminDemo {
+            mode = .admin
+        }
+    }
+
+    private var requestedAdminDemo: Bool {
+        let arguments = CommandLine.arguments
+        guard let index = arguments.firstIndex(of: "-startMode"), index + 1 < arguments.count else {
+            return false
+        }
+        return arguments[index + 1].lowercased() == "admin"
     }
 }
 

@@ -27,6 +27,13 @@ The shared bootstrap payload also includes `alert`, an inactive-by-default emerg
 
 The native cache contains only that public projection. It is bound to the exact API origin and bundled event ID, so a local board response, stale annual event, or response from another environment cannot be reopened as production data. The response must contain non-empty, uniquely identified schedule and zone collections; an active alert must include the public audience. An explicitly labeled `board_demo` response may retain the richer synthetic schedule overlay, while production responses replace the public schedule with the governed API collection.
 
+The native Customer/Admin switch is not an authentication mechanism. It is
+shown only for a validated `board_demo` response delivered from a loopback API,
+and the Admin screen carries a persistent synthetic-data banner. Normal,
+failed, and remote refreshes force Customer mode even when the process receives
+`-startMode admin`. Production native staff access remains unavailable until an
+OIDC session and role-governed app bootstrap replace the bundled demo data.
+
 ## Payload Areas
 
 `data/processed/app-bootstrap.json` is an internal normalization document. It is not a public API or deployable artifact.
