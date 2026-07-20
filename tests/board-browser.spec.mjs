@@ -1937,6 +1937,29 @@ test("critical public and operations views fit a mobile viewport", async ({ page
     expect(targetBox?.width).toBeGreaterThanOrEqual(24);
     expect(targetBox?.height).toBeGreaterThanOrEqual(24);
   }
+  expect(await page.locator("#lb-canvas").evaluate(canvas => {
+    const canvasBox = canvas.getBoundingClientRect();
+    return [...canvas.querySelectorAll(".lb-pin")].filter(pin => {
+      const pinBox = pin.getBoundingClientRect();
+      return pinBox.left < canvasBox.left - 1
+        || pinBox.right > canvasBox.right + 1
+        || pinBox.top < canvasBox.top - 1
+        || pinBox.bottom > canvasBox.bottom + 1;
+    }).map(pin => pin.getAttribute("data-pin-id"));
+  })).toEqual([]);
+  for (const pinId of ["1", "16"]) {
+    const edgePin = page.locator(`.lb-pin[data-pin-id="${pinId}"]`);
+    await edgePin.click();
+    await expect(edgePin).toHaveClass(/is-flashing/);
+    expect(await page.locator("#lb-pop").evaluate(popover => {
+      const canvasBox = document.querySelector("#lb-canvas").getBoundingClientRect();
+      const popoverBox = popover.getBoundingClientRect();
+      return popoverBox.left >= canvasBox.left - 1
+        && popoverBox.right <= canvasBox.right + 1
+        && popoverBox.top >= canvasBox.top - 1
+        && popoverBox.bottom <= canvasBox.bottom + 1;
+    })).toBe(true);
+  }
   expect(await page.locator(".corridor-map").evaluate(map => {
     const targets = [...map.querySelectorAll(".corridor-pin-amenity .corridor-pin-label, .corridor-axis")].map(node => ({
       label: node.textContent?.trim() || "axis",
