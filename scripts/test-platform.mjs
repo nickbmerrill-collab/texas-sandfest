@@ -1196,15 +1196,33 @@ console.log("\n=== Pure library suite ===\n");
   });
   let missingPublicKeyRejected = false;
   let testPublicKeyRejected = false;
+  let missingApplePrefixRejected = false;
+  let malformedApplePrefixRejected = false;
   try {
     validatePublicBuildEnvironment({ SANDFEST_DEPLOYMENT_ENV: "production" }, "public");
   } catch { missingPublicKeyRejected = true; }
   try {
     validatePublicBuildEnvironment({ SANDFEST_DEPLOYMENT_ENV: "production", VITE_SANDFEST_TURNSTILE_SITE_KEY: "1x00000000000000000000AA" }, "public");
   } catch { testPublicKeyRejected = true; }
+  try {
+    validatePublicBuildEnvironment({
+      SANDFEST_DEPLOYMENT_ENV: "production",
+      SANDFEST_BUILD_VERIFICATION: "true",
+      VITE_SANDFEST_TURNSTILE_SITE_KEY: "1x00000000000000000000AA"
+    }, "public");
+  } catch { missingApplePrefixRejected = true; }
+  try {
+    validatePublicBuildEnvironment({
+      SANDFEST_DEPLOYMENT_ENV: "production",
+      SANDFEST_BUILD_VERIFICATION: "true",
+      SANDFEST_APPLE_APP_ID_PREFIX: "not-a-prefix",
+      VITE_SANDFEST_TURNSTILE_SITE_KEY: "1x00000000000000000000AA"
+    }, "public");
+  } catch { malformedApplePrefixRejected = true; }
   validatePublicBuildEnvironment({
     SANDFEST_DEPLOYMENT_ENV: "production",
     SANDFEST_BUILD_VERIFICATION: "true",
+    SANDFEST_APPLE_APP_ID_PREFIX: "ABCDE12345",
     VITE_SANDFEST_TURNSTILE_SITE_KEY: "1x00000000000000000000AA"
   }, "public");
 
@@ -1214,6 +1232,7 @@ console.log("\n=== Pure library suite ===\n");
   ok("Turnstile rejects wrong-action and expired challenges", !wrongAction.ok && wrongAction.errorCodes.includes("action-mismatch") && !failedChallenge.ok && failedChallenge.errorCodes.includes("timeout-or-duplicate"));
   ok("Turnstile fails closed when Siteverify is unavailable", !unavailable.ok && unavailable.unavailable === true);
   ok("production public build requires a real Turnstile site key", missingPublicKeyRejected && testPublicKeyRejected);
+  ok("production public build requires the signed Apple application identifier prefix", missingApplePrefixRejected && malformedApplePrefixRejected);
 }
 
 // Public sculptor roster publication authority

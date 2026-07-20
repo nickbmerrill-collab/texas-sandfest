@@ -906,6 +906,11 @@ h3 {
   padding: 4px 0 4px 12px;
 }
 
+.schedule-list article.target {
+  border-left-color: var(--coral);
+  scroll-margin-top: 170px;
+}
+
 time {
   color: var(--coral);
   font-size: 12px;

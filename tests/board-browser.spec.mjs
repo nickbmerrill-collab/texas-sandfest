@@ -2204,6 +2204,43 @@ test("visitor view switch opens the dedicated operations portal", async ({ page 
   await assertNoHorizontalOverflow(page);
 });
 
+test("canonical iOS links retain safe visitor web fallbacks", async ({ page }) => {
+  let conciergeRequests = 0;
+  page.on("request", request => {
+    if (new URL(request.url()).pathname === "/api/public/concierge") conciergeRequests += 1;
+  });
+
+  const ticketsUrl = new URL("/tickets", webBase);
+  ticketsUrl.searchParams.set("apiBase", apiBase);
+  await page.goto(ticketsUrl.toString());
+  await expect(page).toHaveURL(/\/tickets\?[^#]+#tickets$/);
+  await expect(page.locator("#tickets")).toBeInViewport({ ratio: 0.1 });
+
+  const sandyUrl = new URL("/sandy", webBase);
+  sandyUrl.searchParams.set("apiBase", apiBase);
+  sandyUrl.searchParams.set("question", "Where is ADA parking?");
+  await page.goto(sandyUrl.toString());
+  await expect(page).toHaveURL(/\/sandy\?[^#]+#concierge$/);
+  await expect(page.locator("#ask-input")).toHaveValue("Where is ADA parking?");
+  await expect(page.locator("#chat .concierge-answer")).toHaveCount(0);
+  expect(conciergeRequests).toBe(0);
+
+  const sculptorsUrl = new URL("/sculptors", webBase);
+  sculptorsUrl.searchParams.set("apiBase", apiBase);
+  await page.goto(sculptorsUrl.toString());
+  await expect(page).toHaveURL(/\/sculptors\?[^#]+#sculptors-showcase$/);
+  await expect(page.locator("#sculptors-showcase")).toBeInViewport({ ratio: 0.1 });
+
+  const scheduleUrl = new URL("/schedule/fri-gates", webBase);
+  scheduleUrl.searchParams.set("apiBase", apiBase);
+  await page.goto(scheduleUrl.toString());
+  await expect(page).toHaveURL(/\/schedule\/fri-gates\?[^#]+#schedule-fri-gates$/);
+  const scheduleItem = page.locator("#schedule-fri-gates");
+  await expect(scheduleItem).toBeInViewport({ ratio: 0.5 });
+  await expect(scheduleItem).toHaveCSS("border-left-color", "rgb(180, 67, 53)");
+  await assertNoHorizontalOverflow(page);
+});
+
 test("critical public and operations views fit a mobile viewport", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 740 });
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor`);

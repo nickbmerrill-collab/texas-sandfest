@@ -7,6 +7,7 @@ import {
   serviceWorkerCacheVersion,
   verifyLiveDeployment
 } from "../lib/deployment-verifier.mjs";
+import { sandfestAppleAppSiteAssociation } from "../lib/public-deep-links.mjs";
 
 let passed = 0;
 let failed = 0;
@@ -23,6 +24,8 @@ function check(label, condition) {
 const publicHtml = '<title>Texas SandFest | Port Aransas</title><script src="/assets/main-current.js"></script><link href="/assets/main-current.css" rel="stylesheet">';
 const adminHtml = '<title>SandFest Ops Console</title><script src="/assets/admin-current.js"></script><link href="/assets/admin-current.css" rel="stylesheet">';
 const publicWorker = 'const CACHE_VERSION = "sandfest-public-current";';
+const publicAppleAssociation = sandfestAppleAppSiteAssociation("ABCDE12345");
+const artifacts = { publicHtml, adminHtml, publicWorker, publicAppleAssociation };
 const securityHeaders = {
   "strict-transport-security": "max-age=31536000; includeSubDomains",
   "x-content-type-options": "nosniff",
@@ -35,7 +38,8 @@ const config = deploymentVerificationConfig({
   SANDFEST_LIVE_PUBLIC_URL: "https://public.example.test/festival",
   SANDFEST_LIVE_API_URL: "https://api.example.test/sandfest",
   SANDFEST_LIVE_ADMIN_URL: "https://admin.example.test",
-  SANDFEST_LIVE_EXPECTED_EVENT_ID: "texas-sandfest-2027"
+  SANDFEST_LIVE_EXPECTED_EVENT_ID: "texas-sandfest-2027",
+  SANDFEST_APPLE_APP_ID_PREFIX: "ABCDE12345"
 });
 
 function jsonResponse(value, extraHeaders = {}) {
@@ -100,6 +104,7 @@ const routes = new Map([
   [new URL("sw.js", config.publicUrl).toString(), () => textResponse(publicWorker)],
   [new URL("data/app-bootstrap.json", config.publicUrl).toString(), () => jsonResponse({ guide: { id: "texas-sandfest-2027" } })],
   [new URL("assets/sandfest-media/media-manifest.json", config.publicUrl).toString(), () => jsonResponse({ assets: [] })],
+  [new URL("/.well-known/apple-app-site-association", config.publicUrl).toString(), () => jsonResponse(publicAppleAssociation)],
   [config.adminUrl, () => textResponse(adminHtml)],
   [new URL("health", config.apiUrl).toString(), () => jsonResponse(healthBody)],
   [new URL("ready", config.apiUrl).toString(), () => jsonResponse(readyBody)],
@@ -124,7 +129,7 @@ const fetchImpl = async (url, options = {}) => {
 };
 
 console.log("\n=== Deployment verifier tests ===\n");
-const successful = await verifyLiveDeployment({ config, artifacts: { publicHtml, adminHtml, publicWorker }, fetchImpl });
+const successful = await verifyLiveDeployment({ config, artifacts, fetchImpl });
 check("complete production surface passes", successful.ok && successful.summary.failed === 0);
 
 const unsafeSponsorFetch = async (url, options = {}) => {
@@ -133,7 +138,7 @@ const unsafeSponsorFetch = async (url, options = {}) => {
   }
   return fetchImpl(url, options);
 };
-const unsafeSponsors = await verifyLiveDeployment({ config, artifacts: { publicHtml, adminHtml, publicWorker }, fetchImpl: unsafeSponsorFetch });
+const unsafeSponsors = await verifyLiveDeployment({ config, artifacts, fetchImpl: unsafeSponsorFetch });
 check("malformed or provider-exposing sponsor tiers fail closed", !unsafeSponsors.ok
   && unsafeSponsors.checks.some(item => item.id === "api.sponsor_tiers" && !item.ok)
   && unsafeSponsors.checks.some(item => item.id === "api.sponsor_tier_privacy" && !item.ok));
@@ -151,7 +156,7 @@ const unsafeBootstrapFetch = async (url, options = {}) => {
   }
   return fetchImpl(url, options);
 };
-const unsafeBootstrap = await verifyLiveDeployment({ config, artifacts: { publicHtml, adminHtml, publicWorker }, fetchImpl: unsafeBootstrapFetch });
+const unsafeBootstrap = await verifyLiveDeployment({ config, artifacts, fetchImpl: unsafeBootstrapFetch });
 check("private static and API bootstrap fields fail closed", !unsafeBootstrap.ok
   && unsafeBootstrap.checks.some(item => item.id === "public.static_bootstrap_privacy" && !item.ok)
   && unsafeBootstrap.checks.some(item => item.id === "api.public_bootstrap_privacy" && !item.ok));
@@ -162,7 +167,7 @@ const unsafeMediaFetch = async (url, options = {}) => {
   }
   return fetchImpl(url, options);
 };
-const unsafeMedia = await verifyLiveDeployment({ config, artifacts: { publicHtml, adminHtml, publicWorker }, fetchImpl: unsafeMediaFetch });
+const unsafeMedia = await verifyLiveDeployment({ config, artifacts, fetchImpl: unsafeMediaFetch });
 check("public media manifest filesystem paths fail closed", !unsafeMedia.ok
   && unsafeMedia.checks.some(item => item.id === "public.media_manifest_privacy" && !item.ok));
 
@@ -180,7 +185,7 @@ const unsafeConciergeFetch = async (url, options = {}) => {
   }
   return fetchImpl(url, options);
 };
-const unsafeConcierge = await verifyLiveDeployment({ config, artifacts: { publicHtml, adminHtml, publicWorker }, fetchImpl: unsafeConciergeFetch });
+const unsafeConcierge = await verifyLiveDeployment({ config, artifacts, fetchImpl: unsafeConciergeFetch });
 check("public concierge private fields fail closed", !unsafeConcierge.ok
   && unsafeConcierge.checks.some(item => item.id === "api.public_concierge" && !item.ok));
 
@@ -202,7 +207,7 @@ const staleConditionsFetch = async (url, options = {}) => {
 };
 const staleConditions = await verifyLiveDeployment({
   config,
-  artifacts: { publicHtml, adminHtml, publicWorker },
+  artifacts,
   fetchImpl: staleConditionsFetch
 });
 check("stale Island Conditions and placeholder cameras fail closed", !staleConditions.ok
@@ -212,7 +217,7 @@ check("stale Island Conditions and placeholder cameras fail closed", !staleCondi
 
 const stale = await verifyLiveDeployment({
   config,
-  artifacts: { publicHtml: publicHtml.replaceAll("current", "next"), adminHtml, publicWorker: publicWorker.replace("current", "next") },
+  artifacts: { ...artifacts, publicHtml: publicHtml.replaceAll("current", "next"), publicWorker: publicWorker.replace("current", "next") },
   fetchImpl
 });
 check("stale public artifact fails closed", !stale.ok && stale.checks.some(item => item.id === "public.artifact_freshness" && !item.ok) && stale.checks.some(item => item.id === "public.worker_freshness" && !item.ok));
@@ -222,6 +227,8 @@ check("missing edge security headers fail closed", securityHeaderFailures(insecu
 
 const invalid = deploymentVerificationConfig({ SANDFEST_LIVE_PUBLIC_URL: "http://public.example.test" });
 check("non-HTTPS target is rejected", !invalid.ready && invalid.reason.includes("HTTPS"));
+const missingAppleIdentity = deploymentVerificationConfig({ SANDFEST_LIVE_PUBLIC_URL: "https://public.example.test" });
+check("missing Apple application identity is rejected", !missingAppleIdentity.ready && missingAppleIdentity.reason.includes("SANDFEST_APPLE_APP_ID_PREFIX"));
 check("artifact helpers preserve exact build identity", compiledAssetNames(publicHtml).includes("main-current.js") && serviceWorkerCacheVersion(publicWorker) === "sandfest-public-current");
 
 console.log(`\nDeployment verifier total: ${passed} passed, ${failed} failed\n`);

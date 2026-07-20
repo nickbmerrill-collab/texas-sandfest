@@ -11,12 +11,15 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-const [html, manifestText, worker] = await Promise.all([
+const [html, fallbackHtml, manifestText, worker, appleAssociationText] = await Promise.all([
   readFile(path.join(outDir, "index.html"), "utf8"),
+  readFile(path.join(outDir, "404.html"), "utf8"),
   readFile(path.join(outDir, "manifest.webmanifest"), "utf8"),
-  readFile(path.join(outDir, "sw.js"), "utf8")
+  readFile(path.join(outDir, "sw.js"), "utf8"),
+  readFile(path.join(outDir, ".well-known", "apple-app-site-association"), "utf8")
 ]);
 const manifest = JSON.parse(manifestText);
+const appleAssociation = JSON.parse(appleAssociationText);
 const publishedMediaEntries = await readdir(path.join(outDir, "assets", "sandfest-media"), { withFileTypes: true });
 const localReferences = [...html.matchAll(/(?:href|src|content)="(\/[^"\s]+)"/g)].map(match => match[1]);
 
@@ -25,6 +28,9 @@ assert(localReferences.every(value => value.startsWith(normalizedBase)), `Pages 
 assert(html.includes(`src="${normalizedBase}assets/main-`), "Pages artifact JavaScript does not use the repository base path.");
 assert(html.includes(`href="${normalizedBase}assets/main-`), "Pages artifact stylesheet does not use the repository base path.");
 assert(html.includes(`href="${normalizedBase}manifest.webmanifest"`), "Pages artifact manifest does not use the repository base path.");
+assert(fallbackHtml === html, "Pages canonical-path fallback must boot the exact visitor artifact.");
+assert(appleAssociation.applinks?.details?.[0]?.appIDs?.[0] === "ABCDE12345.com.portalcodex.texassandfest", "Pages AASA artifact does not identify the verified iOS bundle.");
+assert(appleAssociation.applinks?.details?.[0]?.components?.some(component => component["/"] === "/schedule/*"), "Pages AASA artifact is missing exact schedule routes.");
 assert(manifest.start_url === "./" && manifest.scope === "./", "Pages manifest must remain relative to its deployment directory.");
 assert(manifest.icons?.every(icon => !String(icon.src).startsWith("/")), "Pages manifest contains a root-relative icon.");
 assert(

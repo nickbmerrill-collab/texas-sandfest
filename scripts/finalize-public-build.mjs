@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
-import { readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { sandfestAppleAppSiteAssociation } from "../lib/public-deep-links.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const outDir = path.resolve(root, process.env.SANDFEST_BUILD_OUT_DIR || "dist-public");
@@ -53,9 +54,19 @@ const worker = workerTemplate
   .replace("__BUILD_ID__", buildId)
   .replace("/* __BUILD_ASSETS__ */ []", assetManifest)
   .replace("/* __MEDIA_ASSETS__ */ []", mediaAssetManifest);
+const appleApplicationIdentifierPrefix = String(process.env.SANDFEST_APPLE_APP_ID_PREFIX || "").trim();
 
 await writeFile(workerPath, worker);
+await writeFile(path.join(outDir, "404.html"), entryHtml);
+if (appleApplicationIdentifierPrefix) {
+  const associationDirectory = path.join(outDir, ".well-known");
+  await mkdir(associationDirectory, { recursive: true });
+  await writeFile(
+    path.join(associationDirectory, "apple-app-site-association"),
+    `${JSON.stringify(sandfestAppleAppSiteAssociation(appleApplicationIdentifierPrefix), null, 2)}\n`
+  );
+}
 await Promise.all(originalMediaDirectories.map(directory =>
   rm(path.join(outDir, "assets", "sandfest-media", directory), { recursive: true, force: true })
 ));
-console.log(`Finalized public offline shell ${buildId} with ${buildAssets.length} compiled assets and ${mediaAssets.length} optimized media files.`);
+console.log(`Finalized public offline shell ${buildId} with ${buildAssets.length} compiled assets, ${mediaAssets.length} optimized media files, and ${appleApplicationIdentifierPrefix ? "a production AASA contract" : "no unsigned AASA artifact"}.`);

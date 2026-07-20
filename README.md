@@ -113,11 +113,13 @@ durable workflows, and drops that database without changing demo data. Set
 `SANDFEST_POSTGRES_TEST_ADMIN_URL` when the admin database is not available at
 `postgresql:///postgres?sslmode=disable`.
 
-After both production artifacts are built, `npm run deployment:verify` checks
-the canonical public, API, and admin hostnames against those exact artifacts.
+After both production artifacts are built, run `npm run deployment:verify` with
+the real `SANDFEST_APPLE_APP_ID_PREFIX`. It checks the canonical public, API,
+and admin hostnames against those exact artifacts.
 It fails closed on stale bundles, unresolved or non-HTTPS targets, missing edge
 headers, a non-production API, red capability gates, CORS drift, unavailable
-ticket/vendor/sponsor contracts, or an incomplete Island Conditions fleet.
+ticket/vendor/sponsor contracts, an invalid or redirected iOS site-association
+file, or an incomplete Island Conditions fleet.
 Override `SANDFEST_LIVE_PUBLIC_URL` only when validating the temporary Pages
 hostname before canonical DNS is ready.
 
@@ -229,6 +231,21 @@ npm run test:ios-xcode
 The Xcode gate selects an available iPhone simulator, runs the native XCTest target, and compiles an optimized simulator build with Swift warnings treated as errors. It uses `/Applications/Xcode.app/Contents/Developer` when the shell's global developer selector still points at standalone Command Line Tools. The committed project can be regenerated with `cd ios && xcodegen generate` when XcodeGen is installed.
 
 The initial native SwiftUI scaffold lives under `ios/TexasSandFest/`. It now has a Customer/Admin mode switch. Customer mode covers Today, Schedule, Beach, Sculptors, Ask Sandy, and Tickets. Admin mode covers Command, Incidents, Partners, Finance, and Setup.
+
+Public web and iOS navigation share one allowlisted deep-link contract for
+Today, Tickets, Schedule, Island Conditions, Sculptors, and Sandy. Canonical
+`https://sandfest.heyelab.com` paths retain useful browser fallbacks, including
+an exact public schedule target and a safe, unsubmitted Sandy question. The iOS
+target commits the Associated Domains entitlement, and production public builds
+generate `/.well-known/apple-app-site-association` only when
+`SANDFEST_APPLE_APP_ID_PREFIX` is a valid 10-character Apple Application
+Identifier Prefix. The live deployment verifier requires the exact app identity,
+allowlisted routes, JSON content type, HTTPS origin, and no redirect.
+
+Simulator builds and tests do not require an Apple signing identity. TestFlight
+and device acceptance still require the current Apple Developer Program License
+Agreement to be accepted, a valid distribution certificate/profile, the real
+Application Identifier Prefix, and a signed app installed from Apple tooling.
 
 The **Sculptors** tab (`SculptorsView.swift`) mirrors the web build: an artist roster with division filters and detail sheets, a compact corridor map with tappable pins, and the **Sculpture Passport** — collect a stamp per sculpture (tap, or scan the on-beach QR via the existing `QRScannerView`), tracked per-user in `PassportStore` (UserDefaults, mirrors `FavoritesStore`). New Swift files are picked up by `xcodegen generate`; the file is also wired into the committed `project.pbxproj` so it builds without regenerating.
 

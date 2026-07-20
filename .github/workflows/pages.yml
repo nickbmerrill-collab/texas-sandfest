@@ -20,18 +20,19 @@ jobs:
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_branch == 'main' &&
-      vars.SANDFEST_TURNSTILE_SITE_KEY == ''
+      (vars.SANDFEST_TURNSTILE_SITE_KEY == '' || vars.SANDFEST_APPLE_APP_ID_PREFIX == '')
     runs-on: ubuntu-latest
     steps:
       - name: Record deferred production release
-        run: echo "::notice::Public release is deferred until the post-board production Turnstile site key is configured. No artifact was built or deployed."
+        run: echo "::notice::Public release is deferred until the post-board production Turnstile site key and Apple application identifier prefix are configured. No artifact was built or deployed."
 
   build:
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_branch == 'main' &&
-      vars.SANDFEST_TURNSTILE_SITE_KEY != ''
+      vars.SANDFEST_TURNSTILE_SITE_KEY != '' &&
+      vars.SANDFEST_APPLE_APP_ID_PREFIX != ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -46,11 +47,16 @@ jobs:
         env:
           VITE_SANDFEST_TURNSTILE_SITE_KEY: ${{ vars.SANDFEST_TURNSTILE_SITE_KEY }}
         run: test -n "$VITE_SANDFEST_TURNSTILE_SITE_KEY" || (echo "::error::Set repository variable SANDFEST_TURNSTILE_SITE_KEY to the production Cloudflare widget site key." && exit 1)
+      - name: Require Apple application identifier prefix
+        env:
+          SANDFEST_APPLE_APP_ID_PREFIX: ${{ vars.SANDFEST_APPLE_APP_ID_PREFIX }}
+        run: test -n "$SANDFEST_APPLE_APP_ID_PREFIX" || (echo "::error::Set repository variable SANDFEST_APPLE_APP_ID_PREFIX to the signed app's 10-character application identifier prefix." && exit 1)
       - name: Build visitor-only static site
         env:
           # Pages publishes at https://<owner>.github.io/<repo>/
           DEPLOY_BASE: /${{ github.event.repository.name }}/
           SANDFEST_DEPLOYMENT_ENV: production
+          SANDFEST_APPLE_APP_ID_PREFIX: ${{ vars.SANDFEST_APPLE_APP_ID_PREFIX }}
           # Public identifier from the production Turnstile widget. The Vite
           # build rejects missing and Cloudflare test keys.
           VITE_SANDFEST_TURNSTILE_SITE_KEY: ${{ vars.SANDFEST_TURNSTILE_SITE_KEY }}

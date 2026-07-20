@@ -36,6 +36,8 @@ targets:
       path: TexasSandFest/TexasSandFest.entitlements
       properties:
         aps-environment: development
+        com.apple.developer.associated-domains:
+          - applinks:sandfest.heyelab.com
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.portalcodex.texassandfest
       ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

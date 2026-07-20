@@ -22,6 +22,7 @@ try {
   artifacts = {
     publicHtml: await readFile(path.join(publicDir, "index.html"), "utf8"),
     publicWorker: await readFile(path.join(publicDir, "sw.js"), "utf8"),
+    publicAppleAssociation: JSON.parse(await readFile(path.join(publicDir, ".well-known", "apple-app-site-association"), "utf8")),
     adminHtml: await readFile(path.join(adminDir, "index.html"), "utf8")
   };
 } catch (error) {

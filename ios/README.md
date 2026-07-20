@@ -54,10 +54,24 @@ sandfest://island-conditions
 sandfest://sculptors
 ```
 
-The same parser accepts canonical `https://sandfest.heyelab.com` paths in
-preparation for Universal Links. Shipping those HTTPS links still requires the
-signed app's Associated Domains capability and a matching site association
-file; the custom scheme works independently.
+The same parser accepts canonical `https://sandfest.heyelab.com` paths as
+Universal Links. The target commits the `applinks:sandfest.heyelab.com`
+Associated Domains entitlement, and the production web build generates the
+matching extensionless `/.well-known/apple-app-site-association` file from the
+shared allowlist. The live verifier rejects redirects, a non-JSON response, a
+different app identity, extra routes, or an artifact that differs from the
+deployed response. Canonical paths also retain browser fallbacks when the app is
+not installed; Sandy questions are only prefilled and exact schedule links fall
+back to the public schedule when their item is unavailable.
+
+Set `SANDFEST_APPLE_APP_ID_PREFIX` to the signed app's 10-character Apple
+Application Identifier Prefix before a production public build. This value can
+differ from the Team ID and must be read from the Apple developer account for
+the registered app. Device and TestFlight acceptance additionally require the
+current Apple Developer Program License Agreement, a valid distribution
+certificate and profile, the AASA file live over HTTPS without a redirect, and
+a signed installed build. The custom `sandfest:` scheme works independently for
+local and simulator acceptance.
 
 ## Build direction
 

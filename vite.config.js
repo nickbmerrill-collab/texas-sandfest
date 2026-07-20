@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from "vite";
 import { resolve } from "node:path";
+import { normalizeAppleApplicationIdentifierPrefix } from "./lib/public-deep-links.mjs";
 
 // On GitHub Pages we live at /<repo>/; custom domains use root-relative paths.
 // we live at the root. The DEPLOY_BASE env var lets the workflow pin this.
@@ -79,6 +80,7 @@ export function validatePublicBuildEnvironment(env, target = buildTarget) {
   if (TURNSTILE_TEST_SITE_KEYS.has(siteKey) && env.SANDFEST_BUILD_VERIFICATION !== "true") {
     throw new Error("Production public builds reject Cloudflare Turnstile test site keys.");
   }
+  normalizeAppleApplicationIdentifierPrefix(env.SANDFEST_APPLE_APP_ID_PREFIX);
 }
 
 function publicProductionSecurityPlugin(env, target = buildTarget) {

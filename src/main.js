@@ -30,6 +30,7 @@ import {
 import { publicIslandConditionsRefreshDelay } from "../lib/island-conditions.mjs";
 import { DEFAULT_EVENT_ID } from "../lib/event-context.mjs";
 import { publicSculptorRosterPublication } from "../lib/public-roster.mjs";
+import { canonicalPublicWebRoute } from "../lib/public-deep-links.mjs";
 import {
   PUBLIC_FIELD_MEDIA,
   PUBLIC_GALLERY_MEDIA,
@@ -96,6 +97,12 @@ const ADMIN_AUTH_MODE = ADMIN_ENTRY
   : "token";
 const CONFIGURED_ADMIN_API_BASE = String(import.meta.env.VITE_SANDFEST_API_BASE_URL || "").replace(/\/+$/, "");
 const TURNSTILE_SITE_KEY = ADMIN_ENTRY ? "" : String(import.meta.env.VITE_SANDFEST_TURNSTILE_SITE_KEY || "").trim();
+const canonicalPublicRoute = ADMIN_ENTRY
+  ? null
+  : canonicalPublicWebRoute(window.location.pathname, { basePath: siteBase, search: window.location.search });
+if (canonicalPublicRoute && !window.location.hash) {
+  window.history.replaceState(null, "", canonicalPublicRoute.hash);
+}
 let adminAuthClient = null;
 let adminAuthInitializationError = null;
 let partnerBotProtection = { enabled: false, tokenFor: () => "", reset: () => {} };
@@ -298,11 +305,15 @@ const quickStats = [
   ["1", "island celebration"]
 ];
 
-const schedule = (appBootstrap?.schedule ?? [
-  { day: "Friday", time: "9:00 AM", title: "Beach gates open", zone: "Entry + ticket exchange", category: "Visitor" },
-  { day: "Friday", time: "10:00 AM", title: "Master sculptor showcase begins", zone: "Competition corridor", category: "Competition" },
-  { day: "Friday", time: "2:00 PM", title: "Youth build activation", zone: "Family sand lab", category: "Family" }
-]).map(item => ({ ...item, type: item.category ?? item.type }));
+const schedule = appBootstrap?.schedule ?? [];
+
+const scheduleCards = linked => schedule.length ? schedule.map(item => `
+  <article${linked ? ` id="schedule-${escapeAttr(item.id)}"` : ""}>
+    <time>${escapeHtml(item.day)} ${escapeHtml(item.time)}</time>
+    <strong>${escapeHtml(item.title)}</strong>
+    <span>${escapeHtml(item.zone)}</span>
+  </article>
+`).join("") : "<article><strong>Schedule unavailable</strong></article>";
 
 const zones = [
   { name: "North Gate", detail: "Ticket scan, ADA routing, wristband support", load: 82 },
@@ -579,10 +590,10 @@ app.innerHTML = `
         <a href="#live-beach">Live Beach</a>
         <a href="#concierge">Concierge</a>
         <a href="#tickets">Tickets</a>
+        <a href="#schedule">Schedule</a>
         <a href="#sculptors-showcase">Sculptors</a>
         <a href="#vendors-map">Vendors</a>
         <a href="#island-conditions">Island</a>
-        <a href="#media">Media</a>
         <a href="#sponsors">Sponsors</a>
         <a href="#partner-status">Status</a>
         <a href="#port-a">Port A</a>
@@ -1877,6 +1888,13 @@ app.innerHTML = `
       </div>
     </section>
 
+    <section class="section" id="schedule">
+      <h2>Schedule</h2>
+      <div class="schedule-list surface-grid">
+        ${scheduleCards(true)}
+      </div>
+    </section>
+
     <section class="split" id="concierge">
       <div>
         <p class="eyebrow">Visitor concierge</p>
@@ -1936,14 +1954,7 @@ app.innerHTML = `
         <div class="schedule-panel">
           <h3>Run of show</h3>
           <div class="schedule-list">
-            ${schedule.map(item => `
-              <article>
-                <time>${item.day} ${item.time}</time>
-                <strong>${item.title}</strong>
-                <span>${item.zone}</span>
-                <em>${item.type}</em>
-              </article>
-            `).join("")}
+            ${scheduleCards(false)}
           </div>
         </div>
       </div>
@@ -10428,6 +10439,16 @@ if (ADMIN_ENTRY) {
   document.querySelector("#public-alert")?.remove();
 } else if (!OPS_DEMO_ENABLED) {
   document.querySelectorAll('main > section[data-audience="ops"]').forEach(section => section.remove());
+}
+
+if (canonicalPublicRoute?.question) {
+  const askInput = document.querySelector("#ask-input");
+  if (askInput) askInput.value = canonicalPublicRoute.question;
+}
+if (canonicalPublicRoute?.scheduleItemID) {
+  const scheduleTarget = document.getElementById(`schedule-${canonicalPublicRoute.scheduleItemID}`);
+  if (scheduleTarget) scheduleTarget.classList.add("target");
+  else window.history.replaceState(null, "", "#schedule");
 }
 
 function scrollToRenderedHashTarget(options = {}) {
