@@ -73,7 +73,9 @@ Admin mode is staff-only and should eventually require role-based login.
 - Shared API client package.
 - Local cache using SwiftData or SQLite.
 - Push notifications via APNs.
-- Deep links for `sandfest://schedule/:id`, `sandfest://zone/:id`, `sandfest://ticket`, and `sandfest://incident/:id`.
+- Public deep links for Today, exact schedule items, beach conditions,
+  sculptors, Sandy, and tickets. Zone-specific and incident links remain
+  disabled until their target data and native staff authorization are real.
 - Background sync for content and unresolved incidents.
 - TestFlight distribution for stakeholder review.
 

@@ -3,6 +3,14 @@ import SwiftUI
 struct RootView: View {
     @EnvironmentObject private var dataStore: AppDataStore
     @State private var mode: AppMode = .customer
+    @State private var customerRoute: CustomerRoute?
+    @State private var publicRouteRequested: Bool
+
+    init() {
+        let route = CustomerRoute.launchRoute()
+        _customerRoute = State(initialValue: route)
+        _publicRouteRequested = State(initialValue: route != nil)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -16,7 +24,7 @@ struct RootView: View {
             Group {
                 switch mode {
                 case .customer:
-                    CustomerRootView()
+                    CustomerRootView(route: $customerRoute)
                 case .admin:
                     AdminRootView()
                 }
@@ -29,6 +37,11 @@ struct RootView: View {
         }
         .onChange(of: dataStore.staffAccessMode) { _, accessMode in
             applyStaffAccess(accessMode)
+        }
+        .onOpenURL(perform: openPublicRoute)
+        .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+            guard let url = activity.webpageURL else { return }
+            openPublicRoute(url)
         }
     }
 
@@ -62,6 +75,10 @@ struct RootView: View {
     }
 
     private func applyStaffAccess(_ accessMode: StaffAccessMode) {
+        if publicRouteRequested {
+            mode = .customer
+            return
+        }
         guard accessMode.allowsAdmin else {
             mode = .customer
             return
@@ -78,9 +95,17 @@ struct RootView: View {
         }
         return arguments[index + 1].lowercased() == "admin"
     }
+
+    private func openPublicRoute(_ url: URL) {
+        guard let route = CustomerRoute(url: url) else { return }
+        publicRouteRequested = true
+        customerRoute = route
+        mode = .customer
+    }
 }
 
 struct CustomerRootView: View {
+    @Binding var route: CustomerRoute?
     @State private var selectedTab: CustomerTab = {
         // Default to the Beach tab if launched with -startTab beach (handy for demos / screenshots).
         if CommandLine.arguments.contains("-conciergePrompt") {
@@ -108,6 +133,10 @@ struct CustomerRootView: View {
         }
         return ConciergeRequest(question: arguments[index + 1], submitImmediately: true)
     }()
+    @State private var scheduleTargetItemID: String?
+    @State private var beachSection: BeachSection = CommandLine.arguments.contains("sculptors")
+        ? .sculptors
+        : .live
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -126,11 +155,11 @@ struct CustomerRootView: View {
                 .tabItem { Label("Today", systemImage: "sun.max") }
                 .tag(CustomerTab.today)
 
-            ScheduleView()
+            ScheduleView(targetItemID: $scheduleTargetItemID)
                 .tabItem { Label("Schedule", systemImage: "calendar") }
                 .tag(CustomerTab.schedule)
 
-            BeachExperienceView()
+            BeachExperienceView(section: $beachSection)
                 .tabItem { Label("Beach", systemImage: "sparkles.tv") }
                 .tag(CustomerTab.map)
 
@@ -145,6 +174,32 @@ struct CustomerRootView: View {
                 .tag(CustomerTab.tickets)
         }
         .tint(.sandFestGulf)
+        .onChange(of: route?.id, initial: true) { _, _ in
+            consumeRoute()
+        }
+    }
+
+    private func consumeRoute() {
+        guard let destination = route?.destination else { return }
+        route = nil
+        switch destination {
+        case .today:
+            selectedTab = .today
+        case let .schedule(itemID):
+            scheduleTargetItemID = itemID
+            selectedTab = .schedule
+        case let .beach(section):
+            beachSection = section
+            selectedTab = .map
+        case let .sandy(question):
+            conciergeRequest = ConciergeRequest(
+                question: question,
+                submitImmediately: false
+            )
+            selectedTab = .concierge
+        case .tickets:
+            selectedTab = .tickets
+        }
     }
 
     private func openConciergeSource(_ href: String) {
@@ -162,9 +217,7 @@ struct CustomerRootView: View {
 }
 
 struct BeachExperienceView: View {
-    @State private var section: BeachSection = CommandLine.arguments.contains("sculptors")
-        ? .sculptors
-        : .live
+    @Binding var section: BeachSection
 
     var body: some View {
         VStack(spacing: 0) {
@@ -268,6 +321,115 @@ enum CustomerTab {
     case map
     case concierge
     case tickets
+}
+
+enum CustomerDestination: Equatable {
+    case today
+    case schedule(itemID: String?)
+    case beach(section: BeachSection)
+    case sandy(question: String?)
+    case tickets
+}
+
+struct CustomerRoute: Identifiable {
+    let id = UUID()
+    let destination: CustomerDestination
+
+    init?(url: URL) {
+        guard let destination = Self.destination(for: url) else { return nil }
+        self.destination = destination
+    }
+
+    static func launchRoute(arguments: [String] = CommandLine.arguments) -> CustomerRoute? {
+        guard let index = arguments.firstIndex(of: "-deepLink"),
+              index + 1 < arguments.count,
+              let url = URL(string: arguments[index + 1]) else {
+            return nil
+        }
+        return CustomerRoute(url: url)
+    }
+
+    private static func destination(for url: URL) -> CustomerDestination? {
+        let scheme = url.scheme?.lowercased()
+        let routeComponents: [String]
+
+        switch scheme {
+        case "sandfest":
+            var components: [String] = []
+            if let host = url.host, !host.isEmpty {
+                components.append(host)
+            }
+            components.append(contentsOf: pathComponents(url))
+            routeComponents = components
+        case "https":
+            guard url.host?.lowercased() == "sandfest.heyelab.com",
+                  url.port == nil,
+                  url.user == nil,
+                  url.password == nil else {
+                return nil
+            }
+            let components = pathComponents(url)
+            if components.isEmpty, let fragment = url.fragment, !fragment.isEmpty {
+                routeComponents = fragment.split(separator: "/").map(String.init)
+            } else {
+                routeComponents = components
+            }
+        default:
+            return nil
+        }
+
+        guard let rawDestination = routeComponents.first?.lowercased() else {
+            return .today
+        }
+        switch rawDestination {
+        case "today", "home":
+            return routeComponents.count == 1 ? .today : nil
+        case "ticket", "tickets":
+            return routeComponents.count == 1 ? .tickets : nil
+        case "schedule":
+            guard routeComponents.count <= 2 else { return nil }
+            let itemID = routeComponents.count == 2 ? routeComponents[1] : nil
+            if let itemID, !validScheduleItemID(itemID) { return nil }
+            return .schedule(itemID: itemID)
+        case "beach", "live-beach", "map", "island-conditions":
+            return routeComponents.count == 1 ? .beach(section: .live) : nil
+        case "sculptors":
+            return routeComponents.count == 1 ? .beach(section: .sculptors) : nil
+        case "sandy", "ask-sandy", "concierge":
+            guard routeComponents.count == 1 else { return nil }
+            return .sandy(question: boundedQuestion(from: url))
+        default:
+            return nil
+        }
+    }
+
+    private static func pathComponents(_ url: URL) -> [String] {
+        url.pathComponents
+            .filter { $0 != "/" && !$0.isEmpty }
+            .compactMap { $0.removingPercentEncoding }
+    }
+
+    private static func validScheduleItemID(_ value: String) -> Bool {
+        guard (1...100).contains(value.count) else { return false }
+        return value.range(
+            of: #"^[A-Za-z0-9][A-Za-z0-9._-]*$"#,
+            options: .regularExpression
+        ) != nil
+    }
+
+    private static func boundedQuestion(from url: URL) -> String? {
+        let rawQuestion = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?
+            .first(where: { $0.name.lowercased() == "question" })?
+            .value?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let rawQuestion,
+              (2...280).contains(rawQuestion.count),
+              rawQuestion.rangeOfCharacter(from: .controlCharacters) == nil else {
+            return nil
+        }
+        return rawQuestion
+    }
 }
 
 enum AdminTab {

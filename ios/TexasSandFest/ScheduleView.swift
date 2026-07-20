@@ -20,13 +20,19 @@ struct ScheduleView: View {
     @EnvironmentObject private var dataStore: AppDataStore
     @StateObject private var favorites = FavoritesStore()
     @StateObject private var notifications = NotificationManager.shared
+    @Binding private var targetItemID: String?
 
     @State private var mode: ScheduleMode = ScheduleView.initialMode()
     @State private var selectedDay = "Friday"
     @State private var myScheduleOnly = false
     @State private var permissionAlertVisible = false
+    @State private var highlightedItemID: String?
 
     private let days = ["Friday", "Saturday", "Sunday"]
+
+    init(targetItemID: Binding<String?> = .constant(nil)) {
+        _targetItemID = targetItemID
+    }
 
     private var liveSummary: LiveTimeline.LiveSummary {
         LiveTimeline.summarize(dataStore.payload.schedule, guide: dataStore.payload.guide)
@@ -66,23 +72,33 @@ struct ScheduleView: View {
                     dayPicker
                     myToggleRow
                     Divider().opacity(0.4)
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 12) {
-                            if visibleItems.isEmpty {
-                                emptyState
-                            } else {
-                                ForEach(visibleItems) { item in
-                                    ScheduleRow(
-                                        item: item,
-                                        isStarred: favorites.isStarred(item.id),
-                                        isLive: liveSummary.nowPlaying.contains { $0.id == item.id },
-                                        onStar: { handleStar(item) }
-                                    )
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            LazyVStack(alignment: .leading, spacing: 12) {
+                                if visibleItems.isEmpty {
+                                    emptyState
+                                } else {
+                                    ForEach(visibleItems) { item in
+                                        ScheduleRow(
+                                            item: item,
+                                            isStarred: favorites.isStarred(item.id),
+                                            isLive: liveSummary.nowPlaying.contains { $0.id == item.id },
+                                            isTargeted: highlightedItemID == item.id,
+                                            onStar: { handleStar(item) }
+                                        )
+                                        .id(item.id)
+                                    }
                                 }
                             }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 16)
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 16)
+                        .onAppear {
+                            scrollToTarget(using: proxy)
+                        }
+                        .onChange(of: selectedDay) { _, _ in
+                            scrollToTarget(using: proxy)
+                        }
                     }
                 } else {
                     LineupView()
@@ -97,7 +113,16 @@ struct ScheduleView: View {
                 Text("To remind you 15 min before your starred sets, enable notifications in Settings → Texas SandFest.")
             }
             .onAppear {
-                selectedDay = LiveTimeline.currentFestivalDay(for: dataStore.payload.guide) ?? selectedDay
+                if targetItemID == nil && highlightedItemID == nil {
+                    selectedDay = LiveTimeline.currentFestivalDay(for: dataStore.payload.guide) ?? selectedDay
+                }
+                prepareTarget()
+            }
+            .onChange(of: targetItemID) { _, _ in
+                prepareTarget()
+            }
+            .onChange(of: dataStore.syncState) { _, _ in
+                prepareTarget()
             }
         }
     }
@@ -207,6 +232,41 @@ struct ScheduleView: View {
         LiveTimeline.shortDate(for: day, guide: dataStore.payload.guide)
     }
 
+    private func prepareTarget() {
+        guard let targetItemID else { return }
+        guard let item = dataStore.payload.schedule.first(where: { $0.id == targetItemID }) else {
+            if dataStore.syncState == .live || dataStore.syncState == .offline {
+                self.targetItemID = nil
+            }
+            return
+        }
+        mode = .time
+        myScheduleOnly = false
+        selectedDay = item.day
+        highlightedItemID = item.id
+    }
+
+    private func scrollToTarget(using proxy: ScrollViewProxy) {
+        guard let targetItemID,
+              visibleItems.contains(where: { $0.id == targetItemID }) else {
+            return
+        }
+        self.targetItemID = nil
+        DispatchQueue.main.async {
+            withAnimation(.easeInOut(duration: 0.3)) {
+                proxy.scrollTo(targetItemID, anchor: .center)
+            }
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2))
+            if highlightedItemID == targetItemID {
+                withAnimation(.easeOut(duration: 0.25)) {
+                    highlightedItemID = nil
+                }
+            }
+        }
+    }
+
     // MARK: Star handling
 
     private func handleStar(_ item: ScheduleItem) {
@@ -268,6 +328,7 @@ private struct ScheduleRow: View {
     let item: ScheduleItem
     let isStarred: Bool
     let isLive: Bool
+    let isTargeted: Bool
     let onStar: () -> Void
 
     var body: some View {
@@ -320,11 +381,15 @@ private struct ScheduleRow: View {
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(rowStroke, lineWidth: isLive ? 2 : 1)
+                .stroke(rowStroke, lineWidth: isTargeted || isLive ? 2 : 1)
         )
+        .shadow(color: isTargeted ? Color.sandFestGulf.opacity(0.22) : .clear, radius: 10)
     }
 
     private var rowGradient: [Color] {
+        if isTargeted {
+            return [Color.sandFestGulf.opacity(0.16), Color.white]
+        }
         if isLive {
             return [Color.lbCoral2.opacity(0.16), Color.white]
         }
@@ -332,6 +397,7 @@ private struct ScheduleRow: View {
     }
 
     private var rowStroke: Color {
+        if isTargeted { return Color.sandFestGulf.opacity(0.7) }
         if isLive { return Color.lbCoral2.opacity(0.55) }
         if isStarred { return Color.lbCoral2.opacity(0.4) }
         return Color.lbNavy.opacity(0.08)

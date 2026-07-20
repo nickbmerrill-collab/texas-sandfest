@@ -19,6 +19,11 @@ targets:
       path: TexasSandFest/Info.plist
       properties:
         CFBundleDisplayName: Texas SandFest
+        CFBundleURLTypes:
+          - CFBundleTypeRole: Viewer
+            CFBundleURLName: com.portalcodex.texassandfest.public
+            CFBundleURLSchemes:
+              - sandfest
         UILaunchScreen:
           UIColorName: LaunchBackground
         UIApplicationSceneManifest:
