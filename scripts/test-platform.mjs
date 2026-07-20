@@ -642,9 +642,10 @@ console.log("\n=== Pure library suite ===\n");
     && siteModeForHash("#port-a") === "ops"
     && siteModeForHash("#operations") === "ops"
     && siteModeForHash("#admin-partners") === "ops"
+    && siteModeForHash("#admin-budget") === "ops"
     && siteModeForHash("#admin-system-monitor") === "ops");
   ok("site mode URL overrides saved demo state", resolveInitialSiteMode({ opsDemoEnabled: true, queryMode: "visitor", hash: "#operations", savedMode: "ops" }) === "public");
-  ok("site mode deep link overrides saved demo state", resolveInitialSiteMode({ opsDemoEnabled: true, hash: "#sponsors", savedMode: "ops" }) === "public" && resolveInitialSiteMode({ opsDemoEnabled: true, hash: "#finance", savedMode: "public" }) === "ops" && resolveInitialSiteMode({ opsDemoEnabled: true, hash: "#admin-revenue", savedMode: "public" }) === "ops");
+  ok("site mode deep link overrides saved demo state", resolveInitialSiteMode({ opsDemoEnabled: true, hash: "#sponsors", savedMode: "ops" }) === "public" && resolveInitialSiteMode({ opsDemoEnabled: true, hash: "#finance", savedMode: "public" }) === "ops" && resolveInitialSiteMode({ opsDemoEnabled: true, hash: "#admin-budget", savedMode: "public" }) === "ops" && resolveInitialSiteMode({ opsDemoEnabled: true, hash: "#admin-revenue", savedMode: "public" }) === "ops");
   ok("production visitor and admin modes fail closed", resolveInitialSiteMode({ opsDemoEnabled: false, queryMode: "ops", savedMode: "ops" }) === "public" && resolveInitialSiteMode({ adminEntry: true, opsDemoEnabled: true, queryMode: "visitor" }) === "ops");
   const boardDemoAccess = boardDemoAccessConfig({
     development: true,
