@@ -16,6 +16,15 @@ import {
   queueIncidentDispatchMessage,
   recordIncidentDispatchDelivery
 } from "../lib/island-conditions.mjs";
+import {
+  beginFollowupProviderSubmission,
+  claimFollowupDelivery,
+  normalizePartnerOperations,
+  prepareFollowupDraft,
+  queueFollowupDelivery,
+  recordFollowupDelivery,
+  reviewFollowup
+} from "../lib/partner-ops.mjs";
 import { updatePlatformDoc } from "../lib/platform-data.mjs";
 import { taskPortalConfig, taskPortalUrlForTask } from "../lib/task-portal.mjs";
 
@@ -157,6 +166,35 @@ async function forceUnknownIncidentDelivery(dispatchId, deliveryClaimId) {
     if (!unknown?.ok) throw new Error(unknown?.error || begun?.error || claimed?.error || queued.error);
     return unknown.doc;
   }, { fallback: normalizeIslandConditions(null) });
+}
+
+async function forceUnknownPartnerDelivery(followupId, deliveryClaimId) {
+  await updatePlatformDoc(runtimeRoot, "partnerOps", current => {
+    let doc = normalizePartnerOperations(current);
+    let followup = doc.followups.find(item => item.id === followupId);
+    if (!followup) throw new Error("Browser test partner follow-up not found.");
+    if (followup.status === "pending") {
+      const prepared = prepareFollowupDraft(doc, followupId);
+      if (!prepared.ok) throw new Error(prepared.error);
+      doc = prepared.doc;
+      followup = prepared.followup;
+    }
+    if (followup.status === "draft_ready") {
+      const approved = reviewFollowup(doc, followupId, "approve", { actorId: "board-browser-acceptance" });
+      if (!approved.ok) throw new Error(approved.error);
+      doc = approved.doc;
+    }
+    const queued = queueFollowupDelivery(doc, followupId);
+    const claimed = queued.ok && claimFollowupDelivery(queued.doc, followupId, { deliveryClaimId });
+    const begun = claimed?.ok && beginFollowupProviderSubmission(claimed.doc, followupId, { deliveryClaimId });
+    const unknown = begun?.ok && recordFollowupDelivery(begun.doc, followupId, {
+      sent: false,
+      provider: "worker",
+      error: "Browser test worker stopped after provider submission began."
+    }, { deliveryClaimId, terminal: true, unknownOutcome: true });
+    if (!unknown?.ok) throw new Error(unknown?.error || begun?.error || claimed?.error || queued.error);
+    return unknown.doc;
+  }, { fallback: normalizePartnerOperations(null) });
 }
 
 async function assertNoHorizontalOverflow(page) {
@@ -2159,6 +2197,120 @@ test("incident delivery verification safely resolves ambiguous provider outcomes
   await assertChoiceTargets(page, "Incident provider verification");
   await assertNoHorizontalOverflow(page);
   await assertNoAccessibilityViolations(page, "Incident provider verification");
+});
+
+test("partner delivery verification prevents duplicate automated messages", async ({ page }) => {
+  test.setTimeout(60_000);
+  const runId = randomUUID().slice(0, 8);
+  const applicationId = `browser_partner_reconciliation_${runId}`;
+  const deliveredFollowupId = `browser_partner_delivered_${runId}`;
+  const notDeliveredFollowupId = `browser_partner_not_delivered_${runId}`;
+  const recipient = `provider-check-${runId}@example.com`;
+  const now = new Date().toISOString();
+  await updatePlatformDoc(runtimeRoot, "partnerOps", current => {
+    const doc = normalizePartnerOperations(current);
+    const application = {
+      id: applicationId,
+      eventId: DEFAULT_EVENT_ID,
+      reference: `TSF-BROWSER-${runId.toUpperCase()}`,
+      type: "vendor",
+      intakeMode: "application",
+      status: "submitted",
+      organizationName: `Provider Check Vendor ${runId}`,
+      contactName: "Board Provider Check",
+      contactEmail: recipient,
+      consentToContact: true,
+      consentPreferenceVersion: 1,
+      consentCapturedAt: now,
+      createdAt: now,
+      updatedAt: now
+    };
+    const followup = (id, subject) => ({
+      id,
+      applicationId,
+      kind: "application_received",
+      channel: "email",
+      recipient,
+      status: "approved",
+      subject,
+      body: "Provider verification is required before this message can be retried.",
+      approvedBy: "board-browser-acceptance",
+      approvedAt: now,
+      createdAt: now,
+      updatedAt: now
+    });
+    return {
+      ...doc,
+      lastUpdated: now,
+      applications: [...doc.applications, application],
+      followups: [
+        ...doc.followups,
+        followup(deliveredFollowupId, `Partner provider-delivered check ${runId}`),
+        followup(notDeliveredFollowupId, `Partner provider-not-delivered check ${runId}`)
+      ]
+    };
+  }, { fallback: normalizePartnerOperations(null) });
+  await forceUnknownPartnerDelivery(deliveredFollowupId, `browser-partner-delivered-${runId}`);
+  await forceUnknownPartnerDelivery(notDeliveredFollowupId, `browser-partner-not-delivered-${runId}`);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#admin-partners`);
+  await expect(page.locator("#admin-api-status")).toContainText("Loaded", { timeout: 25_000 });
+  await expect(page.locator('[data-command-signal="messages"]')).toContainText("2 provider checks");
+
+  let deliveredRow = page.locator(`[data-followup="${deliveredFollowupId}"]`);
+  let deliveredForm = deliveredRow.locator("[data-reconcile-followup]");
+  await expect(deliveredForm).toContainText("Provider verification required");
+  await expect(deliveredRow.getByRole("button", { name: "Retry send" })).toHaveCount(0);
+  await expect(deliveredRow.getByRole("button", { name: "Dismiss" })).toHaveCount(0);
+  await deliveredForm.locator('[name="resolutionNote"]').fill("Brevo delivery log checked by the partner operations lead.");
+  await deliveredForm.getByRole("button", { name: "Record delivered" }).click();
+  await expect(page.locator("#admin-api-status")).toContainText(/provider message ID/i);
+  deliveredForm = deliveredRow.locator("[data-reconcile-followup]");
+  await deliveredForm.locator('[name="providerMessageId"]').fill(`brevo-partner-board-${runId}`);
+  await deliveredForm.locator('[name="resolutionNote"]').fill("Brevo delivery log checked by the partner operations lead.");
+  const deliveredResponse = page.waitForResponse(response => {
+    const url = new URL(response.url());
+    return url.pathname === `/api/admin/partners/followups/${deliveredFollowupId}/delivery-reconciliation`
+      && response.request().method() === "POST";
+  });
+  await deliveredForm.getByRole("button", { name: "Record delivered" }).click();
+  expect((await deliveredResponse).status()).toBe(200);
+  await expect(page.locator("#admin-api-status")).toContainText("Provider delivery recorded");
+  deliveredRow = page.locator(`[data-followup="${deliveredFollowupId}"]`);
+  await expect(deliveredRow.locator('[data-resolution="confirmed_sent"]')).toContainText("Provider delivery confirmed");
+  await expect(deliveredRow.locator("[data-reconcile-followup]")).toHaveCount(0);
+
+  let notDeliveredRow = page.locator(`[data-followup="${notDeliveredFollowupId}"]`);
+  const notDeliveredForm = notDeliveredRow.locator("[data-reconcile-followup]");
+  await notDeliveredForm.locator('[name="resolutionNote"]').fill("Brevo confirms no message was accepted for delivery.");
+  const notDeliveredResponse = page.waitForResponse(response => {
+    const url = new URL(response.url());
+    return url.pathname === `/api/admin/partners/followups/${notDeliveredFollowupId}/delivery-reconciliation`
+      && response.request().method() === "POST";
+  });
+  await notDeliveredForm.getByRole("button", { name: "Confirm not delivered" }).click();
+  expect((await notDeliveredResponse).status()).toBe(200);
+  await expect(page.locator("#admin-api-status")).toContainText("available for staff follow-up");
+  notDeliveredRow = page.locator(`[data-followup="${notDeliveredFollowupId}"]`);
+  await expect(notDeliveredRow.locator('[data-resolution="confirmed_not_sent"]')).toContainText("Provider confirmed no delivery");
+  await expect(notDeliveredRow.getByRole("button", { name: "Retry send" })).toBeVisible();
+  await expect(notDeliveredRow.locator("[data-reconcile-followup]")).toHaveCount(0);
+
+  const providerRows = page.locator(`[data-followup="${deliveredFollowupId}"], [data-followup="${notDeliveredFollowupId}"]`);
+  const undersizedControls = await providerRows.locator('button, input:not([type="checkbox"]):not([type="radio"]), select, textarea').evaluateAll(controls => controls.filter(control => {
+    const bounds = control.getBoundingClientRect();
+    const styles = getComputedStyle(control);
+    return bounds.width > 0
+      && bounds.height > 0
+      && styles.display !== "none"
+      && styles.visibility !== "hidden"
+      && (bounds.width < 24 || bounds.height < 24);
+  }).map(control => control.getAttribute("name") || control.textContent?.trim() || control.id));
+  expect(undersizedControls).toEqual([]);
+  await assertChoiceTargets(page, "Partner provider verification");
+  await assertNoHorizontalOverflow(page);
+  await assertNoAccessibilityViolations(page, "Partner provider verification");
 });
 
 test("operations command summary fits and navigates across board viewports", async ({ page }) => {

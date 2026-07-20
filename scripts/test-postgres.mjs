@@ -381,7 +381,16 @@ async function main() {
     writePlatformDoc
   } = await import("../lib/platform-data.mjs");
   const { closePool, getPool } = await import("../lib/db/pool.mjs");
-  const { emptyPartnerOperations } = await import("../lib/partner-ops.mjs");
+  const {
+    beginFollowupProviderSubmission,
+    claimFollowupDelivery,
+    emptyPartnerOperations,
+    normalizePartnerOperations,
+    prepareFollowupDraft,
+    queueFollowupDelivery,
+    recordFollowupDelivery,
+    reviewFollowup
+  } = await import("../lib/partner-ops.mjs");
   const { claimNextJobs, completeJob, enqueueJob, getQueueHealth, listJobs, markTerminalJobHandled } = await import("../lib/job-queue.mjs");
   const { signCameraPayload } = await import("../lib/camera-ingest.mjs");
   const {
@@ -797,6 +806,63 @@ PG-B-01,${EVENT_ID},PG-EV-V-01,PG-EV-V-01,Postgres Booth Vendor,retail,vendor,po
   check("partner writes are lossless", partners.data.applications?.length === 13, `${partners.data.applications?.length ?? 0}/13 persisted`);
   check("intake jobs queued durably", intakes.filter(item => !item.data.duplicate).every(item => item.data.acknowledgment === "draft_queued") && intakes.find(item => item.data.duplicate)?.data.acknowledgment === "already_received");
   const sponsorApplication = partners.data.applications?.find(item => item.id === sponsorIntake.data.application?.id);
+  const partnerReconciliationFollowupId = "postgres_partner_delivery_reconciliation";
+  let forcedUnknownPartnerFollowup = null;
+  await updatePlatformDoc(ROOT, "partnerOps", current => {
+    const doc = normalizePartnerOperations(current);
+    const testDoc = {
+      ...doc,
+      followups: [...doc.followups, {
+        id: partnerReconciliationFollowupId,
+        applicationId: sponsorApplication.id,
+        kind: "provider_verification_test",
+        channel: "email",
+        recipient: "sponsor@postgres-test.example",
+        status: "approved",
+        subject: "Postgres provider verification",
+        body: "Verify the provider outcome before retrying this message.",
+        approvedBy: "postgres-test-admin",
+        approvedAt: "2026-07-16T13:01:00.000Z",
+        createdAt: "2026-07-16T13:00:00.000Z",
+        updatedAt: "2026-07-16T13:01:00.000Z"
+      }]
+    };
+    const queued = queueFollowupDelivery(testDoc, partnerReconciliationFollowupId, { now: "2026-07-16T13:02:00.000Z" });
+    const claimed = queued.ok && claimFollowupDelivery(queued.doc, partnerReconciliationFollowupId, { deliveryClaimId: "job_postgres_unknown_partner", now: "2026-07-16T13:03:00.000Z" });
+    const begun = claimed?.ok && beginFollowupProviderSubmission(claimed.doc, partnerReconciliationFollowupId, { deliveryClaimId: "job_postgres_unknown_partner", now: "2026-07-16T13:04:00.000Z" });
+    const unknown = begun?.ok && recordFollowupDelivery(begun.doc, partnerReconciliationFollowupId, {
+      sent: false,
+      provider: "worker",
+      error: "Postgres test worker stopped after provider submission began."
+    }, { deliveryClaimId: "job_postgres_unknown_partner", terminal: true, unknownOutcome: true, now: "2026-07-16T13:05:00.000Z" });
+    if (!unknown?.ok) throw new Error(unknown?.error || begun?.error || claimed?.error || queued.error);
+    forcedUnknownPartnerFollowup = unknown.followup;
+    return unknown.doc;
+  }, { fallback: emptyPartnerOperations() });
+  const partnerDeliveryReconciliationPath = `/api/admin/partners/followups/${partnerReconciliationFollowupId}/delivery-reconciliation`;
+  const unauthorizedPartnerDeliveryReconciliation = await request(base, "POST", partnerDeliveryReconciliationPath, {
+    action: "confirmed_sent",
+    providerMessageId: "postgres-partner-provider-proof",
+    resolutionNote: "Brevo delivery history confirms provider acceptance."
+  });
+  const blockedUnknownPartnerRetry = await request(base, "POST", `/api/admin/partners/followups/${partnerReconciliationFollowupId}/send`, {}, { auth: true });
+  const confirmedUnknownPartnerDelivery = await request(base, "POST", partnerDeliveryReconciliationPath, {
+    action: "confirmed_sent",
+    providerMessageId: "postgres-partner-provider-proof",
+    resolutionNote: "Brevo delivery history confirms provider acceptance."
+  }, { auth: true });
+  const duplicatePartnerDeliveryReconciliation = await request(base, "POST", partnerDeliveryReconciliationPath, {
+    action: "confirmed_sent",
+    providerMessageId: "postgres-partner-provider-proof",
+    resolutionNote: "A duplicate decision must not overwrite provider evidence."
+  }, { auth: true });
+  const partnerDeliveryWorkspace = await request(base, "GET", "/api/admin/partners", undefined, { auth: true });
+  const persistedPartnerDelivery = partnerDeliveryWorkspace.data.followups?.find(item => item.id === partnerReconciliationFollowupId);
+  const partnerDeliveryAuditState = await request(base, "GET", "/api/admin/audit?limit=100", undefined, { auth: true });
+  const partnerDeliveryAudit = partnerDeliveryAuditState.data.audit?.find(item => item.record?.action === "partner.followup.delivery.reconcile")?.record;
+  check("Postgres unknown partner delivery blocks retry until verification", forcedUnknownPartnerFollowup?.status === "delivery_unknown" && blockedUnknownPartnerRetry.status === 409 && blockedUnknownPartnerRetry.data.error?.includes("Verify the provider outcome"));
+  check("Postgres partner delivery reconciliation persists provider proof", unauthorizedPartnerDeliveryReconciliation.status === 401 && confirmedUnknownPartnerDelivery.status === 200 && duplicatePartnerDeliveryReconciliation.status === 409 && persistedPartnerDelivery?.status === "sent" && persistedPartnerDelivery?.provider === "brevo" && persistedPartnerDelivery?.providerMessageId === "postgres-partner-provider-proof" && persistedPartnerDelivery?.deliveryResolution === "confirmed_sent" && persistedPartnerDelivery?.deliveryReconciledBy === "postgres-test-admin");
+  check("Postgres partner reconciliation audit is privacy safe", partnerDeliveryAudit?.metadata?.resolution === "confirmed_sent" && partnerDeliveryAudit.metadata.providerProofRecorded === true && !JSON.stringify(partnerDeliveryAudit).includes(forcedUnknownPartnerFollowup.deliveryIdempotencyKey) && !JSON.stringify(partnerDeliveryAudit).includes("sponsor@postgres-test.example"));
   const rotatedPortal = await request(base, "POST", `/api/admin/partners/applications/${sponsorApplication.id}/portal-access`, {}, { auth: true });
   const stalePortal = await request(base, "POST", "/api/public/partner-status", {
     reference: sponsorIntake.data.application?.reference,

@@ -7262,13 +7262,23 @@ function renderAdminQuickBooksConnection(quickbooks = {}) {
   };
 }
 
-function partnerAutomationPresentation(payload, draftsAwaitingReview = 0) {
+function partnerAutomationPresentation(payload, draftsAwaitingReview = 0, unknownDeliveryMessages = 0) {
   const automation = payload?.automation || {};
   const mode = automation.mode || payload?.automationMode || "review_first";
   const providerReady = automation.providerReady === true;
   const active = mode === "transactional_auto" && automation.active === true;
   const reviewCount = Number(draftsAwaitingReview || 0);
+  const verificationCount = Number(unknownDeliveryMessages || 0);
   const reviewDetail = `${reviewCount} draft${reviewCount === 1 ? "" : "s"} awaiting staff review`;
+  if (verificationCount > 0) {
+    return {
+      active: false,
+      commandDetail: `${providerReady ? "Provider ready" : "Provider unavailable"} · ${verificationCount} delivery outcome${verificationCount === 1 ? "" : "s"} need verification`,
+      detail: `${verificationCount} provider verification${verificationCount === 1 ? "" : "s"} required before retry`,
+      label: "Provider check",
+      mode
+    };
+  }
   if (mode === "transactional_auto") {
     return {
       active,
@@ -7304,9 +7314,10 @@ function renderAdminCommandSummary(payload, outreach) {
   const vendor = payload.vendorReadiness?.totals || summary.vendorReadiness || {};
   const fulfillment = summary.fulfillment || payload.fulfillment || {};
   const outreachSummary = outreach?.summary || {};
-  const automationPresentation = partnerAutomationPresentation(payload, operations.draftsAwaitingReview);
+  const automationPresentation = partnerAutomationPresentation(payload, operations.draftsAwaitingReview, operations.unknownDeliveryMessages);
   const automationReady = payload.automation?.providerReady === true
     && (automationPresentation.active || automationPresentation.mode === "review_first");
+  const providerChecks = Number(operations.unknownDeliveryMessages || 0);
   const assignmentsReady = Number(taskTotals.active || 0) > 0
     && Number(taskTotals.unassigned || 0) === 0
     && assignmentCoverage.length === 3;
@@ -7338,11 +7349,11 @@ function renderAdminCommandSummary(payload, outreach) {
     {
       id: "messages",
       label: "Messages",
-      value: `${Number(operations.draftsAwaitingReview || 0)} to review`,
+      value: providerChecks > 0 ? `${providerChecks} provider check${providerChecks === 1 ? "" : "s"}` : `${Number(operations.draftsAwaitingReview || 0)} to review`,
       detail: automationPresentation.commandDetail,
       action: "Review queue",
       href: "#admin-partner-followups-workspace",
-      state: automationReady ? Number(operations.draftsAwaitingReview || 0) > 0 ? "attention" : "ready" : "blocked"
+      state: providerChecks > 0 ? "attention" : automationReady ? Number(operations.draftsAwaitingReview || 0) > 0 ? "attention" : "ready" : "blocked"
     },
     {
       id: "assignments",
@@ -7862,7 +7873,7 @@ function renderAdminPartners(payload, outreach) {
     .filter(item => ["succeeded", "partially_refunded"].includes(item.status)).length;
   const paidInFullCount = Number(summary?.applications?.paid || 0);
   const boardProvidersDeferred = BOARD_DEMO_ACCESS.enabled;
-  const automationPresentation = partnerAutomationPresentation(payload, summary?.operations?.draftsAwaitingReview);
+  const automationPresentation = partnerAutomationPresentation(payload, summary?.operations?.draftsAwaitingReview, summary?.operations?.unknownDeliveryMessages);
   const kpis = document.querySelector("#admin-partner-kpis");
   const applications = document.querySelector("#admin-partner-applications");
   const followups = document.querySelector("#admin-partner-followups");
@@ -8013,14 +8024,15 @@ function renderAdminPartners(payload, outreach) {
     </article>`;
   }).join("") || '<article class="empty-state"><span>No applications yet.</span></article>';
   const followupPriority = new Map([
-    ["draft_ready", 0],
-    ["failed", 1],
-    ["approved", 2],
-    ["queued", 3],
-    ["sending", 4],
-    ["pending", 5],
-    ["sent", 6],
-    ["dismissed", 7]
+    ["delivery_unknown", 0],
+    ["draft_ready", 1],
+    ["failed", 2],
+    ["approved", 3],
+    ["queued", 4],
+    ["sending", 5],
+    ["pending", 6],
+    ["sent", 7],
+    ["dismissed", 8]
   ]);
   followups.innerHTML = [...(payload.followups || [])].sort((left, right) => {
     const priority = (followupPriority.get(left.status) ?? 99) - (followupPriority.get(right.status) ?? 99);
@@ -8031,6 +8043,7 @@ function renderAdminPartners(payload, outreach) {
     }
     return String(right.updatedAt || right.createdAt || "").localeCompare(String(left.updatedAt || left.createdAt || ""));
   }).map(item => {
+    const outcomeUnknown = item.status === "delivery_unknown" || item.deliveryOutcomeUnknown === true;
     const deliveryStatus = item.deliveryStatus || (item.status === "sent" ? "accepted" : null);
     const deliveryAt = item.clickedAt || item.openedAt || item.deliveredAt || item.failedAt || item.acceptedAt || item.sentAt;
     const automationLabel = adminOperationsUi?.followupAutomationLabel(item) || "";
@@ -8044,8 +8057,8 @@ function renderAdminPartners(payload, outreach) {
       ${adminOperationsUi?.draftEditor(item) || ""}
       <div class="admin-followup-actions">
         ${item.status === "draft_ready" ? `<button type="button" class="button secondary" data-review-followup="${escapeAttr(item.id)}" data-action="approve">Approve</button>` : ""}
-        ${["draft_ready", "approved", "failed"].includes(item.status) ? `<button type="button" class="button secondary" data-review-followup="${escapeAttr(item.id)}" data-action="dismiss">Dismiss</button>` : ""}
-        ${["approved", "failed"].includes(item.status) ? `<button type="button" class="button primary" data-send-followup="${escapeAttr(item.id)}" ${payload.email?.ready ? "" : "disabled"}>${item.status === "failed" ? "Retry send" : "Queue send"}</button>` : ""}
+        ${!outcomeUnknown && ["draft_ready", "approved", "failed"].includes(item.status) ? `<button type="button" class="button secondary" data-review-followup="${escapeAttr(item.id)}" data-action="dismiss">Dismiss</button>` : ""}
+        ${!outcomeUnknown && ["approved", "failed"].includes(item.status) ? `<button type="button" class="button primary" data-send-followup="${escapeAttr(item.id)}" ${payload.email?.ready ? "" : "disabled"}>${item.status === "failed" ? "Retry send" : "Queue send"}</button>` : ""}
       </div>
     </article>`;
   }).join("") || '<article class="empty-state"><span>No follow-ups.</span></article>';
@@ -8259,6 +8272,15 @@ function renderAdminPartners(payload, outreach) {
     } catch (error) { setAdminStatus(error.message, "error"); } finally { button.disabled = false; }
   }));
   adminOperationsUi?.bindDraftEditors(followups, { adminFetch, loadAdminPartners, setAdminStatus });
+  if (ADMIN_UI_ENABLED && (payload.followups || []).some(item => item.deliveryResolution || item.status === "delivery_unknown" || item.deliveryOutcomeUnknown === true)) {
+    void import("./admin-incident-delivery-reconciliation.js").then(module => module.bindPartnerFollowupDeliveryReconciliation(followups, {
+      adminFetch,
+      canWrite: adminCan("partners:write"),
+      followups: payload.followups,
+      loadAdminPartners,
+      setAdminStatus
+    })).catch(error => setAdminStatus(error.message, "error"));
+  }
   followups.querySelectorAll("[data-send-followup]").forEach(button => button.addEventListener("click", async () => {
     button.disabled = true;
     try {

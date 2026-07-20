@@ -160,6 +160,7 @@ import {
   generatePartnerPaymentFollowups,
   generateVendorApplicationOpeningFollowups,
   matchOutreachProspects,
+  normalizePartnerOperations,
   outreachDistanceMiles,
   outreachCampaignAutomationReadiness,
   outreachCampaignMetrics,
@@ -169,6 +170,7 @@ import {
   queueFollowupDelivery,
   queuePartnerInvoiceReconciliation,
   queuePartnerInvoiceSync,
+  reconcileFollowupDelivery,
   reconcilePartnerStripePayment,
   reconcilePartnerStripeRefund,
   releaseAutomatedFollowupApproval,
@@ -475,6 +477,46 @@ async function forceUnknownIncidentDelivery(root, dispatchId, options = {}) {
     return forced.doc;
   }, { fallback: normalizeIslandConditions(null) });
   return forced.dispatch;
+}
+
+async function forceUnknownPartnerDelivery(root, followupId, options = {}) {
+  let forced = null;
+  await updatePlatformDoc(root, "partnerOps", current => {
+    let doc = normalizePartnerOperations(current);
+    let followup = doc.followups.find(item => item.id === followupId);
+    if (!followup) throw new Error("Test partner follow-up not found.");
+    if (followup.status === "pending") {
+      const prepared = prepareFollowupDraft(doc, followupId, { now: options.preparedAt || "2026-07-16T13:00:00.000Z" });
+      if (!prepared.ok) throw new Error(prepared.error);
+      doc = prepared.doc;
+      followup = prepared.followup;
+    }
+    if (followup.status === "draft_ready") {
+      const approved = reviewFollowup(doc, followupId, "approve", { actorId: "test-operator", now: options.approvedAt || "2026-07-16T13:01:00.000Z" });
+      if (!approved.ok) throw new Error(approved.error);
+      doc = approved.doc;
+    }
+    const queued = queueFollowupDelivery(doc, followupId, { now: options.queuedAt || "2026-07-16T13:02:00.000Z" });
+    if (!queued.ok) throw new Error(queued.error);
+    const deliveryClaimId = options.deliveryClaimId || `job_test_${randomUUID()}`;
+    const claimed = claimFollowupDelivery(queued.doc, followupId, { deliveryClaimId, now: options.claimedAt || "2026-07-16T13:03:00.000Z" });
+    if (!claimed.ok) throw new Error(claimed.error);
+    const begun = beginFollowupProviderSubmission(claimed.doc, followupId, { deliveryClaimId, now: options.begunAt || "2026-07-16T13:04:00.000Z" });
+    if (!begun.ok) throw new Error(begun.error);
+    forced = recordFollowupDelivery(begun.doc, followupId, {
+      sent: false,
+      provider: "worker",
+      error: "Test worker stopped after provider submission began."
+    }, {
+      deliveryClaimId,
+      terminal: true,
+      unknownOutcome: true,
+      now: options.failedAt || "2026-07-16T13:05:00.000Z"
+    });
+    if (!forced.ok) throw new Error(forced.error);
+    return forced.doc;
+  }, { fallback: emptyPartnerOperations() });
+  return forced.followup;
 }
 const wantApi = process.argv.includes("--api");
 const baseArg = process.argv.find(a => a.startsWith("--base="));
@@ -2897,6 +2939,47 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   ok("follow-up terminal failure", terminal.ok && terminal.followup.status === "failed" && terminal.followup.lastError === "final");
   const delivered = recordFollowupDelivery(queued.doc, created.followup.id, { sent: true, provider: "brevo", providerMessageId: "msg_test" }, { now });
   ok("follow-up delivery proof", delivered.ok && delivered.followup.status === "sent" && delivered.followup.providerMessageId === "msg_test");
+  const unknownClaimed = claimFollowupDelivery(queued.doc, created.followup.id, { deliveryClaimId: "job_partner_unknown", now });
+  const unknownBegun = beginFollowupProviderSubmission(unknownClaimed.doc, created.followup.id, { deliveryClaimId: "job_partner_unknown", now });
+  const unknownDelivery = recordFollowupDelivery(unknownBegun.doc, created.followup.id, {
+    sent: false,
+    provider: "worker",
+    error: "Worker stopped after provider submission began."
+  }, { deliveryClaimId: "job_partner_unknown", terminal: true, unknownOutcome: true, now });
+  const blockedUnknownRetry = queueFollowupDelivery(unknownDelivery.doc, created.followup.id, { now });
+  const blockedUnknownDismissal = reviewFollowup(unknownDelivery.doc, created.followup.id, "dismiss", { actorId: "admin_1", now });
+  const missingUnknownProviderProof = reconcileFollowupDelivery(unknownDelivery.doc, created.followup.id, {
+    action: "confirmed_sent",
+    resolutionNote: "Brevo history confirms provider acceptance."
+  }, { actorId: "admin_1", idFactory, now });
+  const confirmedUnknownSent = reconcileFollowupDelivery(unknownDelivery.doc, created.followup.id, {
+    action: "confirmed_sent",
+    providerMessageId: "brevo-confirmed-partner-1",
+    resolutionNote: "Brevo history confirms provider acceptance."
+  }, { actorId: "admin_1", idFactory, now });
+  const duplicateUnknownResolution = reconcileFollowupDelivery(confirmedUnknownSent.doc, created.followup.id, {
+    action: "confirmed_sent",
+    providerMessageId: "brevo-confirmed-partner-1",
+    resolutionNote: "A duplicate decision must not overwrite provider evidence."
+  }, { actorId: "admin_1", idFactory, now });
+  const unknownSummary = summarizePartnerOperations(unknownDelivery.doc, now);
+  ok("ambiguous partner delivery is a distinct fail-closed state", unknownDelivery.ok && unknownDelivery.followup.status === "delivery_unknown" && unknownDelivery.followup.deliveryOutcomeUnknown && blockedUnknownRetry.conflict && blockedUnknownDismissal.conflict && unknownSummary.operations.unknownDeliveryMessages === 1);
+  ok("confirmed partner delivery requires and preserves provider proof", !missingUnknownProviderProof.ok && missingUnknownProviderProof.error.includes("provider message ID") && confirmedUnknownSent.ok && confirmedUnknownSent.followup.status === "sent" && confirmedUnknownSent.followup.providerMessageId === "brevo-confirmed-partner-1" && confirmedUnknownSent.followup.deliveryResolution === "confirmed_sent" && confirmedUnknownSent.followup.deliveryReconciledBy === "admin_1" && duplicateUnknownResolution.conflict);
+  const confirmedUnknownNotSent = reconcileFollowupDelivery(unknownDelivery.doc, created.followup.id, {
+    action: "confirmed_not_sent",
+    resolutionNote: "Brevo confirms that no message was accepted."
+  }, { actorId: "admin_1", idFactory, now });
+  const retriedAfterVerification = queueFollowupDelivery(confirmedUnknownNotSent.doc, created.followup.id, { now });
+  ok("confirmed no-delivery releases an explicit retry", confirmedUnknownNotSent.ok && confirmedUnknownNotSent.followup.status === "failed" && confirmedUnknownNotSent.followup.deliveryResolution === "confirmed_not_sent" && retriedAfterVerification.ok && retriedAfterVerification.followup.deliveryIdempotencyKey === queued.followup.deliveryIdempotencyKey && retriedAfterVerification.followup.deliveryResolution === null);
+  const optedOutDuringUnknown = updatePartnerContactPreference(unknownDelivery.doc, created.application.id, {
+    consentToContact: false,
+    expectedVersion: created.application.consentPreferenceVersion
+  }, { actorId: "partner", idFactory, now });
+  const canceledAfterVerification = reconcileFollowupDelivery(optedOutDuringUnknown.doc, created.followup.id, {
+    action: "confirmed_not_sent",
+    resolutionNote: "Brevo confirms that no message was accepted."
+  }, { actorId: "admin_1", idFactory, now });
+  ok("partner opt-out preserves unknown evidence and cancels only after verification", optedOutDuringUnknown.ok && optedOutDuringUnknown.doc.followups[0].status === "delivery_unknown" && optedOutDuringUnknown.doc.followups[0].deliveryCancellationRequestedAt && canceledAfterVerification.ok && canceledAfterVerification.followup.status === "dismissed" && canceledAfterVerification.followup.dismissedBy === "partner");
   const accepted = updatePartnerApplication(delivered.doc, created.application.id, { status: "approved" }, {
     idFactory,
     actorId: "admin_1",
@@ -7393,6 +7476,43 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
   const pricedVendorApplication = idempotentPartnerWorkspace.data.applications?.find(item => item.id === partnerIntake.data.application?.id);
   ok("POST partner intake creates one current-event workflow", idempotentPartnerWorkspace.data.applications?.filter(item => item.id === partnerIntake.data.application?.id && item.eventId === DEFAULT_EVENT_ID).length === 1 && idempotentPartnerWorkspace.data.tasks?.filter(item => item.relatedEntityId === partnerIntake.data.application?.id).length === 1 && idempotentPartnerWorkspace.data.milestones?.filter(item => item.applicationId === partnerIntake.data.application?.id).length === 3 && idempotentPartnerWorkspace.data.followups?.filter(item => item.applicationId === partnerIntake.data.application?.id && item.kind === "application_received").length === 1);
   ok("vendor intake derives trusted offering fee", pricedVendorApplication?.offeringId === "marketplace-booth" && pricedVendorApplication?.offeringName === "Marketplace booth" && pricedVendorApplication?.expectedAmountCents === 125000 && pricedVendorApplication?.requestedAmountCents === 0);
+  if (child) {
+    const intakeFollowupId = idempotentPartnerWorkspace.data.followups?.find(item => item.applicationId === partnerIntake.data.application?.id && item.kind === "application_received")?.id;
+    const forcedUnknownFollowup = await forceUnknownPartnerDelivery(isolatedRuntimeRoot, intakeFollowupId, { deliveryClaimId: "job_api_unknown_partner" });
+    const partnerReconciliationPath = `/api/admin/partners/followups/${encodeURIComponent(intakeFollowupId)}/delivery-reconciliation`;
+    const unauthorizedPartnerReconciliation = await hit("POST", partnerReconciliationPath, {
+      action: "confirmed_sent",
+      providerMessageId: "api-partner-provider-proof",
+      resolutionNote: "Brevo delivery history confirms provider acceptance."
+    });
+    const blockedPartnerRetry = await hit("POST", `/api/admin/partners/followups/${encodeURIComponent(intakeFollowupId)}/send`, {}, true);
+    const blockedPartnerDismissal = await hit("POST", `/api/admin/partners/followups/${encodeURIComponent(intakeFollowupId)}/review`, { action: "dismiss" }, true);
+    const shortPartnerReconciliation = await hit("POST", partnerReconciliationPath, {
+      action: "confirmed_not_sent",
+      resolutionNote: "Too short"
+    }, true);
+    const missingPartnerProof = await hit("POST", partnerReconciliationPath, {
+      action: "confirmed_sent",
+      resolutionNote: "Brevo delivery history confirms provider acceptance."
+    }, true);
+    const confirmedPartnerDelivery = await hit("POST", partnerReconciliationPath, {
+      action: "confirmed_sent",
+      providerMessageId: "api-partner-provider-proof",
+      resolutionNote: "Brevo delivery history confirms provider acceptance."
+    }, true);
+    const duplicatePartnerReconciliation = await hit("POST", partnerReconciliationPath, {
+      action: "confirmed_sent",
+      providerMessageId: "api-partner-provider-proof",
+      resolutionNote: "A duplicate decision must not overwrite provider evidence."
+    }, true);
+    const partnerReconciledWorkspace = await hit("GET", "/api/admin/partners", null, true);
+    const reconciledPartnerFollowup = partnerReconciledWorkspace.data.followups?.find(item => item.id === intakeFollowupId);
+    const partnerReconciliationAudit = await hit("GET", "/api/admin/audit?limit=100", null, true);
+    const partnerReconciliationAuditRecord = partnerReconciliationAudit.data.audit?.find(item => item.record?.action === "partner.followup.delivery.reconcile")?.record;
+    ok("partner delivery reconciliation is authenticated, validated, and conflict safe", unauthorizedPartnerReconciliation.status === 401 && blockedPartnerRetry.status === 409 && blockedPartnerDismissal.status === 409 && shortPartnerReconciliation.status === 400 && missingPartnerProof.status === 400 && confirmedPartnerDelivery.status === 200 && duplicatePartnerReconciliation.status === 409);
+    ok("partner delivery reconciliation persists provider proof", forcedUnknownFollowup.status === "delivery_unknown" && reconciledPartnerFollowup?.status === "sent" && reconciledPartnerFollowup?.provider === "brevo" && reconciledPartnerFollowup?.providerMessageId === "api-partner-provider-proof" && reconciledPartnerFollowup?.deliveryResolution === "confirmed_sent" && reconciledPartnerFollowup?.deliveryReconciledBy === "local-admin" && partnerReconciledWorkspace.data.summary?.operations?.unknownDeliveryMessages === 0);
+    ok("partner reconciliation audit is privacy safe", partnerReconciliationAuditRecord?.metadata?.resolution === "confirmed_sent" && partnerReconciliationAuditRecord.metadata.providerProofRecorded === true && !JSON.stringify(partnerReconciliationAuditRecord).includes(forcedUnknownFollowup.deliveryIdempotencyKey) && !JSON.stringify(partnerReconciliationAuditRecord).includes(apiIntakeBody.contactEmail));
+  }
   const partnerStatus = await hit("POST", "/api/public/partner-status", {
     reference: partnerIntake.data.application?.reference,
     token: partnerIntake.data.portalAccess?.token

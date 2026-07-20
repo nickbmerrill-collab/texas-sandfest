@@ -239,6 +239,9 @@ assert(adminAssets.some(file => /^admin-[^.]+\.js$/.test(file)), "Admin artifact
 assert(!adminAssets.some(file => /^main-[^.]+\.js$/.test(file)), "Admin artifact contains a visitor JavaScript bundle.");
 assert(adminOptionalScriptFiles.some(file => file.startsWith("admin-incident-delivery-reconciliation-"))
   && !publicAssets.some(file => file.startsWith("admin-incident-delivery-reconciliation-")), "Incident delivery reconciliation must remain an admin-only on-demand chunk.");
+assert(adminJavaScript.includes("/api/admin/partners/followups/")
+  && adminJavaScript.includes("/delivery-reconciliation")
+  && !publicJavaScript.includes("data-reconcile-followup"), "Partner delivery reconciliation must remain admin-only and available on demand.");
 assert(adminOptionalScriptFiles.some(file => file.startsWith("admin-budget-"))
   && visitorSource.includes('adminBudgetUiPromise ||= import("./admin-budget.js")'), "The permission-gated budget workspace must remain on demand.");
 for (const marker of boardDemoCredentialMarkers) {

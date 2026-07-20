@@ -44,3 +44,48 @@ export function bindIncidentDeliveryReconciliation(container, {
     }
   });
 }
+
+export function bindPartnerFollowupDeliveryReconciliation(container, {
+  adminFetch,
+  canWrite,
+  followups,
+  loadAdminPartners,
+  setAdminStatus
+}) {
+  const followupById = new Map((followups || []).map(followup => [followup.id, followup]));
+  const followupRows = [...container.querySelectorAll("[data-followup]")];
+  for (const row of followupRows) {
+    const followup = followupById.get(row.dataset.followup);
+    if (!followup?.deliveryResolution) continue;
+    row.querySelector(".admin-followup-actions")?.insertAdjacentHTML("beforebegin", resolutionMarkup(followup));
+  }
+  const template = document.querySelector("#admin-delivery-reconciliation-template");
+  if (!template) return;
+  for (const row of followupRows) {
+    const followup = followupById.get(row.dataset.followup);
+    if (followup?.status !== "delivery_unknown" && followup?.deliveryOutcomeUnknown !== true) continue;
+    const form = template.content.firstElementChild.cloneNode(true);
+    delete form.dataset.reconcileDispatch;
+    form.dataset.reconcileFollowup = "";
+    form.dataset.followupId = followup.id;
+    for (const control of form.elements) control.disabled = !canWrite;
+    row.insertBefore(form, row.querySelector(".admin-followup-actions"));
+  }
+  for (const form of container.querySelectorAll("[data-reconcile-followup]")) form.addEventListener("submit", async event => {
+    event.preventDefault();
+    const action = event.submitter?.value;
+    const buttons = form.querySelectorAll('button[type="submit"]');
+    buttons.forEach(button => { button.disabled = true; });
+    try {
+      await adminFetch(`/api/admin/partners/followups/${encodeURIComponent(form.dataset.followupId)}/delivery-reconciliation`, {
+        method: "POST",
+        body: JSON.stringify({ ...Object.fromEntries(new FormData(form)), action })
+      });
+      await loadAdminPartners({ quiet: true });
+      setAdminStatus(action === "confirmed_sent" ? "Provider delivery recorded." : "Provider confirmed no delivery; the message is available for staff follow-up.", "ok");
+    } catch (error) {
+      setAdminStatus(error.message, "error");
+      buttons.forEach(button => { button.disabled = !canWrite; });
+    }
+  });
+}
