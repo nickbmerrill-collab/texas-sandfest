@@ -172,7 +172,8 @@ Recommended categories:
 - Confirm final ticket prices and Stripe Price IDs.
 - Confirm whether Eventeny remains the ticketing system or Stripe becomes primary.
 - Complete raffle compliance review before online raffle checkout.
-- Approve ticket terms: filming notice, service animals policy, resale policy, refund policy, and will-call rules.
+- In Operations, save and approve the current-event checkout policy with complete ticket-terms, refund, filming/photography, and service-animal notices. Any saved draft fails checkout closed until it is approved again.
+- Confirm checkout remains disabled until the buyer accepts the exact policy version and digest, and confirm the stored order plus Stripe metadata retain that evidence.
 - Configure Stripe webhook endpoint with HTTPS.
 - Confirm `GET /api/public/tickets` contains no `stripePriceId`, secret, placeholder Price ID, or unavailable product marked purchasable.
 - Confirm the static production artifact reports every ticket unavailable until it reaches the ready API.

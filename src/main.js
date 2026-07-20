@@ -36,6 +36,10 @@ import {
   selectPublicMediaAssets
 } from "../lib/public-media-selection.mjs";
 
+const adminTicketPolicyUi = (import.meta.env.DEV || import.meta.env.VITE_SANDFEST_SURFACE === "admin")
+  ? await import("./admin-ticket-policy.js")
+  : null;
+
 const siteBase = import.meta.env.BASE_URL || "/";
 const sitePath = value => {
   const input = String(value || "");
@@ -200,6 +204,7 @@ const ticketCart = new Map();
 let ticketCheckoutRetryKey = null;
 let ticketCheckoutRequestFingerprint = null;
 let ticketDemoCheckoutState = null;
+let acceptedTicketPolicyKey = null;
 
 const sculptorPublication = publicSculptorRosterPublication(sculptorData, {
   eventId: DEFAULT_EVENT_ID,
@@ -910,6 +915,18 @@ app.innerHTML = `
               <input id="consent-sms-safety" type="checkbox" />
               <span>Text me event-day safety &amp; logistics alerts</span>
             </label>
+          </fieldset>
+          <fieldset id="ticket-policy-fieldset" class="checkout-policy" hidden>
+            <legend>Required acknowledgement</legend>
+            <details>
+              <summary id="ticket-policy-summary">Review ticket policies</summary>
+              <div id="ticket-policy-notices" class="ticket-policy-notices"></div>
+            </details>
+            <label class="consent-check ticket-policy-check">
+              <input id="ticket-policy-acceptance" type="checkbox" required aria-describedby="ticket-policy-help" />
+              <span id="ticket-policy-label"></span>
+            </label>
+            <p id="ticket-policy-help" class="checkout-consent-note">Required before secure checkout.</p>
           </fieldset>
           <button id="checkout-btn" class="button primary" type="button" disabled>${ticketCheckoutPresentation().button}</button>
           <p id="checkout-status" class="checkout-status" role="status" aria-live="polite">${ticketCheckoutPresentation().status}</p>
@@ -1750,6 +1767,7 @@ app.innerHTML = `
             <p class="eyebrow">Ticket pricing</p>
             <h2>GA, VIP, raffle gates</h2>
           </div>
+          ${adminTicketPolicyUi?.ticketPolicyEditorMarkup() || ""}
           <div id="admin-ticket-editor" class="admin-editor-list">
             <article class="empty-state">
               <strong>No API config loaded</strong>
@@ -2383,6 +2401,51 @@ document.querySelector("#chat").addEventListener("click", event => {
   if (button) submitConciergeQuestion(button.dataset.conciergeSuggestion);
 });
 
+function currentTicketPolicy() {
+  const policy = publicTicketCatalogState?.checkoutPolicy;
+  return policy?.ready === true && policy.version && policy.digest ? policy : null;
+}
+
+function currentTicketPolicyKey() {
+  const policy = currentTicketPolicy();
+  return policy ? `${policy.version}:${policy.digest}` : null;
+}
+
+function ticketPolicyAccepted() {
+  const checkbox = document.querySelector("#ticket-policy-acceptance");
+  return Boolean(checkbox?.checked && acceptedTicketPolicyKey === currentTicketPolicyKey());
+}
+
+function renderTicketPolicy() {
+  const fieldset = document.querySelector("#ticket-policy-fieldset");
+  const checkbox = document.querySelector("#ticket-policy-acceptance");
+  const label = document.querySelector("#ticket-policy-label");
+  const notices = document.querySelector("#ticket-policy-notices");
+  const summary = document.querySelector("#ticket-policy-summary");
+  const help = document.querySelector("#ticket-policy-help");
+  const policy = currentTicketPolicy();
+  if (!fieldset || !checkbox || !label || !notices || !summary || !help) return;
+  fieldset.hidden = !policy;
+  if (!policy) {
+    acceptedTicketPolicyKey = null;
+    checkbox.checked = false;
+    notices.replaceChildren();
+    return;
+  }
+  if (acceptedTicketPolicyKey !== currentTicketPolicyKey()) checkbox.checked = false;
+  label.textContent = policy.acknowledgment;
+  summary.textContent = policy.demonstration ? "Review demonstration policies" : "Review ticket policies";
+  help.textContent = policy.demonstration
+    ? "Required for this local walkthrough. No external charge is sent."
+    : "Required before secure checkout.";
+  notices.innerHTML = policy.notices.map(item => `
+    <article data-ticket-policy-notice="${escapeAttr(item.id)}">
+      <strong>${escapeHtml(item.label)}</strong>
+      <p>${escapeHtml(item.summary)}</p>
+    </article>
+  `).join("");
+}
+
 function renderTicketCart() {
   const linePanel = document.querySelector("#ticket-cart-lines");
   const subtotal = document.querySelector("#ticket-subtotal");
@@ -2414,7 +2477,7 @@ function renderTicketCart() {
     </article>
   `).join("");
   subtotal.textContent = hasTbd ? `${formatMoney(knownTotal) ?? "$0.00"} + TBD` : formatMoney(knownTotal);
-  checkout.disabled = Boolean(ticketDemoCheckoutState);
+  checkout.disabled = Boolean(ticketDemoCheckoutState) || !ticketPolicyAccepted();
 }
 
 function resetTicketCheckoutRetry() {
@@ -2448,6 +2511,7 @@ function renderPublicTicketCatalog(catalog) {
   if (rails && presentation.sandbox) {
     rails.innerHTML = "<span>Local sandbox</span><span>Signed completion</span><span>Fulfillment queue</span><span>Revenue ledger</span>";
   }
+  renderTicketPolicy();
   renderTicketCart();
 }
 
@@ -2555,6 +2619,9 @@ document.querySelector("#ticket-demo-pay")?.addEventListener("click", async () =
     if (data.order?.status !== "paid" || receipt.environment !== "board_sandbox") throw new Error("The local payment did not return a paid receipt.");
     ticketDemoCheckoutState = null;
     ticketCart.clear();
+    acceptedTicketPolicyKey = null;
+    const policyAcceptance = document.querySelector("#ticket-policy-acceptance");
+    if (policyAcceptance) policyAcceptance.checked = false;
     resetTicketCheckoutRetry();
     document.querySelector("#ticket-demo-summary").innerHTML = `<p><span>Order</span><strong>${escapeHtml(receipt.orderId)}</strong></p><p><span>Fulfillment</span><strong>${escapeHtml(`${receipt.fulfillmentCount} wristband${receipt.fulfillmentCount === 1 ? "" : "s"} queued`)}</strong></p>`;
     button.hidden = true;
@@ -2580,12 +2647,24 @@ document.querySelector("#checkout-btn").addEventListener("click", async () => {
     smsMarketing: Boolean(document.querySelector("#consent-sms-marketing")?.checked),
     smsSafety: Boolean(document.querySelector("#consent-sms-safety")?.checked)
   };
+  const policy = currentTicketPolicy();
+  if (!policy || !ticketPolicyAccepted()) {
+    setFormStatus(status, "Review and accept the current ticket policies before checkout.", "error");
+    document.querySelector("#ticket-policy-acceptance")?.focus();
+    renderTicketCart();
+    return;
+  }
   const payload = {
     items,
     customer: { email: email || null, phone: phone || null },
     email: email || null,
     phone: phone || null,
-    consent
+    consent,
+    policyAcceptance: {
+      accepted: true,
+      version: policy.version,
+      digest: policy.digest
+    }
   };
   const requestFingerprint = JSON.stringify(payload);
   if (!ticketCheckoutRetryKey || ticketCheckoutRequestFingerprint !== requestFingerprint) {
@@ -2638,6 +2717,13 @@ document.querySelector("#checkout-btn").addEventListener("click", async () => {
   }
 });
 
+document.querySelector("#ticket-policy-acceptance")?.addEventListener("change", event => {
+  acceptedTicketPolicyKey = event.currentTarget.checked ? currentTicketPolicyKey() : null;
+  resetTicketCheckoutRetry();
+  renderTicketCart();
+});
+
+renderTicketPolicy();
 renderTicketCart();
 
 function adminApiBase() {
@@ -3406,6 +3492,10 @@ function ticketAdminCard(product) {
   `;
 }
 
+function renderAdminTicketPolicy() {
+  adminTicketPolicyUi?.renderTicketPolicyEditor(adminConfigState);
+}
+
 function sponsorAdminCard(sponsorPackage) {
   return `
     <article class="admin-edit-card" data-admin-sponsor="${escapeAttr(sponsorPackage.id)}">
@@ -3523,6 +3613,7 @@ function renderAdminEditors() {
   document.querySelector("#admin-ticket-editor").innerHTML = tickets.map(ticketAdminCard).join("");
   document.querySelector("#admin-sponsor-editor").innerHTML = sponsors.map(sponsorAdminCard).join("");
   document.querySelector("#admin-vendor-offering-editor").innerHTML = vendorOfferings.map(vendorOfferingAdminCard).join("");
+  renderAdminTicketPolicy();
   renderAdminEventGuide(adminConfigState?.bootstrap, adminConfigState?.eventGuideReadiness);
   if (adminSessionState) renderAdminSession(adminSessionState);
   bindAdminSaveButtons();
@@ -3543,6 +3634,7 @@ function orderRecordCard(item) {
       </div>
       <p>${escapeHtml(lines)}</p>
       <p>${escapeHtml(adminMoney(order.totals?.knownAmount, "$0.00"))} · ${escapeHtml(order.customer?.email ?? "No buyer email")}${order.checkoutEnvironment === "board_sandbox" ? " · local sandbox" : ""}</p>
+      ${order.policyAcceptance?.version ? `<p class="admin-ticket-policy-evidence">Policy ${escapeHtml(order.policyAcceptance.version)} accepted ${escapeHtml(new Date(order.policyAcceptance.acceptedAt).toLocaleString())}</p>` : ""}
       ${boardRefundReady ? `<button class="button secondary" data-refund-board-ticket="${escapeAttr(order.id)}" type="button">Refund demo order</button>` : ""}
     </article>
   `;
@@ -8709,6 +8801,15 @@ function centsFromInput(value) {
 }
 
 function bindAdminSaveButtons() {
+  adminTicketPolicyUi?.bindTicketPolicyEditor({
+    adminFetch,
+    getConfigState: () => adminConfigState,
+    getSessionState: () => adminSessionState,
+    loadDeployment: loadAdminDeployment,
+    renderSession: renderAdminSession,
+    setFormStatus
+  });
+
   document.querySelectorAll("[data-save-ticket]").forEach(button => {
     button.addEventListener("click", async () => {
       const card = button.closest("[data-admin-ticket]");

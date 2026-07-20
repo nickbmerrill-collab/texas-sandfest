@@ -2,7 +2,16 @@
   "lastUpdated": "2026-04-30T21:40:48.383Z",
   "currency": "usd",
   "provider": "stripe",
+  "checkoutEnvironment": "disabled",
   "checkoutEndpoint": "/api/stripe/create-checkout-session",
+  "checkoutPolicy": {
+    "ready": false,
+    "demonstration": false,
+    "version": null,
+    "digest": null,
+    "acknowledgment": "",
+    "notices": []
+  },
   "applePay": {
     "status": "ready_for_domain_and_merchant_setup",
     "webDomain": "texassandfest.org"

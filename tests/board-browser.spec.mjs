@@ -466,6 +466,13 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
 
   await expect(page.locator("#ticketing-status-pill")).toHaveText("Local payment sandbox");
   await expect(page.locator("#ticketing-copy")).toContainText("No external charge is sent");
+  const ticketPolicy = page.locator("#ticket-policy-fieldset");
+  await expect(ticketPolicy).toBeVisible();
+  await expect(ticketPolicy.locator("#ticket-policy-summary")).toHaveText("Review demonstration policies");
+  await ticketPolicy.locator("#ticket-policy-summary").click();
+  await expect(ticketPolicy.locator("[data-ticket-policy-notice]")).toHaveCount(4);
+  await expect(ticketPolicy).toContainText("Demonstration refund policy");
+  await expect(ticketPolicy.locator("#ticket-policy-label")).toContainText("demonstration ticket terms");
   const sponsorTicketRequest = page.locator('[data-ticket-request="sponsor-package-request"]');
   await expect(sponsorTicketRequest).toHaveText("Request review");
   await sponsorTicketRequest.click();
@@ -479,12 +486,19 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await demoGaCard.locator('[data-ticket-action="increase"]').click();
   await demoGaCard.locator('[data-ticket-action="increase"]').click();
   await expect(page.locator("#ticket-subtotal")).toHaveText("$60.00");
+  await expect(page.locator("#checkout-btn")).toBeDisabled();
+  await ticketPolicy.locator("#ticket-policy-acceptance").check();
+  await expect(page.locator("#checkout-btn")).toBeEnabled();
   const ticketBuyerEmail = `tickets.${runId}@example.com`;
   await page.locator("#checkout-email").fill(ticketBuyerEmail);
   const ticketCheckoutResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/stripe/create-checkout-session" && response.request().method() === "POST");
   await page.locator("#checkout-btn").click();
   const ticketCheckoutResult = await ticketCheckoutResponse;
   expect(ticketCheckoutResult.status()).toBe(200);
+  expect(ticketCheckoutResult.request().postDataJSON().policyAcceptance).toMatchObject({
+    accepted: true,
+    version: "board-demo-2027-v1"
+  });
   const ticketCheckout = await ticketCheckoutResult.json();
   expect(ticketCheckout.demoCheckout).toMatchObject({
     mode: "board_sandbox",
@@ -515,6 +529,7 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await expect(page.locator("#checkout-status")).toContainText("No external charge was sent");
   await expect(page.locator("#ticket-demo-pay")).toBeHidden();
   await expect(page.locator("#ticket-subtotal")).toHaveText("$0.00");
+  await expect(ticketPolicy.locator("#ticket-policy-acceptance")).not.toBeChecked();
 
   const vendorConciergeResponsePromise = page.waitForResponse(response => {
     const url = new URL(response.url());
@@ -654,6 +669,10 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await expect(page.locator("#admin-config h1")).toHaveText("Festival operations command center");
   await expect(page.locator(".nav-cta")).toHaveAttribute("href", `${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor`);
   await expect(page.locator("#admin-deployment-summary")).toContainText("board demo · ready · live providers post-board");
+  await expect(page.locator("#admin-ticket-policy-state")).toHaveText("Approved");
+  await expect(page.locator('#admin-ticket-policy-form [name="version"]')).toHaveValue("board-demo-2027-v1");
+  await expect(page.locator("#admin-ticket-policy-readiness")).toContainText("approved for checkout");
+  await expect(page.locator("#admin-ticket-policy-notices textarea")).toHaveCount(4);
   const activationBoundary = page.locator("#admin-board-stage-summary");
   await expect(activationBoundary.locator('[data-board-stage="presentation-ready"]')).toContainText("Real workflows with synthetic providers");
   await expect(activationBoundary.locator('[data-board-stage="post-presentation"]')).toContainText("Stripe, QuickBooks, Brevo, Twilio, NWS, TxDOT, eight webcam edge agents, OIDC, Turnstile, DNS, and managed recovery");
@@ -843,6 +862,7 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await expect(paidTicketOrderCard()).toContainText("$60.00");
   await expect(paidTicketOrderCard()).toContainText(ticketBuyerEmail);
   await expect(paidTicketOrderCard()).toContainText("local sandbox");
+  await expect(paidTicketOrderCard()).toContainText("Policy board-demo-2027-v1 accepted");
   await expect(paidTicketOrderCard().locator("[data-refund-board-ticket]")).toHaveText("Refund demo order");
   const paidTicketFulfillment = page.locator("#admin-fulfillment-list [data-fulfillment-id]").filter({ hasText: demoTicketOrderId });
   await expect(paidTicketFulfillment).toHaveCount(2);
