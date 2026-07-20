@@ -5886,6 +5886,15 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .admin-dispatch-message > div:first-child strong { color: var(--deep); font-size: 11px; }
 .admin-dispatch-message-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 6px; }
 .admin-dispatch-message-actions span { color: var(--muted); font-size: 10px; }
+.admin-delivery-reconciliation { background: #fff7e7; border-left: 3px solid var(--coral); display: grid; gap: 8px; grid-template-columns: minmax(160px, .8fr) minmax(220px, 1.2fr); padding: 10px; }
+.admin-delivery-reconciliation > div:first-child { display: grid; gap: 3px; grid-column: 1 / -1; }
+.admin-delivery-reconciliation > div:first-child strong { color: var(--deep); font-size: 12px; }
+.admin-delivery-reconciliation > div:first-child span,
+.admin-delivery-resolution { color: var(--muted); font-size: 10px; line-height: 1.45; margin: 0; overflow-wrap: anywhere; }
+.admin-delivery-reconciliation-actions { display: flex; flex-wrap: wrap; gap: 7px; grid-column: 1 / -1; }
+.admin-delivery-reconciliation-actions .button { min-height: 40px; padding: 8px 10px; }
+.admin-delivery-resolution[data-resolution="confirmed_sent"] { color: #2d6840; }
+.admin-delivery-resolution[data-resolution="confirmed_not_sent"] { color: #8a4b14; }
 .admin-partner-columns { display: grid; grid-template-columns: 1.25fr 1fr; gap: 14px; }
 .admin-partner-columns > div { min-width: 0; }
 .admin-partner-columns > div > strong { display: block; margin-bottom: 8px; }
@@ -6445,6 +6454,9 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
   .admin-incident-note { grid-column: 1 / -1; }
   .admin-dispatch-controls { grid-template-columns: 1fr 1fr; }
   .admin-dispatch-controls .button { justify-self: start; }
+  .admin-delivery-reconciliation { grid-template-columns: 1fr; }
+  .admin-delivery-reconciliation-note,
+  .admin-delivery-reconciliation-actions { grid-column: auto; }
   .partner-field-wide,
   .admin-task-toolbar { grid-template-columns: 1fr; }
   .admin-task-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }

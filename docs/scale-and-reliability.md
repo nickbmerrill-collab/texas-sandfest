@@ -126,7 +126,7 @@ Initial production targets:
 | Cell signal drops | installed web app reopens cached app shell and static event data |
 | Stripe unavailable | checkout returns clear retry state, no duplicate local fulfillment |
 | Partner intake response lost | retry with the same idempotency key returns the original application and portal without duplicate tasks or messages |
-| Incident dispatch queue or worker stops | the worker recreates a missing deterministic job; a stable Brevo key prevents duplicate email, and a post-handoff crash stops in explicit provider-verification state |
+| Incident dispatch queue or worker stops | the worker recreates a missing deterministic job; a stable Brevo key prevents duplicate email, and a post-handoff crash stops in explicit provider-verification state. Retry and dismissal remain locked until staff either record the provider message ID as delivered or document provider-confirmed non-delivery; both decisions are audited. |
 | Webhook repeated | idempotent event handling by Stripe event ID |
 | Webhook delayed | order remains paid-pending-fulfillment until event arrives |
 | QuickBooks down | payment/fulfillment continues, finance sync retries later |

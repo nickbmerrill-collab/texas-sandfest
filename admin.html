@@ -10,6 +10,17 @@
   </head>
   <body class="mode-ops admin-shell-body">
     <div id="app"></div>
+    <template id="admin-delivery-reconciliation-template">
+      <form class="admin-delivery-reconciliation" data-reconcile-dispatch>
+        <div><strong>Provider verification required</strong><span>Queueing remains locked until the delivery result is confirmed.</span></div>
+        <label><span>Provider message ID</span><input name="providerMessageId" maxlength="500" autocomplete="off" /></label>
+        <label class="admin-delivery-reconciliation-note"><span>Verification note</span><textarea name="resolutionNote" rows="2" minlength="12" maxlength="1000" required></textarea></label>
+        <div class="admin-delivery-reconciliation-actions">
+          <button class="button primary" type="submit" name="action" value="confirmed_sent">Record delivered</button>
+          <button class="button secondary" type="submit" name="action" value="confirmed_not_sent">Confirm not delivered</button>
+        </div>
+      </form>
+    </template>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

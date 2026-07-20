@@ -385,6 +385,13 @@ async function main() {
   const { claimNextJobs, completeJob, enqueueJob, getQueueHealth, listJobs, markTerminalJobHandled } = await import("../lib/job-queue.mjs");
   const { signCameraPayload } = await import("../lib/camera-ingest.mjs");
   const {
+    beginIncidentDispatchProviderSubmission,
+    claimIncidentDispatchDelivery,
+    normalizeIslandConditions,
+    queueIncidentDispatchMessage,
+    recordIncidentDispatchDelivery
+  } = await import("../lib/island-conditions.mjs");
+  const {
     beginQuickBooksAuthorization,
     completeQuickBooksAuthorization,
     loadQuickBooksRuntimeCredentials,
@@ -1650,6 +1657,58 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
   check("incident dispatch review persists", updatedDispatch.status === 200 && approvedDispatch.data.dispatch?.notification?.status === "approved" && persistedDispatch?.status === "on_scene" && persistedDispatch?.notification?.recipientAvailable === true && !("recipient" in (persistedDispatch?.notification || {})));
   check("incident dispatch delivery queues with provider ready", queuedDispatchSend.status === 202 && queuedDispatchSend.data.job?.status === "queued" && queuedDispatchSend.data.email?.ready === true);
   check("Postgres incident dispatch queue replay converges", replayedDispatchSend.status === 200 && replayedDispatchSend.data.duplicate === true && replayedDispatchSend.data.job?.id === queuedDispatchSend.data.job?.id && !("deliveryIdempotencyKey" in (replayedDispatchSend.data.dispatch?.notification || {})) && !("deliveryClaimId" in (replayedDispatchSend.data.dispatch?.notification || {})));
+
+  const unknownDispatch = await request(base, "POST", dispatchPath, {
+    ...dispatchInput,
+    assigneeId: "operations",
+    title: "Verify ambiguous provider delivery"
+  }, { auth: true });
+  const unknownDispatchId = unknownDispatch.data.dispatch?.id;
+  await request(base, "POST", `${dispatchPath}/${unknownDispatchId}/review`, { action: "approve" }, { auth: true });
+  let forcedUnknownDispatch = null;
+  await updatePlatformDoc(ROOT, "islandConditions", current => {
+    const doc = normalizeIslandConditions(current);
+    const target = doc.dispatches.find(item => item.id === unknownDispatchId);
+    const recipientContext = {
+      taskRecipients: [{
+        id: target.assigneeId,
+        assigneeType: target.assigneeType,
+        name: target.assigneeName,
+        email: target.notification.recipient,
+        status: "active"
+      }]
+    };
+    const queued = queueIncidentDispatchMessage(doc, unknownDispatchId, { ...recipientContext, actorId: "postgres-test-admin" });
+    const claimed = queued.ok && claimIncidentDispatchDelivery(queued.doc, unknownDispatchId, { ...recipientContext, deliveryClaimId: "job_postgres_unknown_dispatch" });
+    const begun = claimed?.ok && beginIncidentDispatchProviderSubmission(claimed.doc, unknownDispatchId, { ...recipientContext, deliveryClaimId: "job_postgres_unknown_dispatch" });
+    const unknown = begun?.ok && recordIncidentDispatchDelivery(begun.doc, unknownDispatchId, {
+      sent: false,
+      provider: "worker",
+      error: "Postgres test worker stopped after provider submission began."
+    }, { deliveryClaimId: "job_postgres_unknown_dispatch", terminal: true, unknownOutcome: true });
+    if (!unknown?.ok) throw new Error(unknown?.error || begun?.error || claimed?.error || queued.error);
+    forcedUnknownDispatch = unknown.dispatch;
+    return unknown.doc;
+  }, { fallback: normalizeIslandConditions(null) });
+  const blockedUnknownRetry = await request(base, "POST", `${dispatchPath}/${unknownDispatchId}/send`, {}, { auth: true });
+  const reconciliationPath = `${dispatchPath}/${unknownDispatchId}/delivery-reconciliation`;
+  const confirmedUnknownDelivery = await request(base, "POST", reconciliationPath, {
+    action: "confirmed_sent",
+    providerMessageId: "postgres-provider-confirmed-delivery",
+    resolutionNote: "Brevo delivery history confirms acceptance for this dispatch."
+  }, { auth: true });
+  const duplicateUnknownReconciliation = await request(base, "POST", reconciliationPath, {
+    action: "confirmed_sent",
+    providerMessageId: "postgres-provider-confirmed-delivery",
+    resolutionNote: "Duplicate reconciliation must not overwrite the first decision."
+  }, { auth: true });
+  const persistedReconciliationState = await request(base, "GET", "/api/admin/island-conditions", undefined, { auth: true });
+  const persistedReconciliation = persistedReconciliationState.data.dispatches?.find(item => item.id === unknownDispatchId);
+  const reconciliationAuditState = await request(base, "GET", "/api/admin/audit?limit=100", undefined, { auth: true });
+  const reconciliationAudit = reconciliationAuditState.data.audit?.find(item => item.record?.action === "conditions.dispatch.delivery.reconcile")?.record;
+  check("Postgres unknown incident delivery blocks retry until verification", forcedUnknownDispatch?.notification.deliveryOutcomeUnknown === true && blockedUnknownRetry.status === 409 && blockedUnknownRetry.data.error?.includes("Verify the provider outcome"));
+  check("Postgres incident delivery reconciliation persists provider proof", confirmedUnknownDelivery.status === 200 && duplicateUnknownReconciliation.status === 409 && persistedReconciliation?.notification.status === "sent" && persistedReconciliation.notification.provider === "brevo" && persistedReconciliation.notification.providerMessageId === "postgres-provider-confirmed-delivery" && persistedReconciliation.notification.deliveryResolution === "confirmed_sent" && persistedReconciliation.notification.deliveryReconciledBy === "postgres-test-admin");
+  check("Postgres incident reconciliation audit is ownership-safe", reconciliationAudit?.metadata?.resolution === "confirmed_sent" && !JSON.stringify(reconciliationAudit).includes(forcedUnknownDispatch.notification.deliveryIdempotencyKey) && !JSON.stringify(reconciliationAudit).includes(forcedUnknownDispatch.notification.recipient));
 
   const closedMarketplaceOffering = await request(base, "PATCH", "/api/admin/vendor-offerings/marketplace-booth", {
     name: "Non-food vendor interest",

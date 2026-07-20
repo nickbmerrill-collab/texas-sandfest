@@ -145,7 +145,21 @@ export default defineConfig(({ mode }) => {
       sourcemap,
       rollupOptions: {
         input: buildInputs,
-        output: buildTarget === "admin" ? { inlineDynamicImports: true } : undefined
+        output: buildTarget === "admin" ? {
+          manualChunks: {
+            "admin-runtime": [
+              resolve(import.meta.dirname, "src/main.js"),
+              resolve(import.meta.dirname, "src/admin-auth.js"),
+              resolve(import.meta.dirname, "src/admin-operations-ui.js")
+            ],
+            "admin-budget": [
+              resolve(import.meta.dirname, "src/admin-budget.js")
+            ],
+            "admin-incident-delivery-reconciliation": [
+              resolve(import.meta.dirname, "src/admin-incident-delivery-reconciliation.js")
+            ]
+          }
+        } : undefined
       }
     }
   };

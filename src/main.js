@@ -38,7 +38,8 @@ import {
   selectPublicMediaAssets
 } from "../lib/public-media-selection.mjs";
 
-const adminOperationsUi = (import.meta.env.DEV || import.meta.env.VITE_SANDFEST_SURFACE === "admin")
+const ADMIN_UI_ENABLED = import.meta.env.DEV || import.meta.env.VITE_SANDFEST_SURFACE === "admin";
+const adminOperationsUi = ADMIN_UI_ENABLED
   ? await import("./admin-operations-ui.js")
   : null;
 
@@ -5766,8 +5767,11 @@ function renderAdminRevenue(payload) {
 }
 
 const ADMIN_BUDGET_UI_ENABLED = import.meta.env.DEV || import.meta.env.VITE_SANDFEST_SURFACE === "admin";
-const adminBudgetUiPromise = ADMIN_BUDGET_UI_ENABLED
-  ? import("./admin-budget.js").then(module => module.createAdminBudgetUi({
+let adminBudgetUiPromise = null;
+
+async function loadAdminBudget(options = {}) {
+  if (!ADMIN_BUDGET_UI_ENABLED) return null;
+  adminBudgetUiPromise ||= import("./admin-budget.js").then(module => module.createAdminBudgetUi({
       adminCan,
       adminFetch,
       adminMoney,
@@ -5775,12 +5779,8 @@ const adminBudgetUiPromise = ADMIN_BUDGET_UI_ENABLED
       renderAdminSession,
       revenueKpiCard,
       setAdminStatus
-    }))
-  : Promise.resolve(null);
-
-async function loadAdminBudget(options = {}) {
+    }));
   const controller = await adminBudgetUiPromise;
-  if (!controller) return null;
   controller.mount();
   return controller.load(options);
 }
@@ -8399,83 +8399,6 @@ async function loadAdminPartners({ quiet = false } = {}) {
   }
 }
 
-function incidentDispatchAssignmentOptions(directory, assigneeType) {
-  if (assigneeType === "team") {
-    const teams = Array.isArray(directory?.teams) ? directory.teams : [];
-    return teams.length
-      ? teams.map(team => `<option value="${escapeAttr(team.id)}" data-name="${escapeAttr(team.name)}">${escapeHtml(team.name)}${team.notificationReady ? " · email routed" : " · assignment only"}</option>`).join("")
-      : '<option value="">No teams available</option>';
-  }
-  if (assigneeType === "volunteer") {
-    const volunteers = (Array.isArray(directory?.volunteers) ? directory.volunteers : [])
-      .filter(volunteer => !["no_show", "withdrawn", "inactive"].includes(volunteer.status));
-    return volunteers.length
-      ? volunteers.map(volunteer => `<option value="${escapeAttr(volunteer.id)}" data-name="${escapeAttr(volunteer.name)}">${escapeHtml(volunteer.name)}${volunteer.emailAvailable ? " · email on file" : " · no email"}</option>`).join("")
-      : '<option value="">No available volunteers</option>';
-  }
-  if (assigneeType === "staff") {
-    const staff = (Array.isArray(directory?.staff) ? directory.staff : [])
-      .filter(item => ["active", "on_call"].includes(item.status));
-    return staff.length
-      ? staff.map(item => `<option value="${escapeAttr(item.id)}" data-name="${escapeAttr(item.name)}">${escapeHtml(item.name)}${item.emailAvailable ? " · email on file" : " · assignment only"}</option>`).join("")
-      : '<option value="">No active staff available</option>';
-  }
-  return '<option value="">No assignments available</option>';
-}
-
-function renderIncidentDispatch(dispatch, incident, payload, canWrite) {
-  const notification = dispatch.notification || {};
-  const messageStatus = conditionLabel(notification.status || "not_requested");
-  const statusOptions = ["assigned", "acknowledged", "en_route", "on_scene", "completed", "canceled"];
-  const canReview = canWrite && notification.status === "draft_ready";
-  const canDismiss = canWrite && ["draft_ready", "approved", "failed"].includes(notification.status);
-  const canSend = canWrite && ["approved", "failed"].includes(notification.status) && payload.email?.ready;
-  const emailDraft = notification.channel === "email" ? `
-    <div class="admin-dispatch-message" data-dispatch-message>
-      <div><strong>Operational email</strong><span data-status="${escapeAttr(notification.status)}">${escapeHtml(messageStatus)} · version ${notification.version || 1}</span></div>
-      <label><span>Subject</span><input name="subject" maxlength="998" value="${escapeAttr(notification.subject || "")}" ${["queued", "sending", "sent", "canceled"].includes(notification.status) ? "disabled" : ""} /></label>
-      <label><span>Message</span><textarea name="body" rows="5" maxlength="10000" ${["queued", "sending", "sent", "canceled"].includes(notification.status) ? "disabled" : ""}>${escapeHtml(notification.body || "")}</textarea></label>
-      ${notification.lastError ? `<p class="admin-delivery-error">${escapeHtml(notification.lastError)}</p>` : ""}
-      <div class="admin-dispatch-message-actions">
-        ${canReview ? `<button class="button secondary" type="button" data-review-dispatch="approve" data-incident-id="${escapeAttr(incident.id)}" data-dispatch-id="${escapeAttr(dispatch.id)}">Approve draft</button>` : ""}
-        ${canDismiss ? `<button class="button secondary" type="button" data-review-dispatch="dismiss" data-incident-id="${escapeAttr(incident.id)}" data-dispatch-id="${escapeAttr(dispatch.id)}">Dismiss draft</button>` : ""}
-        ${["approved", "failed"].includes(notification.status) ? `<button class="button primary" type="button" data-send-dispatch data-incident-id="${escapeAttr(incident.id)}" data-dispatch-id="${escapeAttr(dispatch.id)}" ${canSend ? "" : "disabled"}>Queue email</button>` : ""}
-        ${["approved", "failed"].includes(notification.status) && !payload.email?.ready ? '<span>Transactional email is not configured.</span>' : ""}
-        ${notification.sentAt ? `<span>Sent ${escapeHtml(new Date(notification.sentAt).toLocaleString())}${notification.provider ? ` via ${escapeHtml(notification.provider)}` : ""}</span>` : ""}
-      </div>
-    </div>` : "";
-  return `
-    <div class="admin-dispatch-row" data-dispatch-control="${escapeAttr(dispatch.id)}">
-      <div class="admin-dispatch-heading">
-        <div><strong>${escapeHtml(dispatch.title)}</strong><span>${escapeHtml(dispatch.assigneeName)} · ${escapeHtml(conditionLabel(dispatch.assigneeType))}${dispatch.assigneeRole ? ` · ${escapeHtml(dispatch.assigneeRole)}` : ""}</span></div>
-        <b data-status="${escapeAttr(dispatch.status)}">${escapeHtml(conditionLabel(dispatch.status))}</b>
-      </div>
-      <p>${escapeHtml(dispatch.instructions || "No additional instructions.")}</p>
-      <div class="admin-dispatch-controls">
-        <label><span>Status</span><select name="dispatchStatus" ${canWrite ? "" : "disabled"}>${statusOptions.map(value => `<option value="${value}" ${dispatch.status === value ? "selected" : ""}>${escapeHtml(conditionLabel(value))}</option>`).join("")}</select></label>
-        <label><span>Closeout or update note</span><input name="dispatchNote" maxlength="1000" ${canWrite ? "" : "disabled"} /></label>
-        <button class="button secondary" type="button" data-save-dispatch="${escapeAttr(dispatch.id)}" data-incident-id="${escapeAttr(incident.id)}" ${canWrite ? "" : "disabled"}>Save dispatch</button>
-      </div>
-      ${emailDraft}
-    </div>`;
-}
-
-function renderIncidentDispatchCreate(incident, payload, canWrite) {
-  const active = ["open", "acknowledged", "responding", "monitoring"].includes(incident.status);
-  if (!active) return "";
-  return `
-    <form class="admin-dispatch-create" data-create-dispatch="${escapeAttr(incident.id)}">
-      <div class="admin-dispatch-section-heading"><strong>New dispatch</strong><span>Assign a responder and optionally prepare an email for review.</span></div>
-      <label><span>Assignment</span><select name="assigneeType" ${canWrite ? "" : "disabled"}><option value="team">Team</option><option value="volunteer">Volunteer</option><option value="staff">Staff</option></select></label>
-      <label data-dispatch-assignee-field><span>Assignee</span><select name="assigneeId" ${canWrite ? "" : "disabled"}>${incidentDispatchAssignmentOptions(payload.assignmentDirectory, "team")}</select></label>
-      <label><span>Notification</span><select name="channel" ${canWrite ? "" : "disabled"}><option value="none">Assignment only</option><option value="email">Prepare email draft</option></select></label>
-      <label class="admin-dispatch-wide"><span>Assignment title</span><input name="title" maxlength="180" placeholder="Respond to ${escapeAttr(incident.title)}" ${canWrite ? "" : "disabled"} /></label>
-      <label class="admin-dispatch-wide"><span>Instructions</span><textarea name="instructions" rows="2" maxlength="2000" ${canWrite ? "" : "disabled"}></textarea></label>
-      <label><span>Due</span><input name="dueAt" type="datetime-local" ${canWrite ? "" : "disabled"} /></label>
-      <button class="button primary" type="submit" ${canWrite ? "" : "disabled"}>Create dispatch</button>
-    </form>`;
-}
-
 function renderAdminConditions(payload) {
   adminConditionsState = payload;
   const container = document.querySelector("#admin-condition-cameras");
@@ -8491,7 +8414,7 @@ function renderAdminConditions(payload) {
     revenueKpiCard("Responding", `${summary.responding || 0}`, `${summary.monitoring || 0} monitoring`),
     revenueKpiCard("Critical", `${summary.critical || 0}`, `${summary.unassigned || 0} without owner`),
     revenueKpiCard("Dispatches", `${dispatchSummary.active || 0}`, `${dispatchSummary.onScene || 0} on scene`),
-    revenueKpiCard("Message review", `${dispatchSummary.draftsAwaitingReview || 0}`, `${dispatchSummary.failedMessages || 0} failed`),
+    revenueKpiCard("Message review", `${dispatchSummary.draftsAwaitingReview || 0}`, `${dispatchSummary.unknownDeliveryMessages || 0} provider check${dispatchSummary.unknownDeliveryMessages === 1 ? "" : "s"}`),
     revenueKpiCard("Public review", `${summary.publicAlertRecommended || 0}`, `${summary.publicNotices || 0} approved notices`)
   ].join("");
   if (incidentSummary) incidentSummary.textContent = `${summary.active || 0} active · ${dispatchSummary.active || 0} responder assignments · ${dispatchSummary.draftsAwaitingReview || 0} messages awaiting review`;
@@ -8530,8 +8453,8 @@ function renderAdminConditions(payload) {
         </div>
         <div class="admin-dispatch-section">
           <div class="admin-dispatch-section-heading"><strong>Responder dispatch</strong><span>${dispatches.length} assignment${dispatches.length === 1 ? "" : "s"}</span></div>
-          ${dispatches.length ? dispatches.map(dispatch => renderIncidentDispatch(dispatch, incident, payload, canWrite)).join("") : '<p class="admin-dispatch-empty">No responders assigned yet.</p>'}
-          ${renderIncidentDispatchCreate(incident, payload, canWrite)}
+          ${dispatches.length ? dispatches.map(dispatch => adminOperationsUi?.incidentDispatchMarkup(dispatch, incident, payload, canWrite, conditionLabel) || "").join("") : '<p class="admin-dispatch-empty">No responders assigned yet.</p>'}
+          ${adminOperationsUi?.incidentDispatchCreateMarkup(incident, payload, canWrite) || ""}
         </div>
       </article>`;
     }).join("") : '<article class="empty-state"><span>No incidents match this view.</span></article>';
@@ -8564,7 +8487,7 @@ function renderAdminConditions(payload) {
       const syncAssignmentFields = ({ rebuildAssignees = false } = {}) => {
         if (rebuildAssignees) {
           const selectedAssignee = assignee.value;
-          assignee.innerHTML = incidentDispatchAssignmentOptions(payload.assignmentDirectory, type.value);
+          assignee.innerHTML = adminOperationsUi?.incidentDispatchAssignmentOptions(payload.assignmentDirectory, type.value) || "";
           if ([...assignee.options].some(option => option.value === selectedAssignee)) assignee.value = selectedAssignee;
         }
       };
@@ -8632,6 +8555,15 @@ function renderAdminConditions(payload) {
         setAdminStatus("Dispatch email queued for delivery.", "ok");
       } catch (error) { setAdminStatus(error.message, "error"); } finally { button.disabled = !adminCan("conditions:write") || !adminConditionsState?.email?.ready; }
     }));
+    if (ADMIN_UI_ENABLED && incidentList.querySelector("[data-reconcile-dispatch-slot], [data-delivery-resolution-slot]")) {
+      void import("./admin-incident-delivery-reconciliation.js").then(module => module.bindIncidentDeliveryReconciliation(incidentList, {
+        adminFetch,
+        canWrite,
+        dispatches: payload.dispatches,
+        loadAdminConditions,
+        setAdminStatus
+      })).catch(error => setAdminStatus(error.message, "error"));
+    }
   }
   if (!container) return;
   if (feeds) {

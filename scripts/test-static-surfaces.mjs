@@ -52,6 +52,12 @@ const adminAssets = await readdir(path.join(adminDir, "assets"));
 const publicScriptFiles = publicAssets.filter(file => file.endsWith(".js"));
 const publicInitialScriptFiles = [...publicHtml.matchAll(/(?:src|href)="\/assets\/([^"?]+\.js)"/g)].map(match => match[1]);
 const publicOptionalScriptFiles = publicScriptFiles.filter(file => !publicInitialScriptFiles.includes(file));
+const adminScriptFiles = adminAssets.filter(file => file.endsWith(".js"));
+const adminOptionalScriptFiles = adminScriptFiles.filter(file => [
+  "admin-budget-",
+  "admin-incident-delivery-reconciliation-"
+].some(prefix => file.startsWith(prefix)));
+const adminInitialScriptFiles = adminScriptFiles.filter(file => !adminOptionalScriptFiles.includes(file));
 const publicStylesheets = (await Promise.all(
   publicAssets.filter(file => file.endsWith(".css")).map(file => readFile(path.join(publicDir, "assets", file), "utf8"))
 )).join("\n");
@@ -77,14 +83,16 @@ const mediaDerivatives = JSON.parse(await readFile(path.join(publicDir, "assets"
 const publicMediaManifest = JSON.parse(await readFile(path.join(publicDir, "assets", "sandfest-media", "media-manifest.json"), "utf8"));
 const robots = await readFile(path.join(publicDir, "robots.txt"), "utf8");
 const publicWorker = await readFile(path.join(publicDir, "sw.js"), "utf8");
-const [publicScripts, publicInitialScripts, publicOptionalScripts, publicStyles, publicPreferredFonts, publicOfflineFonts, adminScripts, adminStyles] = await Promise.all([
+const [publicScripts, publicInitialScripts, publicOptionalScripts, publicStyles, publicPreferredFonts, publicOfflineFonts, adminScripts, adminInitialScripts, adminOptionalScripts, adminStyles] = await Promise.all([
   assetSizeSummary(publicDir, publicScriptFiles),
   assetSizeSummary(publicDir, publicInitialScriptFiles),
   assetSizeSummary(publicDir, publicOptionalScriptFiles),
   assetSizeSummary(publicDir, publicAssets.filter(file => file.endsWith(".css"))),
   assetSizeSummary(publicDir, publicAssets.filter(file => file.endsWith(".woff2"))),
   assetSizeSummary(publicDir, publicAssets.filter(file => /\.woff2?$/.test(file))),
-  assetSizeSummary(adminDir, adminAssets.filter(file => file.endsWith(".js"))),
+  assetSizeSummary(adminDir, adminScriptFiles),
+  assetSizeSummary(adminDir, adminInitialScriptFiles),
+  assetSizeSummary(adminDir, adminOptionalScriptFiles),
   assetSizeSummary(adminDir, adminAssets.filter(file => file.endsWith(".css")))
 ]);
 const KIB = 1024;
@@ -169,7 +177,8 @@ assert(publicStyles.gzipBytes <= 30 * KIB, "Public CSS exceeds the 30 KiB gzip b
 assert(publicScripts.gzipBytes + publicStyles.gzipBytes <= 135 * KIB, "Public JavaScript and CSS exceed the 135 KiB combined gzip budget.");
 assert(publicPreferredFonts.rawBytes <= 200 * KIB, "Public preferred WOFF2 fonts exceed the 200 KiB delivery budget.");
 assert(publicOfflineFonts.rawBytes <= 450 * KIB, "Public compiled fonts exceed the 450 KiB offline-cache budget.");
-assert(adminScripts.gzipBytes <= 120 * KIB, "Admin JavaScript exceeds the 120 KiB gzip budget.");
+assert(adminInitialScripts.gzipBytes <= 120 * KIB, "Initial admin JavaScript exceeds the 120 KiB gzip budget.");
+assert(adminOptionalScripts.gzipBytes <= 6 * KIB, "On-demand admin JavaScript exceeds the 6 KiB gzip budget.");
 assert(adminStyles.gzipBytes <= 30 * KIB, "Admin CSS exceeds the 30 KiB gzip budget.");
 assert(adminScripts.gzipBytes + adminStyles.gzipBytes <= 150 * KIB, "Admin JavaScript and CSS exceed the 150 KiB combined gzip budget.");
 assert(robots === "User-agent: *\nAllow: /\n", "Public artifact has an invalid or unexpected robots.txt policy.");
@@ -228,6 +237,10 @@ assert(publicAssets.some(file => /^main-[^.]+\.js$/.test(file)), "Public artifac
 assert(!publicAssets.some(file => /^admin-[^.]+\.js$/.test(file)), "Public artifact contains an admin JavaScript bundle.");
 assert(adminAssets.some(file => /^admin-[^.]+\.js$/.test(file)), "Admin artifact is missing its operations JavaScript bundle.");
 assert(!adminAssets.some(file => /^main-[^.]+\.js$/.test(file)), "Admin artifact contains a visitor JavaScript bundle.");
+assert(adminOptionalScriptFiles.some(file => file.startsWith("admin-incident-delivery-reconciliation-"))
+  && !publicAssets.some(file => file.startsWith("admin-incident-delivery-reconciliation-")), "Incident delivery reconciliation must remain an admin-only on-demand chunk.");
+assert(adminOptionalScriptFiles.some(file => file.startsWith("admin-budget-"))
+  && visitorSource.includes('adminBudgetUiPromise ||= import("./admin-budget.js")'), "The permission-gated budget workspace must remain on demand.");
 for (const marker of boardDemoCredentialMarkers) {
   assert(!publicHtml.includes(marker), `Public production HTML contains the board demo credential marker ${marker}.`);
   assert(!adminHtml.includes(marker), `Admin production HTML contains the board demo credential marker ${marker}.`);
@@ -446,5 +459,5 @@ assert(visitorSource.includes('window.addEventListener("online", recoverPublicCo
 
 console.log(
   `Static entrypoint isolation verified: visitor entry is 2027-current, CSP-hardened, self-hosted, Turnstile-protected, public-only, and within delivery budgets ` +
-  `(initial public JS ${Math.ceil(publicInitialScripts.gzipBytes / KIB)} KiB, optional JS ${Math.ceil(publicOptionalScripts.gzipBytes / KIB)} KiB, all public JS/CSS ${Math.ceil((publicScripts.gzipBytes + publicStyles.gzipBytes) / KIB)} KiB gzip; admin JS/CSS ${Math.ceil((adminScripts.gzipBytes + adminStyles.gzipBytes) / KIB)} KiB gzip).`
+  `(initial public JS ${Math.ceil(publicInitialScripts.gzipBytes / KIB)} KiB, optional JS ${Math.ceil(publicOptionalScripts.gzipBytes / KIB)} KiB, all public JS/CSS ${Math.ceil((publicScripts.gzipBytes + publicStyles.gzipBytes) / KIB)} KiB gzip; initial admin JS ${Math.ceil(adminInitialScripts.gzipBytes / KIB)} KiB, optional admin JS ${Math.ceil(adminOptionalScripts.gzipBytes / KIB)} KiB, all admin JS/CSS ${Math.ceil((adminScripts.gzipBytes + adminStyles.gzipBytes) / KIB)} KiB gzip).`
 );
