@@ -191,6 +191,7 @@ import {
   summarizePartnerMilestones,
   summarizePartnerReceivables,
   summarizeSponsorFulfillment,
+  summarizeTaskNotifications,
   summarizeVendorReadiness,
   summarizeTaskBoard,
   updateOutreachCampaignStatus,
@@ -1487,10 +1488,10 @@ function adminPartnerFollowupView(followup) {
   };
 }
 
-function adminPartnerTaskView(task) {
+function adminPartnerTaskView(task, followups = []) {
   if (!task) return task;
   const { lastAssignmentNoticeRequestId, ...safe } = task;
-  return safe;
+  return { ...safe, notificationSummary: summarizeTaskNotifications(task, followups) };
 }
 
 async function readWorkerStatus() {
@@ -6654,7 +6655,7 @@ async function handleRequest(request, response) {
         milestones: doc.milestones,
         milestoneSummary: summarizePartnerMilestones(doc),
         followups: doc.followups.map(adminPartnerFollowupView),
-        tasks: doc.tasks.map(adminPartnerTaskView),
+        tasks: doc.tasks.map(task => adminPartnerTaskView(task, doc.followups)),
         brandProfiles: doc.brandProfiles,
         brandAssets: doc.brandAssets,
         deliverables: doc.deliverables,
@@ -7674,8 +7675,8 @@ async function handleRequest(request, response) {
         sendJson(request, response, 400, { error: result?.error || "Task could not be created." });
         return;
       }
-      await writeAuditRecord(request, "partner.task.create", { type: "task", id: result.task.id }, null, adminPartnerTaskView(result.task));
-      sendJson(request, response, 201, { task: adminPartnerTaskView(result.task) });
+      await writeAuditRecord(request, "partner.task.create", { type: "task", id: result.task.id }, null, adminPartnerTaskView(result.task, result.doc.followups));
+      sendJson(request, response, 201, { task: adminPartnerTaskView(result.task, result.doc.followups) });
       return;
     }
 
@@ -7701,8 +7702,8 @@ async function handleRequest(request, response) {
         sendJson(request, response, result?.error === "Task not found." ? 404 : 400, { error: result?.error || "Task could not be updated." });
         return;
       }
-      await writeAuditRecord(request, "partner.task.update", { type: "task", id: taskId }, adminPartnerTaskView(before), adminPartnerTaskView(result.task));
-      sendJson(request, response, 200, { task: adminPartnerTaskView(result.task) });
+      await writeAuditRecord(request, "partner.task.update", { type: "task", id: taskId }, adminPartnerTaskView(before, beforeDoc.followups), adminPartnerTaskView(result.task, result.doc.followups));
+      sendJson(request, response, 200, { task: adminPartnerTaskView(result.task, result.doc.followups) });
       return;
     }
 
@@ -7749,7 +7750,7 @@ async function handleRequest(request, response) {
         && item.kind === "task_assignment"
         && item.sourceVersion === `assignment:${result.task.assignmentVersion}:notice:${result.task.assignmentNoticeVersion}`);
       if (!result.replay) {
-        await writeAuditRecord(request, "partner.task.assignment_notice.request", { type: "task", id: taskId }, adminPartnerTaskView(before), adminPartnerTaskView(result.task), {
+        await writeAuditRecord(request, "partner.task.assignment_notice.request", { type: "task", id: taskId }, adminPartnerTaskView(before, beforeDoc.followups), adminPartnerTaskView(result.task, result.doc.followups), {
           followupId: followup?.id ?? null,
           assignmentVersion: result.task.assignmentVersion,
           assignmentNoticeVersion: result.task.assignmentNoticeVersion,
@@ -7758,7 +7759,7 @@ async function handleRequest(request, response) {
       }
       sendJson(request, response, result.replay ? 200 : 202, {
         replay: result.replay === true,
-        task: adminPartnerTaskView(result.task),
+        task: adminPartnerTaskView(result.task, result.doc.followups),
         notice: followup ? { id: followup.id, status: followup.status, sourceVersion: followup.sourceVersion } : null
       });
       return;

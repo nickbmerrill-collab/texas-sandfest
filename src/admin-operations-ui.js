@@ -3,11 +3,11 @@ import { REQUIRED_TICKET_POLICY_NOTICES } from "../lib/ticket-policy-schema.mjs"
 
 const PENDING_NOTICE_STATUSES = new Set(["pending", "draft_ready", "approved", "queued", "sending"]);
 
-export function taskAssignmentNoticeAction(task, assignmentType, assignmentNotice) {
-  const pending = PENDING_NOTICE_STATUSES.has(assignmentNotice?.status);
+export function taskAssignmentNoticeAction(task, assignmentType, assignmentSummary) {
+  const pending = PENDING_NOTICE_STATUSES.has(assignmentSummary?.latestStatus);
   return {
     disabled: !["open", "in_progress", "blocked"].includes(task.status) || assignmentType === "unassigned" || pending,
-    label: pending ? "Notice pending" : assignmentNotice ? "Resend notice" : "Send notice"
+    label: pending ? "Notice pending" : assignmentSummary?.count ? "Resend notice" : "Send notice"
   };
 }
 

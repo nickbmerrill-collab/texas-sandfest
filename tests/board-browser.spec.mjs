@@ -1672,7 +1672,7 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   }, { timeout: 15_000 }).toBe(true);
   const freshVolunteerTask = page.locator(`#admin-partner-tasks [data-task="${createdVolunteerTask.id}"]`);
   await expect(freshVolunteerTask).toContainText(taskTitle);
-  await expect(freshVolunteerTask).toContainText("Notification · delivered · task assignment");
+  await expect(freshVolunteerTask).toContainText("Assignment notices · 1 issued · latest delivered");
   await expect(freshVolunteerTask).toContainText("Awaiting assignee acknowledgement");
   const resendTaskNoticeResponse = page.waitForResponse(response => new URL(response.url()).pathname === `/api/admin/partners/tasks/${createdVolunteerTask.id}/assignment-notice` && response.request().method() === "POST");
   await freshVolunteerTask.locator('[data-resend-task]').click();
@@ -1713,7 +1713,7 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   const resentTaskReload = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/partners" && response.request().method() === "GET");
   await page.locator("#admin-load-partners").click();
   await resentTaskReload;
-  await expect(freshVolunteerTask).toContainText("Notification · delivered · task assignment");
+  await expect(freshVolunteerTask).toContainText("Assignment notices · 2 issued · latest delivered");
   await expect(freshVolunteerTask.locator('[data-resend-task]')).toBeEnabled();
   await expect(freshVolunteerTask.locator('[data-resend-task]')).toHaveText("Resend notice");
 
