@@ -30,6 +30,7 @@ import {
 import { publicIslandConditionsRefreshDelay } from "../lib/island-conditions.mjs";
 import { DEFAULT_EVENT_ID } from "../lib/event-context.mjs";
 import { publicSculptorRosterPublication } from "../lib/public-roster.mjs";
+import { canonicalPublicWebRoute } from "../lib/public-deep-links.mjs";
 import {
   PUBLIC_FIELD_MEDIA,
   PUBLIC_GALLERY_MEDIA,
@@ -96,6 +97,16 @@ const ADMIN_AUTH_MODE = ADMIN_ENTRY
   : "token";
 const CONFIGURED_ADMIN_API_BASE = String(import.meta.env.VITE_SANDFEST_API_BASE_URL || "").replace(/\/+$/, "");
 const TURNSTILE_SITE_KEY = ADMIN_ENTRY ? "" : String(import.meta.env.VITE_SANDFEST_TURNSTILE_SITE_KEY || "").trim();
+const canonicalPublicRoute = ADMIN_ENTRY
+  ? null
+  : canonicalPublicWebRoute(window.location.href, { basePath: siteBase });
+if (canonicalPublicRoute && !window.location.hash) {
+  window.history.replaceState(
+    null,
+    "",
+    `${window.location.pathname}${window.location.search}${canonicalPublicRoute.hash}`
+  );
+}
 let adminAuthClient = null;
 let adminAuthInitializationError = null;
 let partnerBotProtection = { enabled: false, tokenFor: () => "", reset: () => {} };
@@ -579,10 +590,10 @@ app.innerHTML = `
         <a href="#live-beach">Live Beach</a>
         <a href="#concierge">Concierge</a>
         <a href="#tickets">Tickets</a>
+        <a href="#schedule">Schedule</a>
         <a href="#sculptors-showcase">Sculptors</a>
         <a href="#vendors-map">Vendors</a>
         <a href="#island-conditions">Island</a>
-        <a href="#media">Media</a>
         <a href="#sponsors">Sponsors</a>
         <a href="#partner-status">Status</a>
         <a href="#port-a">Port A</a>
@@ -1873,6 +1884,25 @@ app.innerHTML = `
           <figure>
             <img ${responsiveImageAttributes(asset, "(max-width: 760px) 100vw, 25vw")} alt="${escapeAttr(asset.alt || asset.name || "Texas SandFest media")}" loading="lazy" decoding="async" />
           </figure>
+        `).join("")}
+      </div>
+    </section>
+
+    <section class="section" id="schedule" data-audience="public">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Festival schedule</p>
+          <h2>Plan the moments you do not want to miss.</h2>
+        </div>
+        <a class="button secondary" href="#island-conditions">Island conditions</a>
+      </div>
+      <div class="public-schedule-grid">
+        ${schedule.map(item => `
+          <article${item.id ? ` id="schedule-${escapeAttr(item.id)}"` : ""}>
+            <time>${escapeHtml(item.day)} · ${escapeHtml(item.time)}</time>
+            <strong>${escapeHtml(item.title)}</strong>
+            <span>${escapeHtml(item.zone)} · ${escapeHtml(item.type)}</span>
+          </article>
         `).join("")}
       </div>
     </section>
@@ -10428,6 +10458,16 @@ if (ADMIN_ENTRY) {
   document.querySelector("#public-alert")?.remove();
 } else if (!OPS_DEMO_ENABLED) {
   document.querySelectorAll('main > section[data-audience="ops"]').forEach(section => section.remove());
+}
+
+if (canonicalPublicRoute?.question) {
+  const askInput = document.querySelector("#ask-input");
+  if (askInput) askInput.value = canonicalPublicRoute.question;
+}
+if (canonicalPublicRoute?.scheduleItemID) {
+  const scheduleTarget = document.getElementById(`schedule-${canonicalPublicRoute.scheduleItemID}`);
+  if (scheduleTarget) scheduleTarget.classList.add("link-target");
+  else window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#schedule`);
 }
 
 function scrollToRenderedHashTarget(options = {}) {

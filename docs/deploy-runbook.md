@@ -15,11 +15,13 @@ This runbook gets you to those URLs in three phases. Public web first (zero risk
 
 A workflow at `.github/workflows/pages.yml` builds the Vite app only after the full `CI` workflow succeeds for a direct push to `main`. Pull-request, feature-branch, and manually dispatched runs cannot publish, and there is no manual bypass around the release gate.
 
-Until the post-board production Turnstile site key is configured, that workflow
-records a successful deferred-release notice and performs no checkout, build,
-artifact upload, or deployment. This keeps the intentional provider deferral
-visible without turning every otherwise-green `main` run red. Once the variable
-exists, only the gated production build and deploy jobs can publish.
+Until both the post-board production Turnstile site key and the signed iOS app's
+Apple Application Identifier Prefix are configured, that workflow records a
+successful deferred-release notice and performs no checkout, build, artifact
+upload, or deployment. This keeps the intentional provider and Apple-account
+deferrals visible without turning every otherwise-green `main` run red. Once
+both variables exist, only the gated production build and deploy jobs can
+publish.
 
 Repository configuration, workflow success, the GitHub Pages URL, custom DNS, and customer-visible rendering must each be verified directly before this phase is marked live. A local build or committed workflow is not deploy proof.
 
@@ -56,7 +58,13 @@ This static meta policy does not replace response headers. In particular, browse
 **Enable Pages once:**
 1. Go to https://github.com/nickbmerrill-collab/texas-sandfest/settings/pages
 2. Under **Build and deployment → Source**, choose **GitHub Actions**.
-3. Under **Settings → Secrets and variables → Actions → Variables**, create `SANDFEST_TURNSTILE_SITE_KEY` with the public key from the production Cloudflare Turnstile widget. Configure that widget to allow the Pages hostname and every planned custom public hostname. The release remains explicitly deferred while this variable is missing, and the production visitor build rejects Cloudflare test keys.
+3. Under **Settings → Secrets and variables → Actions → Variables**, create `SANDFEST_TURNSTILE_SITE_KEY` with the public key from the production Cloudflare Turnstile widget. Configure that widget to allow the Pages hostname and every planned custom public hostname. The production visitor build rejects Cloudflare test keys.
+4. In the same repository Variables screen, create
+   `SANDFEST_APPLE_APP_ID_PREFIX` with the signed app's 10-character Apple
+   Application Identifier Prefix. Do not assume this is the Team ID; confirm the
+   exact prefix in the Apple developer account after the current Program License
+   Agreement is accepted. The release remains deferred while either variable is
+   missing.
 
 The next successful `CI` run for a direct `main` push publishes to:
 
@@ -189,7 +197,8 @@ sharing or promoting any hostname:
 ```bash
 npm run test:accessibility
 npm run build:surfaces
-npm run deployment:verify
+SANDFEST_APPLE_APP_ID_PREFIX=<10-character-application-identifier-prefix> \
+  npm run deployment:verify
 ```
 
 The accessibility acceptance uses the rendered application and the real local
@@ -215,8 +224,21 @@ the canonical admin/API surfaces or the complete edge-header contract:
 
 ```bash
 SANDFEST_LIVE_PUBLIC_URL=https://nickbmerrill-collab.github.io/texas-sandfest/ \
+  SANDFEST_APPLE_APP_ID_PREFIX=<10-character-application-identifier-prefix> \
   npm run deployment:verify
 ```
+
+The canonical public origin must serve the extensionless AASA path directly:
+
+```bash
+curl -i https://sandfest.heyelab.com/.well-known/apple-app-site-association
+```
+
+Acceptance requires HTTPS `200`, no redirect, `Content-Type: application/json`,
+the exact `<Application Identifier Prefix>.com.portalcodex.texassandfest` app
+identity, and only the committed public route allowlist. `npm run
+deployment:verify` compares that response structurally with the current public
+artifact in addition to validating its structure.
 
 A failed check is a no-launch result. Do not waive artifact-freshness,
 `/ready`, production identity, security-header, or CORS failures based on a
@@ -262,6 +284,8 @@ the last valid cache or bundled seed available and marks the app offline.
 ## Checklist
 
 - [ ] Enable GitHub Pages → Source: GitHub Actions
+- [ ] Accept the current Apple Developer Program License Agreement; confirm the app's real Application Identifier Prefix and create a valid distribution certificate/profile
+- [ ] Add `SANDFEST_TURNSTILE_SITE_KEY` and `SANDFEST_APPLE_APP_ID_PREFIX` repository variables; confirm Pages remains deferred while either is missing
 - [ ] Push `main` → full CI goes green → Pages workflow goes green → demo URL live
 - [ ] `npm run test:render-blueprint` and authenticated `render blueprints validate render.yaml` both pass
 - [ ] Render Key Value and Postgres accept private-network connections only
@@ -287,5 +311,6 @@ the last valid cache or bundled seed available and marks the app offline.
   - [ ] `sandfest-admin.heyelab.com` CNAME → `sandfest-admin.onrender.com`
 - [ ] Render → verify API and admin custom domains on their respective services; wait for certs
 - [ ] Update GitHub Pages custom domain to `sandfest.heyelab.com`, enforce HTTPS
+- [ ] Canonical AASA path returns HTTPS 200 without redirect, reports `application/json`, matches the built artifact, and opens the installed signed app
 - [ ] Bring `auth.heyelab.com` online (separate runbook); `/ready` flips to 200
 - [ ] iOS Release build hits production API automatically

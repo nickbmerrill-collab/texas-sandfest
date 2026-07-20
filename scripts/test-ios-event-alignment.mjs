@@ -2,6 +2,16 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { parse as parseYaml } from "yaml";
+import {
+  SANDFEST_ASSOCIATED_DOMAIN_ENTITLEMENT,
+  SANDFEST_IOS_BUNDLE_ID,
+  canonicalPublicWebRoute,
+  normalizeAppleApplicationIdentifierPrefix,
+  sandfestAppleApplicationIdentifier,
+  sandfestAppleAppSiteAssociation,
+  sandfestAppleAppSiteAssociationSafety
+} from "../lib/public-deep-links.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -11,6 +21,8 @@ async function read(relativePath) {
 
 const canonical = JSON.parse(await read("data/processed/app-bootstrap.json"));
 const iosSeed = JSON.parse(await read("ios/TexasSandFest/Resources/sandfest-seed.json"));
+const entitlements = await read("ios/TexasSandFest/TexasSandFest.entitlements");
+const project = parseYaml(await read("ios/project.yml"));
 
 assert.deepEqual(
   iosSeed,
@@ -49,4 +61,44 @@ assert.match(timeline, /localDate\(guide\.startDate/);
 assert.match(timeline, /localDate\(guide\.endDate/);
 assert.match(schedule, /LiveTimeline\.date\(for: item, guide: dataStore\.payload\.guide\)/);
 
-console.log(`iOS event alignment: ${canonical.guide.id} · ${canonical.guide.dateRange}`);
+const verificationPrefix = "ABCDE12345";
+const verificationApplicationIdentifier = sandfestAppleApplicationIdentifier(verificationPrefix);
+const association = sandfestAppleAppSiteAssociation(verificationPrefix);
+assert.equal(normalizeAppleApplicationIdentifierPrefix(" abcde12345 "), verificationPrefix);
+assert.equal(verificationApplicationIdentifier, `${verificationPrefix}.${SANDFEST_IOS_BUNDLE_ID}`);
+assert.throws(() => normalizeAppleApplicationIdentifierPrefix("TEAM-ID"), /10-character/);
+assert.deepEqual(sandfestAppleAppSiteAssociationSafety(association, verificationApplicationIdentifier), { ready: true, errors: [] });
+assert.equal(entitlements.includes(`<string>${SANDFEST_ASSOCIATED_DOMAIN_ENTITLEMENT}</string>`), true);
+assert.deepEqual(
+  project.targets?.TexasSandFest?.entitlements?.properties?.["com.apple.developer.associated-domains"],
+  [SANDFEST_ASSOCIATED_DOMAIN_ENTITLEMENT]
+);
+
+assert.deepEqual(canonicalPublicWebRoute("https://sandfest.heyelab.com/tickets"), {
+  hash: "#tickets",
+  question: null,
+  scheduleItemID: null
+});
+assert.deepEqual(canonicalPublicWebRoute("https://sandfest.heyelab.com/texas-sandfest/schedule/fri-gates", { basePath: "/texas-sandfest/" }), {
+  hash: "#schedule-fri-gates",
+  question: null,
+  scheduleItemID: "fri-gates"
+});
+assert.deepEqual(canonicalPublicWebRoute("https://sandfest.heyelab.com/sandy?question=Where%20is%20ADA%20parking%3F"), {
+  hash: "#concierge",
+  question: "Where is ADA parking?",
+  scheduleItemID: null
+});
+assert.deepEqual(canonicalPublicWebRoute("https://sandfest.heyelab.com/sculptors"), {
+  hash: "#sculptors-showcase",
+  question: null,
+  scheduleItemID: null
+});
+assert.equal(sandfestAppleAppSiteAssociationSafety({
+  ...association,
+  applinks: { ...association.applinks, apps: [] }
+}, verificationApplicationIdentifier).ready, false);
+assert.equal(canonicalPublicWebRoute("https://sandfest.heyelab.com/admin"), null);
+assert.equal(canonicalPublicWebRoute("https://sandfest.heyelab.com/schedule/private/item"), null);
+
+console.log(`iOS event and Universal Link alignment: ${canonical.guide.id} · ${canonical.guide.dateRange} · ${verificationApplicationIdentifier}`);

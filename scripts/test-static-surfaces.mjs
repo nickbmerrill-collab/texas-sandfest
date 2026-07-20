@@ -3,6 +3,10 @@ import path from "node:path";
 import { gzipSync } from "node:zlib";
 import { parse as parseYaml } from "yaml";
 import { publicAppBootstrapSafety } from "../lib/public-bootstrap.mjs";
+import {
+  sandfestAppleApplicationIdentifier,
+  sandfestAppleAppSiteAssociationSafety
+} from "../lib/public-deep-links.mjs";
 import { publicMediaManifestSafety } from "../lib/public-media-manifest.mjs";
 import {
   PUBLIC_FIELD_MEDIA,
@@ -40,6 +44,8 @@ async function assetSizeSummary(directory, files) {
 }
 
 const publicHtml = await readFile(path.join(publicDir, "index.html"), "utf8");
+const publicFallbackHtml = await readFile(path.join(publicDir, "404.html"), "utf8");
+const publicAppleAssociation = JSON.parse(await readFile(path.join(publicDir, ".well-known", "apple-app-site-association"), "utf8"));
 const adminHtml = await readFile(path.join(adminDir, "index.html"), "utf8");
 const publicAssets = await readdir(path.join(publicDir, "assets"));
 const adminAssets = await readdir(path.join(adminDir, "assets"));
@@ -110,17 +116,25 @@ assert(manualVerificationNotice?.if === "github.event_name == 'workflow_dispatch
 const pagesDeferredIf = String(pagesWorkflow.jobs?.deferred?.if || "");
 const pagesBuildIf = String(pagesWorkflow.jobs?.build?.if || "");
 const pagesDeferredSteps = pagesWorkflow.jobs?.deferred?.steps || [];
+const verificationAppleApplicationIdentifier = sandfestAppleApplicationIdentifier("ABCDE12345");
 assert(pagesDeferredIf.includes("github.event.workflow_run.conclusion == 'success'")
   && pagesDeferredIf.includes("github.event.workflow_run.event == 'push'")
   && pagesDeferredIf.includes("github.event.workflow_run.head_branch == 'main'")
-  && pagesDeferredIf.includes("vars.SANDFEST_TURNSTILE_SITE_KEY == ''"), "Pages must record an explicit deferred release only after successful main CI when production Turnstile is absent.");
+  && pagesDeferredIf.includes("vars.SANDFEST_TURNSTILE_SITE_KEY == ''")
+  && pagesDeferredIf.includes("vars.SANDFEST_APPLE_APP_ID_PREFIX == ''"), "Pages must record an explicit deferred release only after successful main CI when production Turnstile or Apple app identity is absent.");
 assert(pagesBuildIf.includes("github.event.workflow_run.conclusion == 'success'")
   && pagesBuildIf.includes("github.event.workflow_run.event == 'push'")
   && pagesBuildIf.includes("github.event.workflow_run.head_branch == 'main'")
-  && pagesBuildIf.includes("vars.SANDFEST_TURNSTILE_SITE_KEY != ''"), "Pages publishing must require successful main CI and the production Turnstile registration.");
+  && pagesBuildIf.includes("vars.SANDFEST_TURNSTILE_SITE_KEY != ''")
+  && pagesBuildIf.includes("vars.SANDFEST_APPLE_APP_ID_PREFIX != ''"), "Pages publishing must require successful main CI, production Turnstile, and the signed Apple app identity.");
 assert(pagesDeferredSteps.every(step => !step.uses), "The deferred Pages job must not upload or deploy an artifact.");
 assert(pagesWorkflow.jobs?.deploy?.needs === "build", "The Pages deployment must depend only on the gated production build.");
 assert(publicHtml.includes("Texas SandFest | Port Aransas"), "Public artifact does not contain the visitor entry.");
+assert(publicFallbackHtml === publicHtml, "Public canonical-path fallback must boot the exact visitor artifact.");
+assert(
+  sandfestAppleAppSiteAssociationSafety(publicAppleAssociation, verificationAppleApplicationIdentifier).ready,
+  "Public artifact contains an invalid Apple App Site Association contract."
+);
 assert(!publicHtml.includes("Texas SandFest Operations"), "Public artifact contains the admin entry.");
 assert(adminHtml.includes("Texas SandFest Operations"), "Admin artifact does not contain the ops entry.");
 assert(!adminHtml.includes("Texas SandFest | Port Aransas"), "Admin artifact contains the visitor entry.");

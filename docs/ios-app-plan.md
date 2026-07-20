@@ -76,8 +76,18 @@ Admin mode is staff-only and should eventually require role-based login.
 - Public deep links for Today, exact schedule items, beach conditions,
   sculptors, Sandy, and tickets. Zone-specific and incident links remain
   disabled until their target data and native staff authorization are real.
+- Universal Link code contract complete: the app commits the canonical
+  Associated Domains entitlement, the public build generates the exact AASA
+  allowlist, browser fallbacks preserve the public destination, and build/live
+  checks fail closed on identity, route, MIME type, redirect, or artifact drift.
 - Background sync for content and unresolved incidents.
 - TestFlight distribution for stakeholder review.
+
+Signed distribution remains an external release gate. Accept the current Apple
+Developer Program License Agreement, confirm the app's real 10-character
+Application Identifier Prefix, create a valid distribution certificate/profile,
+publish the AASA file on the canonical HTTPS origin, and prove a link on an
+installed TestFlight or device build before calling Universal Links live.
 
 ## API Requirements
 

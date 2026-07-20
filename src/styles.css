@@ -904,6 +904,34 @@ h3 {
   display: grid;
   gap: 5px;
   padding: 4px 0 4px 12px;
+  scroll-margin-top: 170px;
+}
+
+.public-schedule-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.public-schedule-grid article {
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--sun);
+  border-radius: 6px;
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  scroll-margin-top: 170px;
+}
+
+.public-schedule-grid article span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.public-schedule-grid article:target,
+.public-schedule-grid article.link-target {
+  background: #fff5d3;
+  border-color: var(--coral);
 }
 
 time {
@@ -3359,6 +3387,7 @@ time {
   .asset-workflow,
   .map-media-section,
   .map-media-grid,
+  .public-schedule-grid,
   .admin-task-panel,
   .incoming-table article,
   .domain-grid,
