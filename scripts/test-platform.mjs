@@ -2729,6 +2729,7 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
     ...drafted.followup,
     id: `followup_auto_${index + 1}`,
     kind,
+    ...(kind === "application_approved" ? { sourceVersion: "decision:1:approved" } : {}),
     ...(kind === "sponsor_brand_changes" ? { brandProfileId: "automation_brand_profile", sourceVersion: `review:${now}` } : {}),
     ...(kind === "sponsor_deliverable_review" ? { deliverableId: "automation_deliverable", sourceVersion: "proof:1" } : {}),
     status: "draft_ready",
@@ -2739,6 +2740,9 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   }));
   const automationInput = {
     ...drafted.doc,
+    applications: drafted.doc.applications.map(item => item.id === created.application.id
+      ? { ...item, status: "approved", decisionStatus: "approved", decisionVersion: 1, decisionAt: now }
+      : item),
     brandProfiles: [...drafted.doc.brandProfiles, {
       id: "automation_brand_profile",
       applicationId: created.application.id,
@@ -2818,7 +2822,27 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   ok("follow-up terminal failure", terminal.ok && terminal.followup.status === "failed" && terminal.followup.lastError === "final");
   const delivered = recordFollowupDelivery(queued.doc, created.followup.id, { sent: true, provider: "brevo", providerMessageId: "msg_test" }, { now });
   ok("follow-up delivery proof", delivered.ok && delivered.followup.status === "sent" && delivered.followup.providerMessageId === "msg_test");
-  const accepted = updatePartnerApplication(delivered.doc, created.application.id, { status: "approved" }, { idFactory, now });
+  const accepted = updatePartnerApplication(delivered.doc, created.application.id, { status: "approved" }, {
+    idFactory,
+    actorId: "admin_1",
+    now,
+    portalUrlForApplication: () => portalUrl
+  });
+  const acceptedReview = reviewFollowup(accepted.doc, accepted.followup.id, "approve", { actorId: "admin_1", now });
+  const contractedAfterApproval = updatePartnerApplication(accepted.doc, created.application.id, { status: "contracted" }, { idFactory, actorId: "admin_1", now });
+  const reopenedDecision = updatePartnerApplication(accepted.doc, created.application.id, { status: "under_review" }, { idFactory, actorId: "admin_1", now });
+  const rejectedDecision = updatePartnerApplication(reopenedDecision.doc, created.application.id, { status: "rejected" }, {
+    idFactory,
+    actorId: "admin_1",
+    now,
+    portalUrlForApplication: () => portalUrl
+  });
+  const rejectedAutomationMode = setPartnerAutomationMode(rejectedDecision.doc, "transactional_auto", { providerReady: true, actorId: "admin_1", now, idFactory });
+  const rejectedAutomation = applyTransactionalFollowupAutomation(rejectedAutomationMode.doc, { providerReady: true, now, idFactory });
+  ok("application approval creates a versioned portal notice", accepted.ok && accepted.followup?.kind === "application_approved" && accepted.followup.status === "draft_ready" && accepted.followup.sourceVersion === "decision:1:approved" && accepted.followup.body.includes(portalUrl) && accepted.application.decisionStatus === "approved" && accepted.application.decisionVersion === 1 && acceptedReview.ok);
+  ok("downstream approved states preserve one decision notice", contractedAfterApproval.ok && contractedAfterApproval.followup === null && contractedAfterApproval.application.decisionStatus === "approved" && contractedAfterApproval.application.decisionVersion === 1 && contractedAfterApproval.doc.followups.filter(item => item.kind === "application_approved").length === 1);
+  ok("reopening an application dismisses its unsent decision notice", reopenedDecision.ok && reopenedDecision.dismissedFollowups === 1 && reopenedDecision.application.decisionStatus === null && reopenedDecision.application.decisionVersion === 2 && reopenedDecision.doc.followups.find(item => item.id === accepted.followup.id)?.status === "dismissed");
+  ok("non-approval notices always require staff review", rejectedDecision.ok && rejectedDecision.followup?.kind === "application_rejected" && rejectedDecision.followup.manualReviewRequiredAt === now && rejectedDecision.followup.sourceVersion === "decision:3:rejected" && rejectedAutomation.approved.length === 0 && rejectedAutomation.doc.followups.find(item => item.id === rejectedDecision.followup.id)?.status === "draft_ready");
   const invalidPaymentMethod = recordPartnerPayment(accepted.doc, created.application.id, { amountCents: 100, method: "crypto" }, { idFactory, now });
   const invalidPaymentDate = recordPartnerPayment(accepted.doc, created.application.id, { amountCents: 100, method: "check", receivedAt: "not-a-date" }, { idFactory, now });
   const missingPaymentReference = recordPartnerPayment(accepted.doc, created.application.id, { amountCents: 100, method: "check" }, { idFactory, now });

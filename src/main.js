@@ -8020,19 +8020,21 @@ function renderAdminPartners(payload, outreach) {
   }).map(item => {
     const deliveryStatus = item.deliveryStatus || (item.status === "sent" ? "accepted" : null);
     const deliveryAt = item.clickedAt || item.openedAt || item.deliveredAt || item.failedAt || item.acceptedAt || item.sentAt;
-    const automationLabel = item.automationPolicy === "outreach_campaign_v1"
-      ? "campaign-approved automation"
-      : item.automationPolicy && item.kind === "payment_received"
-        ? "automatic payment confirmation"
-        : item.automationPolicy && item.kind === "payment_adjustment"
-          ? "automatic payment adjustment"
-          : item.automationPolicy && item.kind === "sponsor_brand_changes"
-            ? "automatic sponsor brand review"
-            : item.automationPolicy && item.kind === "sponsor_deliverable_review"
-              ? "automatic sponsor proof review"
-              : item.automationPolicy && item.kind === "milestone_reminder"
-                ? "automatic key-date reminder"
-                : item.automationPolicy ? "transactional automation" : "";
+    const automationLabel = item.manualReviewRequiredAt
+      ? "staff review required"
+      : item.automationPolicy === "outreach_campaign_v1"
+        ? "campaign-approved automation"
+        : item.automationPolicy && item.kind === "payment_received"
+          ? "automatic payment confirmation"
+          : item.automationPolicy && item.kind === "payment_adjustment"
+            ? "automatic payment adjustment"
+            : item.automationPolicy && item.kind === "sponsor_brand_changes"
+              ? "automatic sponsor brand review"
+              : item.automationPolicy && item.kind === "sponsor_deliverable_review"
+                ? "automatic sponsor proof review"
+                : item.automationPolicy && item.kind === "milestone_reminder"
+                  ? "automatic key-date reminder"
+                  : item.automationPolicy ? "transactional automation" : "";
     return `<article data-followup="${escapeAttr(item.id)}" ${deliveryStatus ? `data-delivery-status="${escapeAttr(deliveryStatus)}"` : ""}>
       <header><strong>${escapeHtml(item.subject || conditionLabel(item.kind))}</strong><b>${escapeHtml(conditionLabel(deliveryStatus || item.status))}</b></header>
       <p>${escapeHtml(item.recipientLabel || item.recipient || (item.recipientAvailable ? "Recipient on file" : "Recipient unavailable"))}${item.campaignId ? ` · outreach sequence ${escapeHtml(item.sequenceStepId || "")}` : ""}${item.taskId ? " · delegated task" : ""}${automationLabel ? ` · ${escapeHtml(automationLabel)}` : ""}</p>
@@ -8167,11 +8169,18 @@ function renderAdminPartners(payload, outreach) {
     const card = button.closest("[data-partner-application]");
     button.disabled = true;
     try {
-      await adminFetch(`/api/admin/partners/applications/${encodeURIComponent(button.dataset.saveApplication)}`, {
+      const result = await adminFetch(`/api/admin/partners/applications/${encodeURIComponent(button.dataset.saveApplication)}`, {
         method: "PATCH", body: JSON.stringify({ status: card.querySelector('[name="status"]').value })
       });
       await loadAdminPartners({ quiet: true });
-      setAdminStatus("Application status saved.", "ok");
+      const notice = result.decisionNotice;
+      setAdminStatus(notice
+        ? notice.requiresManualReview
+          ? "Application status saved. The decision message requires staff review."
+          : "Application status saved. The approval message is ready for review or transactional automation."
+        : result.dismissedDecisionNotices
+          ? "Application status saved. The stale decision message was removed."
+          : "Application status saved.", "ok");
     } catch (error) { setAdminStatus(error.message, "error"); } finally { button.disabled = false; }
   }));
   async function createFreshPartnerPortalAccess(applicationId) {

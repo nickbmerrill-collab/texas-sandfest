@@ -7,6 +7,7 @@ Partner messaging defaults to `review_first`. An administrator with `partners:wr
 Automatic approval is limited to messages for an existing vendor or sponsor application that already granted contact consent:
 
 - Application received acknowledgments
+- Application approval decisions
 - Payment received confirmations
 - Payment refund and void adjustments
 - Upcoming, due, and overdue milestone reminders
@@ -21,6 +22,8 @@ Automatic approval is limited to messages for an existing vendor or sponsor appl
 It also covers assignment and bounded weekly-overdue notices for active tasks assigned to a volunteer in the current roster mirror, an active staff member in the governed staff directory, or a team with a current notification owner. The worker resolves the current private address on the server immediately before approval and delivery. Unassigned tasks do not generate notices.
 
 Sponsor prospect outreach and incident dispatch messages are never eligible. They continue through staff review and explicit queueing.
+
+Changing a submitted vendor or sponsor application into an approved lifecycle state creates one versioned approval notice with the current private portal link. Moving through contracted, invoiced, paid, active, or complete preserves that decision version instead of sending duplicates. Reopening or reversing the decision dismisses an unsent notice, and a later approval creates a new version. A non-approval decision also creates a portal-linked draft, but it is marked for staff review and is never automatically approved; Operations can add appropriate context before explicitly approving it.
 
 ## User-initiated portal recovery
 
@@ -48,7 +51,7 @@ Re-enrollment captures the current server-owned contact notice and increments th
 6. The partner record is moved to `queued` with the queue job ID before the provider call.
 7. Brevo acceptance, message ID, attempts, failures, and authenticated webhook events are recorded in the partner ledger.
 
-Recipient identity and consent are checked again immediately before delivery. A changed email, inactive or missing directory owner, withdrawn consent, completed milestone, rescheduled milestone, or changed payment state blocks the send. Provider failures use the durable worker retry policy and terminal failures remain visible for staff action.
+Recipient identity and consent are checked again immediately before delivery. A changed email, inactive or missing directory owner, withdrawn consent, reopened application decision, completed milestone, rescheduled milestone, or changed payment state blocks the send. Provider failures use the durable worker retry policy and terminal failures remain visible for staff action.
 
 Vendor opening notices are derived from the current staff-managed offering catalog. The worker matches the interest's offering and category, requires the offering to be active in `application` mode, and versions the notice against its current name, public fee label, amount, and eligible categories. Closing or materially changing the offering dismisses stale unsent notices; delivered history is retained. The link contains only the offering and category and opens the normal public form, where the vendor must enter current identity details, review the current fee, grant current consent, and submit a new application.
 

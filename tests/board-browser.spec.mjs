@@ -1212,7 +1212,16 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   const sponsorApprovalResponse = page.waitForResponse(response => new URL(response.url()).pathname === `/api/admin/partners/applications/${sponsorResult.application.id}` && response.request().method() === "PATCH");
   await sponsorCard.locator('[name="status"]').selectOption("approved");
   await sponsorCard.locator("[data-save-application]").click();
-  expect((await sponsorApprovalResponse).status()).toBe(200);
+  const sponsorApprovalResult = await sponsorApprovalResponse;
+  expect(sponsorApprovalResult.status()).toBe(200);
+  const sponsorApprovalPayload = await sponsorApprovalResult.json();
+  expect(sponsorApprovalPayload.decisionNotice).toMatchObject({
+    kind: "application_approved",
+    status: "draft_ready",
+    requiresManualReview: false
+  });
+  await expect(page.locator("#admin-api-status")).toContainText("approval message is ready");
+  await expect(partnerMessages.locator("[data-followup]").filter({ hasText: `Texas SandFest sponsorship application approved - ${sponsorResult.application.reference}` })).toContainText("Review the current status and respond here");
   await expect(sponsorCard.locator("[data-create-invoice]")).toBeVisible();
 
   const invoiceCreateResponse = page.waitForResponse(response => new URL(response.url()).pathname === `/api/admin/partners/applications/${sponsorResult.application.id}/invoices` && response.request().method() === "POST");
