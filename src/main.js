@@ -5767,8 +5767,11 @@ function renderAdminRevenue(payload) {
 }
 
 const ADMIN_BUDGET_UI_ENABLED = import.meta.env.DEV || import.meta.env.VITE_SANDFEST_SURFACE === "admin";
-const adminBudgetUiPromise = ADMIN_BUDGET_UI_ENABLED
-  ? import("./admin-budget.js").then(module => module.createAdminBudgetUi({
+let adminBudgetUiPromise = null;
+
+async function loadAdminBudget(options = {}) {
+  if (!ADMIN_BUDGET_UI_ENABLED) return null;
+  adminBudgetUiPromise ||= import("./admin-budget.js").then(module => module.createAdminBudgetUi({
       adminCan,
       adminFetch,
       adminMoney,
@@ -5776,12 +5779,8 @@ const adminBudgetUiPromise = ADMIN_BUDGET_UI_ENABLED
       renderAdminSession,
       revenueKpiCard,
       setAdminStatus
-    }))
-  : Promise.resolve(null);
-
-async function loadAdminBudget(options = {}) {
+    }));
   const controller = await adminBudgetUiPromise;
-  if (!controller) return null;
   controller.mount();
   return controller.load(options);
 }

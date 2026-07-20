@@ -53,7 +53,10 @@ const publicScriptFiles = publicAssets.filter(file => file.endsWith(".js"));
 const publicInitialScriptFiles = [...publicHtml.matchAll(/(?:src|href)="\/assets\/([^"?]+\.js)"/g)].map(match => match[1]);
 const publicOptionalScriptFiles = publicScriptFiles.filter(file => !publicInitialScriptFiles.includes(file));
 const adminScriptFiles = adminAssets.filter(file => file.endsWith(".js"));
-const adminOptionalScriptFiles = adminScriptFiles.filter(file => file.startsWith("admin-incident-delivery-reconciliation-"));
+const adminOptionalScriptFiles = adminScriptFiles.filter(file => [
+  "admin-budget-",
+  "admin-incident-delivery-reconciliation-"
+].some(prefix => file.startsWith(prefix)));
 const adminInitialScriptFiles = adminScriptFiles.filter(file => !adminOptionalScriptFiles.includes(file));
 const publicStylesheets = (await Promise.all(
   publicAssets.filter(file => file.endsWith(".css")).map(file => readFile(path.join(publicDir, "assets", file), "utf8"))
@@ -175,7 +178,7 @@ assert(publicScripts.gzipBytes + publicStyles.gzipBytes <= 135 * KIB, "Public Ja
 assert(publicPreferredFonts.rawBytes <= 200 * KIB, "Public preferred WOFF2 fonts exceed the 200 KiB delivery budget.");
 assert(publicOfflineFonts.rawBytes <= 450 * KIB, "Public compiled fonts exceed the 450 KiB offline-cache budget.");
 assert(adminInitialScripts.gzipBytes <= 120 * KIB, "Initial admin JavaScript exceeds the 120 KiB gzip budget.");
-assert(adminOptionalScripts.gzipBytes <= 4 * KIB, "On-demand admin JavaScript exceeds the 4 KiB gzip budget.");
+assert(adminOptionalScripts.gzipBytes <= 6 * KIB, "On-demand admin JavaScript exceeds the 6 KiB gzip budget.");
 assert(adminStyles.gzipBytes <= 30 * KIB, "Admin CSS exceeds the 30 KiB gzip budget.");
 assert(adminScripts.gzipBytes + adminStyles.gzipBytes <= 150 * KIB, "Admin JavaScript and CSS exceed the 150 KiB combined gzip budget.");
 assert(robots === "User-agent: *\nAllow: /\n", "Public artifact has an invalid or unexpected robots.txt policy.");
@@ -236,6 +239,8 @@ assert(adminAssets.some(file => /^admin-[^.]+\.js$/.test(file)), "Admin artifact
 assert(!adminAssets.some(file => /^main-[^.]+\.js$/.test(file)), "Admin artifact contains a visitor JavaScript bundle.");
 assert(adminOptionalScriptFiles.some(file => file.startsWith("admin-incident-delivery-reconciliation-"))
   && !publicAssets.some(file => file.startsWith("admin-incident-delivery-reconciliation-")), "Incident delivery reconciliation must remain an admin-only on-demand chunk.");
+assert(adminOptionalScriptFiles.some(file => file.startsWith("admin-budget-"))
+  && visitorSource.includes('adminBudgetUiPromise ||= import("./admin-budget.js")'), "The permission-gated budget workspace must remain on demand.");
 for (const marker of boardDemoCredentialMarkers) {
   assert(!publicHtml.includes(marker), `Public production HTML contains the board demo credential marker ${marker}.`);
   assert(!adminHtml.includes(marker), `Admin production HTML contains the board demo credential marker ${marker}.`);
