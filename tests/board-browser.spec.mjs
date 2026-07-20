@@ -1928,6 +1928,32 @@ test("critical public and operations views fit a mobile viewport", async ({ page
   await expect(mobileNavigation).toBeHidden();
   await assertNoHorizontalOverflow(page);
 
+  const mobileMapTargets = page.locator(".booth-pin, .corridor-pin");
+  await expect(page.locator(".booth-pin")).toHaveCount(7);
+  await expect(page.locator(".corridor-pin")).toHaveCount(9);
+  for (let index = 0; index < await mobileMapTargets.count(); index += 1) {
+    const targetBox = await mobileMapTargets.nth(index).boundingBox();
+    expect(targetBox?.width).toBeGreaterThanOrEqual(24);
+    expect(targetBox?.height).toBeGreaterThanOrEqual(24);
+  }
+  expect(await page.locator(".corridor-map").evaluate(map => {
+    const targets = [...map.querySelectorAll(".corridor-pin-amenity .corridor-pin-label, .corridor-axis")].map(node => ({
+      label: node.textContent?.trim() || "axis",
+      rect: node.getBoundingClientRect()
+    }));
+    const overlaps = [];
+    for (let left = 0; left < targets.length; left += 1) {
+      for (let right = left + 1; right < targets.length; right += 1) {
+        const a = targets[left].rect;
+        const b = targets[right].rect;
+        if (a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top) {
+          overlaps.push(`${targets[left].label}:${targets[right].label}`);
+        }
+      }
+    }
+    return overlaps;
+  })).toEqual([]);
+
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#vendors-map`);
   await expect(page.locator("#vendors-map")).toBeInViewport({ ratio: 0.1 });

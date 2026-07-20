@@ -3650,6 +3650,7 @@ function corridorPinMarkup(poi) {
   const sculptor = entry ? sculptorsById.get(entry.sculptorId) : null;
   const isSculpture = poi.type === "sculpture";
   const label = entry ? entry.title : (poi.label || poi.type);
+  const mobileLabel = ({ poi_north_gate: "Gate", poi_food: "Food", poi_restroom: "Restrooms" })[poi.id] || label;
   const live = entry && entry.status === "sculpting";
   const title = sculptor
     ? `${entry.title} — ${sculptor.name} (marker ${poi.beachMarker})`
@@ -3659,7 +3660,7 @@ function corridorPinMarkup(poi) {
      ${sculptor ? `data-sculptor="${sculptor.id}"` : ""} data-poi="${poi.id}"
      title="${title}" aria-label="${title}">
      <span class="corridor-pin-dot"></span>
-     <span class="corridor-pin-label">${isSculpture ? poi.beachMarker : label}</span>
+     <span class="corridor-pin-label" data-mobile-label="${escapeAttr(mobileLabel)}">${escapeHtml(isSculpture ? poi.beachMarker : label)}</span>
    </button>`;
 }
 
@@ -3669,7 +3670,7 @@ function renderCorridorMap() {
   map.innerHTML = `
     <span class="corridor-water" aria-hidden="true"></span>
     <span class="corridor-sand" aria-hidden="true"></span>
-    <span class="corridor-axis" aria-hidden="true">Gulf shoreline · North Gate → beach markers 12.5&ndash;14.5</span>
+    <span class="corridor-axis" aria-hidden="true">North Gate → beach markers 12.5&ndash;14.5</span>
     ${sculpturePois.map(corridorPinMarkup).join("")}
   `;
   map.querySelectorAll("[data-sculptor]").forEach(pin => {
