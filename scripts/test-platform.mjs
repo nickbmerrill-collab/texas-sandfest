@@ -152,6 +152,7 @@ import {
   beginPartnerPaymentCheckout,
   emptyPartnerOperations,
   editFollowupDraft,
+  failPartnerPaymentCheckout,
   generateDueOutreachFollowups,
   generateDuePartnerFollowups,
   generateDueTaskFollowups,
@@ -478,8 +479,10 @@ async function stopChild(child) {
 
 async function startStripeMock() {
   const requests = [];
+  const sessionsByIdempotencyKey = new Map();
   let partnerSessionNumber = 0;
   let ticketSessionNumber = 0;
+  let dropNextPartnerResponse = false;
   const server = createHttpServer((request, response) => {
     const chunks = [];
     request.on("data", chunk => chunks.push(chunk));
@@ -488,18 +491,29 @@ async function startStripeMock() {
       const body = new URLSearchParams(rawBody);
       requests.push({ method: request.method, url: request.url, headers: request.headers, body });
       const partner = Boolean(body.get("metadata[partner_checkout_id]"));
-      if (partner) partnerSessionNumber += 1;
-      else ticketSessionNumber += 1;
-      const id = partner
-        ? `cs_partner_api_${String(partnerSessionNumber).padStart(3, "0")}`
-        : `cs_ticket_api_${String(ticketSessionNumber).padStart(3, "0")}`;
+      const idempotencyKey = String(request.headers["idempotency-key"] || "");
+      let session = sessionsByIdempotencyKey.get(idempotencyKey);
+      if (!session) {
+        if (partner) partnerSessionNumber += 1;
+        else ticketSessionNumber += 1;
+        const id = partner
+          ? `cs_partner_api_${String(partnerSessionNumber).padStart(3, "0")}`
+          : `cs_ticket_api_${String(ticketSessionNumber).padStart(3, "0")}`;
+        session = {
+          id,
+          object: "checkout.session",
+          url: `https://checkout.stripe.com/c/pay/${id}`,
+          expires_at: Number(body.get("expires_at"))
+        };
+        sessionsByIdempotencyKey.set(idempotencyKey, session);
+      }
+      if (partner && dropNextPartnerResponse) {
+        dropNextPartnerResponse = false;
+        request.socket.destroy();
+        return;
+      }
       response.writeHead(200, { "content-type": "application/json" });
-      response.end(JSON.stringify({
-        id,
-        object: "checkout.session",
-        url: `https://checkout.stripe.com/c/pay/${id}`,
-        expires_at: Number(body.get("expires_at"))
-      }));
+      response.end(JSON.stringify(session));
     });
   });
   await new Promise((resolve, reject) => {
@@ -510,6 +524,7 @@ async function startStripeMock() {
   return {
     baseUrl: `http://127.0.0.1:${port}`,
     requests,
+    dropNextPartnerResponse: () => { dropNextPartnerResponse = true; },
     close: () => new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
   };
 }
@@ -2886,6 +2901,20 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
     now: "2026-07-16T12:01:00.000Z"
   });
   ok("partner Stripe checkout reservation", partnerCheckout.ok && partnerCheckout.checkout.amountCents === 2000000 && partnerCheckout.checkout.status === "creating" && repeatedPartnerCheckout.duplicate);
+  const failedPartnerCheckout = failPartnerPaymentCheckout(partnerCheckout.doc, partnerCheckout.checkout.id, "Provider response was lost.", { now: "2026-07-16T12:01:00.000Z" });
+  const retriedPartnerCheckout = beginPartnerPaymentCheckout(failedPartnerCheckout.doc, created.application.id, invoiceDraft.invoice.id, {
+    idFactory,
+    actorId: `partner:${created.application.reference}`,
+    now: "2026-07-16T12:02:00.000Z"
+  });
+  const recoveredPartnerCheckout = activatePartnerPaymentCheckout(failedPartnerCheckout.doc, partnerCheckout.checkout.id, {
+    id: "cs_partner_recovered",
+    url: "https://checkout.stripe.com/c/pay/cs_partner_recovered",
+    expires_at: Date.parse("2026-07-16T12:30:00.000Z") / 1000
+  }, { now: "2026-07-16T12:02:00.000Z" });
+  const stalePartnerFailure = failPartnerPaymentCheckout(recoveredPartnerCheckout.doc, partnerCheckout.checkout.id, "Late timeout.", { now: "2026-07-16T12:03:00.000Z" });
+  ok("partner Stripe checkout retry preserves its provider idempotency identity", failedPartnerCheckout.checkout.status === "failed" && retriedPartnerCheckout.retry === true && retriedPartnerCheckout.checkout.id === partnerCheckout.checkout.id && retriedPartnerCheckout.checkout.status === "creating" && retriedPartnerCheckout.doc.paymentCheckouts.length === partnerCheckout.doc.paymentCheckouts.length);
+  ok("late partner Stripe failures cannot overwrite a recovered session", recoveredPartnerCheckout.recovered === true && recoveredPartnerCheckout.checkout.status === "open" && stalePartnerFailure.duplicate === true && stalePartnerFailure.checkout.status === "open" && stalePartnerFailure.checkout.checkoutUrl === recoveredPartnerCheckout.checkout.checkoutUrl);
   const stripePartnerConfig = stripePartnerPaymentsConfig({
     SANDFEST_ENV: "production",
     STRIPE_PARTNER_PAYMENTS_ENABLED: "true",
@@ -7226,13 +7255,16 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     const vendorPaymentMilestone = vendorInvoiceWorkspace.data.milestones?.find(item => item.applicationId === vendorApplicationApi?.id && item.kind === "payment_due");
     const approvedVendorInvoice = await hit("POST", `/api/admin/partners/invoices/${encodeURIComponent(vendorInvoice.data.invoice?.id)}/review`, { action: "approve" }, true);
     const checkoutRequest = { ...vendorAccess, invoiceId: vendorInvoice.data.invoice?.id };
+    stripeMock.dropNextPartnerResponse();
+    const interruptedPartnerCheckoutApi = await hit("POST", "/api/public/partner-payment-checkout", checkoutRequest);
     const partnerCheckoutApi = await hit("POST", "/api/public/partner-payment-checkout", checkoutRequest);
     const repeatedPartnerCheckoutApi = await hit("POST", "/api/public/partner-payment-checkout", checkoutRequest);
     const partnerStripeRequests = stripeMock.requests.filter(item => item.body.get("metadata[partner_checkout_id]"));
     const stripeRequest = partnerStripeRequests.at(-1);
-    ok("partner checkout API uses offering-priced invoice", payableVendor.status === 200 && vendorInvoice.data.invoice?.amountCents === 125000 && vendorInvoice.data.invoice?.quickBooksItemId === "api-vendor-marketplace-item" && approvedVendorInvoice.status === 200 && partnerCheckoutApi.status === 201 && partnerCheckoutApi.data.checkout?.checkoutUrl.startsWith("https://checkout.stripe.com/") && stripeRequest?.body.get("line_items[0][price_data][unit_amount]") === "125000" && stripeRequest?.body.get("metadata[partner_invoice_id]") === vendorInvoice.data.invoice?.id);
+    ok("partner checkout API uses offering-priced invoice", payableVendor.status === 200 && vendorInvoice.data.invoice?.amountCents === 125000 && vendorInvoice.data.invoice?.quickBooksItemId === "api-vendor-marketplace-item" && approvedVendorInvoice.status === 200 && partnerCheckoutApi.status === 200 && partnerCheckoutApi.data.checkout?.checkoutUrl.startsWith("https://checkout.stripe.com/") && stripeRequest?.body.get("line_items[0][price_data][unit_amount]") === "125000" && stripeRequest?.body.get("metadata[partner_invoice_id]") === vendorInvoice.data.invoice?.id);
     ok("partner invoice API synchronizes payment key date", vendorPaymentMilestone?.dueAt === vendorInvoice.data.invoice?.dueAt && vendorPaymentMilestone?.assigneeTeam === "finance");
-    ok("partner checkout API reuses open session", repeatedPartnerCheckoutApi.status === 200 && repeatedPartnerCheckoutApi.data.duplicate === true && repeatedPartnerCheckoutApi.data.checkout?.id === partnerCheckoutApi.data.checkout?.id && partnerStripeRequests.length === 1);
+    ok("partner checkout API recovers an interrupted Stripe response", interruptedPartnerCheckoutApi.status === 502 && partnerCheckoutApi.data.duplicate === true && partnerStripeRequests.length === 2 && new Set(partnerStripeRequests.map(item => item.headers["idempotency-key"])).size === 1 && new Set(partnerStripeRequests.map(item => item.body.get("metadata[partner_checkout_id]"))).size === 1);
+    ok("partner checkout API reuses recovered open session", repeatedPartnerCheckoutApi.status === 200 && repeatedPartnerCheckoutApi.data.duplicate === true && repeatedPartnerCheckoutApi.data.checkout?.id === partnerCheckoutApi.data.checkout?.id && partnerStripeRequests.length === 2);
     const partnerPaidEvent = {
       id: "evt_partner_api_paid_001",
       type: "checkout.session.completed",
