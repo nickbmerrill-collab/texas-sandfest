@@ -74,31 +74,26 @@ assert.deepEqual(
   [SANDFEST_ASSOCIATED_DOMAIN_ENTITLEMENT]
 );
 
-assert.deepEqual(canonicalPublicWebRoute("https://sandfest.heyelab.com/tickets"), {
-  hash: "#tickets",
-  question: null,
-  scheduleItemID: null
+assert.deepEqual(canonicalPublicWebRoute("/tickets"), {
+  hash: "#tickets"
 });
-assert.deepEqual(canonicalPublicWebRoute("https://sandfest.heyelab.com/texas-sandfest/schedule/fri-gates", { basePath: "/texas-sandfest/" }), {
+assert.deepEqual(canonicalPublicWebRoute("/texas-sandfest/schedule/fri-gates", { basePath: "/texas-sandfest/" }), {
   hash: "#schedule-fri-gates",
-  question: null,
   scheduleItemID: "fri-gates"
 });
-assert.deepEqual(canonicalPublicWebRoute("https://sandfest.heyelab.com/sandy?question=Where%20is%20ADA%20parking%3F"), {
+assert.deepEqual(canonicalPublicWebRoute("/sandy", { search: "?question=Where%20is%20ADA%20parking%3F" }), {
   hash: "#concierge",
-  question: "Where is ADA parking?",
-  scheduleItemID: null
+  question: "Where is ADA parking?"
 });
-assert.deepEqual(canonicalPublicWebRoute("https://sandfest.heyelab.com/sculptors"), {
-  hash: "#sculptors-showcase",
-  question: null,
-  scheduleItemID: null
+assert.deepEqual(canonicalPublicWebRoute("/sculptors"), {
+  hash: "#sculptors-showcase"
 });
 assert.equal(sandfestAppleAppSiteAssociationSafety({
   ...association,
   applinks: { ...association.applinks, apps: [] }
 }, verificationApplicationIdentifier).ready, false);
-assert.equal(canonicalPublicWebRoute("https://sandfest.heyelab.com/admin"), null);
-assert.equal(canonicalPublicWebRoute("https://sandfest.heyelab.com/schedule/private/item"), null);
+assert.equal(canonicalPublicWebRoute("/admin"), null);
+assert.equal(canonicalPublicWebRoute("/schedule/private/item"), null);
+assert.equal(canonicalPublicWebRoute("/schedule/fri-gates%2Fprivate"), null);
 
 console.log(`iOS event and Universal Link alignment: ${canonical.guide.id} · ${canonical.guide.dateRange} · ${verificationApplicationIdentifier}`);

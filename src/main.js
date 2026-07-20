@@ -99,13 +99,9 @@ const CONFIGURED_ADMIN_API_BASE = String(import.meta.env.VITE_SANDFEST_API_BASE_
 const TURNSTILE_SITE_KEY = ADMIN_ENTRY ? "" : String(import.meta.env.VITE_SANDFEST_TURNSTILE_SITE_KEY || "").trim();
 const canonicalPublicRoute = ADMIN_ENTRY
   ? null
-  : canonicalPublicWebRoute(window.location.href, { basePath: siteBase });
+  : canonicalPublicWebRoute(window.location.pathname, { basePath: siteBase, search: window.location.search });
 if (canonicalPublicRoute && !window.location.hash) {
-  window.history.replaceState(
-    null,
-    "",
-    `${window.location.pathname}${window.location.search}${canonicalPublicRoute.hash}`
-  );
+  window.history.replaceState(null, "", canonicalPublicRoute.hash);
 }
 let adminAuthClient = null;
 let adminAuthInitializationError = null;
@@ -309,11 +305,15 @@ const quickStats = [
   ["1", "island celebration"]
 ];
 
-const schedule = (appBootstrap?.schedule ?? [
-  { day: "Friday", time: "9:00 AM", title: "Beach gates open", zone: "Entry + ticket exchange", category: "Visitor" },
-  { day: "Friday", time: "10:00 AM", title: "Master sculptor showcase begins", zone: "Competition corridor", category: "Competition" },
-  { day: "Friday", time: "2:00 PM", title: "Youth build activation", zone: "Family sand lab", category: "Family" }
-]).map(item => ({ ...item, type: item.category ?? item.type }));
+const schedule = appBootstrap?.schedule ?? [];
+
+const scheduleCards = linked => schedule.length ? schedule.map(item => `
+  <article${linked ? ` id="schedule-${escapeAttr(item.id)}"` : ""}>
+    <time>${escapeHtml(item.day)} ${escapeHtml(item.time)}</time>
+    <strong>${escapeHtml(item.title)}</strong>
+    <span>${escapeHtml(item.zone)}</span>
+  </article>
+`).join("") : "<article><strong>Schedule unavailable</strong></article>";
 
 const zones = [
   { name: "North Gate", detail: "Ticket scan, ADA routing, wristband support", load: 82 },
@@ -1888,22 +1888,10 @@ app.innerHTML = `
       </div>
     </section>
 
-    <section class="section" id="schedule" data-audience="public">
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow">Festival schedule</p>
-          <h2>Plan the moments you do not want to miss.</h2>
-        </div>
-        <a class="button secondary" href="#island-conditions">Island conditions</a>
-      </div>
-      <div class="public-schedule-grid">
-        ${schedule.map(item => `
-          <article${item.id ? ` id="schedule-${escapeAttr(item.id)}"` : ""}>
-            <time>${escapeHtml(item.day)} · ${escapeHtml(item.time)}</time>
-            <strong>${escapeHtml(item.title)}</strong>
-            <span>${escapeHtml(item.zone)} · ${escapeHtml(item.type)}</span>
-          </article>
-        `).join("")}
+    <section class="section" id="schedule">
+      <h2>Schedule</h2>
+      <div class="schedule-list surface-grid">
+        ${scheduleCards(true)}
       </div>
     </section>
 
@@ -1966,14 +1954,7 @@ app.innerHTML = `
         <div class="schedule-panel">
           <h3>Run of show</h3>
           <div class="schedule-list">
-            ${schedule.map(item => `
-              <article>
-                <time>${item.day} ${item.time}</time>
-                <strong>${item.title}</strong>
-                <span>${item.zone}</span>
-                <em>${item.type}</em>
-              </article>
-            `).join("")}
+            ${scheduleCards(false)}
           </div>
         </div>
       </div>
@@ -10466,8 +10447,8 @@ if (canonicalPublicRoute?.question) {
 }
 if (canonicalPublicRoute?.scheduleItemID) {
   const scheduleTarget = document.getElementById(`schedule-${canonicalPublicRoute.scheduleItemID}`);
-  if (scheduleTarget) scheduleTarget.classList.add("link-target");
-  else window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#schedule`);
+  if (scheduleTarget) scheduleTarget.classList.add("target");
+  else window.history.replaceState(null, "", "#schedule");
 }
 
 function scrollToRenderedHashTarget(options = {}) {
