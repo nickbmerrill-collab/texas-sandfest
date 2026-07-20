@@ -10,6 +10,8 @@ Automatic approval is limited to messages for an existing vendor or sponsor appl
 - Payment received confirmations
 - Payment refund and void adjustments
 - Upcoming, due, and overdue milestone reminders
+- Sponsor brand profile and asset correction requests
+- Sponsor deliverable proof-ready notices
 - Vendor profile correction requests
 - Vendor requirement correction requests
 - Vendor assignment ready notices
@@ -31,13 +33,15 @@ Matches, invalid inputs, unknown references, wrong emails, and cooldown replays 
 
 1. Intake or an operations change creates a pending message with a stable workflow key.
 2. The worker prepares the subject, body, and current partner portal URL.
-3. In automatic mode, the worker revalidates the message kind, consent or roster-backed recipient, current recipient, open milestone or task version, and complete content.
+3. In automatic mode, the worker revalidates the message kind, consent or roster-backed recipient, current recipient, open milestone or task version, current sponsor brand review or proof version, and complete content.
 4. Eligible drafts are approved under policy `partner_transactional_v1` and receive an audited approval record.
 5. The worker creates a deterministic queue job from the policy, follow-up ID, and approval timestamp. Repeated ticks return the same job instead of creating another delivery.
 6. The partner record is moved to `queued` with the queue job ID before the provider call.
 7. Brevo acceptance, message ID, attempts, failures, and authenticated webhook events are recorded in the partner ledger.
 
 Recipient identity and consent are checked again immediately before delivery. A changed email, inactive or missing directory owner, withdrawn consent, completed milestone, rescheduled milestone, or changed payment state blocks the send. Provider failures use the durable worker retry policy and terminal failures remain visible for staff action.
+
+Sponsor brand feedback uses one workflow key per profile or asset kind. A profile resubmission, replacement asset, staff approval, or later review dismisses any unstarted correction notice. Publishing or revising deliverable proof creates one notice for the current proof version without copying the proof URL, internal owner, or staff metadata into the message; sponsor approval or a change request closes the active notice. Approval and delivery both fail closed when the referenced profile, asset, deliverable, proof version, or recipient is no longer current.
 
 Payment notices are derived from the current site-native ledger rather than from a browser request or provider payload. A successful payment creates one versioned confirmation with the recorded amount and current invoice balance. A partial refund, full refund, or void creates a separate adjustment notice. Provider references, bank or check identifiers, and staff-only reversal reasons are never included in message content. Repeated worker ticks converge on the same payment-state version; a later ledger adjustment invalidates an unsent receipt before approval or provider submission while preserving already delivered history. The adjustment then reports the current balance through the same consent, automation, queue, and delivery-proof gates.
 

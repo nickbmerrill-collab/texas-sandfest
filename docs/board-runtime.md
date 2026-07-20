@@ -291,7 +291,7 @@ With the manual component fallback, process queued acknowledgments and scheduled
 npm run board:worker
 ```
 
-The supervised `board:demo` command already runs `board:worker:watch`, enables bounded transactional automation, and activates one synthetic, daily-capped outreach sequence. Only consented applicant acknowledgments, key-date reminders, vendor workflow notices, and governed volunteer/staff/team assignment or overdue notices become transactionally eligible; the outreach message is separately authorized by its campaign approval. Other sponsor prospect outreach and incident dispatch remain review-gated. Provider acceptance, message IDs, authenticated delivery events, and automation policy proof are written to the isolated partner ledger while every recipient remains synthetic. The manual component fallback starts review-first and must be enabled from Partner Operations when that behavior is desired.
+The supervised `board:demo` command already runs `board:worker:watch`, enables bounded transactional automation, and activates one synthetic, daily-capped outreach sequence. Only consented applicant acknowledgments, key-date reminders, sponsor brand correction and proof-review notices, vendor workflow notices, and governed volunteer/staff/team assignment or overdue notices become transactionally eligible; the outreach message is separately authorized by its campaign approval. Other sponsor prospect outreach and incident dispatch remain review-gated. Provider acceptance, message IDs, authenticated delivery events, and automation policy proof are written to the isolated partner ledger while every recipient remains synthetic. The seeded sponsor proof notice carries a valid private portal capability for the selected loopback web origin and contains no proof URL or internal owner data. The manual component fallback starts review-first and must be enabled from Partner Operations when that behavior is desired.
 
 To demonstrate safety SMS, load **Consent & SMS** and use **Simulate STOP** or **Simulate START** to move the reserved synthetic attendee through the authenticated loopback provider and signed Twilio-compatible preference webhook. The attendee address remains private; Operations shows only the active consent count, state, and aggregate callback proof. Then publish a public alert with **Send safety SMS to currently opted-in recipients** checked. The supervised worker advances the synthetic campaign from queued to delivered through the local signed callback. With the manual component fallback, run `npm run board:worker` after publishing.
 
@@ -367,7 +367,7 @@ roster-backed volunteer task, adds a partner key
 date, scores a geolocated outreach target, issues and opens its package-specific
 invitation, submits the locked public sponsor application, verifies the linked
 operations conversion, verifies approved sponsor branding and package
-deliverables, enables bounded transactional automation, observes an
+deliverables, enables bounded transactional automation, observes sponsor proof-review and other
 authenticated delivered event through the local email sandbox, imports a
 source-attributed regional business candidate, activates a geofenced campaign,
 observes its bounded automated delivery, loads all eight Island Conditions

@@ -564,6 +564,7 @@ try {
       const assignmentMessages = workspace.data.followups?.filter(item => item.kind === "task_assignment" && activeAssignedTaskIds.has(item.taskId)) || [];
       const milestoneReminder = workspace.data.followups?.find(item => item.kind === "milestone_reminder" && item.milestoneId === seededCreativeMilestone?.id);
       const paymentConfirmation = workspace.data.followups?.find(item => item.kind === "payment_received");
+      const sponsorProofReview = workspace.data.followups?.find(item => item.kind === "sponsor_deliverable_review");
       return applicationMessages.length >= 7
         && applicationMessages.every(item => item.status === "sent" && item.deliveryStatus === "delivered")
         && assignmentMessages.length === activeAssignedTaskIds.size
@@ -572,6 +573,8 @@ try {
         && milestoneReminder?.deliveryStatus === "delivered"
         && paymentConfirmation?.status === "sent"
         && paymentConfirmation?.deliveryStatus === "delivered"
+        && sponsorProofReview?.status === "sent"
+        && sponsorProofReview?.deliveryStatus === "delivered"
         ? workspace
         : null;
     }, 1_500);
@@ -583,6 +586,7 @@ try {
   const projectedMilestoneReminders = latestWorkspace?.data.followups?.filter(item => item.kind === "milestone_reminder") || [];
   const deliveredCreativeReminder = projectedMilestoneReminders.find(item => item.milestoneId === seededCreativeMilestone?.id);
   const deliveredPaymentConfirmation = latestWorkspace?.data.followups?.find(item => item.kind === "payment_received");
+  const deliveredSponsorProofReview = latestWorkspace?.data.followups?.find(item => item.kind === "sponsor_deliverable_review");
   const automationProof = {
     enableStatus: automationEnabled.status,
     enableAutomation: automationEnabled.data.automation,
@@ -603,6 +607,14 @@ try {
     && !deliveredPaymentConfirmation?.body?.includes("DEMO-ACH-2027-001");
   check("board transactional automation delivers a private payment confirmation", paymentConfirmationReady,
     paymentConfirmationReady ? "" : `status=${deliveredPaymentConfirmation?.status || "missing"} delivery=${deliveredPaymentConfirmation?.deliveryStatus || "missing"}`);
+  const sponsorProofReviewReady = deliveredSponsorProofReview?.status === "sent"
+    && deliveredSponsorProofReview?.deliveryStatus === "delivered"
+    && deliveredSponsorProofReview?.automationPolicy === "partner_transactional_v1"
+    && deliveredSponsorProofReview?.subject?.includes("sponsor proof ready")
+    && deliveredSponsorProofReview?.body?.includes("private sponsor portal")
+    && !deliveredSponsorProofReview?.body?.includes("gulf-shore-credit-union");
+  check("board transactional automation delivers a private sponsor proof review", sponsorProofReviewReady,
+    sponsorProofReviewReady ? "" : `status=${deliveredSponsorProofReview?.status || "missing"} delivery=${deliveredSponsorProofReview?.deliveryStatus || "missing"}`);
   const creativeReminderReady = deliveredCreativeReminder?.status === "sent"
     && deliveredCreativeReminder?.deliveryStatus === "delivered"
     && deliveredCreativeReminder?.automationPolicy === "partner_transactional_v1"
