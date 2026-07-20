@@ -2241,6 +2241,65 @@ test("canonical iOS links retain safe visitor web fallbacks", async ({ page }) =
   await assertNoHorizontalOverflow(page);
 });
 
+test("approved sponsor branding stays readable with a pale brand palette", async ({ page }) => {
+  const response = await fetch(`${apiBase}/api/public/sponsors`);
+  expect(response.status).toBe(200);
+  const payload = await response.json();
+  expect(payload.sponsors?.length).toBeGreaterThan(0);
+  const sponsor = {
+    ...payload.sponsors[0],
+    displayName: "Pale Coast Sponsor",
+    website: "https://sponsor.example/",
+    primaryColor: "#FFFFFF",
+    secondaryColor: "#FFFDEB",
+    logo: null
+  };
+  await page.route(`${apiBase}/api/public/sponsors`, route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ ...payload, sponsors: [sponsor] })
+  }));
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#sponsors`);
+  const card = page.locator("#public-sponsor-showcase .public-sponsor-card").filter({ hasText: sponsor.displayName });
+  await expect(card).toHaveCount(1);
+  const colors = await card.evaluate(element => {
+    const channels = value => String(value).match(/\d+(?:\.\d+)?/g).slice(0, 3).map(channel => Number(channel) / 255)
+      .map(channel => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
+    const luminance = value => {
+      const [red, green, blue] = channels(value);
+      return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+    };
+    const contrast = (foreground, background) => {
+      const foregroundLuminance = luminance(foreground);
+      const backgroundLuminance = luminance(background);
+      return (Math.max(foregroundLuminance, backgroundLuminance) + 0.05)
+        / (Math.min(foregroundLuminance, backgroundLuminance) + 0.05);
+    };
+    const tier = element.querySelector(".public-sponsor-copy small");
+    const mark = element.querySelector(".public-sponsor-mark > span");
+    const cardStyles = getComputedStyle(element);
+    const tierStyles = getComputedStyle(tier);
+    const markStyles = getComputedStyle(mark);
+    const markBackground = getComputedStyle(mark.parentElement).backgroundColor;
+    return {
+      primary: cardStyles.getPropertyValue("--sponsor-primary").trim(),
+      secondary: cardStyles.getPropertyValue("--sponsor-secondary").trim(),
+      tierContrast: contrast(tierStyles.color, cardStyles.backgroundColor),
+      markContrast: contrast(markStyles.color, markBackground)
+    };
+  });
+  expect(colors.primary).toBe("#FFFFFF");
+  expect(colors.secondary).toBe("#FFFDEB");
+  expect(colors.tierContrast).toBeGreaterThanOrEqual(4.5);
+  expect(colors.markContrast).toBeGreaterThanOrEqual(4.5);
+  await card.focus();
+  await expect(card).toBeFocused();
+  await expect(card).toHaveCSS("outline-style", "solid");
+  await assertNoHorizontalOverflow(page);
+});
+
 test("critical public and operations views fit a mobile viewport", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 740 });
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor`);
