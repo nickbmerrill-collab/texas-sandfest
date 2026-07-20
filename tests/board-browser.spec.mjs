@@ -1674,6 +1674,48 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   await expect(freshVolunteerTask).toContainText(taskTitle);
   await expect(freshVolunteerTask).toContainText("Notification · delivered · task assignment");
   await expect(freshVolunteerTask).toContainText("Awaiting assignee acknowledgement");
+  const resendTaskNoticeResponse = page.waitForResponse(response => new URL(response.url()).pathname === `/api/admin/partners/tasks/${createdVolunteerTask.id}/assignment-notice` && response.request().method() === "POST");
+  await freshVolunteerTask.locator('[data-resend-task]').click();
+  const resendTaskNoticeResult = await resendTaskNoticeResponse;
+  expect(resendTaskNoticeResult.status()).toBe(202);
+  const resentTaskNotice = await resendTaskNoticeResult.json();
+  expect(resentTaskNotice.task.assignmentNoticeVersion).toBe(1);
+  expect(resentTaskNotice.notice.sourceVersion).toBe("assignment:1:notice:1");
+  expect(JSON.stringify(resentTaskNotice)).not.toContain("tsft_");
+  await expect(page.locator("#admin-api-status")).toContainText("Assignment notice queued.");
+  let resentTaskDeliveryProof = null;
+  const resentTaskDeliveryDeadline = Date.now() + 15_000;
+  while (Date.now() < resentTaskDeliveryDeadline) {
+    const response = await fetch(`${apiBase}/api/admin/partners`, { headers: { authorization: `Bearer ${TOKEN}` } });
+    const payload = await response.json();
+    const notices = payload.followups?.filter(item => item.taskId === createdVolunteerTask.id && item.kind === "task_assignment") || [];
+    const latest = notices.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))[0];
+    resentTaskDeliveryProof = {
+      notices: notices.map(item => ({
+        id: item.id,
+        sourceVersion: item.sourceVersion,
+        status: item.status,
+        deliveryStatus: item.deliveryStatus,
+        providerMessageId: item.providerMessageId,
+        lastError: item.lastError
+      })),
+      automation: payload.automation
+    };
+    if (notices.length === 2 && latest?.sourceVersion === "assignment:1:notice:1" && latest?.deliveryStatus === "delivered") break;
+    await new Promise(resolve => setTimeout(resolve, 200));
+  }
+  expect(
+    resentTaskDeliveryProof?.notices?.length === 2
+      && resentTaskDeliveryProof.notices[0]?.sourceVersion === "assignment:1:notice:1"
+      && resentTaskDeliveryProof.notices[0]?.deliveryStatus === "delivered",
+    JSON.stringify({ ...resentTaskDeliveryProof, worker: workerProcess.output().slice(-5_000) }, null, 2)
+  ).toBe(true);
+  const resentTaskReload = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/partners" && response.request().method() === "GET");
+  await page.locator("#admin-load-partners").click();
+  await resentTaskReload;
+  await expect(freshVolunteerTask).toContainText("Notification · delivered · task assignment");
+  await expect(freshVolunteerTask.locator('[data-resend-task]')).toBeEnabled();
+  await expect(freshVolunteerTask.locator('[data-resend-task]')).toHaveText("Resend notice");
 
   const taskPortalConfigForBrowser = taskPortalConfig({
     SANDFEST_ENV: "development",
@@ -1756,8 +1798,8 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
     return task?.status === "done"
       && Boolean(task.startedAt)
       && Boolean(task.completedAt)
-      && assignments.length === 1
-      && assignments[0].deliveryStatus === "delivered"
+      && assignments.length === 2
+      && assignments.every(item => item.deliveryStatus === "delivered")
       && activeOverdue.length === 0;
   }, { timeout: 15_000 }).toBe(true);
 

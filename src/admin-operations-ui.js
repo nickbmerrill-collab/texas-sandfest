@@ -1,6 +1,35 @@
 import { escapeAttr, escapeHtml } from "../lib/html-escape.mjs";
 import { REQUIRED_TICKET_POLICY_NOTICES } from "../lib/ticket-policy-schema.mjs";
 
+const PENDING_NOTICE_STATUSES = new Set(["pending", "draft_ready", "approved", "queued", "sending"]);
+
+export function taskAssignmentNoticeAction(task, assignmentType, assignmentNotice) {
+  const pending = PENDING_NOTICE_STATUSES.has(assignmentNotice?.status);
+  return {
+    disabled: !["open", "in_progress", "blocked"].includes(task.status) || assignmentType === "unassigned" || pending,
+    label: pending ? "Notice pending" : assignmentNotice ? "Resend notice" : "Send notice"
+  };
+}
+
+export function bindTaskAssignmentNoticeActions(tasks, { adminFetch, loadAdminPartners, setAdminStatus }) {
+  tasks.querySelectorAll("[data-resend-task]").forEach(button => button.addEventListener("click", async () => {
+    button.disabled = true;
+    try {
+      const requestId = globalThis.crypto?.randomUUID?.() || `notice-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const result = await adminFetch(`/api/admin/partners/tasks/${encodeURIComponent(button.dataset.resendTask)}/assignment-notice`, {
+        method: "POST",
+        body: JSON.stringify({ requestId })
+      });
+      await loadAdminPartners({ quiet: true });
+      setAdminStatus(result.replay ? "Assignment notice was already queued." : "Assignment notice queued.", "ok");
+    } catch (error) {
+      setAdminStatus(error.message, "error");
+    } finally {
+      button.disabled = false;
+    }
+  }));
+}
+
 export function ticketPolicyEditorMarkup() {
   return `
     <form id="admin-ticket-policy-form" class="admin-ticket-policy" aria-labelledby="admin-ticket-policy-heading">
