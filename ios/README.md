@@ -10,6 +10,8 @@ xcodegen generate
 open TexasSandFest.xcodeproj
 ```
 
+From the repository root, `npm run test:ios-xcode` selects an available iPhone simulator, runs the XCTest suite, and verifies an optimized simulator build with Swift warnings treated as errors. The committed project includes the test target, so XcodeGen is only needed after changing `project.yml`.
+
 ## Current screens
 
 - Customer mode

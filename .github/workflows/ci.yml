@@ -98,3 +98,5 @@ jobs:
           plutil -lint ../TexasSandFest.xcodeproj/project.pbxproj
           swiftc Models.swift LiveTimeline.swift ../TimelineSmoke/main.swift -o /tmp/sandfest-timeline-smoke
           /tmp/sandfest-timeline-smoke
+      - name: Xcode simulator tests and optimized build
+        run: npm run test:ios-xcode

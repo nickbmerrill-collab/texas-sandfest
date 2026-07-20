@@ -223,10 +223,10 @@ Checkout attempts and webhook events are stored locally under `data/processed/or
 ## iOS
 
 ```bash
-cd ios
-xcodegen generate
-xcodebuild -project TexasSandFest.xcodeproj -scheme TexasSandFest -configuration Debug -destination 'generic/platform=iOS Simulator' build
+npm run test:ios-xcode
 ```
+
+The Xcode gate selects an available iPhone simulator, runs the native XCTest target, and compiles an optimized simulator build with Swift warnings treated as errors. It uses `/Applications/Xcode.app/Contents/Developer` when the shell's global developer selector still points at standalone Command Line Tools. The committed project can be regenerated with `cd ios && xcodegen generate` when XcodeGen is installed.
 
 The initial native SwiftUI scaffold lives under `ios/TexasSandFest/`. It now has a Customer/Admin mode switch. Customer mode covers Today, Schedule, Beach, Sculptors, Ask Sandy, and Tickets. Admin mode covers Command, Incidents, Partners, Finance, and Setup.
 

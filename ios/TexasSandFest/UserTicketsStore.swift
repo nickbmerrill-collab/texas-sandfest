@@ -6,10 +6,18 @@ import Foundation
 final class UserTicketsStore: ObservableObject {
     @Published private(set) var imported: [Ticket]
 
-    private let defaultsKey = "tsf.userTickets.imported"
-    private let defaults = UserDefaults.standard
+    private let defaultsKey: String
+    private let defaults: UserDefaults
+    private let now: () -> Date
 
-    init() {
+    init(
+        defaults: UserDefaults = .standard,
+        defaultsKey: String = "tsf.userTickets.imported",
+        now: @escaping () -> Date = Date.init
+    ) {
+        self.defaults = defaults
+        self.defaultsKey = defaultsKey
+        self.now = now
         if let data = defaults.data(forKey: defaultsKey),
            let decoded = try? JSONDecoder().decode([Ticket].self, from: data) {
             imported = decoded
@@ -39,7 +47,7 @@ final class UserTicketsStore: ObservableObject {
             dayPass: "All 3 days · \(LiveTimeline.shortDateRange(for: eventGuide))",
             seat: nil,
             purchaseSource: payload.lowercased().contains("eventeny") ? "Eventeny (scanned)" : "Scanned QR",
-            issuedAt: Date(),
+            issuedAt: now(),
             entryStatus: .unused
         )
 
