@@ -226,6 +226,9 @@ if (visitorUrl && operationsUrl) {
         network: document.querySelector("#network-status")?.textContent?.trim(),
         operationsHandoff: document.querySelector("[data-operations-handoff]")?.href,
         operationsHandoffTarget: document.querySelector("[data-operations-handoff]")?.target,
+        visibleOperationsNavigation: [...document.querySelectorAll('#public-navigation a[data-audience="ops"]')]
+          .filter(item => item.getClientRects().length > 0)
+          .map(item => ({ label: item.textContent?.trim(), href: item.getAttribute("href") })),
         sponsorTiers: document.querySelectorAll("#public-sponsor-tiers [data-package-id]").length,
         sponsorPackageIds: [...document.querySelectorAll("#public-sponsor-tiers [data-package-id]")].map(item => item.dataset.packageId),
         sponsorAmounts: Object.fromEntries([...document.querySelectorAll("#public-sponsor-tiers [data-package-id]")].map(item => [item.dataset.packageId, item.querySelector("span")?.textContent?.trim()])),
@@ -257,6 +260,10 @@ if (visitorUrl && operationsUrl) {
 
     await inspect("visitor_shell", "Visitor presentation shell", "Reload the visitor link and inspect its board-mode bootstrap.", async () => {
       const item = observations.visitor;
+      if (item?.visibleOperationsNavigation?.length) {
+        const leakedLinks = item.visibleOperationsNavigation.map(link => `${link.label || "unnamed"} (${link.href || "no target"})`).join(", ");
+        throw new Error(`Visitor navigation exposes Operations link${item.visibleOperationsNavigation.length === 1 ? "" : "s"}: ${leakedLinks}.`);
+      }
       if (
         !item
         || item.title !== "Texas SandFest | Port Aransas"
@@ -267,7 +274,7 @@ if (visitorUrl && operationsUrl) {
       ) {
         throw new Error(observations.visitorError || "The visitor shell did not reach board-demo mode.");
       }
-      return "Visitor title, festival heading, visible Demo state, and the exact reload-stable Operations handoff rendered.";
+      return "Visitor title, festival heading, visible Demo state, exact reload-stable Operations handoff, and an operations-free visitor navigation rendered.";
     });
     await inspect("public_intake", "Vendor and sponsor intake", "Inspect the public catalog API and signup form controls.", async () => {
       const item = observations.visitor;

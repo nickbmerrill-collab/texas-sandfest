@@ -1849,6 +1849,9 @@ test("visitor hero and navigation stay ordered across intermediate widths", asyn
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor`);
   await expect(page.locator("#public-navigation")).toBeVisible();
   await expect(page.locator("#mobile-nav-toggle")).toBeHidden();
+  expect(await page.locator("#public-navigation").evaluate(navigation => [...navigation.querySelectorAll('a[data-audience="ops"]')]
+    .filter(link => link.getClientRects().length > 0)
+    .map(link => ({ label: link.textContent.trim(), href: link.getAttribute("href") })))).toEqual([]);
   await assertNoHorizontalOverflow(page);
 });
 
@@ -1873,6 +1876,9 @@ test("critical public and operations views fit a mobile viewport", async ({ page
   await mobileNavigationToggle.click();
   await expect(mobileNavigationToggle).toHaveAttribute("aria-expanded", "true");
   await expect(mobileNavigation).toBeVisible();
+  expect(await mobileNavigation.evaluate(navigation => [...navigation.querySelectorAll('a[data-audience="ops"]')]
+    .filter(link => link.getClientRects().length > 0)
+    .map(link => ({ label: link.textContent.trim(), href: link.getAttribute("href") })))).toEqual([]);
   for (const name of ["Tickets", "Vendors", "Island", "Sponsors", "Status"]) {
     await expect(mobileNavigation.getByRole("link", { name, exact: true })).toBeVisible();
   }
