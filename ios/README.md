@@ -37,6 +37,28 @@ Admin currently presents bundled synthetic demonstration collections. It is
 not a production staff session. Native production Admin remains disabled until
 OIDC sign-in, role enforcement, and the authenticated app bootstrap are wired.
 
+## Public deep links
+
+The app registers the `sandfest:` URL scheme for public customer navigation.
+Links can open Today, Tickets, Sandy, Live Beach, Sculptors, or a validated
+schedule item. Opening a public link always returns the app to Customer mode;
+Admin and incident destinations are rejected until native staff authentication
+exists. Sandy questions are prefilled but never submitted automatically.
+
+```text
+sandfest://today
+sandfest://schedule/sat-headliner
+sandfest://tickets
+sandfest://sandy?question=Where%20is%20ADA%20parking%3F
+sandfest://island-conditions
+sandfest://sculptors
+```
+
+The same parser accepts canonical `https://sandfest.heyelab.com` paths in
+preparation for Universal Links. Shipping those HTTPS links still requires the
+signed app's Associated Domains capability and a matching site association
+file; the custom scheme works independently.
+
 ## Build direction
 
 The app should consume the same canonical SandFest API as the web platform. Guest mode gets the offline event guide, AI concierge, map, schedule, and alerts. Volunteer/staff mode gets check-in, captain instructions, zone status, and offline incident drafts.
@@ -89,4 +111,12 @@ board API and request the mode at launch:
 xcrun simctl launch booted com.portalcodex.texassandfest \
   -apiBase http://127.0.0.1:8806 \
   -startMode admin
+```
+
+For deterministic deep-link acceptance at launch:
+
+```bash
+xcrun simctl launch booted com.portalcodex.texassandfest \
+  -apiBase http://127.0.0.1:8806 \
+  -deepLink sandfest://schedule/sat-headliner
 ```

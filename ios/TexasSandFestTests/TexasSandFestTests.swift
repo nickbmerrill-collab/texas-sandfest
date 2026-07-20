@@ -2,6 +2,74 @@ import Foundation
 import XCTest
 @testable import TexasSandFest
 
+final class CustomerRouteTests: XCTestCase {
+    func testCustomSchemeRoutesOnlyPublicDestinations() throws {
+        XCTAssertEqual(
+            try route("sandfest://schedule/sat-headliner"),
+            .schedule(itemID: "sat-headliner")
+        )
+        XCTAssertEqual(try route("sandfest://tickets"), .tickets)
+        XCTAssertEqual(try route("sandfest://sculptors"), .beach(section: .sculptors))
+        XCTAssertEqual(
+            try route("sandfest://sandy?question=Where%20is%20ADA%20parking%3F"),
+            .sandy(question: "Where is ADA parking?")
+        )
+
+        XCTAssertNil(CustomerRoute(url: try url("sandfest://admin")))
+        XCTAssertNil(CustomerRoute(url: try url("sandfest://incident/private-1")))
+        XCTAssertNil(CustomerRoute(url: try url("sandfest://schedule/../../admin")))
+    }
+
+    func testCanonicalHTTPSRoutesAndRejectsOtherOrigins() throws {
+        XCTAssertEqual(
+            try route("https://sandfest.heyelab.com/schedule/fri-gates"),
+            .schedule(itemID: "fri-gates")
+        )
+        XCTAssertEqual(
+            try route("https://sandfest.heyelab.com/#island-conditions"),
+            .beach(section: .live)
+        )
+        XCTAssertEqual(try route("https://sandfest.heyelab.com/"), .today)
+
+        XCTAssertNil(CustomerRoute(url: try url("http://sandfest.heyelab.com/tickets")))
+        XCTAssertNil(CustomerRoute(url: try url("https://evil.example/tickets")))
+        XCTAssertNil(CustomerRoute(url: try url("https://sandfest.heyelab.com:444/tickets")))
+    }
+
+    func testQuestionsAndScheduleIdentifiersAreBounded() throws {
+        let oversizedQuestion = String(repeating: "a", count: 281)
+        var components = URLComponents(string: "sandfest://sandy")
+        components?.queryItems = [URLQueryItem(name: "question", value: oversizedQuestion)]
+        let oversizedURL = try XCTUnwrap(components?.url)
+        XCTAssertEqual(CustomerRoute(url: oversizedURL)?.destination, .sandy(question: nil))
+        XCTAssertEqual(
+            CustomerRoute(url: try url("sandfest://sandy?question=go%0Anow"))?.destination,
+            .sandy(question: nil)
+        )
+
+        let oversizedID = String(repeating: "a", count: 101)
+        XCTAssertNil(CustomerRoute(url: try url("sandfest://schedule/\(oversizedID)")))
+        XCTAssertNil(CustomerRoute(url: try url("sandfest://schedule/not%20safe")))
+    }
+
+    func testLaunchArgumentUsesTheSameParser() throws {
+        let route = CustomerRoute.launchRoute(
+            arguments: ["TexasSandFest", "-deepLink", "sandfest://tickets"]
+        )
+        XCTAssertEqual(route?.destination, .tickets)
+        XCTAssertNil(CustomerRoute.launchRoute(arguments: ["TexasSandFest", "-deepLink", "sandfest://admin"]))
+        XCTAssertNil(CustomerRoute.launchRoute(arguments: ["TexasSandFest"]))
+    }
+
+    private func route(_ value: String) throws -> CustomerDestination {
+        try XCTUnwrap(CustomerRoute(url: url(value))).destination
+    }
+
+    private func url(_ value: String) throws -> URL {
+        try XCTUnwrap(URL(string: value))
+    }
+}
+
 final class LiveTimelineTests: XCTestCase {
     private let guide = EventGuide(
         id: "texas-sandfest-2027",
