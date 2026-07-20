@@ -332,6 +332,8 @@ test("board workflows operate through the public and staff interfaces", async ({
   const documentTitle = `Board extraction ${runId}`;
   const settlementReference = `browser_square_merch_${runId}`;
   const settlementFileName = `square-browser-${runId}.csv`;
+  const budgetLineName = `Browser hospitality ${runId}`;
+  const budgetVendorName = `Browser Guest Services ${runId}`;
   const settlementCsv = `transaction_id,date,category,gross_amount,fee_amount,net_amount,quantity,payout_id,payout_date,reconciled,entry_type
 ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${runId},2027-03-03,yes,receipt`;
 
@@ -683,6 +685,62 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   const messagingKpi = partnerKpis.locator("article").filter({ hasText: "Messaging" });
   await expect(messagingKpi).toContainText("Review first");
   await expect(messagingKpi).toContainText(/\d+ drafts? awaiting staff review/);
+  const budgetKpis = page.locator("#admin-budget-kpis");
+  await expect(budgetKpis.locator("article").filter({ hasText: "Annual budget" })).toContainText("$530,000.00");
+  await expect(budgetKpis.locator("article").filter({ hasText: "Committed" })).toContainText("$186,400.00");
+  await expect(budgetKpis.locator("article").filter({ hasText: "Awaiting approval" })).toContainText("$92,000.00");
+  await expect(page.locator("#admin-budget-lines [data-budget-line]")).toHaveCount(6);
+  await expect(page.locator("#admin-expense-list [data-budget-expense]")).toHaveCount(7);
+  await expect(page.locator('#admin-expense-list [data-expense-status="submitted"]')).toHaveCount(2);
+  await expect(page.locator('#admin-expense-list [data-expense-status="approved"]')).toHaveCount(2);
+  await expect(page.locator('#admin-expense-list [data-expense-status="paid"]')).toHaveCount(2);
+  await expect(page.locator('#admin-expense-list [data-expense-status="rejected"]')).toHaveCount(1);
+  await expect(page.locator("#admin-budget")).not.toContainText(/RAMP-DEMO|budget_line_|expense_/);
+
+  const budgetLineForm = page.locator("#admin-create-budget-line");
+  await budgetLineForm.locator('[name="name"]').fill(budgetLineName);
+  await budgetLineForm.locator('[name="ownerTeam"]').selectOption("guest-services");
+  await budgetLineForm.locator('[name="amount"]').fill("2500.00");
+  await budgetLineForm.locator('[name="notes"]').fill("Browser acceptance allocation");
+  const budgetLineResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/budget/lines" && response.request().method() === "POST");
+  await budgetLineForm.locator('button[type="submit"]').click();
+  const budgetLineResult = await budgetLineResponse;
+  expect(budgetLineResult.status()).toBe(201);
+  const createdBudgetLine = (await budgetLineResult.json()).line;
+  const budgetLineCard = () => page.locator(`#admin-budget-lines [data-budget-line="${createdBudgetLine.id}"]`);
+  await expect(budgetLineCard()).toContainText(budgetLineName);
+  await budgetLineCard().locator('[name="amount"]').fill("3000.00");
+  await budgetLineCard().locator('[name="changeNote"]').fill("Board browser acceptance approved this allocation change.");
+  const budgetLineUpdateResponse = page.waitForResponse(response => new URL(response.url()).pathname === `/api/admin/budget/lines/${createdBudgetLine.id}` && response.request().method() === "PATCH");
+  await budgetLineCard().locator('button[type="submit"]').click();
+  expect((await budgetLineUpdateResponse).status()).toBe(200);
+  await expect(budgetLineCard()).toContainText("$3,000.00");
+
+  const expenseForm = page.locator("#admin-create-expense");
+  await expenseForm.locator('[name="budgetLineId"]').selectOption(createdBudgetLine.id);
+  await expenseForm.locator('[name="vendorName"]').fill(budgetVendorName);
+  await expenseForm.locator('[name="amount"]').fill("1200.00");
+  await expenseForm.locator('[name="dueDate"]').fill("2027-03-20");
+  await expenseForm.locator('[name="description"]').fill("Browser acceptance guest service equipment");
+  const expenseResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/budget/expenses" && response.request().method() === "POST");
+  await expenseForm.locator('button[type="submit"]').click();
+  const expenseResult = await expenseResponse;
+  expect(expenseResult.status()).toBe(201);
+  const createdExpense = (await expenseResult.json()).expense;
+  const expenseCard = () => page.locator(`#admin-expense-list [data-budget-expense="${createdExpense.id}"]`);
+  await expect(expenseCard()).toHaveAttribute("data-expense-status", "submitted");
+  const expenseApprovalResponse = page.waitForResponse(response => new URL(response.url()).pathname === `/api/admin/budget/expenses/${createdExpense.id}/approve` && response.request().method() === "POST");
+  await expenseCard().locator('[data-expense-action="approve"]').click();
+  expect((await expenseApprovalResponse).status()).toBe(200);
+  await expect(expenseCard()).toHaveAttribute("data-expense-status", "approved");
+  await expenseCard().locator('[data-expense-payment-method]').selectOption("ach");
+  await expenseCard().locator('[data-expense-payment-reference]').fill(`BROWSER-PRIVATE-${runId}`);
+  const expensePaymentResponse = page.waitForResponse(response => new URL(response.url()).pathname === `/api/admin/budget/expenses/${createdExpense.id}/mark-paid` && response.request().method() === "POST");
+  await expenseCard().locator('[data-expense-action="mark-paid"]').click();
+  expect((await expensePaymentResponse).status()).toBe(200);
+  await expect(expenseCard()).toHaveAttribute("data-expense-status", "paid");
+  await expect(expenseCard()).toContainText("ACH payment recorded");
+  await expect(expenseCard()).not.toContainText(`BROWSER-PRIVATE-${runId}`);
   const commandSignals = page.locator("#admin-command-signals");
   await expect(commandSignals).toHaveAttribute("aria-busy", "false");
   await expect(commandSignals.locator("[data-command-signal]")).toHaveCount(8);
@@ -1781,7 +1839,13 @@ test("visitor hero and navigation stay ordered across intermediate widths", asyn
     }
   }
 
-  await page.setViewportSize({ width: 1161, height: 720 });
+  await page.setViewportSize({ width: 1240, height: 720 });
+  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor`);
+  await expect(page.locator("#public-navigation")).toBeHidden();
+  await expect(page.locator("#mobile-nav-toggle")).toBeVisible();
+  await assertNoHorizontalOverflow(page);
+
+  await page.setViewportSize({ width: 1241, height: 720 });
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor`);
   await expect(page.locator("#public-navigation")).toBeVisible();
   await expect(page.locator("#mobile-nav-toggle")).toBeHidden();
@@ -1904,6 +1968,11 @@ test("critical public and operations views fit a mobile viewport", async ({ page
   ]);
   await expect.poll(() => workspaceNav.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
   for (const link of await workspaceLinks.all()) await expect(link).toBeInViewport();
+  const accountingLink = workspaceNav.getByRole("link", { name: "Accounting", exact: true });
+  await expect(accountingLink).toHaveAttribute("href", "#admin-budget");
+  await accountingLink.click();
+  await expect(page).toHaveURL(/#admin-budget$/);
+  await assertAnchorClearsWorkspaceNav(page, "#admin-budget", -1);
   await workspaceNav.getByRole("link", { name: "Island conditions", exact: true }).click();
   await expect(page).toHaveURL(/#admin-island-conditions$/);
   await assertAnchorClearsWorkspaceNav(page, "#admin-island-conditions", -1);

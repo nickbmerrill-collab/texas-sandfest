@@ -1494,6 +1494,7 @@ time {
 
 #admin-documents,
 #admin-system-monitor,
+#admin-budget,
 #admin-revenue,
 #admin-fleet,
 #admin-volunteers,
@@ -3143,7 +3144,7 @@ time {
   text-underline-offset: 4px;
 }
 
-@media (max-width: 1160px) {
+@media (max-width: 1240px) {
   .topbar .primary-nav {
     display: none;
   }
@@ -4403,7 +4404,110 @@ time {
   .lb-route { stroke-dasharray: 0; }
 }
 
-/* Revenue dashboard (admin console) */
+/* Accounting dashboards (admin console) */
+.admin-budget-panel {
+  display: grid;
+  gap: 16px;
+  margin-top: 28px;
+}
+.admin-budget-heading {
+  align-items: end;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+.admin-budget-heading > div { min-width: 0; }
+.admin-budget-workspace {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
+}
+.admin-budget-workspace > section {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.admin-budget-list {
+  display: grid;
+  gap: 8px;
+  max-height: 520px;
+  overflow: auto;
+}
+.admin-budget-list > article {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+  padding: 12px;
+}
+.admin-budget-list > article[data-budget-state="risk"],
+.admin-budget-list > article[data-expense-status="submitted"] { border-left: 4px solid var(--sun); }
+.admin-budget-list > article[data-budget-state="over"],
+.admin-budget-list > article[data-expense-status="rejected"] { border-left: 4px solid var(--coral); }
+.admin-budget-list > article[data-expense-status="paid"] { border-left: 4px solid var(--gulf); }
+.admin-budget-list header {
+  align-items: start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+.admin-budget-list header div { display: grid; gap: 3px; min-width: 0; }
+.admin-budget-list header strong,
+.admin-budget-list header span,
+.admin-budget-list header b,
+.admin-budget-list p,
+.admin-budget-list small { overflow-wrap: anywhere; }
+.admin-budget-list header span,
+.admin-budget-list p,
+.admin-budget-list small { color: var(--muted); font-size: 12px; margin: 0; }
+.admin-budget-list header b { color: var(--deep); flex: 0 0 auto; }
+.admin-budget-list progress { accent-color: var(--gulf); height: 8px; width: 100%; }
+.admin-budget-line-values {
+  display: grid;
+  gap: 5px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.admin-budget-line-values span { color: var(--muted); font-size: 10px; }
+.admin-budget-line-values b { color: var(--deep); display: block; font-size: 12px; }
+.admin-budget-line-actions {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 7px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding-top: 9px;
+}
+.admin-budget-line-actions label { color: var(--muted); display: grid; font-size: 10px; font-weight: 800; gap: 4px; text-transform: uppercase; }
+.admin-budget-line-actions input { background: var(--foam); border: 1px solid var(--line); border-radius: 6px; color: var(--ink); font: inherit; min-width: 0; padding: 8px; text-transform: none; }
+.admin-budget-line-actions .admin-check { align-items: center; display: flex; text-transform: none; }
+.admin-budget-line-actions .admin-check input { min-height: 18px; width: 18px; }
+.admin-budget-line-actions .admin-budget-action-note { grid-column: 1 / -1; }
+.admin-budget-line-actions .button { align-self: end; min-height: 38px; padding: 8px 10px; }
+.admin-budget-expense-status { align-items: center; display: flex; flex-wrap: wrap; gap: 6px; }
+.admin-budget-expense-status span,
+.admin-budget-expense-status b { background: var(--foam); color: var(--gulf); font-size: 10px; padding: 5px 7px; text-transform: uppercase; }
+.admin-budget-expense-actions {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 7px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding-top: 9px;
+}
+.admin-budget-expense-actions label { color: var(--muted); display: grid; font-size: 10px; font-weight: 800; gap: 4px; text-transform: uppercase; }
+.admin-budget-expense-actions input,
+.admin-budget-expense-actions select { background: var(--foam); border: 1px solid var(--line); border-radius: 6px; color: var(--ink); font: inherit; min-width: 0; padding: 8px; text-transform: none; }
+.admin-budget-expense-actions .admin-check { align-items: center; display: flex; text-transform: none; }
+.admin-budget-expense-actions .admin-check input { min-height: 18px; width: 18px; }
+.admin-budget-expense-actions .admin-budget-action-note,
+.admin-budget-expense-actions > div { grid-column: 1 / -1; }
+.admin-budget-expense-actions > div { display: flex; flex-wrap: wrap; gap: 7px; }
+.admin-budget-expense-actions .button { min-height: 38px; padding: 8px 10px; }
+.admin-budget-create {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
 .admin-revenue-panel {
   margin-top: 28px;
   display: grid;
@@ -6074,6 +6178,7 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
   .island-condition-kpis,
   .island-camera-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-partner-columns { grid-template-columns: 1fr 1fr; }
+  .admin-budget-workspace { grid-template-columns: 1fr; }
   .admin-inline-form { grid-template-columns: 1fr 1fr; }
   .admin-revenue-import,
   .admin-outreach-import { grid-template-columns: 1fr 1fr; }
@@ -6106,6 +6211,7 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
   .partner-brand-forms,
   .partner-brand-fields,
   .admin-partner-create,
+  .admin-budget-create,
   .admin-partner-columns,
   .admin-conditions-columns,
   .admin-campaign-fields { grid-template-columns: 1fr; }
@@ -6258,6 +6364,7 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
   }
   #admin-documents,
   #admin-system-monitor,
+  #admin-budget,
   #admin-revenue,
   #admin-fleet,
   #admin-volunteers,

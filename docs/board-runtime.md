@@ -84,7 +84,7 @@ The command first repeats the ten source, service, and data checks, then opens t
 session's credential-free Visitor and Operations links in local headless
 Chromium. It rejects remote or mismatched URLs and verifies the rendered signup
 catalogs, local ticket-payment readiness, approved sponsor branding, eight-camera conditions grid, all eight command
-signals and their mouse/keyboard workspace navigation, payment and key-date tracking, delivered local automation, a review-first outreach draft, staff,
+signals and their mouse/keyboard workspace navigation, budget, payment, and key-date tracking, delivered local automation, a review-first outreach draft, staff,
 volunteer, and team assignments, sponsor/vendor fulfillment, geofenced
 outreach with an invitation-ready prospect, private document extraction,
 deferred live-accounting label, browser
@@ -178,6 +178,7 @@ its startup output or `npm run board:check` is authoritative for that session.
 - Sponsor and vendor signup: `http://127.0.0.1:5175/?apiBase=http://127.0.0.1:8806&mode=visitor#sponsors`
 - Island Conditions: `http://127.0.0.1:5175/?apiBase=http://127.0.0.1:8806&mode=visitor#island-conditions`
 - Operations: `http://127.0.0.1:5175/admin.html?apiBase=http://127.0.0.1:8806`
+- Budget control: `http://127.0.0.1:5175/admin.html?apiBase=http://127.0.0.1:8806#admin-budget`
 - Document intake: `http://127.0.0.1:5175/admin.html?apiBase=http://127.0.0.1:8806#admin-documents`
 - Partner operations: `http://127.0.0.1:5175/admin.html?apiBase=http://127.0.0.1:8806#admin-partners`
 
@@ -195,6 +196,12 @@ groups same-batch lifecycle events and resolves readable organization or task
 names. It demonstrates intake, finance, key-date, messaging, work-board,
 branding, vendor, and outreach automation in one staff-only history without
 rendering raw activity, application, follow-up, or capability identifiers.
+Accounting includes six synthetic annual allocations and seven synthetic
+expenses across submitted, approved, paid, and rejected states. Finance can
+add or revise an allocation with a required change note, submit an expense,
+approve or reject it, record an explicit over-budget exception, and attach
+payment evidence. These actions update only the isolated runtime; they do not
+contact QuickBooks, Ramp, a bank, or any other payment provider.
 Sponsor outreach and Island conditions occupy separate full-width workspace
 rows. The board rehearsal checks that source health and all eight camera controls
 cannot be compressed beside or visually overlap prospect editing at the desktop

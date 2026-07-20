@@ -23,6 +23,14 @@ import {
 import { boardDemoAccessPlugin } from "../vite.config.js";
 import { buildRevenueLedgerView, partnerRevenueEntries, summarizeLedger, ticketRevenueEntries } from "../lib/revenue.mjs";
 import {
+  createBudgetLine,
+  createExpenseRequest,
+  emptyBudgetControl,
+  summarizeBudgetControl,
+  transitionExpense,
+  updateBudgetLine
+} from "../lib/budget-control.mjs";
+import {
   applyRevenueImport,
   parseRevenueCsv,
   REVENUE_IMPORT_MAX_ROWS,
@@ -715,7 +723,7 @@ console.log("\n=== Pure library suite ===\n");
       ticketCheckoutReady: true,
       ticketCheckoutEnvironment: "board_sandbox"
     },
-    bootstrap: { runtime: { mode: "board_demo" } },
+    bootstrap: { guide: { id: "texas-sandfest-2027" }, runtime: { mode: "board_demo" } },
     tickets: {
       checkoutEnvironment: "board_sandbox",
       products: Array.from({ length: 4 }, (_, index) => ({ id: `demo_ticket_${index + 1}`, availableForCheckout: true }))
@@ -759,6 +767,19 @@ console.log("\n=== Pure library suite ===\n");
       vendorReadiness: { totals: { vendors: 2, ready: 1, blocked: 1 } },
       staffDirectory: { ready: true, routedTeams: 7, totalTeams: 7 },
       email: { ready: true }
+    },
+    budget: {
+      eventId: "texas-sandfest-2027",
+      currency: "usd",
+      summary: {
+        totals: { budgetCents: 53_000_000, committedCents: 18_640_000, submittedCents: 9_200_000 },
+        counts: {
+          budgetLines: 6,
+          expenses: 7,
+          pendingApprovals: 2,
+          byStatus: { submitted: 2, approved: 2, paid: 2, rejected: 1, voided: 0 }
+        }
+      }
     },
     documents: {
       summary: { total: 4, extractionReady: 4, extractionQueued: 0, extractionNeedsReview: 0 },
@@ -931,6 +952,7 @@ console.log("\n=== Pure library suite ===\n");
     && missingSponsorBrandReport.checks.find(item => item.id === "operations")?.ok === false);
   const missingWorkflowReports = [
     state => { state.partners.payments = []; },
+    state => { state.budget.summary.counts.pendingApprovals = 0; },
     state => { state.partners.milestones = []; },
     state => { state.partners.followups = []; },
     state => { state.partners.tasks = state.partners.tasks.filter(item => item.assigneeType !== "staff"); },
@@ -942,7 +964,7 @@ console.log("\n=== Pure library suite ===\n");
     mutate(state);
     return evaluateBoardDemoReadiness(state);
   });
-  ok("board demo readiness requires finance, key dates, messaging, delegation, fulfillment, vendor, and outreach proof", missingWorkflowReports.every(report => (
+  ok("board demo readiness requires budget, finance, key dates, messaging, delegation, fulfillment, vendor, and outreach proof", missingWorkflowReports.every(report => (
     report.ok === false && report.checks.find(item => item.id === "operations")?.ok === false
   )));
   let remoteBoardCheckRejected = false;
@@ -1437,6 +1459,7 @@ console.log("\n=== Pure library suite ===\n");
   const invalidConfig = eventContextConfig({ SANDFEST_EVENT_ID: "sandfest-next" });
   const from = "texas-sandfest-2026";
   const documents = {
+    budgetControl: { ...emptyBudgetControl(from), budgetLines: [{ id: "line-1", eventId: from }], expenses: [{ id: "expense-1", eventId: from }] },
     fleet: { eventId: from, assets: [{ id: "cart-1", eventId: from, status: "checked_out" }], checkouts: [{ id: "co-1" }], locations: [{ id: "loc-1" }] },
     volunteers: { eventId: from, volunteers: [{ id: "vol-1", eventId: from, status: "confirmed" }], shifts: [{ id: "shift-1" }], hourLogs: [{ id: "hours-1" }] },
     staffDirectory: { eventId: from, source: "manual_verified", staff: [{ id: "staff-1", eventId: from, status: "active", name: "Staff One", email: "staff@example.com" }], teamRoutes: [] },
@@ -1468,7 +1491,7 @@ console.log("\n=== Pure library suite ===\n");
   ok("current event context reports stale and missing operational documents", !mismatched.ready && mismatched.mismatchedDocs.length === 2 && !invalidConfig.valid);
   ok("event rollover covers every governed operational document", rollover.ok && Object.keys(rollover.documents).length === ROLLOVER_DOCUMENT_KEYS.length && /^[a-f0-9]{64}$/.test(rollover.archiveDigest));
   ok("event archive digest is stable across object key order", eventArchiveDigest({ b: 2, a: { d: 4, c: 3 } }) === eventArchiveDigest({ a: { c: 3, d: 4 }, b: 2 }));
-  ok("event rollover carries reusable setup and resets season activity", rollover.documents.fleet.assets[0].status === "available" && rollover.documents.fleet.checkouts.length === 0 && rollover.documents.volunteers.shifts.length === 0 && rollover.documents.consent.records.length === 0 && rollover.documents.passportHunt.hunt.id === "sculpture-passport-2027" && rollover.documents.passportHunt.hunt.active === false && rollover.documents.voting.votes.length === 0 && rollover.documents.partnerOps.eventId === DEFAULT_EVENT_ID && rollover.documents.incomingDocuments.documents.length === 0 && rollover.documents.islandConditions.incidents.length === 0 && rollover.documents.smsOperations.campaigns.length === 0);
+  ok("event rollover carries reusable setup and resets season activity", rollover.documents.budgetControl.budgetLines.length === 0 && rollover.documents.budgetControl.expenses.length === 0 && rollover.documents.fleet.assets[0].status === "available" && rollover.documents.fleet.checkouts.length === 0 && rollover.documents.volunteers.shifts.length === 0 && rollover.documents.consent.records.length === 0 && rollover.documents.passportHunt.hunt.id === "sculpture-passport-2027" && rollover.documents.passportHunt.hunt.active === false && rollover.documents.voting.votes.length === 0 && rollover.documents.partnerOps.eventId === DEFAULT_EVENT_ID && rollover.documents.incomingDocuments.documents.length === 0 && rollover.documents.islandConditions.incidents.length === 0 && rollover.documents.smsOperations.campaigns.length === 0);
   ok("event rollover refuses mixed source context", !rejectedRollover.ok && rejectedRollover.mismatches?.[0]?.key === "fleet");
 }
 
@@ -1730,6 +1753,107 @@ bad_money,2026-07-16,eventeny,texas-sandfest-2027,ticket,10.001,0.30,9.70,receip
   ok("revenue import replay is idempotent", replayedImport.replay && !replayedImport.changed && replayedImport.doc.entries.length === committedImport.doc.entries.length && replayedImport.doc.imports.length === 1);
   const oversizedSettlement = `external_ref,date,category,gross_cents\n${Array.from({ length: REVENUE_IMPORT_MAX_ROWS + 1 }, (_, index) => `row_${index},2026-07-16,merch,100`).join("\n")}`;
   ok("revenue import enforces row ceiling", parseRevenueCsv(oversizedSettlement, importDefaults).ok === false);
+}
+
+// Budget control
+{
+  const eventId = "texas-sandfest-2027";
+  const now = "2026-07-20T12:00:00.000Z";
+  let sequence = 0;
+  const idFactory = prefix => `${prefix}_${++sequence}`;
+  const firstLine = createBudgetLine(emptyBudgetControl(eventId), {
+    name: "Beach infrastructure",
+    ownerTeam: "production",
+    budgetCents: 100_000,
+    notes: "Structures and utilities"
+  }, { actorId: "finance-1", idFactory, now });
+  const secondLine = createBudgetLine(firstLine.doc, {
+    name: "Guest services",
+    ownerTeam: "guest-services",
+    budgetCents: 50_000
+  }, { actorId: "finance-1", idFactory, now });
+  const duplicateLine = createBudgetLine(secondLine.doc, {
+    name: "beach infrastructure",
+    ownerTeam: "operations",
+    budgetCents: 10_000
+  }, { actorId: "finance-1", idFactory, now });
+  ok("budget lines require accountable, unique whole-cent allocations", firstLine.ok && secondLine.ok
+    && duplicateLine.ok === false && duplicateLine.code === "DUPLICATE_BUDGET_LINE");
+  const missingChangeNote = updateBudgetLine(secondLine.doc, firstLine.line.id, { budgetCents: 110_000 }, { actorId: "finance-2", now });
+  const changedLine = updateBudgetLine(secondLine.doc, firstLine.line.id, {
+    budgetCents: 110_000,
+    changeNote: "Board approved the revised infrastructure allocation."
+  }, { actorId: "finance-2", now: "2026-07-20T12:01:00.000Z" });
+  ok("budget allocation changes require an audited reason", missingChangeNote.ok === false && changedLine.ok && changedLine.line.budgetCents === 110_000
+    && changedLine.line.createdBy === "finance-1" && changedLine.line.lastChangedBy === "finance-2"
+    && changedLine.line.lastChangeNote === "Board approved the revised infrastructure allocation.");
+  const archivedLine = updateBudgetLine(changedLine.doc, secondLine.line.id, { active: false }, { actorId: "finance-2", now });
+  const reusedName = createBudgetLine(archivedLine.doc, {
+    name: "Guest services",
+    ownerTeam: "operations",
+    budgetCents: 60_000
+  }, { actorId: "finance-2", idFactory, now });
+  const editedArchive = updateBudgetLine(reusedName.doc, secondLine.line.id, {
+    notes: "Historical guest-services allocation retained for reference."
+  }, { actorId: "finance-2", now });
+  const duplicateReactivation = updateBudgetLine(editedArchive.doc, secondLine.line.id, { active: true }, { actorId: "finance-2", now });
+  ok("archived allocations remain editable while duplicate active names stay blocked", archivedLine.ok && reusedName.ok
+    && editedArchive.ok && editedArchive.line.active === false
+    && duplicateReactivation.ok === false && duplicateReactivation.code === "DUPLICATE_BUDGET_LINE");
+
+  const submitted = createExpenseRequest(changedLine.doc, {
+    budgetLineId: firstLine.line.id,
+    vendorName: "Coastal Rentals",
+    description: "Beach staging reservation",
+    amountCents: 70_000,
+    dueDate: "2027-02-01"
+  }, { actorId: "ops-1", idFactory, now: "2026-07-20T12:02:00.000Z" });
+  const approved = transitionExpense(submitted.doc, submitted.expense.id, "approve", {}, { actorId: "finance-2", now: "2026-07-20T12:03:00.000Z" });
+  const invalidPaymentDate = transitionExpense(approved.doc, submitted.expense.id, "mark_paid", {
+    paymentMethod: "ramp",
+    paymentReference: "RAMP-TEST-INVALID",
+    paidAt: "not-a-date"
+  }, { actorId: "finance-2", now: "2026-07-20T12:04:00.000Z" });
+  const paid = transitionExpense(approved.doc, submitted.expense.id, "mark_paid", {
+    paymentMethod: "ramp",
+    paymentReference: "RAMP-TEST-1001"
+  }, { actorId: "finance-2", now: "2026-07-20T12:04:00.000Z" });
+  ok("expense requests preserve approval and payment evidence", submitted.ok && approved.ok && paid.ok
+    && invalidPaymentDate.ok === false && paid.expense.status === "paid" && paid.expense.paymentReference === "RAMP-TEST-1001");
+
+  const oversized = createExpenseRequest(paid.doc, {
+    budgetLineId: firstLine.line.id,
+    vendorName: "Expansion Vendor",
+    description: "Additional beach structures",
+    amountCents: 60_000,
+    dueDate: "2027-03-01"
+  }, { actorId: "ops-1", idFactory, now: "2026-07-20T12:05:00.000Z" });
+  const blockedApproval = transitionExpense(oversized.doc, oversized.expense.id, "approve", {}, { actorId: "finance-2", now });
+  const shortOverride = transitionExpense(oversized.doc, oversized.expense.id, "approve", {
+    allowOverBudget: true,
+    note: "Approved"
+  }, { actorId: "finance-2", now });
+  const overridden = transitionExpense(oversized.doc, oversized.expense.id, "approve", {
+    allowOverBudget: true,
+    note: "Executive budget exception approved for required structures."
+  }, { actorId: "finance-2", now: "2026-07-20T12:06:00.000Z" });
+  const summary = summarizeBudgetControl(overridden.doc);
+  ok("over-budget commitments fail closed without an explicit noted override", blockedApproval.code === "OVER_BUDGET"
+    && shortOverride.ok === false && overridden.ok && overridden.expense.overBudgetOverride === true
+    && summary.counts.overBudgetLines === 1 && summary.totals.committedCents === 130_000);
+
+  const rejectedRequest = createExpenseRequest(overridden.doc, {
+    budgetLineId: secondLine.line.id,
+    vendorName: "Visitor Amenities",
+    description: "Optional hospitality upgrade",
+    amountCents: 12_000,
+    dueDate: "2027-03-15"
+  }, { actorId: "ops-2", idFactory, now });
+  const rejectedWithoutNote = transitionExpense(rejectedRequest.doc, rejectedRequest.expense.id, "reject", {}, { actorId: "finance-2", now });
+  const rejected = transitionExpense(rejectedRequest.doc, rejectedRequest.expense.id, "reject", {
+    note: "Deferred until final attendance forecast is approved."
+  }, { actorId: "finance-2", now });
+  ok("rejections require a durable resolution note", rejectedWithoutNote.ok === false && rejected.ok && rejected.expense.status === "rejected");
 }
 
 // Fleet
@@ -5530,6 +5654,7 @@ try {
     ["GET", "/api/public/booths", false],
     ["GET", "/api/public/island-conditions", false],
     ["GET", "/api/admin/revenue", true],
+    ["GET", "/api/admin/budget", true],
     ["GET", "/api/admin/fleet", true],
     ["GET", "/api/admin/volunteers", true],
     ["GET", "/api/admin/consent", true],
@@ -5880,6 +6005,74 @@ api_square_invalid,2026-07-16,merch,20.00,1.00,20.00,1,square_payout_api_1,2026-
     && revenueAfterCommitApi.data.summary?.totals?.refundCents === 9000
     && revenueAfterCommitApi.data.summary?.totals?.feeCents === 300
     && revenueAfterCommitApi.data.summary?.totals?.netCents === 9700);
+
+  const unauthenticatedBudgetApi = await hit("GET", "/api/admin/budget");
+  const emptyBudgetApi = await hit("GET", "/api/admin/budget", null, true);
+  const unauthenticatedBudgetLineApi = await hit("POST", "/api/admin/budget/lines", {
+    name: "API beach operations",
+    ownerTeam: "operations",
+    budgetCents: 50_000
+  });
+  const budgetLineApi = await hit("POST", "/api/admin/budget/lines", {
+    name: "API beach operations",
+    ownerTeam: "operations",
+    budgetCents: 50_000,
+    notes: "API workflow verification"
+  }, true);
+  const duplicateBudgetLineApi = await hit("POST", "/api/admin/budget/lines", {
+    name: "api BEACH operations",
+    ownerTeam: "finance",
+    budgetCents: 10_000
+  }, true);
+  const budgetLineUpdateWithoutNoteApi = await hit("PATCH", `/api/admin/budget/lines/${budgetLineApi.data.line?.id}`, {
+    budgetCents: 52_000
+  }, true);
+  const budgetLineUpdateApi = await hit("PATCH", `/api/admin/budget/lines/${budgetLineApi.data.line?.id}`, {
+    budgetCents: 50_000,
+    active: true,
+    changeNote: "No amount change required for API verification."
+  }, true);
+  const paidExpenseRequestApi = await hit("POST", "/api/admin/budget/expenses", {
+    budgetLineId: budgetLineApi.data.line?.id,
+    vendorName: "API Private Staging Vendor",
+    description: "API staging reservation for beach operations",
+    amountCents: 30_000,
+    dueDate: "2027-02-15"
+  }, true);
+  const paidExpenseApprovalApi = await hit("POST", `/api/admin/budget/expenses/${paidExpenseRequestApi.data.expense?.id}/approve`, {}, true);
+  const paidExpensePaymentApi = await hit("POST", `/api/admin/budget/expenses/${paidExpenseRequestApi.data.expense?.id}/mark-paid`, {
+    paymentMethod: "ach",
+    paymentReference: "PRIVATE-ACH-API-1001"
+  }, true);
+  const overBudgetExpenseRequestApi = await hit("POST", "/api/admin/budget/expenses", {
+    budgetLineId: budgetLineApi.data.line?.id,
+    vendorName: "API Private Safety Vendor",
+    description: "API additional safety structures for the beach",
+    amountCents: 25_000,
+    dueDate: "2027-03-01"
+  }, true);
+  const overBudgetBlockedApi = await hit("POST", `/api/admin/budget/expenses/${overBudgetExpenseRequestApi.data.expense?.id}/approve`, {}, true);
+  const overBudgetApprovedApi = await hit("POST", `/api/admin/budget/expenses/${overBudgetExpenseRequestApi.data.expense?.id}/approve`, {
+    allowOverBudget: true,
+    note: "Executive exception approved for required safety capacity."
+  }, true);
+  const repeatedBudgetTransitionApi = await hit("POST", `/api/admin/budget/expenses/${overBudgetExpenseRequestApi.data.expense?.id}/approve`, {}, true);
+  const persistedBudgetApi = await hit("GET", "/api/admin/budget", null, true);
+  ok("budget API requires finance authentication", unauthenticatedBudgetApi.status === 401 && unauthenticatedBudgetLineApi.status === 401);
+  ok("budget API starts current event without sample finance records", emptyBudgetApi.status === 200 && emptyBudgetApi.data.eventId === DEFAULT_EVENT_ID && emptyBudgetApi.data.summary?.counts?.budgetLines === 0);
+  ok("budget allocation API enforces uniqueness and noted changes", budgetLineApi.status === 201 && duplicateBudgetLineApi.status === 409
+    && budgetLineUpdateWithoutNoteApi.status === 400 && budgetLineUpdateApi.status === 200 && budgetLineUpdateApi.data.line?.createdBy && budgetLineUpdateApi.data.line?.lastChangedBy);
+  ok("expense API persists approval and payment evidence", paidExpenseRequestApi.status === 201 && paidExpenseApprovalApi.status === 200
+    && paidExpensePaymentApi.status === 200 && paidExpensePaymentApi.data.expense?.status === "paid" && paidExpensePaymentApi.data.expense?.paymentReference === "PRIVATE-ACH-API-1001");
+  ok("budget approval fails closed and records explicit overrides", overBudgetBlockedApi.status === 409 && overBudgetBlockedApi.data.code === "OVER_BUDGET"
+    && overBudgetApprovedApi.status === 200 && overBudgetApprovedApi.data.expense?.overBudgetOverride === true && repeatedBudgetTransitionApi.status === 409);
+  ok("budget summary reconciles paid and committed spend", persistedBudgetApi.status === 200
+    && persistedBudgetApi.data.summary?.totals?.budgetCents === 50_000
+    && persistedBudgetApi.data.summary?.totals?.paidCents === 30_000
+    && persistedBudgetApi.data.summary?.totals?.committedCents === 55_000
+    && persistedBudgetApi.data.summary?.counts?.overBudgetLines === 1
+    && persistedBudgetApi.data.summary?.counts?.pendingApprovals === 0
+    && persistedBudgetApi.data.expenses?.length === 2);
 
   const eventenyPartnerEmailApi = "eventeny-vendor-api@example.com";
   const eventenyPartnerCsvApi = `application_id,type,business_name,contact_name,contact_email,category,offering_id,package_id,status,reported_amount,event_id
@@ -6914,6 +7107,14 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
   const documentAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("document."));
   ok("private document lifecycle is audited without file contents", documentAuditApi.some(item => item.record?.action === "document.upload") && documentAuditApi.some(item => item.record?.action === "document.review") && documentAuditApi.some(item => item.record?.action === "document.download") && documentAuditApi.some(item => item.record?.action === "document.extraction.source_read") && documentAuditApi.some(item => item.record?.action === "document.extraction.retry") && !JSON.stringify(documentAuditApi).includes("Board packet source"));
   ok("revenue settlement commit is audited", auditApi.data.audit?.some(item => item.record?.action === "revenue.import.commit" && item.record?.after?.source === "square" && item.record?.after?.imported === 1));
+  const budgetAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("budget."));
+  const serializedBudgetAuditApi = JSON.stringify(budgetAuditApi);
+  ok("budget lifecycle is audited without private vendor or payment references", budgetAuditApi.some(item => item.record?.action === "budget.line.create")
+    && budgetAuditApi.some(item => item.record?.action === "budget.line.update")
+    && budgetAuditApi.some(item => item.record?.action === "budget.expense.submit")
+    && budgetAuditApi.some(item => item.record?.action === "budget.expense.approve" && item.record?.metadata?.overBudgetOverride === true)
+    && budgetAuditApi.some(item => item.record?.action === "budget.expense.mark_paid")
+    && !serializedBudgetAuditApi.includes("API Private") && !serializedBudgetAuditApi.includes("PRIVATE-ACH-API-1001"));
   const eventenyPartnerImportAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action === "partner.application.import");
   ok("Eventeny application import audit is aggregate-only", eventenyPartnerImportAuditApi.length >= 1 && eventenyPartnerImportAuditApi.some(item => item.record?.after?.fileName === "eventeny-applications-api.csv" && item.record?.after?.summary?.imported === 2) && !JSON.stringify(eventenyPartnerImportAuditApi).includes(eventenyPartnerEmailApi) && !JSON.stringify(eventenyPartnerImportAuditApi).includes("Vendor Import Contact"));
   const boothImportAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action === "booths.import.commit");
