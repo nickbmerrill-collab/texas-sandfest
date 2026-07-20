@@ -198,6 +198,7 @@ import {
   updateOutreachProspect,
   updatePartnerApplication,
   updatePartnerBrandProfile,
+  updatePartnerContactPreference,
   updatePartnerDeliverable,
   updatePartnerTask,
   updatePartnerTaskFromAssignee,
@@ -2341,7 +2342,7 @@ function rateLimitProfile(pathname, method) {
     return { name: "checkout", limit: CHECKOUT_RATE_LIMIT };
   }
   if (method === "POST" && pathname === "/api/public/concierge") return { name: "concierge", limit: PUBLIC_RATE_LIMIT };
-  if (method === "POST" && ["/api/public/partner-status", "/api/public/partner-portal-recovery", "/api/public/partner-payment-checkout", "/api/public/outreach-preferences", "/api/public/task-status", "/api/public/task-status/update"].includes(pathname)) {
+  if (method === "POST" && ["/api/public/partner-status", "/api/public/partner-contact-preferences", "/api/public/partner-portal-recovery", "/api/public/partner-payment-checkout", "/api/public/outreach-preferences", "/api/public/task-status", "/api/public/task-status/update"].includes(pathname)) {
     return { name: "partner-status", limit: PARTNER_STATUS_RATE_LIMIT };
   }
   // Unauthenticated write paths get a stricter bucket (festival abuse protection).
@@ -4888,6 +4889,52 @@ async function handleRequest(request, response) {
         return;
       }
       sendJson(request, response, 200, { application: publicPartnerStatus(doc, access.application) });
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/public/partner-contact-preferences") {
+      const config = partnerPortalConfig();
+      if (!config.ready) {
+        sendJson(request, response, 503, { error: "Partner preferences are temporarily unavailable." }, { "cache-control": "no-store" });
+        return;
+      }
+      const body = await readBody(request);
+      let accessError = null;
+      const result = await mutatePartnerOperations(doc => {
+        const access = findPartnerPortalApplication(doc, body.reference, body.token, { config });
+        if (!access.ok) {
+          accessError = access.error;
+          return doc;
+        }
+        const notice = partnerContactNotice(access.application.type, access.application.intakeMode);
+        return updatePartnerContactPreference(doc, access.application.id, {
+          consentToContact: body.consentToContact,
+          expectedVersion: body.expectedVersion
+        }, {
+          actorId: `partner:${access.application.id}`,
+          idFactory: prefix => `${prefix}_${randomUUID()}`,
+          noticeVersion: notice.version,
+          now: new Date().toISOString()
+        });
+      });
+      if (accessError || !result?.ok) {
+        sendJson(request, response, accessError ? 404 : result?.conflict ? 409 : 400, {
+          error: accessError || result?.error || "Partner preferences could not be updated."
+        }, { "cache-control": "no-store" });
+        return;
+      }
+      if (result.changed) {
+        await writeAuditRecord(request, "partner.contact_preference.update", { type: "application", id: result.application.id }, null, {
+          allowed: result.application.consentToContact,
+          version: result.application.consentPreferenceVersion,
+          dismissedFollowups: result.dismissedFollowups
+        });
+      }
+      sendJson(request, response, 200, {
+        replay: result.replay === true,
+        dismissedFollowups: result.dismissedFollowups,
+        application: publicPartnerStatus(result.doc, result.application)
+      }, { "cache-control": "no-store" });
       return;
     }
 

@@ -197,6 +197,7 @@ import {
   updateOutreachProspect,
   updatePartnerApplication,
   updatePartnerBrandProfile,
+  updatePartnerContactPreference,
   updatePartnerDeliverable,
   updatePartnerTask,
   updatePartnerTaskFromAssignee,
@@ -2500,6 +2501,77 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   ok("partner portal capability token", portalToken?.startsWith("tsfp_") && verifyPartnerPortalToken(created.application, portalToken, { config: portalConfig }) && !verifyPartnerPortalToken(created.application, `${portalToken}x`, { config: portalConfig }));
   ok("partner portal fragment link", partnerPortalPath(created.application, portalToken).startsWith("/#partner-status?") && portalUrl.includes("#partner-status?"));
   ok("partner portal resolves a legacy duplicate reference by capability", legacyCollisionAccess.ok && legacyCollisionAccess.application.id === legacyCollisionApplication.id);
+  const preferenceFollowup = created.doc.followups[0];
+  const preferenceDoc = {
+    ...created.doc,
+    followups: [
+      preferenceFollowup,
+      ...["draft_ready", "approved", "queued", "failed", "sending", "sending", "sent"].map((status, index) => ({
+        ...preferenceFollowup,
+        id: `followup_preference_${index + 1}`,
+        status,
+        providerSubmissionStartedAt: status === "sending" && index === 4 ? now : null,
+        sentAt: status === "sent" ? now : null
+      }))
+    ]
+  };
+  const contactOptOutAt = "2026-07-16T12:01:00.000Z";
+  const contactOptOut = updatePartnerContactPreference(preferenceDoc, created.application.id, {
+    consentToContact: false,
+    expectedVersion: 1
+  }, { actorId: `partner:${created.application.id}`, idFactory, noticeVersion: partnerContactNotice("sponsor").version, now: contactOptOutAt });
+  const contactOptOutReplay = updatePartnerContactPreference(contactOptOut.doc, created.application.id, {
+    consentToContact: false,
+    expectedVersion: 1
+  }, { actorId: `partner:${created.application.id}`, idFactory, noticeVersion: partnerContactNotice("sponsor").version, now: contactOptOutAt });
+  const staleContactOptIn = updatePartnerContactPreference(contactOptOut.doc, created.application.id, {
+    consentToContact: true,
+    expectedVersion: 1
+  }, { actorId: `partner:${created.application.id}`, idFactory, noticeVersion: partnerContactNotice("sponsor").version, now: "2026-07-16T12:02:00.000Z" });
+  const unversionedContactOptIn = updatePartnerContactPreference(contactOptOut.doc, created.application.id, {
+    consentToContact: true
+  }, { actorId: `partner:${created.application.id}`, idFactory, noticeVersion: partnerContactNotice("sponsor").version, now: "2026-07-16T12:02:00.000Z" });
+  const blockedAfterOptOutDoc = {
+    ...contactOptOut.doc,
+    followups: [...contactOptOut.doc.followups, { ...preferenceFollowup, id: "followup_after_opt_out", status: "approved" }]
+  };
+  const blockedAfterOptOut = queueFollowupDelivery(blockedAfterOptOutDoc, "followup_after_opt_out", { now: contactOptOutAt });
+  const contactOptInAt = "2026-07-16T12:03:00.000Z";
+  const contactOptIn = updatePartnerContactPreference(contactOptOut.doc, created.application.id, {
+    consentToContact: true,
+    expectedVersion: 2
+  }, { actorId: `partner:${created.application.id}`, idFactory, noticeVersion: partnerContactNotice("sponsor").version, now: contactOptInAt });
+  const optOutPublicPortal = publicPartnerPortalStatus(contactOptOut.doc, contactOptOut.application, { now: contactOptOutAt });
+  ok("partner portal contact opt-out dismisses only unsent messages", contactOptOut.ok
+    && contactOptOut.changed
+    && contactOptOut.dismissedFollowups === 6
+    && contactOptOut.application.consentToContact === false
+    && contactOptOut.application.consentWithdrawnAt === contactOptOutAt
+    && contactOptOut.application.consentPreferenceVersion === 2
+    && contactOptOut.doc.followups.filter(item => item.status === "dismissed").length === 6
+    && contactOptOut.doc.followups.some(item => item.status === "sending" && item.providerSubmissionStartedAt)
+    && contactOptOut.doc.followups.some(item => item.status === "sent"));
+  ok("partner portal contact preference is idempotent and conflict safe", contactOptOutReplay.ok
+    && contactOptOutReplay.replay
+    && !contactOptOutReplay.changed
+    && !staleContactOptIn.ok
+    && staleContactOptIn.conflict
+    && !unversionedContactOptIn.ok
+    && unversionedContactOptIn.error.includes("version is required")
+    && !blockedAfterOptOut.ok
+    && blockedAfterOptOut.error.includes("does not permit contact"));
+  ok("partner portal contact re-enrollment captures current notice", contactOptIn.ok
+    && contactOptIn.application.consentToContact === true
+    && contactOptIn.application.consentCapturedAt === contactOptInAt
+    && contactOptIn.application.consentWithdrawnAt === null
+    && contactOptIn.application.consentPreferenceVersion === 3
+    && contactOptIn.application.consentNoticeVersion === partnerContactNotice("sponsor").version
+    && contactOptIn.doc.followups.filter(item => item.status === "dismissed").length === 6);
+  ok("partner portal contact preference projection is private", optOutPublicPortal.contactPreference?.allowed === false
+    && optOutPublicPortal.contactPreference?.version === 2
+    && !Object.hasOwn(optOutPublicPortal, "contactEmail")
+    && !JSON.stringify(contactOptOut.doc.activity.at(-1)).includes(applicationInput.contactEmail)
+    && !JSON.stringify(contactOptOut.doc.activity.at(-1)).includes(portalToken));
   const recovery = requestPartnerPortalRecovery(created.doc, {
     reference: created.application.reference.toLowerCase(),
     contactEmail: applicationInput.contactEmail.toUpperCase()
@@ -7549,6 +7621,47 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
   ok("public vendor interest creates review work without onboarding obligations", apiInterestMilestones.length === 1 && apiInterestMilestones[0]?.kind === "interest_review" && apiInterestWorkspace.data.tasks?.filter(item => item.relatedEntityId === storedApiInterest?.id).length === 1 && !apiInterestWorkspace.data.vendorProfiles?.some(item => item.applicationId === storedApiInterest?.id) && !apiInterestWorkspace.data.vendorRequirements?.some(item => item.applicationId === storedApiInterest?.id) && !apiInterestWorkspace.data.vendorAssignments?.some(item => item.applicationId === storedApiInterest?.id), apiInterestDetail);
   ok("public vendor interest portal is non-financial", apiInterestStatus.status === 200 && apiInterestStatus.data.application?.intakeMode === "interest" && apiInterestStatus.data.application?.finance?.paymentStatus === "not_applicable" && apiInterestStatus.data.application?.vendorOnboarding === null && apiInterestWorkspace.data.vendorReadiness?.totals?.interests >= 1, apiInterestDetail);
   ok("vendor interest finance endpoints fail closed", apiInterestReprice.status === 400 && apiInterestInvoice.status === 400 && apiInterestPayment.status === 400 && [apiInterestReprice, apiInterestInvoice, apiInterestPayment].every(item => item.data.error?.includes("Vendor interest")), apiInterestDetail);
+  const apiInterestAccess = {
+    reference: apiInterestIntake.data.application?.reference,
+    token: apiInterestIntake.data.portalAccess?.token
+  };
+  const rejectedContactPreference = await hit("POST", "/api/public/partner-contact-preferences", {
+    ...apiInterestAccess,
+    token: `${apiInterestAccess.token}x`,
+    consentToContact: false,
+    expectedVersion: 1
+  });
+  const pausedContactPreference = await hit("POST", "/api/public/partner-contact-preferences", {
+    ...apiInterestAccess,
+    consentToContact: false,
+    expectedVersion: 1
+  });
+  const replayedContactPreference = await hit("POST", "/api/public/partner-contact-preferences", {
+    ...apiInterestAccess,
+    consentToContact: false,
+    expectedVersion: 1
+  });
+  const staleContactPreference = await hit("POST", "/api/public/partner-contact-preferences", {
+    ...apiInterestAccess,
+    consentToContact: true,
+    expectedVersion: 1
+  });
+  const unversionedContactPreference = await hit("POST", "/api/public/partner-contact-preferences", {
+    ...apiInterestAccess,
+    consentToContact: true
+  });
+  const resumedContactPreference = await hit("POST", "/api/public/partner-contact-preferences", {
+    ...apiInterestAccess,
+    consentToContact: true,
+    expectedVersion: 2
+  });
+  const resumedContactStatus = await hit("POST", "/api/public/partner-status", apiInterestAccess);
+  const contactPreferenceWorkspace = await hit("GET", "/api/admin/partners", null, true);
+  const storedContactPreference = contactPreferenceWorkspace.data.applications?.find(item => item.id === apiInterestApplicationId);
+  const dismissedContactMessages = contactPreferenceWorkspace.data.followups?.filter(item => item.applicationId === apiInterestApplicationId && item.status === "dismissed") || [];
+  ok("partner email preferences require a valid private capability", rejectedContactPreference.status === 404 && !JSON.stringify(rejectedContactPreference.data).includes("interest-contact@example.com"));
+  ok("partner email opt-out is immediate and idempotent", pausedContactPreference.status === 200 && pausedContactPreference.data.application?.contactPreference?.allowed === false && pausedContactPreference.data.application?.contactPreference?.version === 2 && pausedContactPreference.data.dismissedFollowups >= 1 && replayedContactPreference.status === 200 && replayedContactPreference.data.replay === true && replayedContactPreference.data.dismissedFollowups === 0);
+  ok("partner email re-enrollment is conflict safe", staleContactPreference.status === 409 && unversionedContactPreference.status === 400 && resumedContactPreference.status === 200 && resumedContactPreference.data.application?.contactPreference?.allowed === true && resumedContactPreference.data.application?.contactPreference?.version === 3 && resumedContactStatus.data.application?.contactPreference?.allowed === true && storedContactPreference?.consentNoticeVersion === apiInterestNotice.version && dismissedContactMessages.length >= 1);
   const unauthenticatedExportApi = await hitRaw("GET", "/api/admin/exports/partners.csv");
   const [partnerExportApi, receivablesExportApi, paymentsExportApi, tasksExportApi, outreachExportApi, calendarExportApi] = await Promise.all([
     hitRaw("GET", "/api/admin/exports/partners.csv", undefined, { origin: "http://127.0.0.1:5173" }, true),
@@ -7595,6 +7708,8 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
   );
   const serializedAudit = JSON.stringify(auditApi.data.audit || []);
   ok("admin audit never stores bearer credential fragments", auditApi.status === 200 && !serializedAudit.includes("tokenHint") && !serializedAudit.includes(TOKEN));
+  const contactPreferenceAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action === "partner.contact_preference.update");
+  ok("partner email preference audit is aggregate-only", contactPreferenceAuditApi.length === 2 && contactPreferenceAuditApi.some(item => item.record?.after?.allowed === false) && contactPreferenceAuditApi.some(item => item.record?.after?.allowed === true) && !JSON.stringify(contactPreferenceAuditApi).includes(apiInterestAccess.token) && !JSON.stringify(contactPreferenceAuditApi).includes("interest-contact@example.com"));
   ok("QuickBooks OAuth audit contains no authorization secrets", auditApi.data.audit?.some(item => item.record?.action === "accounting.quickbooks.authorize") && auditApi.data.audit?.some(item => item.record?.action === "accounting.quickbooks.connect") && auditApi.data.audit?.some(item => item.record?.action === "accounting.quickbooks.disconnect") && !serializedAudit.includes(quickBooksStateApi) && !serializedAudit.includes(quickBooksCodeApi) && !serializedAudit.includes(quickBooksRealmApi) && !serializedAudit.includes("quickbooks-private-refresh-token"));
   ok("Brevo webhook audit is aggregate-only", auditApi.data.audit?.some(item => item.record?.action === "email.delivery.webhook") && !serializedAudit.includes(webhookRecipient) && !serializedAudit.includes(SMOKE_BREVO_WEBHOOK_TOKEN));
   const smsAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("sms."));

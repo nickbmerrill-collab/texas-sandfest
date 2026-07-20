@@ -30,6 +30,14 @@ The server normalizes the submitted application reference and email, then requir
 
 Matches, invalid inputs, unknown references, wrong emails, and cooldown replays all return the same `202` response with `Cache-Control: no-store`. The public response contains no match flag, application identity, recipient, follow-up ID, job ID, or portal token. Only a successful match creates a privacy-minimized staff activity record. Queue failures remain visible to operators as failed follow-ups while the public response stays generic.
 
+## Partner message preferences
+
+An authenticated private partner portal exposes the current application-email permission without returning a contact address, notice text, or capability token. `POST /api/public/partner-contact-preferences` revalidates the HMAC capability inside the same atomic document mutation and requires the displayed preference version. A stale tab receives `409`; an exact replay returns the current state without adding activity or audit records.
+
+Opting out increments the preference version and dismisses application messages in `pending`, `draft_ready`, `approved`, `queued`, or `failed` state, plus `sending` claims that have not begun provider submission. It clears approvals and job ownership before another worker attempt, while preserving started provider handoffs, sent messages, delivery events, payments, dates, and the submitted application. Every delivery path still rechecks the stored permission immediately before provider submission.
+
+Re-enrollment captures the current server-owned contact notice and increments the preference version again. Previously dismissed messages are not resurrected; a later valid application event can create a new versioned message. Audit and partner activity records contain only the application ID, allowed state, preference version, and dismissed count. A partner who pauses email must retain the private link or contact staff to restore access because portal-recovery email is also consent-gated.
+
 ## Delivery lifecycle
 
 1. Intake or an operations change creates a pending message with a stable workflow key.

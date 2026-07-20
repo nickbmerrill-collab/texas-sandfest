@@ -236,7 +236,8 @@ receivables summary, audit trail, and payment key date reconcile immediately;
 the signed flow never opens Stripe or sends an external charge. Staff can use
 the existing governed reversal action to reopen the balance and key date.
 The production browser gate also creates a new artisan vendor through the public
-form, submits its operating profile and five category-specific compliance
+form, pauses and re-enables application email in the authenticated portal,
+submits its operating profile and five category-specific compliance
 records, approves the same record in operations, publishes booth A-27 and its
 load-in window, confirms the assignment in the private portal, and verifies the
 dashboard recomputes that vendor as ready. The assignment notice is drafted
