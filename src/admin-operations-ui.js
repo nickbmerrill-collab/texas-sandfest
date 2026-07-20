@@ -63,6 +63,112 @@ export function bindDraftEditors(followups, { adminFetch, loadAdminPartners, set
   };
 }
 
+export function followupAutomationLabel(item) {
+  if (item.manualReviewRequiredAt) return "staff review required";
+  if (item.automationPolicy === "outreach_campaign_v1") return "campaign-approved automation";
+  if (!item.automationPolicy) return "";
+  return {
+    payment_received: "automatic payment confirmation",
+    payment_adjustment: "automatic payment adjustment",
+    sponsor_brand_changes: "automatic sponsor brand review",
+    sponsor_deliverable_review: "automatic sponsor proof review",
+    milestone_reminder: "automatic key-date reminder"
+  }[item.kind] || "transactional automation";
+}
+
+export function applicationDecisionStatusMessage(result) {
+  if (result.decisionNotice?.requiresManualReview) {
+    return "Application status saved. The decision message requires staff review.";
+  }
+  if (result.decisionNotice) {
+    return "Application status saved. The approval message is ready for review or transactional automation.";
+  }
+  return result.dismissedDecisionNotices
+    ? "Application status saved. The stale decision message was removed."
+    : "Application status saved.";
+}
+
+export function bindApplicationStatusActions(applications, { adminFetch, loadAdminPartners, setAdminStatus }) {
+  for (const button of applications.querySelectorAll("[data-save-application]")) button.onclick = async () => {
+    const card = button.closest("[data-partner-application]");
+    button.disabled = true;
+    try {
+      const result = await adminFetch(`/api/admin/partners/applications/${encodeURIComponent(button.dataset.saveApplication)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: card.querySelector('[name="status"]').value })
+      });
+      await loadAdminPartners({ quiet: true });
+      setAdminStatus(applicationDecisionStatusMessage(result), "ok");
+    } catch (error) {
+      setAdminStatus(error.message, "error");
+    } finally {
+      button.disabled = false;
+    }
+  };
+}
+
+export function bindPartnerPortalActions(applications, {
+  adminFetch,
+  apiBase,
+  boardDemoEnabled,
+  loadAdminPartners,
+  setAdminStatus,
+  writeClipboardText
+}) {
+  async function createFreshAccess(applicationId) {
+    const result = await adminFetch(`/api/admin/partners/applications/${encodeURIComponent(applicationId)}/portal-access`, {
+      method: "POST",
+      body: "{}"
+    });
+    let url = result.portalAccess.url;
+    if (boardDemoEnabled) {
+      const boardUrl = new URL(url);
+      boardUrl.searchParams.set("apiBase", apiBase);
+      url = boardUrl.toString();
+    }
+    return { ...result, portalAccess: { ...result.portalAccess, url } };
+  }
+
+  for (const button of applications.querySelectorAll("[data-open-demo-portal]")) button.onclick = async () => {
+    const popup = window.open("about:blank", "_blank");
+    if (!popup) {
+      setAdminStatus("The partner portal window could not be opened.", "error");
+      return;
+    }
+    popup.opener = null;
+    button.disabled = true;
+    try {
+      const result = await createFreshAccess(button.dataset.openDemoPortal);
+      popup.location.replace(result.portalAccess.url);
+      await loadAdminPartners({ quiet: true });
+      setAdminStatus(`Opened a fresh private demo portal for ${result.application.reference}. The previous link no longer works.`, "ok");
+    } catch (error) {
+      if (!popup.closed) popup.close();
+      setAdminStatus(error.message, "error");
+    } finally {
+      button.disabled = false;
+    }
+  };
+
+  for (const button of applications.querySelectorAll("[data-rotate-portal]")) button.onclick = async () => {
+    button.disabled = true;
+    try {
+      const result = await createFreshAccess(button.dataset.rotatePortal);
+      const copied = await writeClipboardText(result.portalAccess.url);
+      await loadAdminPartners({ quiet: true });
+      setAdminStatus(copied
+        ? `A new private portal link for ${result.application.reference} is on the clipboard. The previous link no longer works.`
+        : boardDemoEnabled
+          ? `A new private portal link for ${result.application.reference} was created, but the browser blocked clipboard access. Use Open demo portal to continue.`
+          : `A new private portal link for ${result.application.reference} was created, but the browser blocked clipboard access. Allow clipboard access and rotate the link again before handing it off.`, copied ? "ok" : "warning");
+    } catch (error) {
+      setAdminStatus(error.message, "error");
+    } finally {
+      button.disabled = false;
+    }
+  };
+}
+
 export function ticketPolicyEditorMarkup() {
   return `
     <form id="admin-ticket-policy-form" class="admin-ticket-policy" aria-labelledby="admin-ticket-policy-heading">
