@@ -9959,6 +9959,11 @@ function startLiveBeach() {
     g.setAttribute("role", "button");
     g.setAttribute("aria-label", `Sculpture ${s.id}, ${s.title} by ${s.sculptor}, ${crowdLabel[s.crowd]} crowd`);
 
+    const hitTarget = document.createElementNS(ns, "circle");
+    hitTarget.setAttribute("class", "lb-pin-hit");
+    hitTarget.setAttribute("r", "44");
+    g.appendChild(hitTarget);
+
     const halo = document.createElementNS(ns, "circle");
     halo.setAttribute("class", "lb-pin-halo");
     halo.setAttribute("r", "30");

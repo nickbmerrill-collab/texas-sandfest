@@ -3981,6 +3981,12 @@ time {
   outline-offset: 5px;
 }
 
+.lb-pin-hit {
+  fill: transparent;
+  stroke: none;
+  pointer-events: all;
+}
+
 .lb-pin-halo {
   fill: rgba(255, 246, 230, 0.85);
   stroke: var(--lb-navy);

@@ -1928,7 +1928,8 @@ test("critical public and operations views fit a mobile viewport", async ({ page
   await expect(mobileNavigation).toBeHidden();
   await assertNoHorizontalOverflow(page);
 
-  const mobileMapTargets = page.locator(".booth-pin, .corridor-pin");
+  const mobileMapTargets = page.locator(".lb-pin, .booth-pin, .corridor-pin");
+  await expect(page.locator(".lb-pin")).toHaveCount(16);
   await expect(page.locator(".booth-pin")).toHaveCount(7);
   await expect(page.locator(".corridor-pin")).toHaveCount(9);
   for (let index = 0; index < await mobileMapTargets.count(); index += 1) {
