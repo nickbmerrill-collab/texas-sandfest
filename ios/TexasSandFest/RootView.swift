@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct RootView: View {
+    @EnvironmentObject private var dataStore: AppDataStore
     @State private var mode: AppMode = .customer
 
     var body: some View {
@@ -17,6 +18,9 @@ struct RootView: View {
             }
         }
         .background(Color.sandFestFoam.ignoresSafeArea())
+        .task {
+            await dataStore.refreshPublicData()
+        }
     }
 
     private var modePicker: some View {

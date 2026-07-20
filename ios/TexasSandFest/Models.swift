@@ -244,6 +244,26 @@ struct SandFestPayload: Codable {
     )
 }
 
+struct PublicVenueZone: Codable {
+    let id: String
+    let name: String
+    let marker: String?
+    let summary: String?
+}
+
+struct PublicRuntime: Codable {
+    let mode: String
+    let label: String
+}
+
+struct PublicSandFestPayload: Codable {
+    let guide: EventGuide
+    let alert: EmergencyAlert
+    let schedule: [ScheduleItem]
+    let zones: [PublicVenueZone]
+    let runtime: PublicRuntime?
+}
+
 // MARK: - Live Beach
 //
 // The visitor-facing surface that fuses crowd-zone density, run-of-show,

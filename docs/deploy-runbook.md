@@ -243,14 +243,21 @@ xcrun simctl launch booted com.portalcodex.texassandfest \
 
 ## Phase 5 — Bootstrap data sync
 
-The iOS app currently uses an in-code `SampleData.liveBeach` plus a bundled `sandfest-seed.json`. Once the API is live, the public bootstrap endpoint becomes the source of truth:
+The iOS app starts from an in-code `SampleData.liveBeach` plus a bundled
+`sandfest-seed.json`, then refreshes the privacy-minimized public bootstrap at
+launch. Regenerate the offline seed from the reviewed internal normalization
+document before a release:
 
 ```bash
-curl https://sandfest-api.heyelab.com/api/public/bootstrap > data/processed/app-bootstrap.json
 npm run ios:seed
 ```
 
-For production, the iOS app should fetch this on launch and cache locally. That's a follow-up task — for the demo, the bundled seed is fine.
+Do not replace `data/processed/app-bootstrap.json` with the public API response;
+the internal document also carries staff-only collections required by the seed
+builder. At runtime, `AppDataStore` fetches `GET /api/public/bootstrap`, validates
+the event and public collections, and atomically caches only that projection.
+The cache is scoped to the exact API origin and event ID. A failed refresh keeps
+the last valid cache or bundled seed available and marks the app offline.
 
 ## Checklist
 
