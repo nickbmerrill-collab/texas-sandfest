@@ -10,6 +10,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
 import twilio from "twilio";
+import { emptyBudgetControl } from "../lib/budget-control.mjs";
 import { BOARD_DEMO_VENDOR_OFFERINGS } from "../lib/vendor-offerings.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -520,6 +521,7 @@ async function main() {
   });
   await writePlatformDoc(ROOT, "consent", { eventId: EVENT_ID, lastUpdated: null, records: [] });
   await writePlatformDoc(ROOT, "booths", { eventId: EVENT_ID, lastUpdated: null, source: "empty", booths: [], vendors: [], imports: [] });
+  await writePlatformDoc(ROOT, "budgetControl", emptyBudgetControl(EVENT_ID));
   const { emptyIncomingDocumentIntake } = await import("../lib/incoming-documents.mjs");
   await writePlatformDoc(ROOT, "incomingDocuments", emptyIncomingDocumentIntake(EVENT_ID));
   const { emptySmsOperations } = await import("../lib/sms-operations.mjs");
@@ -1024,6 +1026,50 @@ postgres_eventeny_settlement_1,2026-07-16,vendor_fee,250.00,7.50,242.50,eventeny
   check("Postgres revenue import persists atomically", postgresRevenueImportCommit.status === 201 && postgresRevenueImportCommit.data.summary?.imported === 1 && postgresImportedRevenueEntry?.importBatchId === postgresRevenueImportCommit.data.batchId && postgresRevenueAfterImport.data.imports?.[0]?.fileName === "eventeny-postgres.csv");
   check("Postgres revenue import replay is idempotent", postgresRevenueImportReplay.status === 200 && postgresRevenueImportReplay.data.replay === true && postgresRevenueAfterImport.data.entries?.filter(item => item.externalRef === "postgres_eventeny_settlement_1").length === 1 && postgresRevenueAfterImport.data.imports?.length === 1);
   check("Postgres revenue dashboard merges import and partner ledger", postgresRevenueAfterImport.data.sources?.imported?.entries === 1 && postgresRevenueAfterImport.data.sources?.partnerOperations?.entries === 2 && postgresRevenueAfterImport.data.summary?.totals?.grossCents === 150000 && postgresRevenueAfterImport.data.summary?.totals?.refundCents === 125000 && postgresRevenueAfterImport.data.summary?.totals?.netCents === 24250);
+
+  const concurrentBudgetLineBody = {
+    name: "Postgres beach operations",
+    ownerTeam: "operations",
+    budgetCents: 50_000,
+    notes: "Postgres durability verification"
+  };
+  const concurrentBudgetLineResponses = await Promise.all([
+    request(base, "POST", "/api/admin/budget/lines", concurrentBudgetLineBody, { auth: true }),
+    request(base, "POST", "/api/admin/budget/lines", concurrentBudgetLineBody, { auth: true })
+  ]);
+  const postgresBudgetLine = concurrentBudgetLineResponses.find(item => item.status === 201);
+  check("Postgres budget allocation serializes concurrent duplicate writes", concurrentBudgetLineResponses.filter(item => item.status === 201).length === 1
+    && concurrentBudgetLineResponses.filter(item => item.status === 409).length === 1 && postgresBudgetLine?.data.line?.eventId === EVENT_ID);
+  const postgresExpenseRequest = await request(base, "POST", "/api/admin/budget/expenses", {
+    budgetLineId: postgresBudgetLine?.data.line?.id,
+    vendorName: "Postgres Private Staging Vendor",
+    description: "Postgres beach staging reservation",
+    amountCents: 30_000,
+    dueDate: "2027-02-15"
+  }, { auth: true });
+  const postgresExpenseApproval = await request(base, "POST", `/api/admin/budget/expenses/${postgresExpenseRequest.data.expense?.id}/approve`, {}, { auth: true });
+  const postgresExpensePayment = await request(base, "POST", `/api/admin/budget/expenses/${postgresExpenseRequest.data.expense?.id}/mark-paid`, {
+    paymentMethod: "ach",
+    paymentReference: "PRIVATE-PG-ACH-1001"
+  }, { auth: true });
+  const postgresOverBudgetRequest = await request(base, "POST", "/api/admin/budget/expenses", {
+    budgetLineId: postgresBudgetLine?.data.line?.id,
+    vendorName: "Postgres Private Safety Vendor",
+    description: "Postgres additional safety structures",
+    amountCents: 25_000,
+    dueDate: "2027-03-01"
+  }, { auth: true });
+  const postgresOverBudgetBlocked = await request(base, "POST", `/api/admin/budget/expenses/${postgresOverBudgetRequest.data.expense?.id}/approve`, {}, { auth: true });
+  const postgresOverBudgetApproved = await request(base, "POST", `/api/admin/budget/expenses/${postgresOverBudgetRequest.data.expense?.id}/approve`, {
+    allowOverBudget: true,
+    note: "Executive exception approved for required safety capacity."
+  }, { auth: true });
+  const postgresBudget = await request(base, "GET", "/api/admin/budget", undefined, { auth: true });
+  check("Postgres expense approval and payment evidence persists", postgresExpenseRequest.status === 201 && postgresExpenseApproval.status === 200
+    && postgresExpensePayment.status === 200 && postgresBudget.data.expenses?.find(item => item.id === postgresExpenseRequest.data.expense?.id)?.status === "paid");
+  check("Postgres over-budget approval fails closed and persists an explicit override", postgresOverBudgetBlocked.status === 409 && postgresOverBudgetApproved.status === 200
+    && postgresBudget.data.summary?.totals?.budgetCents === 50_000 && postgresBudget.data.summary?.totals?.committedCents === 55_000
+    && postgresBudget.data.summary?.counts?.overBudgetLines === 1 && postgresBudget.data.expenses?.length === 2);
   const approvedPostgresInvoice = await request(base, "POST", `/api/admin/partners/invoices/${postgresInvoice.data.invoice?.id}/review`, { action: "approve" }, { auth: true });
   const postgresPartnerAccess = { reference: sponsorIntake.data.application?.reference, token: rotatedPortal.data.portalAccess?.token };
   const postgresCheckout = await request(base, "POST", "/api/public/partner-payment-checkout", {
@@ -1910,11 +1956,16 @@ PG-EVENTENY-V-1,vendor,Postgres Eventeny Vendor,Postgres Import Contact,${postgr
   const serializedSponsorInvitationAudits = JSON.stringify(persistedAudits.rows.filter(row => row.data?.action?.startsWith("outreach.sponsor_invitation.")));
   const serializedEventenyPartnerImportAudits = JSON.stringify(persistedAudits.rows.filter(row => row.data?.action === "partner.application.import"));
   const serializedStaffImportAudits = JSON.stringify(persistedAudits.rows.filter(row => row.data?.action === "staff_directory.import.commit"));
+  const serializedBudgetAudits = JSON.stringify(persistedAudits.rows.filter(row => row.data?.action?.startsWith("budget.")));
   check("append tables persisted", totals.completions === 1 && totals.votes === 1, `${totals.completions} completion, ${totals.votes} vote`);
   check("admin audits persisted", totals.audits >= 4, `${totals.audits} audit events`);
   check("event guide audit persists", serializedAudits.includes("content.event-guide.publish"));
   check("partner automation audit persists", serializedAudits.includes("partner.automation.update"));
   check("revenue import audit persists", serializedAudits.includes("revenue.import.commit") && serializedAudits.includes("eventeny-postgres.csv"));
+  check("budget audit persists without private vendor or payment references", serializedBudgetAudits.includes("budget.line.create")
+    && serializedBudgetAudits.includes("budget.expense.submit") && serializedBudgetAudits.includes("budget.expense.approve")
+    && serializedBudgetAudits.includes("budget.expense.mark_paid") && !serializedBudgetAudits.includes("Postgres Private")
+    && !serializedBudgetAudits.includes("PRIVATE-PG-ACH-1001"));
   check("Postgres Eventeny import audit is aggregate-only", serializedEventenyPartnerImportAudits.includes("eventeny-partners-postgres.csv") && !serializedEventenyPartnerImportAudits.includes(postgresEventenyImportEmail) && !serializedEventenyPartnerImportAudits.includes("Postgres Import Contact"));
   check("Postgres staff import audit is aggregate-only", serializedStaffImportAudits.includes("staff-directory-postgres.json") && serializedStaffImportAudits.includes("hr_import") && !serializedStaffImportAudits.includes("postgres-traffic@example.com") && !serializedStaffImportAudits.includes("Postgres Incident Commander"));
   check("Postgres audits exclude bearer credential fragments", !serializedAudits.includes("tokenHint") && !serializedAudits.includes(TOKEN));

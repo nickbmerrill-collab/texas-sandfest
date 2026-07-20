@@ -19,6 +19,8 @@ QuickBooks owns:
 
 SandFest owns:
 
+- Annual operating allocations and accountable owner teams.
+- Expense request, approval, exception, and payment-evidence workflow.
 - Sponsor lifecycle.
 - Sponsor benefit delivery.
 - Vendor approval/load-in/inspection.
@@ -27,6 +29,11 @@ SandFest owns:
 - Incident/ops data.
 - AI-visible canonical answers.
 - Port A Local Co public event/destination data.
+
+Recording a SandFest expense as paid is operational evidence only. It never
+creates a bill, sends a payment, or changes the QuickBooks ledger. A future
+reviewed integration should reconcile these records to QuickBooks bills and
+payments without making SandFest the accounting source of truth.
 
 ## OAuth Requirements
 

@@ -262,7 +262,8 @@ try {
   }
   const currentOwner = await assertRuntimeOwnership(ownershipRoot, { SANDFEST_RUNTIME_ROOT: ownershipRoot, SANDFEST_RUNTIME_OWNER_ID: secondOwnerId });
   check("runtime ownership rejects a stale process after handoff", staleOwnerRejected && currentOwner.required === true);
-  check("board seed covers core operations", prepared.applications === 4 && prepared.invoices === 1 && prepared.payments === 1 && prepared.tasks === 10 && prepared.prospects === 2 && prepared.safetySmsRecipients === 1);
+  check("board seed covers core operations", prepared.applications === 4 && prepared.invoices === 1 && prepared.payments === 1
+    && prepared.budgetLines === 6 && prepared.expenses === 7 && prepared.tasks === 10 && prepared.prospects === 2 && prepared.safetySmsRecipients === 1);
   check("board seed covers field operations", prepared.cameras === 8 && prepared.volunteerShifts === 12 && prepared.documents === 4);
   check("production refuses synthetic board conditions", await productionRejectsSyntheticConditions(targetRoot));
 
@@ -425,6 +426,7 @@ try {
   const seeded = await request(base, "GET", "/api/admin/partners", undefined, { auth: true });
   const outreach = await request(base, "GET", "/api/admin/outreach", undefined, { auth: true });
   const revenue = await request(base, "GET", "/api/admin/revenue", undefined, { auth: true });
+  const budget = await request(base, "GET", "/api/admin/budget", undefined, { auth: true });
   const seededMarlin = seeded.data.applications?.find(item => item.organizationName === "Gulf Shore Credit Union");
   const seededSailfish = seeded.data.applications?.find(item => item.organizationName === "Port Aransas Marine Supply");
   const seededCreativeMilestone = seeded.data.milestones?.find(item => item.label === "Sponsor homepage creative approval");
@@ -433,6 +435,12 @@ try {
   check("seeded sponsor brand kit contains two approved private assets", seeded.data.brandAssets?.filter(item => item.label?.startsWith("Gulf Shore Credit Union") && item.status === "approved").length === 2);
   check("seeded sponsor creative date enters the automatic follow-up window", seededCreativeMilestone?.source === "custom" && seededCreativeMilestone?.assigneeTeam === "sponsor" && seededCreativeMilestone?.reminderLeadDays === 3 && seeded.data.summary?.operations?.dueSoonMilestones === 1 && seededCreativeReminder?.status === "draft_ready" && seededCreativeReminder?.reminderPhase === "upcoming");
   check("revenue is current-event and includes site-native finance", revenue.status === 200 && revenue.data.eventId === DEFAULT_EVENT_ID && revenue.data.sources?.imported?.entries === 3 && revenue.data.sources?.partnerOperations?.entries === 1 && revenue.data.summary?.totals?.grossCents === 1750000 && revenue.data.summary?.tickets?.sold === 100 && revenue.data.entries?.every(item => item.eventId === DEFAULT_EVENT_ID) && revenue.data.imports?.length === 3 && revenue.data.imports?.every(item => item.fileName?.endsWith("-demo.csv")));
+  check("board budget is current, synthetic, and operationally reconciled", budget.status === 200 && budget.data.eventId === DEFAULT_EVENT_ID
+    && budget.data.summary?.counts?.budgetLines === 6 && budget.data.summary?.counts?.expenses === 7
+    && budget.data.summary?.counts?.pendingApprovals === 2 && budget.data.summary?.counts?.byStatus?.approved === 2
+    && budget.data.summary?.counts?.byStatus?.paid === 2 && budget.data.summary?.counts?.byStatus?.rejected === 1
+    && budget.data.summary?.totals?.budgetCents === 53_000_000 && budget.data.summary?.totals?.committedCents === 18_640_000
+    && budget.data.summary?.totals?.submittedCents === 9_200_000 && budget.data.expenses?.every(item => item.eventId === DEFAULT_EVENT_ID));
   check("seeded work and outreach are visible", seeded.data.tasks?.length === 10 && seeded.data.followups?.length >= 4 && outreach.status === 200 && outreach.data.prospects?.length === 2 && outreach.data.campaigns?.length === 2);
   const seededAssignmentTypes = new Set(seeded.data.tasks?.filter(item => item.assigneeId).map(item => item.assigneeType));
   check("board work demonstrates direct staff, volunteer, and team delegation", seededAssignmentTypes.has("staff") && seededAssignmentTypes.has("volunteer") && seededAssignmentTypes.has("team") && seeded.data.tasks?.some(item => item.assigneeType === "staff" && item.assigneeId === "staff_operations" && item.assigneeName === "Jamie Torres") && seeded.data.taskBoard?.totals?.unassigned === 0);

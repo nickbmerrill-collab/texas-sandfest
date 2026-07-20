@@ -9,6 +9,15 @@ import { createStorage } from "../lib/storage.mjs";
 import { authMode, authModeIsJwt, resolveSession } from "../lib/auth.mjs";
 import { buildRevenueLedgerView, partnerRevenueEntries, summarizeLedger, ticketRevenueEntries } from "../lib/revenue.mjs";
 import {
+  createBudgetLine,
+  createExpenseRequest,
+  emptyBudgetControl,
+  normalizeBudgetControl,
+  summarizeBudgetControl,
+  transitionExpense,
+  updateBudgetLine
+} from "../lib/budget-control.mjs";
+import {
   applyRevenueImport,
   parseRevenueCsv,
   revenueImportPreviewHash
@@ -486,6 +495,7 @@ const SMS_MAX_RECIPIENTS = Number.isFinite(configuredSmsMaxRecipients)
 const EVENT_GUIDE_SOURCE_MAX_AGE_DAYS = Math.max(1, Number(process.env.SANDFEST_EVENT_GUIDE_SOURCE_MAX_AGE_DAYS || 90));
 const OPERATIONAL_EVENT_DOCUMENT_KEYS = [
   "fleet",
+  "budgetControl",
   "volunteers",
   "staffDirectory",
   "consent",
@@ -632,6 +642,7 @@ const rolePermissions = {
     "orders:read",
     "payments:read",
     "revenue:read",
+    "budget:read",
     "fleet:read",
     "fleet:write",
     "volunteers:read",
@@ -686,6 +697,8 @@ const rolePermissions = {
     "payments:read",
     "revenue:read",
     "revenue:write",
+    "budget:read",
+    "budget:write",
     "fleet:read",
     "volunteers:read",
     "consent:read",
@@ -831,6 +844,61 @@ async function readRevenueLedger() {
     entries: Array.isArray(ledger.entries) ? ledger.entries : [],
     imports: Array.isArray(ledger.imports) ? ledger.imports : []
   };
+}
+
+function currentBudgetControl(raw) {
+  const doc = normalizeBudgetControl(raw, { eventId: CURRENT_EVENT_ID });
+  if (doc.eventId === CURRENT_EVENT_ID) return doc;
+  if (!doc.budgetLines.length && !doc.expenses.length) return emptyBudgetControl(CURRENT_EVENT_ID);
+  throw new Error(`Budget control is assigned to ${doc.eventId || "an unknown event"}; expected ${CURRENT_EVENT_ID}.`);
+}
+
+async function readBudgetControl() {
+  return currentBudgetControl(await readPlatformDoc(ROOT, "budgetControl", emptyBudgetControl(CURRENT_EVENT_ID)));
+}
+
+async function mutateBudgetControl(mutator) {
+  let result = null;
+  const fallback = emptyBudgetControl(CURRENT_EVENT_ID);
+  await updatePlatformDoc(ROOT, "budgetControl", current => {
+    result = mutator(currentBudgetControl(current || fallback));
+    return result?.ok ? result.doc : current;
+  }, { fallback });
+  return result;
+}
+
+function budgetLineAuditView(line) {
+  if (!line) return null;
+  return {
+    id: line.id,
+    eventId: line.eventId,
+    name: line.name,
+    ownerTeam: line.ownerTeam,
+    budgetCents: line.budgetCents,
+    active: line.active,
+    updatedAt: line.updatedAt
+  };
+}
+
+function expenseAuditView(expense) {
+  if (!expense) return null;
+  return {
+    id: expense.id,
+    eventId: expense.eventId,
+    budgetLineId: expense.budgetLineId,
+    amountCents: expense.amountCents,
+    dueDate: expense.dueDate,
+    status: expense.status,
+    overBudgetOverride: expense.overBudgetOverride,
+    paymentMethod: expense.paymentMethod,
+    updatedAt: expense.updatedAt
+  };
+}
+
+function budgetMutationStatus(result) {
+  if (result?.code === "NOT_FOUND") return 404;
+  if (["DUPLICATE_BUDGET_LINE", "INVALID_STATE", "INVALID_TRANSITION", "OVER_BUDGET"].includes(result?.code)) return 409;
+  return 400;
 }
 
 function emptyFleetDoc() {
@@ -5646,6 +5714,100 @@ async function handleRequest(request, response) {
         previewHash,
         ...revenueImportResponse(result)
       });
+      return;
+    }
+
+    if (method === "GET" && pathname === "/api/admin/budget") {
+      if (!(await requirePermission(request, response, "budget:read"))) return;
+      const doc = await readBudgetControl();
+      sendJson(request, response, 200, {
+        eventId: doc.eventId,
+        currency: doc.currency,
+        lastUpdated: doc.lastUpdated,
+        summary: summarizeBudgetControl(doc),
+        budgetLines: doc.budgetLines,
+        expenses: doc.expenses.slice().sort((left, right) => String(right.updatedAt || "").localeCompare(String(left.updatedAt || "")))
+      });
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/admin/budget/lines") {
+      const session = await requirePermission(request, response, "budget:write");
+      if (!session) return;
+      const body = await readBody(request);
+      const result = await mutateBudgetControl(doc => createBudgetLine(doc, body, {
+        actorId: session.id,
+        idFactory: () => `budget_line_${randomUUID()}`,
+        now: new Date().toISOString()
+      }));
+      if (!result?.ok) {
+        sendJson(request, response, budgetMutationStatus(result), { error: result?.error || "Budget line could not be created.", code: result?.code });
+        return;
+      }
+      await writeAuditRecord(request, "budget.line.create", { type: "budget_line", id: result.line.id }, null, budgetLineAuditView(result.line));
+      sendJson(request, response, 201, { line: result.line, summary: summarizeBudgetControl(result.doc) });
+      return;
+    }
+
+    const budgetLineMatch = pathname.match(/^\/api\/admin\/budget\/lines\/([^/]+)$/);
+    if (method === "PATCH" && budgetLineMatch) {
+      const session = await requirePermission(request, response, "budget:write");
+      if (!session) return;
+      const lineId = decodeURIComponent(budgetLineMatch[1]);
+      const body = await readBody(request);
+      const result = await mutateBudgetControl(doc => updateBudgetLine(doc, lineId, body, {
+        actorId: session.id,
+        now: new Date().toISOString()
+      }));
+      if (!result?.ok) {
+        sendJson(request, response, budgetMutationStatus(result), { error: result?.error || "Budget line could not be updated.", code: result?.code });
+        return;
+      }
+      await writeAuditRecord(request, "budget.line.update", { type: "budget_line", id: result.line.id }, budgetLineAuditView(result.before), budgetLineAuditView(result.line), {
+        changeNote: String(body.changeNote || "").trim().slice(0, 500) || null
+      });
+      sendJson(request, response, 200, { line: result.line, summary: summarizeBudgetControl(result.doc) });
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/admin/budget/expenses") {
+      const session = await requirePermission(request, response, "budget:write");
+      if (!session) return;
+      const body = await readBody(request);
+      const result = await mutateBudgetControl(doc => createExpenseRequest(doc, body, {
+        actorId: session.id,
+        idFactory: () => `expense_${randomUUID()}`,
+        now: new Date().toISOString()
+      }));
+      if (!result?.ok) {
+        sendJson(request, response, budgetMutationStatus(result), { error: result?.error || "Expense request could not be created.", code: result?.code });
+        return;
+      }
+      await writeAuditRecord(request, "budget.expense.submit", { type: "expense", id: result.expense.id }, null, expenseAuditView(result.expense));
+      sendJson(request, response, 201, { expense: result.expense, summary: summarizeBudgetControl(result.doc) });
+      return;
+    }
+
+    const expenseActionMatch = pathname.match(/^\/api\/admin\/budget\/expenses\/([^/]+)\/(approve|reject|mark-paid|void)$/);
+    if (method === "POST" && expenseActionMatch) {
+      const session = await requirePermission(request, response, "budget:write");
+      if (!session) return;
+      const expenseId = decodeURIComponent(expenseActionMatch[1]);
+      const action = expenseActionMatch[2] === "mark-paid" ? "mark_paid" : expenseActionMatch[2];
+      const body = await readBody(request);
+      const result = await mutateBudgetControl(doc => transitionExpense(doc, expenseId, action, body, {
+        actorId: session.id,
+        now: new Date().toISOString()
+      }));
+      if (!result?.ok) {
+        sendJson(request, response, budgetMutationStatus(result), { error: result?.error || "Expense status could not be updated.", code: result?.code });
+        return;
+      }
+      await writeAuditRecord(request, `budget.expense.${action}`, { type: "expense", id: result.expense.id }, expenseAuditView(result.before), expenseAuditView(result.expense), {
+        overBudgetOverride: result.overBudgetOverride === true,
+        resolutionNote: String(body.note || "").trim().slice(0, 500) || null
+      });
+      sendJson(request, response, 200, { expense: result.expense, summary: summarizeBudgetControl(result.doc) });
       return;
     }
 

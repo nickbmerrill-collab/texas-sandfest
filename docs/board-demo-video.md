@@ -69,5 +69,5 @@ Local compute only:
 
 - Public visitors see the simple side: guide, map, tickets, artists, voting, and alerts.
 - Staff see the operational side: coverage gaps, assets, revenue, partner readiness, alerts, and audit trails.
-- Accounting, ticketing, SMS, and QuickBooks are scaffolded but intentionally guarded until credentials and approvals are provided.
+- Operational budget, ticketing, and local message workflows are functional in the isolated demo; QuickBooks and real providers remain intentionally deferred until credentials and approvals are provided.
 - The next production unlocks are credential connection, content approval, real roster/vendor imports, and deployment-domain verification.

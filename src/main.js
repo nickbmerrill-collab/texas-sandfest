@@ -586,7 +586,7 @@ app.innerHTML = `
         <a href="#admin-config">Overview</a>
         <a href="#admin-documents">Documents</a>
         <a href="#admin-partners">Partners</a>
-        <a href="#admin-revenue">Accounting</a>
+        <a href="#admin-budget">Accounting</a>
         <a href="#admin-volunteers">Staffing</a>
         <a href="#admin-island-conditions">Island</a>
         <a href="#admin-system-monitor">Systems</a>
@@ -1044,7 +1044,7 @@ app.innerHTML = `
         <a href="#admin-config">Overview</a>
         <a href="#admin-documents">Documents</a>
         <a href="#admin-partners">Partners</a>
-        <a href="#admin-revenue">Accounting</a>
+        <a href="#admin-budget">Accounting</a>
         <a href="#admin-volunteers">Staffing</a>
         <a href="#admin-island-conditions">Island conditions</a>
         <a href="#admin-system-monitor">Systems</a>
@@ -1287,6 +1287,7 @@ app.innerHTML = `
           </div>
         </div>
       </div>
+      <div id="admin-budget-module"></div>
       <div class="admin-revenue-panel" id="admin-revenue">
         <div class="editor-heading">
           <p class="eyebrow">Revenue dashboard</p>
@@ -5377,7 +5378,7 @@ async function loadPublicVendorOfferings() {
 }
 
 function conditionLabel(value) {
-  return String(value || "unknown").replace(/_/g, " ");
+  return String(value || "unknown").replace(/[-_]/g, " ");
 }
 
 function isBoardConditionSimulation(payload) {
@@ -5587,6 +5588,25 @@ function renderAdminRevenue(payload) {
     : `${payload.eventId || "Current event"} · ${sourceStatus || "No revenue entries"}`;
 }
 
+const ADMIN_BUDGET_UI_ENABLED = import.meta.env.DEV || import.meta.env.VITE_SANDFEST_SURFACE === "admin";
+const adminBudgetUiPromise = ADMIN_BUDGET_UI_ENABLED
+  ? import("./admin-budget.js").then(module => module.createAdminBudgetUi({
+      adminCan,
+      adminFetch,
+      adminMoney,
+      getAdminSessionState: () => adminSessionState,
+      renderAdminSession,
+      revenueKpiCard,
+      setAdminStatus
+    }))
+  : Promise.resolve(null);
+
+async function loadAdminBudget(options = {}) {
+  const controller = await adminBudgetUiPromise;
+  if (!controller) return null;
+  controller.mount();
+  return controller.load(options);
+}
 async function loadAdminRevenue({ quiet = false } = {}) {
   const button = document.querySelector("#admin-load-revenue");
   if (button) button.disabled = true;
@@ -8806,6 +8826,9 @@ async function loadAdminWorkspace() {
     }
     if (adminCan("revenue:read")) {
       await loadAdminRevenue({ quiet: true }).catch(() => {});
+    }
+    if (adminCan("budget:read")) {
+      await loadAdminBudget({ quiet: true }).catch(() => {});
     }
     if (adminCan("fleet:read")) {
       await loadAdminFleet({ quiet: true }).catch(() => {});

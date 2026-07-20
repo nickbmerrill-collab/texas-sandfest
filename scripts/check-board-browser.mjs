@@ -301,6 +301,8 @@ if (visitorUrl && operationsUrl) {
       await page.goto(operationsUrl, { waitUntil: "domcontentloaded", timeout: timeoutMs });
       await page.waitForFunction(() => document.querySelector("#admin-api-status")?.textContent?.includes("Loaded"), null, { timeout: timeoutMs });
       await page.waitForFunction(() => document.querySelectorAll("#admin-command-signals [data-command-signal]").length === 8, null, { timeout: timeoutMs });
+      await page.waitForFunction(() => document.querySelectorAll("#admin-budget-lines [data-budget-line]").length === 6
+        && document.querySelectorAll("#admin-expense-list [data-budget-expense]").length === 7, null, { timeout: timeoutMs });
       await page.waitForFunction(() => {
         const delivered = [...document.querySelectorAll('#admin-partner-followups [data-delivery-status="delivered"]')];
         return delivered.some(item => item.textContent?.includes("transactional automation"))
@@ -408,6 +410,17 @@ if (visitorUrl && operationsUrl) {
           && document.querySelector('#admin-campaign-audience-preview[aria-live="polite"]')
           && document.querySelector('#admin-create-campaign button[type="submit"]:disabled')),
         quickBooksState: document.querySelector("#admin-quickbooks-connection")?.dataset?.state,
+        budgetKpis: Object.fromEntries([...document.querySelectorAll("#admin-budget-kpis article")]
+          .map(item => [item.querySelector("span")?.textContent?.trim(), item.textContent?.replace(/\s+/g, " ").trim()])),
+        budgetLines: document.querySelectorAll("#admin-budget-lines [data-budget-line]").length,
+        budgetAllocationEdits: document.querySelectorAll("#admin-budget-lines [data-budget-line-update]").length,
+        budgetExpenses: document.querySelectorAll("#admin-expense-list [data-budget-expense]").length,
+        submittedExpenses: document.querySelectorAll('#admin-expense-list [data-expense-status="submitted"]').length,
+        approvedExpenses: document.querySelectorAll('#admin-expense-list [data-expense-status="approved"]').length,
+        paidExpenses: document.querySelectorAll('#admin-expense-list [data-expense-status="paid"]').length,
+        rejectedExpenses: document.querySelectorAll('#admin-expense-list [data-expense-status="rejected"]').length,
+        expenseActionControls: document.querySelectorAll("#admin-expense-list [data-expense-action]").length,
+        budgetText: document.querySelector("#admin-budget")?.textContent?.replace(/\s+/g, " ").trim(),
         partnerActivity: document.querySelectorAll("#admin-partner-activity [data-partner-activity]").length,
         partnerActivityCategories: [...new Set([...document.querySelectorAll("#admin-partner-activity [data-category]")].map(item => item.dataset.category))],
         partnerActivityText: document.querySelector("#admin-partner-activity")?.textContent?.trim(),
@@ -511,11 +524,24 @@ if (visitorUrl && operationsUrl) {
         || !item?.partnerKpis?.["Online invoices"]?.includes("Post-board")
         || !item?.partnerKpis?.Messaging?.includes("Automatic")
         || !item?.partnerKpis?.Messaging?.includes("awaiting staff review")
+        || item?.budgetLines !== 6
+        || item?.budgetAllocationEdits !== 6
+        || item?.budgetExpenses !== 7
+        || item?.submittedExpenses !== 2
+        || item?.approvedExpenses !== 2
+        || item?.paidExpenses !== 2
+        || item?.rejectedExpenses !== 1
+        || item?.expenseActionControls < 6
+        || !item?.budgetKpis?.["Annual budget"]?.includes("$530,000.00")
+        || !item?.budgetKpis?.Committed?.includes("$186,400.00")
+        || !item?.budgetKpis?.["Awaiting approval"]?.includes("$92,000.00")
+        || !item?.budgetText?.includes("QuickBooks synchronization remains separate")
+        || /RAMP-DEMO|budget_line_|expense_/.test(item?.budgetText || "")
         || item?.quickBooksState !== "deferred"
       ) {
-        throw new Error("Receivables or partner key-date proof is incomplete.");
+        throw new Error("Budget control, receivables, or partner key-date proof is incomplete.");
       }
-      return `${item.openReceivables} tracked receivable accounts and ${item.milestones} editable key dates rendered; live QuickBooks remains explicitly deferred.`;
+      return `${item.budgetLines} editable allocations, ${item.budgetExpenses} expenses across submitted, approved, paid, and rejected states, ${item.openReceivables} tracked receivable accounts, and ${item.milestones} editable key dates rendered; live QuickBooks remains explicitly deferred.`;
     });
     await inspect("messaging_delegation", "Automated messages and delegation", "Inspect local delivery proof and staff, volunteer, and team assignments.", async () => {
       const item = observations.operations;

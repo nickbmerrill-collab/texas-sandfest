@@ -372,7 +372,7 @@ assert(visitorSource.includes('<input name="reviewDueAt" type="datetime-local" r
   && visitorSource.includes('reviewTask ? ` · Task ${escapeHtml(conditionLabel(reviewTask.status))}`'), "Document intake does not expose its accountable review deadline and task state.");
 assert(visitorSource.includes("if (BOARD_DEMO_ACCESS.enabled) boardDemoWorkspaceLoaded = true;\n    stabilizeRenderedHashTarget();"), "Async operations loading can push the selected board-demo workspace out of view.");
 assert(publicStylesheets.includes(".admin-config-section{max-width:1240px;scroll-margin-top:72px}")
-  && publicStylesheets.includes("#admin-documents,#admin-system-monitor,#admin-revenue,#admin-fleet,#admin-volunteers,#admin-partners,#admin-island-conditions{scroll-margin-top:140px}")
+  && publicStylesheets.includes("#admin-documents,#admin-system-monitor,#admin-budget,#admin-revenue,#admin-fleet,#admin-volunteers,#admin-partners,#admin-island-conditions{scroll-margin-top:140px}")
   && /\.admin-shell-body #admin-partners(?:,[^{]+)?\{scroll-margin-top:140px\}/.test(publicStylesheets), "Operations shortcuts can land underneath the sticky workspace navigation.");
 assert(!visitorSource.includes('class="lb-svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true"'), "Interactive Live Beach SVG is hidden from assistive technology.");
 assert(!publicStylesheets.includes("outline:none") && !publicStylesheets.includes("outline: none"), "Public stylesheet removes a keyboard focus outline.");
