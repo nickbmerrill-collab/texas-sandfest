@@ -22,10 +22,7 @@ struct TodayView: View {
                 }
             }
             .refreshable {
-                await dataStore.refreshPublicAlert()
-            }
-            .task {
-                await dataStore.refreshPublicAlert()
+                await dataStore.refreshPublicData()
             }
         }
     }

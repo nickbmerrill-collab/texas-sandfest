@@ -19,7 +19,7 @@ struct AdminDashboardView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        Task { await dataStore.refreshPublicAlert() }
+                        Task { await dataStore.refreshPublicData() }
                     } label: {
                         Label("Refresh", systemImage: "arrow.clockwise")
                     }
