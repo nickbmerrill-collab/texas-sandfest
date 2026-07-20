@@ -7900,7 +7900,7 @@ function renderAdminPartners(payload, outreach) {
     automationForm.onsubmit = async event => {
       event.preventDefault();
       const requestedMode = modeSelect.value;
-      if (requestedMode === "transactional_auto" && !window.confirm("Enable automatic delivery for applicant acknowledgments, partner key-date reminders, vendor workflow notices, and directory-backed task notifications?")) return;
+      if (requestedMode === "transactional_auto" && !window.confirm("Enable automatic delivery for applicant acknowledgments, payment confirmations and adjustments, partner key-date reminders, vendor workflow notices, and directory-backed task notifications?")) return;
       saveButton.disabled = true;
       try {
         const result = await adminFetch("/api/admin/partners/automation", {
@@ -7998,9 +7998,13 @@ function renderAdminPartners(payload, outreach) {
     const deliveryAt = item.clickedAt || item.openedAt || item.deliveredAt || item.failedAt || item.acceptedAt || item.sentAt;
     const automationLabel = item.automationPolicy === "outreach_campaign_v1"
       ? "campaign-approved automation"
-      : item.automationPolicy && item.kind === "milestone_reminder"
-        ? "automatic key-date reminder"
-        : item.automationPolicy ? "transactional automation" : "";
+      : item.automationPolicy && item.kind === "payment_received"
+        ? "automatic payment confirmation"
+        : item.automationPolicy && item.kind === "payment_adjustment"
+          ? "automatic payment adjustment"
+          : item.automationPolicy && item.kind === "milestone_reminder"
+            ? "automatic key-date reminder"
+            : item.automationPolicy ? "transactional automation" : "";
     return `<article data-followup="${escapeAttr(item.id)}" ${deliveryStatus ? `data-delivery-status="${escapeAttr(deliveryStatus)}"` : ""}>
       <header><strong>${escapeHtml(item.subject || conditionLabel(item.kind))}</strong><b>${escapeHtml(conditionLabel(deliveryStatus || item.status))}</b></header>
       <p>${escapeHtml(item.recipientLabel || item.recipient || (item.recipientAvailable ? "Recipient on file" : "Recipient unavailable"))}${item.campaignId ? ` · outreach sequence ${escapeHtml(item.sequenceStepId || "")}` : ""}${item.taskId ? " · delegated task" : ""}${automationLabel ? ` · ${escapeHtml(automationLabel)}` : ""}</p>

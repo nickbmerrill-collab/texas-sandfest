@@ -1639,6 +1639,24 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   await expect(commandSignals.locator('[data-command-signal="messages"]')).toContainText("automatic follow-up");
 
   const sponsorAcknowledgmentSubject = `Texas SandFest sponsorship application ${sponsorResult.application.reference}`;
+  let deliveredPaymentConfirmationId = null;
+  await expect.poll(async () => {
+    const response = await fetch(`${apiBase}/api/admin/partners`, { headers: { authorization: `Bearer ${TOKEN}` } });
+    const payload = await response.json();
+    const confirmation = payload.followups?.find(item => item.applicationId === sponsorResult.application.id
+      && item.paymentId === partnerPayment.receipt.paymentId
+      && item.kind === "payment_received"
+      && item.automationPolicy === "partner_transactional_v1"
+      && item.status === "sent"
+      && item.deliveryStatus === "delivered"
+      && item.body?.includes("$5,000.00")
+      && item.body?.includes("private partner portal")
+      && item.body?.includes("paid in full")
+      && !item.body?.includes("board:pi_board_")
+      && !item.body?.includes("Postgres durability verification"));
+    deliveredPaymentConfirmationId = confirmation?.id || null;
+    return Boolean(deliveredPaymentConfirmationId);
+  }, { timeout: 15_000 }).toBe(true);
   let deliveredSponsorAcknowledgmentId = null;
   await expect.poll(async () => {
     const response = await fetch(`${apiBase}/api/admin/partners`, { headers: { authorization: `Bearer ${TOKEN}` } });
@@ -1686,6 +1704,13 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   ]);
   await page.locator("#admin-load-partners").click();
   await reloadPartners;
+  const deliveredPaymentConfirmation = page.locator(`#admin-partner-followups [data-followup="${deliveredPaymentConfirmationId}"]`);
+  await expect(deliveredPaymentConfirmation).toHaveCount(1);
+  await expect(deliveredPaymentConfirmation).toHaveAttribute("data-delivery-status", "delivered");
+  await expect(deliveredPaymentConfirmation).toContainText("automatic payment confirmation");
+  await expect(deliveredPaymentConfirmation).toContainText("$5,000.00");
+  await expect(deliveredPaymentConfirmation).toContainText("paid in full");
+  await expect(deliveredPaymentConfirmation).not.toContainText("board:pi_board_");
   const deliveredFollowup = page.locator(`#admin-partner-followups [data-followup="${deliveredSponsorAcknowledgmentId}"]`);
   await expect(deliveredFollowup).toHaveCount(1);
   await expect(deliveredFollowup).toHaveAttribute("data-delivery-status", "delivered");

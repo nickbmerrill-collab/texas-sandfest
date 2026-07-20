@@ -1608,10 +1608,18 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
   const repairedPostgresDocumentTasks = partnerDocAfterWorker?.tasks?.filter(task => task.relatedEntityType === "incoming_document" && task.relatedEntityId === postgresDocument.id) || [];
   check("worker repairs missing document review routing", workerStatus?.lastReconciledDocumentReviewTasks === 1 && repairedPostgresDocumentTasks.length === 1 && repairedPostgresDocumentTasks[0]?.status === "in_progress" && repairedPostgresDocumentTasks[0]?.assigneeId === "operations");
   const sponsorAcknowledgment = partnerDocAfterWorker?.followups?.find(item => item.applicationId === sponsorApplication.id && item.kind === "application_received");
+  const postgresPaymentAdjustment = partnerDocAfterWorker?.followups?.find(item => item.paymentId === postgresPayment.data.payment?.id && item.kind === "payment_adjustment");
   const deliveredPortalRecovery = partnerDocAfterWorker?.followups?.find(item => item.applicationId === sponsorApplication.id && item.kind === "portal_access_recovery");
   const portalRecoveryDelivery = emailMock.deliveries.find(item => item.body.subject === "Your Texas SandFest partner portal link");
   check("worker delivers the current recovered portal capability", deliveredPortalRecovery?.status === "sent" && portalRecoveryDelivery?.body.to?.[0]?.email === "sponsor@postgres-test.example" && portalRecoveryDelivery?.body.textContent?.includes(rotatedPortal.data.portalAccess?.url));
   check("worker acknowledgment includes secure portal link", sponsorAcknowledgment?.status === "draft_ready" && sponsorAcknowledgment.body.includes("#partner-status?reference="));
+  check("worker persists a privacy-safe payment adjustment", postgresPaymentAdjustment?.status === "draft_ready"
+    && postgresPaymentAdjustment.body.includes("$1,250.00")
+    && postgresPaymentAdjustment.body.includes("approved invoice balance is paid in full")
+    && postgresPaymentAdjustment.body.includes("private partner portal")
+    && !postgresPaymentAdjustment.body.includes("PG-ACH-100")
+    && !postgresPaymentAdjustment.body.includes("Postgres durability verification"),
+    `status=${postgresPaymentAdjustment?.status || "missing"} kind=${postgresPaymentAdjustment?.kind || "missing"}`);
   const sponsorMilestoneReminder = partnerDocAfterWorker?.followups?.find(item => item.milestoneId === defaultSponsorMilestone?.id && item.kind === "milestone_reminder");
   check("worker persists versioned milestone reminder", sponsorMilestoneReminder?.sourceVersion === "schedule:2:phase:upcoming" && sponsorMilestoneReminder?.status === "draft_ready");
   const volunteerTaskNotice = partnerDocAfterWorker?.followups?.find(item => item.taskId === notifiedVolunteerTask.data.task?.id && item.kind === "task_assignment");

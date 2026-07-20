@@ -33,6 +33,7 @@ import {
   generateDueOutreachFollowups,
   generateDuePartnerFollowups,
   generateDueTaskFollowups,
+  generatePartnerPaymentFollowups,
   normalizePartnerOperations,
   prepareFollowupDraft,
   queueFollowupDelivery,
@@ -743,6 +744,7 @@ async function reconcileTerminalQueueFailures() {
 
 async function tick() {
   let generatedDrafts = 0;
+  let generatedPaymentDrafts = 0;
   let generatedMilestoneDrafts = 0;
   let generatedOutreachDrafts = 0;
   let generatedTaskDrafts = 0;
@@ -770,7 +772,11 @@ async function tick() {
     });
     if (!routed.ok) throw new Error(routed.error || "Document review task reconciliation failed.");
     reconciledDocumentReviewTasks = routed.summary.created + routed.summary.updated;
-    const tasks = generateDueTaskFollowups(routed.doc, {
+    const payments = generatePartnerPaymentFollowups(routed.doc, {
+      portalUrlForApplication: statusPortalUrl,
+      idFactory: prefix => `${prefix}_${randomUUID()}`
+    });
+    const tasks = generateDueTaskFollowups(payments.doc, {
       ...recipientContext,
       taskPortalUrlForTask: assignmentPortalUrl,
       idFactory: prefix => `${prefix}_${randomUUID()}`
@@ -796,9 +802,10 @@ async function tick() {
       ...recipientContext
     });
     generatedTaskDrafts = tasks.generated.length;
+    generatedPaymentDrafts = payments.generated.length;
     generatedMilestoneDrafts = milestones.generated.length;
     generatedOutreachDrafts = outreach.generated.length;
-    generatedDrafts = generatedTaskDrafts + generatedMilestoneDrafts + generatedOutreachDrafts;
+    generatedDrafts = generatedPaymentDrafts + generatedTaskDrafts + generatedMilestoneDrafts + generatedOutreachDrafts;
     autoApproved = outreachAutomated.approved.length + automated.approved.length;
     autoSkipped = outreachAutomated.skipped.length + automated.skipped.length;
     automationCandidates = automatedFollowupQueueCandidates(automated.doc, {
@@ -808,6 +815,7 @@ async function tick() {
     return automated.doc;
   }, { fallback: partnerSeed });
   if (generatedTaskDrafts) console.log(`[worker] generated ${generatedTaskDrafts} task notification draft(s)`);
+  if (generatedPaymentDrafts) console.log(`[worker] generated ${generatedPaymentDrafts} payment notification draft(s)`);
   if (reconciledDocumentReviewTasks) console.log(`[worker] reconciled ${reconciledDocumentReviewTasks} document review task(s)`);
   if (generatedMilestoneDrafts) console.log(`[worker] generated ${generatedMilestoneDrafts} milestone follow-up draft(s)`);
   if (generatedOutreachDrafts) console.log(`[worker] generated ${generatedOutreachDrafts} outreach draft(s)`);
@@ -912,6 +920,7 @@ async function tick() {
   return {
     jobs: jobs.length,
     generatedDrafts,
+    generatedPaymentDrafts,
     generatedTaskDrafts,
     reconciledDocumentReviewTasks,
     generatedMilestoneDrafts,
@@ -938,6 +947,7 @@ if (ONCE) {
       once: true,
       lastBatchSize: result.jobs,
       lastGeneratedDrafts: result.generatedDrafts,
+      lastGeneratedPaymentDrafts: result.generatedPaymentDrafts,
       lastGeneratedTaskDrafts: result.generatedTaskDrafts,
       lastReconciledDocumentReviewTasks: result.reconciledDocumentReviewTasks,
       lastGeneratedOutreachDrafts: result.generatedOutreachDrafts,
@@ -962,7 +972,7 @@ process.on("SIGTERM", () => { stopped = true; });
 while (!stopped) {
   try {
     const processed = await tick();
-    await writeHeartbeat("running", { lastBatchSize: processed.jobs, lastGeneratedDrafts: processed.generatedDrafts, lastGeneratedTaskDrafts: processed.generatedTaskDrafts, lastReconciledDocumentReviewTasks: processed.reconciledDocumentReviewTasks, lastGeneratedOutreachDrafts: processed.generatedOutreachDrafts });
+    await writeHeartbeat("running", { lastBatchSize: processed.jobs, lastGeneratedDrafts: processed.generatedDrafts, lastGeneratedPaymentDrafts: processed.generatedPaymentDrafts, lastGeneratedTaskDrafts: processed.generatedTaskDrafts, lastReconciledDocumentReviewTasks: processed.reconciledDocumentReviewTasks, lastGeneratedOutreachDrafts: processed.generatedOutreachDrafts });
   } catch (error) {
     if (error?.code === RUNTIME_OWNERSHIP_ERROR_CODE) {
       ownershipRevoked = true;
