@@ -367,6 +367,8 @@ assert(visitorSource.includes('<a href="#admin-config">Overview</a>')
   && visitorSource.includes('<a href="#admin-documents">Documents</a>')
   && visitorSource.includes('<a href="#admin-partners">Partners</a>')
   && visitorSource.includes('const targetHash = requestedMode === "ops" ? "#admin-config" : "#top";'), "The local board mode switch does not land on functional operations workspaces.");
+assert(visitorSource.includes('data-site-mode="ops" data-operations-surface href="${escapeAttr(operationsSurfaceHref)}"')
+  && visitorSource.includes('if (btn.matches("[data-operations-surface]")) return;'), "The board view switch does not route Operations to the dedicated portal.");
 assert(visitorSource.includes('<input name="reviewDueAt" type="datetime-local" required />')
   && visitorSource.includes('<select name="ownerTeam" required><option value="operations" selected>Operations</option>')
   && visitorSource.includes('reviewTask ? ` · Task ${escapeHtml(conditionLabel(reviewTask.status))}`'), "Document intake does not expose its accountable review deadline and task state.");

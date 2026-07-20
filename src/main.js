@@ -594,10 +594,10 @@ app.innerHTML = `
     </nav>`}
     <div class="app-status-controls">
       ${OPS_DEMO_ENABLED ? `
-        <div class="site-mode-toggle" role="tablist" aria-label="Site mode">
-          <button data-site-mode="public" type="button" role="tab">Visitor</button>
-          <button data-site-mode="ops" type="button" role="tab">Operations</button>
-        </div>
+        <nav class="site-mode-toggle" aria-label="Presentation views">
+          <a data-site-mode="public" href="#top">Visitor</a>
+          <a data-site-mode="ops" data-operations-surface href="${escapeAttr(operationsSurfaceHref)}">Operations</a>
+        </nav>
       ` : ""}
       ${ADMIN_ENTRY && BOARD_DEMO_ACCESS.enabled ? `
         <button id="admin-reset-board-demo" class="board-demo-reset" type="button" aria-label="Reset board demonstration" title="Restore the prepared board demonstration" hidden>
@@ -3782,7 +3782,8 @@ function setSiteMode(mode) {
   document.querySelectorAll("[data-site-mode]").forEach(btn => {
     const active = btn.dataset.siteMode === normalized;
     btn.classList.toggle("is-active", active);
-    btn.setAttribute("aria-selected", String(active));
+    if (active) btn.setAttribute("aria-current", "page");
+    else btn.removeAttribute("aria-current");
   });
   try { localStorage.setItem("sandfest_site_mode", normalized); } catch { /* ignore */ }
   if (normalized === "ops" && BOARD_DEMO_ACCESS.enabled) void loadBoardDemoWorkspace();
@@ -3856,6 +3857,7 @@ function initSiteMode() {
   }));
   document.querySelectorAll("[data-site-mode]").forEach(btn => {
     btn.addEventListener("click", () => {
+      if (btn.matches("[data-operations-surface]")) return;
       const requestedMode = btn.dataset.siteMode === "ops" ? "ops" : "public";
       setSiteMode(requestedMode);
       const targetHash = requestedMode === "ops" ? "#admin-config" : "#top";
