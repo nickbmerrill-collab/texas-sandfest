@@ -172,6 +172,7 @@ import {
   recordPartnerInvoiceSync,
   recordPartnerPayment,
   requestPartnerPortalRecovery,
+  requestTaskAssignmentNotice,
   reversePartnerPayment,
   reviewFollowup,
   reviewPartnerBrandAsset,
@@ -3396,6 +3397,40 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   const sentAssignmentNotice = recordFollowupDelivery(queuedAssignmentNotice.doc, assignmentNotice.generated[0].id, { sent: true, provider: "brevo", providerMessageId: "task-assignment-1" }, { now: "2026-07-14T12:16:00.000Z" });
   ok("volunteer assignment notification is retry safe", assignmentNotice.generated.length === 1 && assignmentNotice.generated[0].kind === "task_assignment" && assignmentNotice.generated[0].recipient === "alex@example.com" && assignmentNotice.generated[0].body.includes(taskPortalUrl) && assignmentNoticeAgain.generated.length === 0);
   ok("volunteer notification revalidates directory email", !staleAssignmentReview.ok && staleAssignmentReview.error.includes("email changed") && approvedAssignmentNotice.ok && sentAssignmentNotice.followup.status === "sent");
+  const requestedAssignmentResend = requestTaskAssignmentNotice(sentAssignmentNotice.doc, task.task.id, {
+    actorId: "ops_1",
+    requestId: "notice-request-0001",
+    volunteers: taskVolunteers,
+    idFactory,
+    now: "2026-07-14T12:17:00.000Z"
+  });
+  const replayedAssignmentResend = requestTaskAssignmentNotice(requestedAssignmentResend.doc, task.task.id, {
+    actorId: "ops_1",
+    requestId: "notice-request-0001",
+    volunteers: taskVolunteers,
+    idFactory,
+    now: "2026-07-14T12:18:00.000Z"
+  });
+  const resentAssignmentNotice = generateDueTaskFollowups(requestedAssignmentResend.doc, {
+    idFactory,
+    volunteers: taskVolunteers,
+    taskPortalUrlForTask: assignedTask => taskPortalUrlForTask(assignedTask, { config: taskPortal }),
+    now: "2026-07-14T12:17:00.000Z"
+  });
+  const approvedResentAssignmentNotice = reviewFollowup(resentAssignmentNotice.doc, resentAssignmentNotice.generated[0].id, "approve", {
+    actorId: "ops_1",
+    volunteers: taskVolunteers,
+    now: "2026-07-14T12:18:00.000Z"
+  });
+  const duplicatePendingResend = requestTaskAssignmentNotice(resentAssignmentNotice.doc, task.task.id, {
+    actorId: "ops_1",
+    requestId: "notice-request-0002",
+    volunteers: taskVolunteers,
+    idFactory,
+    now: "2026-07-14T12:19:00.000Z"
+  });
+  ok("staff can reissue the current secure task notice", requestedAssignmentResend.ok && requestedAssignmentResend.task.assignmentNoticeVersion === 1 && resentAssignmentNotice.generated.length === 1 && resentAssignmentNotice.generated[0].sourceVersion === "assignment:1:notice:1" && resentAssignmentNotice.generated[0].body.includes(taskPortalUrl) && approvedResentAssignmentNotice.ok);
+  ok("task notice resend requests are idempotent and suppress active duplicates", replayedAssignmentResend.replay === true && replayedAssignmentResend.task.assignmentNoticeVersion === 1 && !duplicatePendingResend.ok && duplicatePendingResend.conflict === true);
   const acknowledgedTask = updatePartnerTaskFromAssignee(task.doc, task.task.id, { action: "acknowledge", note: "I have the art checklist." }, { idFactory, now: "2026-07-14T12:20:00.000Z" });
   const acknowledgedReplay = updatePartnerTaskFromAssignee(acknowledgedTask.doc, task.task.id, { action: "acknowledge" }, { idFactory, now: "2026-07-14T12:21:00.000Z" });
   const startedByAssignee = updatePartnerTaskFromAssignee(acknowledgedTask.doc, task.task.id, { action: "start" }, { idFactory, now: "2026-07-14T12:25:00.000Z" });
@@ -3409,7 +3444,7 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   const reassignedTask = updatePartnerTask(acknowledgedTask.doc, task.task.id, { assigneeType: "staff", assigneeId: "staff_operations", assigneeName: "Jamie Torres" }, { actorId: "ops_1", idFactory, now: "2026-07-14T12:45:00.000Z" });
   const staleTaskPortalAccess = findTaskPortalTask(reassignedTask.doc, task.task.id, taskPortalToken, { config: taskPortal });
   const reassignedTaskStatus = publicTaskPortalStatus(reassignedTask.task);
-  ok("task reassignment revokes stale access and resets acknowledgement", !staleTaskPortalAccess.ok && reassignedTask.task.assignmentVersion === 2 && reassignedTask.task.acknowledgedAt === null && reassignedTaskStatus.updates.length === 0);
+  ok("task reassignment revokes stale access and resets acknowledgement", !staleTaskPortalAccess.ok && reassignedTask.task.assignmentVersion === 2 && reassignedTask.task.assignmentNoticeVersion === 0 && reassignedTask.task.acknowledgedAt === null && reassignedTaskStatus.updates.length === 0);
   const overdueTaskNotice = generateDueTaskFollowups(sentAssignmentNotice.doc, { idFactory, volunteers: taskVolunteers, now });
   const overdueTaskNoticeAgain = generateDueTaskFollowups(overdueTaskNotice.doc, { idFactory, volunteers: taskVolunteers, now: "2026-07-23T12:00:00.000Z" });
   const inFlightOverdueTaskDoc = {
@@ -4259,7 +4294,22 @@ Research First,construction,Corpus Christi,,78401,,,,Find decision maker,`;
       toEmail: "vendor@example.com",
       toName: "Synthetic Vendor",
       subject: "Board sandbox delivery",
-      textContent: "This message remains on the local board-demo machine."
+      textContent: "This message remains on the local board-demo machine.",
+      idempotencyKey: "123e4567-e89b-42d3-a456-426614174000"
+    }, { config: sandboxEmailConfig });
+    const deliveryReplay = await sendTransactionalEmail({
+      toEmail: "vendor@example.com",
+      toName: "Synthetic Vendor",
+      subject: "Board sandbox delivery",
+      textContent: "This message remains on the local board-demo machine.",
+      idempotencyKey: "123e4567-e89b-42d3-a456-426614174000"
+    }, { config: sandboxEmailConfig });
+    const reissuedDelivery = await sendTransactionalEmail({
+      toEmail: "vendor@example.com",
+      toName: "Synthetic Vendor",
+      subject: "Board sandbox delivery",
+      textContent: "This message remains on the local board-demo machine.",
+      idempotencyKey: "123e4567-e89b-42d3-a456-426614174001"
     }, { config: sandboxEmailConfig });
     const rejectedRealRecipient = await fetch(`${sandbox.url}/v3/smtp/email`, {
       method: "POST",
@@ -4271,9 +4321,10 @@ Research First,construction,Corpus Christi,,78401,,,,Find decision maker,`;
       headers: { "content-type": "application/json", "api-key": apiKey },
       body: JSON.stringify({ sender: { email: "sandbox@texassandfest.example" }, to: [{ email: "vendor@example.com" }], subject: "Reject", textContent: "Reject", attachment: [{ name: "file.pdf", content: "AA==" }] })
     });
-    for (let attempt = 0; attempt < 30 && webhookEvents.length === 0; attempt += 1) await new Promise(resolve => setTimeout(resolve, 10));
+    for (let attempt = 0; attempt < 30 && webhookEvents.length < 2; attempt += 1) await new Promise(resolve => setTimeout(resolve, 10));
     const health = await fetch(`${sandbox.url}/health`).then(response => response.json());
-    ok("board email sandbox returns Brevo acceptance and authenticated delivery", delivery.sent && delivery.providerMessageId?.startsWith("board-mail-") && webhookEvents.length === 1 && webhookEvents[0].headers.authorization === `Bearer ${webhookToken}` && webhookEvents[0].body.event === "delivered" && webhookEvents[0].body["message-id"] === delivery.providerMessageId && health.acceptedMessages === 1 && health.deliveryCallbacks === 1);
+    ok("board email sandbox returns Brevo acceptance and authenticated delivery", delivery.sent && delivery.providerMessageId?.startsWith("board-mail-") && webhookEvents.length === 2 && webhookEvents[0].headers.authorization === `Bearer ${webhookToken}` && webhookEvents[0].body.event === "delivered" && webhookEvents[0].body["message-id"] === delivery.providerMessageId && health.acceptedMessages === 2 && health.deliveryCallbacks === 2);
+    ok("board email sandbox converges retries but delivers reissued messages", deliveryReplay.providerMessageId === delivery.providerMessageId && reissuedDelivery.providerMessageId !== delivery.providerMessageId);
     ok("board email sandbox rejects real recipients and attachments", rejectedRealRecipient.status === 422 && rejectedAttachment.status === 422 && health.recipientPolicy === "reserved-example-domains-only");
   } finally {
     await sandbox.close();
@@ -6867,6 +6918,12 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     dueAt: "2026-07-17T13:00:00.000Z"
   }, true);
   ok("POST volunteer task assignment", delegatedTask.status === 201 && delegatedTask.data.task?.assigneeName === "Alex Rivera");
+  const taskNoticeRequestId = "api-task-notice-request-0001";
+  const requestedTaskNoticeApi = await hit("POST", `/api/admin/partners/tasks/${encodeURIComponent(delegatedTask.data.task?.id)}/assignment-notice`, { requestId: taskNoticeRequestId }, true);
+  const replayedTaskNoticeApi = await hit("POST", `/api/admin/partners/tasks/${encodeURIComponent(delegatedTask.data.task?.id)}/assignment-notice`, { requestId: taskNoticeRequestId }, true);
+  const duplicateTaskNoticeApi = await hit("POST", `/api/admin/partners/tasks/${encodeURIComponent(delegatedTask.data.task?.id)}/assignment-notice`, { requestId: "api-task-notice-request-0002" }, true);
+  ok("assignment notice API queues a secure current-task message", requestedTaskNoticeApi.status === 202 && requestedTaskNoticeApi.data.task?.assignmentNoticeVersion === 1 && !("lastAssignmentNoticeRequestId" in requestedTaskNoticeApi.data.task) && requestedTaskNoticeApi.data.notice?.status === "draft_ready" && requestedTaskNoticeApi.data.notice?.sourceVersion === "assignment:1:notice:1");
+  ok("assignment notice API is idempotent and rejects active duplicates", replayedTaskNoticeApi.status === 200 && replayedTaskNoticeApi.data.replay === true && duplicateTaskNoticeApi.status === 409);
   const apiTaskPortalConfig = taskPortalConfig(apiChildEnv);
   const apiTaskToken = issueTaskPortalToken(delegatedTask.data.task, { config: apiTaskPortalConfig });
   const taskPortalStatusApi = await hit("POST", "/api/public/task-status", { taskId: delegatedTask.data.task?.id, token: apiTaskToken });
@@ -6889,9 +6946,11 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
   const taskWorkspace = await hit("GET", "/api/admin/partners", null, true);
   const taskAuditApi = await hit("GET", "/api/admin/audit?limit=200", null, true);
   const assigneeAudit = taskAuditApi.data.audit?.find(item => item.record?.action === "task.assignee.block")?.record;
+  const assignmentNoticeAudit = taskAuditApi.data.audit?.find(item => item.record?.action === "partner.task.assignment_notice.request")?.record;
   ok("PATCH task lifecycle", advancedTask.status === 200 && advancedTask.data.task?.status === "blocked" && advancedTask.data.task?.assigneeName === "Operations team");
   ok("task board API summary", taskWorkspace.data.taskBoard?.totals?.blocked === 1 && taskWorkspace.data.assignmentDirectory?.volunteers?.some(item => item.id === "vol_001" && !("email" in item)) && staleTaskPortalApi.status === 404 && taskWorkspace.data.tasks?.find(item => item.id === delegatedTask.data.task?.id)?.acknowledgedAt === null);
   ok("task assignee audit is capability- and note-minimized", assigneeAudit?.actor?.type === "capability-link" && assigneeAudit.metadata?.noteProvided === true && !JSON.stringify(assigneeAudit).includes(apiTaskToken) && !JSON.stringify(assigneeAudit).includes("Radio inventory"));
+  ok("assignment notice request is audited without capability disclosure", assignmentNoticeAudit?.target?.id === delegatedTask.data.task?.id && assignmentNoticeAudit.metadata?.assignmentNoticeVersion === 1 && !JSON.stringify(assignmentNoticeAudit).includes(apiTaskToken));
   const staffDirectoryApiOk = taskWorkspace.data.staffDirectory?.ready === false
     && taskWorkspace.data.staffDirectory?.routedTeams === 7
     && taskWorkspace.data.staffDirectory?.errors?.some(item => item.includes("does not match texas-sandfest-2027"))

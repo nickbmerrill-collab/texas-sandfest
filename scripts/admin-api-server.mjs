@@ -160,6 +160,7 @@ import {
   emptyPartnerOperations,
   failPartnerPaymentCheckout,
   generateDueOutreachFollowups,
+  generateDueTaskFollowups,
   normalizePartnerOperations,
   outreachCampaignAutomationReadiness,
   outreachCampaignMetrics,
@@ -173,6 +174,7 @@ import {
   recordPartnerPayment,
   recordPartnerInvoiceReconciliation,
   requestPartnerPortalRecovery,
+  requestTaskAssignmentNotice,
   reversePartnerPayment,
   confirmVendorAssignment,
   rotatePartnerPortalAccess,
@@ -226,7 +228,8 @@ import {
 import {
   findTaskPortalTask,
   publicTaskPortalStatus,
-  taskPortalConfig
+  taskPortalConfig,
+  taskPortalUrlForTask
 } from "../lib/task-portal.mjs";
 import {
   findOutreachPreferenceProspect,
@@ -1482,6 +1485,12 @@ function adminPartnerFollowupView(followup) {
     recipientAvailable: Boolean(recipient),
     recipientLabel: followup.taskAssigneeName || followup.taskAssigneeId || "Task assignee"
   };
+}
+
+function adminPartnerTaskView(task) {
+  if (!task) return task;
+  const { lastAssignmentNoticeRequestId, ...safe } = task;
+  return safe;
 }
 
 async function readWorkerStatus() {
@@ -6645,7 +6654,7 @@ async function handleRequest(request, response) {
         milestones: doc.milestones,
         milestoneSummary: summarizePartnerMilestones(doc),
         followups: doc.followups.map(adminPartnerFollowupView),
-        tasks: doc.tasks,
+        tasks: doc.tasks.map(adminPartnerTaskView),
         brandProfiles: doc.brandProfiles,
         brandAssets: doc.brandAssets,
         deliverables: doc.deliverables,
@@ -7665,8 +7674,8 @@ async function handleRequest(request, response) {
         sendJson(request, response, 400, { error: result?.error || "Task could not be created." });
         return;
       }
-      await writeAuditRecord(request, "partner.task.create", { type: "task", id: result.task.id }, null, result.task);
-      sendJson(request, response, 201, { task: result.task });
+      await writeAuditRecord(request, "partner.task.create", { type: "task", id: result.task.id }, null, adminPartnerTaskView(result.task));
+      sendJson(request, response, 201, { task: adminPartnerTaskView(result.task) });
       return;
     }
 
@@ -7692,8 +7701,66 @@ async function handleRequest(request, response) {
         sendJson(request, response, result?.error === "Task not found." ? 404 : 400, { error: result?.error || "Task could not be updated." });
         return;
       }
-      await writeAuditRecord(request, "partner.task.update", { type: "task", id: taskId }, before, result.task);
-      sendJson(request, response, 200, { task: result.task });
+      await writeAuditRecord(request, "partner.task.update", { type: "task", id: taskId }, adminPartnerTaskView(before), adminPartnerTaskView(result.task));
+      sendJson(request, response, 200, { task: adminPartnerTaskView(result.task) });
+      return;
+    }
+
+    const partnerTaskNoticeMatch = pathname.match(/^\/api\/admin\/partners\/tasks\/([^/]+)\/assignment-notice$/);
+    if (method === "POST" && partnerTaskNoticeMatch) {
+      const session = await requirePermission(request, response, "partners:write");
+      if (!session) return;
+      const taskId = decodeURIComponent(partnerTaskNoticeMatch[1]);
+      const body = await readBody(request);
+      const config = taskPortalConfig();
+      if (!config.ready) {
+        sendJson(request, response, 503, { error: "Secure task assignment links are temporarily unavailable." });
+        return;
+      }
+      const recipients = await taskRecipientContext();
+      const beforeDoc = await readPartnerOperations();
+      const before = beforeDoc.tasks.find(item => item.id === taskId) ?? null;
+      const now = new Date().toISOString();
+      const result = await mutatePartnerOperations(doc => {
+        const requested = requestTaskAssignmentNotice(doc, taskId, {
+          ...recipients,
+          actorId: session.id,
+          requestId: body.requestId,
+          idFactory: prefix => `${prefix}_${randomUUID()}`,
+          now
+        });
+        if (!requested.ok || requested.replay) return requested;
+        const generated = generateDueTaskFollowups(requested.doc, {
+          ...recipients,
+          taskPortalUrlForTask: task => taskPortalUrlForTask(task, { config }),
+          idFactory: prefix => `${prefix}_${randomUUID()}`,
+          now
+        });
+        const followup = generated.generated.find(item => item.taskId === taskId && item.kind === "task_assignment");
+        if (!followup) return { ok: false, error: "Assignment notice could not be prepared." };
+        return { ...requested, followup, doc: generated.doc };
+      });
+      if (!result?.ok) {
+        const status = result?.error === "Task not found." ? 404 : result?.conflict ? 409 : 400;
+        sendJson(request, response, status, { error: result?.error || "Assignment notice could not be requested." });
+        return;
+      }
+      const followup = result.followup ?? result.doc.followups.find(item => item.taskId === taskId
+        && item.kind === "task_assignment"
+        && item.sourceVersion === `assignment:${result.task.assignmentVersion}:notice:${result.task.assignmentNoticeVersion}`);
+      if (!result.replay) {
+        await writeAuditRecord(request, "partner.task.assignment_notice.request", { type: "task", id: taskId }, adminPartnerTaskView(before), adminPartnerTaskView(result.task), {
+          followupId: followup?.id ?? null,
+          assignmentVersion: result.task.assignmentVersion,
+          assignmentNoticeVersion: result.task.assignmentNoticeVersion,
+          dismissedFollowups: result.dismissedFollowups ?? 0
+        });
+      }
+      sendJson(request, response, result.replay ? 200 : 202, {
+        replay: result.replay === true,
+        task: adminPartnerTaskView(result.task),
+        notice: followup ? { id: followup.id, status: followup.status, sourceVersion: followup.sourceVersion } : null
+      });
       return;
     }
 
