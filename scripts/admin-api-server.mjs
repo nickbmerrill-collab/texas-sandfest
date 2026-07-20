@@ -29,7 +29,13 @@ import { eventGuideReadiness, publicEventGuide, publishEventGuide } from "../lib
 import { eventContextConfig, eventContextReadiness } from "../lib/event-context.mjs";
 import { recoveryReadiness } from "../lib/recovery-readiness.mjs";
 import { enqueueJob, getQueueHealth, listJobs, markTerminalJobHandled } from "../lib/job-queue.mjs";
-import { adminJobView, adminJobViews, jobResolutionNote, validAdminJobId } from "../lib/job-operations.mjs";
+import {
+  adminJobDisplayRows,
+  adminJobView,
+  jobResolutionNote,
+  prioritizedAdminJobViews,
+  validAdminJobId
+} from "../lib/job-operations.mjs";
 import {
   applyCheckin,
   applyCheckout,
@@ -7843,9 +7849,17 @@ async function handleRequest(request, response) {
 
     if (method === "GET" && pathname === "/api/admin/jobs") {
       if (!(await requirePermission(request, response, "admin:read"))) return;
+      const limit = clampLimit(url.searchParams.get("limit"), 50);
+      const [summary, recentJobs, unhandledJobs] = await Promise.all([
+        getQueueHealth(ROOT),
+        listJobs(ROOT, { limit }),
+        listJobs(ROOT, { limit: 500, statuses: ["failed"], unhandledOnly: true })
+      ]);
+      const jobs = prioritizedAdminJobViews(recentJobs, unhandledJobs);
       sendJson(request, response, 200, {
-        summary: await getQueueHealth(ROOT),
-        jobs: adminJobViews(await listJobs(ROOT, { limit: clampLimit(url.searchParams.get("limit"), 50) }))
+        summary,
+        jobs,
+        displayRows: adminJobDisplayRows(jobs)
       });
       return;
     }

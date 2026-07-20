@@ -78,7 +78,13 @@ import {
 import { applyStamp, DEFAULT_HUNT_ID, normalizeHunt, parsePassportPayload, summarizePassport } from "../lib/passport.mjs";
 import { applyVote, tallyVotes, summarizeVoting, normalizeTicketRef, publicVotingPublication } from "../lib/voting.mjs";
 import { claimNextJobs, completeJob, enqueueJob, getQueueHealth, listJobs, markTerminalJobHandled } from "../lib/job-queue.mjs";
-import { adminJobView, jobResolutionNote, validAdminJobId } from "../lib/job-operations.mjs";
+import {
+  adminJobDisplayRows,
+  adminJobView,
+  jobResolutionNote,
+  prioritizedAdminJobViews,
+  validAdminJobId
+} from "../lib/job-operations.mjs";
 import { publicBoothPins, summarizeBooths } from "../lib/booths.mjs";
 import {
   EVENTENY_BOOTH_IMPORT_MAX_ROWS,
@@ -2078,6 +2084,28 @@ staff_production,${importEventId},Jordan Davis,jordan.davis@staff.example,active
     && !projectedJson.includes("secret-token")
     && !projectedJson.includes("payload")
     && !projectedJson.includes("lastError"));
+  const projectedCompletions = [
+    adminJobView({ id: "job_complete-0001", type: "partner.followup.send", status: "done", attempts: 1, maxAttempts: 5, updatedAt: "2026-07-18T12:01:00.000Z" }),
+    adminJobView({ id: "job_complete-0002", type: "partner.followup.send", status: "done", attempts: 1, maxAttempts: 5, updatedAt: "2026-07-18T12:02:00.000Z" }),
+    adminJobView({ id: "job_complete-0003", type: "document.extract", status: "done", attempts: 1, maxAttempts: 5, updatedAt: "2026-07-18T12:03:00.000Z" })
+  ];
+  const displayRows = adminJobDisplayRows([...projectedCompletions, projectedFailure]);
+  const partnerCompletion = displayRows.find(item => item.label === "Partner message delivery" && item.status === "done");
+  const displayRowsJson = JSON.stringify(displayRows);
+  ok("completed automation is grouped without hiding actionable work", displayRows.length === 3
+    && displayRows[0].requiresAcknowledgement === true
+    && partnerCompletion?.displayKind === "completed_group"
+    && partnerCompletion?.completedCount === 2
+    && partnerCompletion?.updatedAt === "2026-07-18T12:02:00.000Z"
+    && !displayRowsJson.includes("job_complete-0001")
+    && !displayRowsJson.includes("job_complete-0002"));
+  const prioritizedJobs = prioritizedAdminJobViews(
+    [projectedCompletions[0], projectedFailure],
+    [projectedFailure]
+  );
+  ok("unhandled automation failures stay ahead of recent history", prioritizedJobs.length === 2
+    && prioritizedJobs[0].id === projectedFailure.id
+    && prioritizedJobs.filter(item => item.id === projectedFailure.id).length === 1);
   ok("job acknowledgment validates notes and opaque references", !jobResolutionNote("too short").ok
     && jobResolutionNote("Retried in the partner workflow.").ok
     && validAdminJobId("job_01234567-89ab-cdef")
@@ -5116,9 +5144,22 @@ try {
         workerId: "platform-api-terminal-probe"
       });
       await completeJob(isolatedRuntimeRoot, terminalApiClaim, { error: `Provider rejected ${privateQueueRecipient}` });
+      await new Promise(resolve => setTimeout(resolve, 5));
+      const recentApiJob = await enqueueJob(isolatedRuntimeRoot, {
+        type: "queue.recent.api_probe",
+        payload: { probe: true },
+        maxAttempts: 1
+      });
+      const [recentApiClaim] = await claimNextJobs(isolatedRuntimeRoot, {
+        limit: 1,
+        types: ["queue.recent.api_probe"],
+        workerId: "platform-api-recent-probe"
+      });
+      await completeJob(isolatedRuntimeRoot, recentApiClaim);
+      const buriedFailureStatus = await hit("GET", "/api/admin/jobs?limit=1", null, true);
       const failedQueueStatus = await hit("GET", "/api/admin/jobs?limit=50", null, true);
       const failedQueueJob = failedQueueStatus.data.jobs?.find(item => item.id === terminalApiJob.id);
-      const failedQueueJson = JSON.stringify(failedQueueStatus.data.jobs || []);
+      const failedQueueJson = JSON.stringify(failedQueueStatus.data || {});
       const unauthenticatedQueueAcknowledgement = await hit("POST", `/api/admin/jobs/${terminalApiJob.id}/acknowledge`, {
         resolutionNote: "Reviewed in the partner workflow."
       });
@@ -5145,6 +5186,7 @@ try {
         && failedQueueStatus.data.summary?.unhandledFailed === 1
         && failedQueueJob?.label === "Background automation"
         && failedQueueJob?.requiresAcknowledgement === true
+        && failedQueueStatus.data.displayRows?.some(item => item.id === terminalApiJob.id && item.displayKind === "job")
         && !failedQueueJson.includes(privateQueueRecipient)
         && !failedQueueJson.includes("payload")
         && !failedQueueJson.includes("lastError")
@@ -5155,6 +5197,11 @@ try {
         failedQueueJob,
         error: failedQueueStatus.data.error
       }));
+      const buriedFailureVisible = buriedFailureStatus.status === 200
+        && buriedFailureStatus.data.jobs?.[0]?.id === terminalApiJob.id
+        && buriedFailureStatus.data.jobs?.some(item => item.id === recentApiJob.id)
+        && buriedFailureStatus.data.jobs?.filter(item => item.id === terminalApiJob.id).length === 1;
+      ok("admin job API keeps an older unhandled failure ahead of recent success", buriedFailureVisible, buriedFailureVisible ? "" : JSON.stringify(buriedFailureStatus.data));
       const acknowledgementProtected = unauthenticatedQueueAcknowledgement.status === 401
         && invalidQueueAcknowledgement.status === 400
         && malformedQueueAcknowledgement.status === 400
