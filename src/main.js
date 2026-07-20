@@ -1502,12 +1502,14 @@ app.innerHTML = `
           <button id="admin-load-conditions" class="button secondary" data-requires-permission="conditions:read" type="button">Load island operations</button>
           <div class="admin-export-control">
             <select id="admin-export-type" aria-label="Operations export">
-              <option value="partners.csv">Partner directory</option>
+              <option value="partners.csv">Partners</option>
               <option value="receivables.csv">Receivables</option>
-              <option value="payments.csv">Payment ledger</option>
-              <option value="tasks.csv">Staff and volunteer tasks</option>
-              <option value="outreach.csv">Sponsor outreach</option>
-              <option value="milestones.ics">Key dates calendar</option>
+              <option value="payments.csv">Payments</option>
+              <option value="tasks.csv">Tasks</option>
+              <option value="outreach.csv">Outreach</option>
+              <option value="budget.csv">Budget</option>
+              <option value="expenses.csv">Expenses</option>
+              <option value="milestones.ics">Key dates</option>
             </select>
             <button id="admin-download-export" class="button secondary" type="button">Download</button>
           </div>
@@ -9602,8 +9604,7 @@ document.querySelector("#admin-commit-booth-import")?.addEventListener("click", 
 document.querySelector("#admin-load-partners")?.addEventListener("click", () => loadAdminPartners());
 document.querySelector("#admin-download-export")?.addEventListener("click", async event => {
   const button = event.currentTarget;
-  const name = document.querySelector("#admin-export-type")?.value;
-  if (!name) return;
+  const name = document.querySelector("#admin-export-type").value;
   button.disabled = true;
   try {
     const fileName = await downloadAdminExport(name);

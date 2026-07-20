@@ -391,7 +391,9 @@ import {
   validateTicketPolicyAcceptance
 } from "../lib/ticket-catalog.mjs";
 import {
+  budgetAllocationsExport,
   csvCell,
+  expenseRegisterExport,
   milestonesCalendarExport,
   outreachProspectsExport,
   partnerDirectoryExport,
@@ -809,6 +811,8 @@ console.log("\n=== Pure library suite ===\n");
         }
       }
     },
+    budgetExport: { ok: true, status: 200, contentType: "text/csv; charset=utf-8", body: "Annual budget,Remaining after pipeline" },
+    expenseExport: { ok: true, status: 200, contentType: "text/csv; charset=utf-8", body: "Vendor or payee,Payment reference" },
     documents: {
       summary: { total: 4, extractionReady: 4, extractionQueued: 0, extractionNeedsReview: 0 },
       documents: [{
@@ -997,6 +1001,7 @@ console.log("\n=== Pure library suite ===\n");
   const missingWorkflowReports = [
     state => { state.partners.payments = []; },
     state => { state.budget.summary.counts.pendingApprovals = 0; },
+    state => { state.expenseExport.ok = false; },
     state => { state.partners.milestones = []; },
     state => { state.partners.followups = []; },
     state => { state.partners.tasks = state.partners.tasks.filter(item => item.assigneeType !== "staff"); },
@@ -1663,12 +1668,83 @@ console.log("\n=== Pure library suite ===\n");
   const tasks = tasksExport(doc, eventId);
   const outreach = outreachProspectsExport(doc, eventId);
   const calendar = milestonesCalendarExport(doc, eventId, "2026-07-16T12:00:00.000Z");
+  const budgetDoc = {
+    ...emptyBudgetControl(eventId),
+    budgetLines: [{
+      id: "budget_export_1",
+      eventId,
+      name: "=Beach operations",
+      ownerTeam: "operations",
+      budgetCents: 100_000,
+      notes: "Annual operating allocation",
+      active: true,
+      createdAt: "2026-07-01T12:00:00.000Z",
+      updatedAt: "2026-07-02T12:00:00.000Z"
+    }, {
+      id: "budget_old_event",
+      eventId: "texas-sandfest-2026",
+      name: "Prior event allocation",
+      ownerTeam: "finance",
+      budgetCents: 999_999,
+      active: true
+    }],
+    expenses: [{
+      id: "expense_export_submitted",
+      eventId,
+      budgetLineId: "budget_export_1",
+      vendorName: "Coastal Services",
+      description: "+Do not execute this description",
+      amountCents: 25_000,
+      dueDate: "2026-07-20",
+      status: "submitted",
+      requestedBy: "ops_1",
+      submittedAt: "2026-07-03T12:00:00.000Z",
+      createdAt: "2026-07-03T12:00:00.000Z",
+      updatedAt: "2026-07-03T12:00:00.000Z"
+    }, {
+      id: "expense_export_paid",
+      eventId,
+      budgetLineId: "budget_export_1",
+      vendorName: "Island Rentals",
+      description: "Gate equipment rental",
+      amountCents: 40_000,
+      dueDate: "2026-07-21",
+      status: "paid",
+      requestedBy: "ops_2",
+      submittedAt: "2026-07-04T12:00:00.000Z",
+      approvedAt: "2026-07-05T12:00:00.000Z",
+      approvedBy: "finance_1",
+      paidAt: "2026-07-06T12:00:00.000Z",
+      paidBy: "finance_2",
+      paymentMethod: "ach",
+      paymentReference: "ACH-EXPENSE-1",
+      overBudgetOverride: true,
+      resolutionNote: "Approved for event operations",
+      createdAt: "2026-07-04T12:00:00.000Z",
+      updatedAt: "2026-07-06T12:00:00.000Z"
+    }, {
+      id: "expense_old_event",
+      eventId: "texas-sandfest-2026",
+      budgetLineId: "budget_old_event",
+      vendorName: "Prior Event Vendor",
+      description: "Prior event expense",
+      amountCents: 50_000,
+      dueDate: "2025-07-20",
+      status: "paid"
+    }]
+  };
+  const budget = budgetAllocationsExport(budgetDoc, eventId);
+  const expenses = expenseRegisterExport(budgetDoc, eventId);
   const partnerCsv = partners.body.toString("utf8");
   const calendarText = calendar.body.toString("utf8");
+  const budgetCsv = budget.body.toString("utf8");
+  const expenseCsv = expenses.body.toString("utf8");
   ok("CSV exports neutralize spreadsheet formulas", csvCell("=2+2") === '"\'=2+2"' && partnerCsv.includes('"\'=SUM(A1:A2) Coastal Bank"') && tasks.body.toString("utf8").includes('"\'+Do not execute this cell"'));
   ok("task export includes notification state without recipient", tasks.body.toString("utf8").includes("Notification status") && tasks.body.toString("utf8").includes("delivered") && !tasks.body.toString("utf8").includes("private-volunteer@example.com"));
   ok("partner export excludes capability and idempotency secrets", partners.rowCount === 1 && partnerCsv.includes("avery.export@example.com") && !partnerCsv.includes("must-not-export") && !partnerCsv.includes("portalAccess"));
   ok("finance exports preserve ledger amounts and references", receivables.rowCount === 1 && receivables.body.toString("utf8").includes('"75.00"') && payments.rowCount === 1 && payments.body.toString("utf8").includes("ACH-EXPORT-1"));
+  ok("accounting exports preserve allocation and expense evidence", budget.rowCount === 1 && budget.fileName === `${eventId}-budget-allocations.csv` && budgetCsv.includes('"1000.00"') && budgetCsv.includes('"400.00"') && budgetCsv.includes('"650.00"') && expenses.rowCount === 2 && expenses.fileName === `${eventId}-expense-register.csv` && expenseCsv.includes("ACH-EXPENSE-1") && expenseCsv.includes("Over-budget override"));
+  ok("accounting exports are current-event and spreadsheet safe", budgetCsv.includes('"\'=Beach operations"') && expenseCsv.includes('"\'+Do not execute this description"') && !budgetCsv.includes("Prior event allocation") && !expenseCsv.includes("Prior Event Vendor"));
   ok("outreach export preserves suppression-ready pipeline fields", outreach.rowCount === 1 && outreach.body.toString("utf8").includes("Contact basis") && outreach.body.toString("utf8").includes("Next action due at") && outreach.body.toString("utf8").includes("2026-07-20T15:00:00.000Z") && outreach.body.toString("utf8").includes('"\'@Regional Business"'));
   ok("key-date calendar is importable and contact-minimized", calendar.rowCount === 1 && calendarText.includes("BEGIN:VCALENDAR") && calendarText.includes("BEGIN:VEVENT") && calendarText.includes("SEQUENCE:1") && !calendarText.includes("avery.export@example.com") && calendarText.split("\r\n").every(line => Buffer.byteLength(line, "utf8") <= 75));
 }
@@ -7663,10 +7739,12 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
   ok("partner email opt-out is immediate and idempotent", pausedContactPreference.status === 200 && pausedContactPreference.data.application?.contactPreference?.allowed === false && pausedContactPreference.data.application?.contactPreference?.version === 2 && pausedContactPreference.data.dismissedFollowups >= 1 && replayedContactPreference.status === 200 && replayedContactPreference.data.replay === true && replayedContactPreference.data.dismissedFollowups === 0);
   ok("partner email re-enrollment is conflict safe", staleContactPreference.status === 409 && unversionedContactPreference.status === 400 && resumedContactPreference.status === 200 && resumedContactPreference.data.application?.contactPreference?.allowed === true && resumedContactPreference.data.application?.contactPreference?.version === 3 && resumedContactStatus.data.application?.contactPreference?.allowed === true && storedContactPreference?.consentNoticeVersion === apiInterestNotice.version && dismissedContactMessages.length >= 1);
   const unauthenticatedExportApi = await hitRaw("GET", "/api/admin/exports/partners.csv");
-  const [partnerExportApi, receivablesExportApi, paymentsExportApi, tasksExportApi, outreachExportApi, calendarExportApi] = await Promise.all([
+  const [partnerExportApi, receivablesExportApi, paymentsExportApi, budgetExportApi, expensesExportApi, tasksExportApi, outreachExportApi, calendarExportApi] = await Promise.all([
     hitRaw("GET", "/api/admin/exports/partners.csv", undefined, { origin: "http://127.0.0.1:5173" }, true),
     hitRaw("GET", "/api/admin/exports/receivables.csv", undefined, {}, true),
     hitRaw("GET", "/api/admin/exports/payments.csv", undefined, {}, true),
+    hitRaw("GET", "/api/admin/exports/budget.csv", undefined, {}, true),
+    hitRaw("GET", "/api/admin/exports/expenses.csv", undefined, {}, true),
     hitRaw("GET", "/api/admin/exports/tasks.csv", undefined, {}, true),
     hitRaw("GET", "/api/admin/exports/outreach.csv", undefined, {}, true),
     hitRaw("GET", "/api/admin/exports/milestones.ics", undefined, {}, true)
@@ -7674,11 +7752,14 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
   const partnerExportTextApi = partnerExportApi.data.toString("utf8");
   const receivablesExportTextApi = receivablesExportApi.data.toString("utf8");
   const paymentsExportTextApi = paymentsExportApi.data.toString("utf8");
+  const budgetExportTextApi = budgetExportApi.data.toString("utf8");
+  const expensesExportTextApi = expensesExportApi.data.toString("utf8");
   const calendarExportTextApi = calendarExportApi.data.toString("utf8");
   ok("operations exports require staff authentication", unauthenticatedExportApi.status === 401);
   ok("partner, task, and outreach CSV exports download", partnerExportApi.status === 200 && tasksExportApi.status === 200 && outreachExportApi.status === 200 && partnerExportApi.headers.get("content-type")?.startsWith("text/csv") && partnerExportApi.headers.get("content-disposition")?.includes(`${DEFAULT_EVENT_ID}-partners.csv`) && partnerExportApi.headers.get("access-control-expose-headers")?.includes("content-disposition") && partnerExportTextApi.includes("Organization") && !partnerExportTextApi.includes("portalAccessId") && !partnerExportTextApi.includes("intakeIdempotencyKeyHash"));
   ok("receivables export uses server records", receivablesExportApi.status === 200 && receivablesExportTextApi.includes("Outstanding amount") && receivablesExportTextApi.includes("Platform API Portal Test"), `status=${receivablesExportApi.status} account=${receivablesExportTextApi.includes("Platform API Portal Test")}`);
   ok("payment ledger export preserves provider references", paymentsExportApi.status === 200 && paymentsExportTextApi.includes("Payment intent ID") && paymentsExportTextApi.includes("pi_partner_api_001"), `status=${paymentsExportApi.status} paymentIntent=${paymentsExportTextApi.includes("pi_partner_api_001")}`);
+  ok("accounting exports use current budget records", budgetExportApi.status === 200 && expensesExportApi.status === 200 && budgetExportApi.headers.get("content-disposition")?.includes(`${DEFAULT_EVENT_ID}-budget-allocations.csv`) && expensesExportApi.headers.get("content-disposition")?.includes(`${DEFAULT_EVENT_ID}-expense-register.csv`) && budgetExportTextApi.includes("Annual budget") && budgetExportTextApi.includes("Remaining after pipeline") && expensesExportTextApi.includes("API Private Staging Vendor") && expensesExportTextApi.includes("PRIVATE-ACH-API-1001"));
   ok("key date calendar export is importable", calendarExportApi.status === 200 && calendarExportApi.headers.get("content-type")?.startsWith("text/calendar") && calendarExportApi.headers.get("content-disposition")?.includes(`${DEFAULT_EVENT_ID}-partner-key-dates.ics`) && calendarExportTextApi.includes("BEGIN:VCALENDAR") && calendarExportTextApi.includes("BEGIN:VEVENT"));
   const [ordersMonitorApi, paymentEventsMonitorApi, fulfillmentMonitorApi, auditApi, snapshotsMonitorApi] = await Promise.all([
     hit("GET", "/api/admin/orders?limit=500", null, true),
@@ -7737,7 +7818,7 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
   const sponsorInvitationAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("outreach.sponsor_invitation."));
   const serializedSponsorInvitationAuditApi = JSON.stringify(sponsorInvitationAuditApi);
   ok("sponsor invitation audit is aggregate-only", sponsorInvitationAuditApi.some(item => item.record?.action === "outreach.sponsor_invitation.issue") && sponsorInvitationAuditApi.some(item => item.record?.action === "outreach.sponsor_invitation.copy") && sponsorInvitationAuditApi.some(item => item.record?.action === "outreach.sponsor_invitation.revoke") && !serializedSponsorInvitationAuditApi.includes("tsfi1.") && !serializedSponsorInvitationAuditApi.includes("morgan@api-coastal-bank.example"));
-  ok("operations export downloads are audited", auditApi.data.audit?.filter(item => item.record?.action === "operations.export.download").length >= 6);
+  ok("operations export downloads are audited", auditApi.data.audit?.filter(item => item.record?.action === "operations.export.download").length >= 8);
   ok("new admin audit records use current event context", auditApi.data.audit?.filter(item => item.record?.createdAt?.startsWith(new Date().toISOString().slice(0, 10))).every(item => item.record?.eventId === DEFAULT_EVENT_ID));
 } finally {
   if (child) {

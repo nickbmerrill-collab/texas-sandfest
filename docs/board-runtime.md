@@ -201,8 +201,10 @@ Accounting includes six synthetic annual allocations and seven synthetic
 expenses across submitted, approved, paid, and rejected states. Finance can
 add or revise an allocation with a required change note, submit an expense,
 approve or reject it, record an explicit over-budget exception, and attach
-payment evidence. These actions update only the isolated runtime; they do not
-contact QuickBooks, Ramp, a bank, or any other payment provider.
+payment evidence. The Operations export menu downloads the current allocation
+summary and full expense register as audited, spreadsheet-safe CSV files. These
+actions update or read only the isolated runtime; they do not contact QuickBooks,
+Ramp, a bank, or any other payment provider.
 Sponsor outreach and Island conditions occupy separate full-width workspace
 rows. The board rehearsal checks that source health and all eight camera controls
 cannot be compressed beside or visually overlap prospect editing at the desktop

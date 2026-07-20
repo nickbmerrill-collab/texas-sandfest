@@ -504,13 +504,24 @@ try {
   const discoveredProspect = discoveredOutreach.data.prospects?.find(item => item.id === discoveryImport.data.prospects?.[0]?.id);
   check("board business discovery is explicitly synthetic", outreach.data.discovery?.ready === true && outreach.data.discovery?.provider === "fixture" && outreach.data.discovery?.attribution?.includes("Synthetic") && discoveryPreview.data.discovery?.provider === "fixture");
   check("board business discovery stays research-first", discoveryImport.status === 201 && discoveryImport.data.summary?.imported === 1 && discoveredProspect?.status === "identified" && discoveredProspect?.contactBasis === null && discoveredProspect?.source === "board_demo_discovery");
-  const [receivablesExport, tasksExport, outreachExport, calendarExport] = await Promise.all([
+  const [receivablesExport, budgetExport, expenseExport, tasksExport, outreachExport, calendarExport] = await Promise.all([
     requestRaw(base, "/api/admin/exports/receivables.csv", { auth: true }),
+    requestRaw(base, "/api/admin/exports/budget.csv", { auth: true }),
+    requestRaw(base, "/api/admin/exports/expenses.csv", { auth: true }),
     requestRaw(base, "/api/admin/exports/tasks.csv", { auth: true }),
     requestRaw(base, "/api/admin/exports/outreach.csv", { auth: true }),
     requestRaw(base, "/api/admin/exports/milestones.ics", { auth: true })
   ]);
-  check("board operations export to finance, staffing, outreach, and calendars", receivablesExport.status === 200 && receivablesExport.body.toString("utf8").includes("Gulf Shore Credit Union") && tasksExport.body.toString("utf8").includes("Task ID") && outreachExport.body.toString("utf8").includes("Contact basis") && calendarExport.contentType.startsWith("text/calendar") && calendarExport.body.toString("utf8").includes("BEGIN:VEVENT"));
+  check("board operations export to finance, accounting, staffing, outreach, and calendars", receivablesExport.status === 200
+    && receivablesExport.body.toString("utf8").includes("Gulf Shore Credit Union")
+    && budgetExport.body.toString("utf8").includes("Annual budget")
+    && budgetExport.body.toString("utf8").includes("Guest services")
+    && expenseExport.body.toString("utf8").includes("Vendor or payee")
+    && expenseExport.body.toString("utf8").includes("Coastal Event Rentals")
+    && tasksExport.body.toString("utf8").includes("Task ID")
+    && outreachExport.body.toString("utf8").includes("Contact basis")
+    && calendarExport.contentType.startsWith("text/calendar")
+    && calendarExport.body.toString("utf8").includes("BEGIN:VEVENT"));
 
   const vendor = await request(base, "POST", "/api/public/vendor-applications", {
     organizationName: "Boardwalk Arts Collective",

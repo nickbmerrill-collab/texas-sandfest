@@ -1111,6 +1111,15 @@ postgres_eventeny_settlement_1,2026-07-16,vendor_fee,250.00,7.50,242.50,eventeny
   check("Postgres over-budget approval fails closed and persists an explicit override", postgresOverBudgetBlocked.status === 409 && postgresOverBudgetApproved.status === 200
     && postgresBudget.data.summary?.totals?.budgetCents === 50_000 && postgresBudget.data.summary?.totals?.committedCents === 55_000
     && postgresBudget.data.summary?.counts?.overBudgetLines === 1 && postgresBudget.data.expenses?.length === 2);
+  const [postgresBudgetExport, postgresExpenseExport] = await Promise.all([
+    requestDownload(base, "/api/admin/exports/budget.csv"),
+    requestDownload(base, "/api/admin/exports/expenses.csv")
+  ]);
+  check("Postgres accounting exports use durable budget records", postgresBudgetExport.status === 200
+    && postgresBudgetExport.body.toString("utf8").includes("Postgres beach operations")
+    && postgresExpenseExport.status === 200
+    && postgresExpenseExport.body.toString("utf8").includes("Postgres Private Staging Vendor")
+    && postgresExpenseExport.body.toString("utf8").includes("PRIVATE-PG-ACH-1001"));
   const approvedPostgresInvoice = await request(base, "POST", `/api/admin/partners/invoices/${postgresInvoice.data.invoice?.id}/review`, { action: "approve" }, { auth: true });
   const postgresPartnerAccess = { reference: sponsorIntake.data.application?.reference, token: rotatedPortal.data.portalAccess?.token };
   const postgresCheckout = await request(base, "POST", "/api/public/partner-payment-checkout", {

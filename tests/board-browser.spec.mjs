@@ -765,6 +765,20 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await expect(page.locator('#admin-expense-list [data-expense-status="approved"]')).toHaveCount(2);
   await expect(page.locator('#admin-expense-list [data-expense-status="paid"]')).toHaveCount(2);
   await expect(page.locator('#admin-expense-list [data-expense-status="rejected"]')).toHaveCount(1);
+  const accountingExports = page.locator('#admin-export-type option[value="budget.csv"], #admin-export-type option[value="expenses.csv"]');
+  await expect(accountingExports).toHaveCount(2);
+  await page.locator("#admin-export-type").selectOption("budget.csv");
+  const [budgetDownload] = await Promise.all([
+    page.waitForEvent("download"),
+    page.locator("#admin-download-export").click()
+  ]);
+  expect(budgetDownload.suggestedFilename()).toBe(`${DEFAULT_EVENT_ID}-budget-allocations.csv`);
+  await page.locator("#admin-export-type").selectOption("expenses.csv");
+  const [expenseDownload] = await Promise.all([
+    page.waitForEvent("download"),
+    page.locator("#admin-download-export").click()
+  ]);
+  expect(expenseDownload.suggestedFilename()).toBe(`${DEFAULT_EVENT_ID}-expense-register.csv`);
   await expect(page.locator("#admin-budget")).not.toContainText(/RAMP-DEMO|budget_line_|expense_/);
 
   const budgetLineForm = page.locator("#admin-create-budget-line");

@@ -202,9 +202,13 @@ if (visitorUrl && operationsUrl) {
     const page = await context.newPage();
     const pageErrors = [];
     const consoleErrors = [];
+    const httpErrors = [];
     page.on("pageerror", error => pageErrors.push(error.message));
     page.on("console", message => {
       if (message.type() === "error") consoleErrors.push(message.text());
+    });
+    page.on("response", response => {
+      if (response.status() >= 400) httpErrors.push(`${response.status()} ${response.url()}`);
     });
 
     try {
@@ -442,6 +446,8 @@ if (visitorUrl && operationsUrl) {
           .map(item => [item.querySelector("span")?.textContent?.trim(), item.textContent?.replace(/\s+/g, " ").trim()])),
         budgetLines: document.querySelectorAll("#admin-budget-lines [data-budget-line]").length,
         budgetAllocationEdits: document.querySelectorAll("#admin-budget-lines [data-budget-line-update]").length,
+        budgetExports: document.querySelectorAll('#admin-export-type option[value="budget.csv"], #admin-export-type option[value="expenses.csv"]').length,
+        budgetExportText: [...document.querySelectorAll('#admin-export-type option[value="budget.csv"], #admin-export-type option[value="expenses.csv"]')].map(option => option.textContent?.trim()).join(" "),
         budgetExpenses: document.querySelectorAll("#admin-expense-list [data-budget-expense]").length,
         submittedExpenses: document.querySelectorAll('#admin-expense-list [data-expense-status="submitted"]').length,
         approvedExpenses: document.querySelectorAll('#admin-expense-list [data-expense-status="approved"]').length,
@@ -558,6 +564,9 @@ if (visitorUrl && operationsUrl) {
         || !item?.partnerKpis?.Messaging?.includes("awaiting staff review")
         || item?.budgetLines !== 6
         || item?.budgetAllocationEdits !== 6
+        || item?.budgetExports !== 2
+        || !item?.budgetExportText?.includes("Budget")
+        || !item?.budgetExportText?.includes("Expenses")
         || item?.budgetExpenses !== 7
         || item?.submittedExpenses !== 2
         || item?.approvedExpenses !== 2
@@ -573,7 +582,7 @@ if (visitorUrl && operationsUrl) {
       ) {
         throw new Error("Budget control, receivables, or partner key-date proof is incomplete.");
       }
-      return `${item.budgetLines} editable allocations, ${item.budgetExpenses} expenses across submitted, approved, paid, and rejected states, ${item.openReceivables} tracked receivable accounts, and ${item.milestones} editable key dates rendered; live QuickBooks remains explicitly deferred.`;
+      return `${item.budgetLines} editable allocations and ${item.budgetExpenses} expenses across submitted, approved, paid, and rejected states render with audited accounting downloads; ${item.openReceivables} receivable accounts and ${item.milestones} editable key dates are tracked; live QuickBooks remains explicitly deferred.`;
     });
     await inspect("messaging_delegation", "Automated messages and delegation", "Inspect local delivery proof and staff, volunteer, and team assignments.", async () => {
       const item = observations.operations;
@@ -638,8 +647,8 @@ if (visitorUrl && operationsUrl) {
       return `${item.documents} governed documents rendered with ${item.extractionReady} completed extraction and ${item.extractedPreviews} staff-only previews.`;
     });
     await inspect("browser_health", "Browser render health", "Inspect browser errors and page-width layout on both presentation surfaces.", async () => {
-      if (pageErrors.length || consoleErrors.length) {
-        throw new Error(`Browser errors: ${[...pageErrors, ...consoleErrors].slice(0, 3).join(" | ")}`);
+      if (pageErrors.length || consoleErrors.length || httpErrors.length) {
+        throw new Error(`Browser errors: ${[...httpErrors, ...pageErrors, ...consoleErrors].slice(0, 3).join(" | ")}`);
       }
       if (unexpectedWrites.length) throw new Error(`The read-only rehearsal blocked: ${unexpectedWrites.slice(0, 3).join(" | ")}`);
       if (observations.visitor?.overflowPixels || observations.operations?.overflowPixels) {
