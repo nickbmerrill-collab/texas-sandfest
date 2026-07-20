@@ -10167,10 +10167,14 @@ function startLiveBeach() {
     const id = Number(g.dataset.pinId);
     const s = sculptures.find(x => x.id === id);
     g.addEventListener("pointerenter", () => showPop(s));
-    g.addEventListener("pointerleave", hidePop);
+    g.addEventListener("pointerleave", () => {
+      if (document.activeElement !== g) hidePop();
+    });
     g.addEventListener("focus", () => showPop(s));
     g.addEventListener("blur",  hidePop);
     g.addEventListener("click", () => {
+      g.focus({ preventScroll: true });
+      showPop(s);
       drawRoute(id);
       flashPin(id);
     });

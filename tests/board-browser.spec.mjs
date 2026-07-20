@@ -2006,9 +2006,11 @@ test("critical public and operations views fit a mobile viewport", async ({ page
     const edgePin = page.locator(`.lb-pin[data-pin-id="${pinId}"]`);
     await edgePin.click();
     await expect(edgePin).toHaveClass(/is-flashing/);
-    expect(await page.locator("#lb-pop").evaluate(popover => {
+    const popover = page.locator("#lb-pop");
+    await expect(popover).toBeVisible();
+    expect(await popover.evaluate(element => {
       const canvasBox = document.querySelector("#lb-canvas").getBoundingClientRect();
-      const popoverBox = popover.getBoundingClientRect();
+      const popoverBox = element.getBoundingClientRect();
       return popoverBox.left >= canvasBox.left - 1
         && popoverBox.right <= canvasBox.right + 1
         && popoverBox.top >= canvasBox.top - 1
