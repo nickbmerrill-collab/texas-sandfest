@@ -5556,9 +5556,9 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
   padding: 10px;
 }
 .public-sponsor-mark img { display: block; max-height: 72px; max-width: 100%; object-fit: contain; }
-.public-sponsor-mark > span { color: var(--sponsor-primary); font-size: 28px; font-weight: 900; }
+.public-sponsor-mark > span { color: var(--deep); font-size: 28px; font-weight: 900; }
 .public-sponsor-copy { display: grid; gap: 5px; min-width: 0; }
-.public-sponsor-copy small { color: var(--sponsor-primary); font-size: 11px; font-weight: 900; text-transform: uppercase; }
+.public-sponsor-copy small { color: var(--deep); font-size: 11px; font-weight: 900; text-transform: uppercase; }
 .public-sponsor-copy strong { color: var(--deep); font-size: 18px; overflow-wrap: anywhere; }
 .public-sponsor-copy > span { color: var(--muted); font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
 .sponsor-community-label { color: var(--deep); font-size: 13px; font-weight: 900; margin: 4px 0 -18px; text-transform: uppercase; }
