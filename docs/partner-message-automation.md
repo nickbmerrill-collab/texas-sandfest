@@ -7,6 +7,8 @@ Partner messaging defaults to `review_first`. An administrator with `partners:wr
 Automatic approval is limited to messages for an existing vendor or sponsor application that already granted contact consent:
 
 - Application received acknowledgments
+- Payment received confirmations
+- Payment refund and void adjustments
 - Upcoming, due, and overdue milestone reminders
 - Vendor profile correction requests
 - Vendor requirement correction requests
@@ -35,7 +37,11 @@ Matches, invalid inputs, unknown references, wrong emails, and cooldown replays 
 6. The partner record is moved to `queued` with the queue job ID before the provider call.
 7. Brevo acceptance, message ID, attempts, failures, and authenticated webhook events are recorded in the partner ledger.
 
-Recipient identity and consent are checked again immediately before delivery. A changed email, inactive or missing directory owner, withdrawn consent, completed milestone, or rescheduled milestone blocks the send. Provider failures use the durable worker retry policy and terminal failures remain visible for staff action.
+Recipient identity and consent are checked again immediately before delivery. A changed email, inactive or missing directory owner, withdrawn consent, completed milestone, rescheduled milestone, or changed payment state blocks the send. Provider failures use the durable worker retry policy and terminal failures remain visible for staff action.
+
+Payment notices are derived from the current site-native ledger rather than from a browser request or provider payload. A successful payment creates one versioned confirmation with the recorded amount and current invoice balance. A partial refund, full refund, or void creates a separate adjustment notice. Provider references, bank or check identifiers, and staff-only reversal reasons are never included in message content. Repeated worker ticks converge on the same payment-state version; a later ledger adjustment invalidates an unsent receipt before approval or provider submission while preserving already delivered history. The adjustment then reports the current balance through the same consent, automation, queue, and delivery-proof gates.
+
+Only payments recorded or adjusted under the current notice policy are eligible. Existing ledger history is not backfilled when this automation is deployed.
 
 The first application-review reminder is intentionally staggered from intake. Upcoming `interest_review`, `application_review`, and `opportunity_qualification` milestones on their untouched intake schedule wait until the application is at least 24 hours old before a reminder is generated, so a new partner does not receive a milestone email in the same delivery cycle as the acknowledgment. A staff reschedule increments the schedule version and overrides that grace. Due or overdue milestones, payment reminders, custom staff-created dates, task notices, and the acknowledgment itself keep their existing timing.
 
@@ -56,7 +62,7 @@ npm run import:staff -- /secure/staff-directory.json --source=manual_verified --
 
 CSV imports accept `id`, `event_id`, `name`, `email`, `status`, `roles`, `teams`, and `notification_teams`; list values may be separated by pipes, semicolons, or commas. Duplicate staff IDs, email identities, or team routes fail the full replacement. Production commits require Postgres and refuse file storage. A mismatched annual directory may be previewed, but commit remains disabled until the archive-first event rollover is complete.
 
-Payment reminders use the invoice due date as their schedule. When successful payments reach the approved application amount, payment reconciliation completes the finance-owned `Payment due` milestone and dismisses any active unsent reminder. A refund or reversal that restores a balance reopens only a milestone previously completed by `automation:payment_reconciliation`, increments its schedule version, and leaves manually completed or cancelled milestones unchanged. Reminder generation also checks the current ledger balance, so a legacy open milestone cannot produce a payment reminder for a fully paid account.
+Payment reminders use the invoice due date as their schedule. When successful payments reach the approved application amount, payment reconciliation completes the finance-owned `Payment due` milestone, dismisses any active unsent reminder, and allows the worker to create the payment confirmation. A refund or reversal that restores a balance reopens only a milestone previously completed by `automation:payment_reconciliation`, increments its schedule version, and creates a current-balance adjustment notice while leaving manually completed or cancelled milestones unchanged. Reminder generation also checks the current ledger balance, so a legacy open milestone cannot produce a payment reminder for a fully paid account.
 
 ## Administration
 

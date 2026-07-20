@@ -154,6 +154,7 @@ import {
   generateDueOutreachFollowups,
   generateDuePartnerFollowups,
   generateDueTaskFollowups,
+  generatePartnerPaymentFollowups,
   matchOutreachProspects,
   outreachDistanceMiles,
   outreachCampaignAutomationReadiness,
@@ -773,6 +774,7 @@ console.log("\n=== Pure library suite ===\n");
         ...Array.from({ length: 4 }, (_, index) => ({ id: `demo_ack_${index + 1}`, kind: "application_received", status: "draft_ready" })),
         ...Array.from({ length: 3 }, (_, index) => ({ id: `demo_task_notice_${index + 1}`, kind: "task_assignment", status: "draft_ready", body: `https://board.example/#task-status?task=task_${index + 1}&token=tsft_demo_${index + 1}` })),
         { id: "demo_milestone_reminder", kind: "milestone_reminder", status: "draft_ready", milestoneId: "demo_milestone_1" },
+        { id: "demo_payment_received", kind: "payment_received", status: "draft_ready", paymentId: "demo_payment" },
         { id: "demo_review_outreach", kind: "sponsor_outreach", status: "draft_ready", campaignId: "demo_review_campaign", automationPolicy: null }
       ],
       tasks: [
@@ -892,6 +894,10 @@ console.log("\n=== Pure library suite ===\n");
   missingAutomaticKeyDateProof.partners.followups = missingAutomaticKeyDateProof.partners.followups
     .filter(item => item.kind !== "milestone_reminder");
   const missingAutomaticKeyDateReport = evaluateBoardDemoReadiness(missingAutomaticKeyDateProof);
+  const missingPaymentConfirmationProof = structuredClone(localAutomationBoardState);
+  missingPaymentConfirmationProof.partners.followups = missingPaymentConfirmationProof.partners.followups
+    .filter(item => item.kind !== "payment_received");
+  const missingPaymentConfirmationReport = evaluateBoardDemoReadiness(missingPaymentConfirmationProof);
   const missingDurableDeliveryProof = structuredClone(localAutomationBoardState);
   delete missingDurableDeliveryProof.partners.followups.at(-1).deliveryEvents;
   const missingDurableDeliveryReport = evaluateBoardDemoReadiness(missingDurableDeliveryProof);
@@ -922,6 +928,7 @@ console.log("\n=== Pure library suite ===\n");
     && missingLocalCampaignReport.checks.find(item => item.id === "operations")?.ok === false
     && missingReviewFirstReport.checks.find(item => item.id === "operations")?.ok === false
     && missingAutomaticKeyDateReport.checks.find(item => item.id === "operations")?.ok === false
+    && missingPaymentConfirmationReport.checks.find(item => item.id === "operations")?.ok === false
     && missingDurableDeliveryReport.checks.find(item => item.id === "operations")?.ok === false);
   ok("board demo readiness survives a fresh sandbox process when durable delivery proof is present", restartedLocalAutomationBoardReport.ok);
   const directionalCameraIds = ["harbor-island-entrance", "harbor-island-stacking", "ferry-loading", "ferry-stacking"];
@@ -2787,6 +2794,37 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   ok("open invoice schedules payment follow-up", paymentReminder?.kind === "milestone_reminder" && paymentReminder?.status === "draft_ready");
   const partial = recordPartnerPayment(paymentReminderDrafts.doc, created.application.id, { amountCents: 1000000, method: "ach", externalRef: "ACH-200" }, { idFactory, now });
   ok("partner payment allocation", partial.ok && partial.payment.appliedAmountCents === 1000000 && partial.doc.invoices[0].balanceCents === 1000000 && partial.doc.applications[0].status === "partial");
+  const paymentNotices = generatePartnerPaymentFollowups(partial.doc, { idFactory, now, portalUrlForApplication: () => portalUrl });
+  const paymentReceipt = paymentNotices.generated.find(item => item.paymentId === partial.payment.id);
+  const repeatedPaymentNotices = generatePartnerPaymentFollowups(paymentNotices.doc, { idFactory, now, portalUrlForApplication: () => portalUrl });
+  const legacyPaymentNotices = generatePartnerPaymentFollowups({
+    ...partial.doc,
+    payments: partial.doc.payments.map(item => ({ ...item, noticePolicyVersion: undefined }))
+  }, { idFactory, now, portalUrlForApplication: () => portalUrl });
+  ok("partner payment receipt is current, private, and idempotent", paymentReceipt?.kind === "payment_received"
+    && paymentReceipt.status === "draft_ready"
+    && paymentReceipt.subject.includes("payment received")
+    && paymentReceipt.body.includes("$10,000.00")
+    && paymentReceipt.body.includes("current invoice balance")
+    && paymentReceipt.body.includes(portalUrl)
+    && !paymentReceipt.body.includes("ACH-200")
+    && repeatedPaymentNotices.generated.length === 0);
+  ok("payment notices do not backfill legacy ledger entries", legacyPaymentNotices.generated.length === 0);
+  const paymentNoticeReversal = reversePartnerPayment(paymentNotices.doc, partial.payment.id, { action: "refund", reason: "Private finance correction" }, { idFactory, actorId: "finance_1", now: "2026-07-16T12:05:00.000Z" });
+  const stalePaymentReceiptDoc = {
+    ...paymentNoticeReversal.doc,
+    followups: paymentNoticeReversal.doc.followups.map(item => item.id === paymentReceipt.id ? { ...item, status: "draft_ready" } : item)
+  };
+  const stalePaymentReceiptReview = reviewFollowup(stalePaymentReceiptDoc, paymentReceipt.id, "approve", { actorId: "finance_1", now });
+  const paymentAdjustments = generatePartnerPaymentFollowups(stalePaymentReceiptDoc, { idFactory, now: "2026-07-16T12:05:00.000Z", portalUrlForApplication: () => portalUrl });
+  const paymentAdjustment = paymentAdjustments.generated.find(item => item.paymentId === partial.payment.id);
+  ok("payment reversal invalidates receipt and creates a safe adjustment notice", !stalePaymentReceiptReview.ok
+    && stalePaymentReceiptReview.error.includes("stale")
+    && paymentAdjustments.doc.followups.find(item => item.id === paymentReceipt.id)?.status === "dismissed"
+    && paymentAdjustment?.kind === "payment_adjustment"
+    && paymentAdjustment.body.includes("$10,000.00")
+    && !paymentAdjustment.body.includes("Private finance correction")
+    && !paymentAdjustment.body.includes("ACH-200"));
   const duplicatePayment = recordPartnerPayment(partial.doc, created.application.id, { amountCents: 1000000, method: "ach", externalRef: "ach-200" }, { idFactory, now });
   const conflictingPayment = recordPartnerPayment(partial.doc, created.application.id, { amountCents: 900000, method: "ach", externalRef: "ACH-200" }, { idFactory, now });
   ok("partner payment reference idempotency", duplicatePayment.ok && duplicatePayment.duplicate && duplicatePayment.doc.payments.length === 2 && duplicatePayment.totalPaidCents === 1500000 && !conflictingPayment.ok && conflictingPayment.conflict);
