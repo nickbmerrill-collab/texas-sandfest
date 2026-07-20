@@ -2806,13 +2806,14 @@ async function loadAdminDeployment() {
 function renderAdminJobHealth(summary) {
   const target = document.querySelector("#admin-job-summary");
   if (!target) return;
+  const done = Number(summary?.done || 0);
   const pending = Number(summary?.pending || 0);
   const running = Number(summary?.running || 0);
   const failed = Number(summary?.failed || 0);
   const unhandled = Number(summary?.unhandledFailed || 0);
   const stale = Number(summary?.staleRunning || 0);
   const handled = Math.max(0, failed - unhandled);
-  target.textContent = `${pending} pending · ${running} active · ${unhandled} need review${handled ? ` · ${handled} handled` : ""}${stale ? ` · ${stale} expired` : ""}`;
+  target.textContent = `${done} complete · ${pending} pending · ${running} active · ${unhandled} need review${handled ? ` · ${handled} handled` : ""}${stale ? ` · ${stale} expired` : ""}`;
   target.dataset.state = summary?.needsAttention ? "error" : "ok";
 }
 
@@ -2820,7 +2821,9 @@ function adminJobTimeLabel(job) {
   const source = job.status === "queued" ? job.runAfter : job.status === "running" ? job.leaseExpiresAt : job.updatedAt;
   const timestamp = new Date(source || "");
   if (Number.isNaN(timestamp.getTime())) return "Timestamp unavailable";
-  const prefix = job.status === "queued"
+  const prefix = job.displayKind === "completed_group"
+    ? "Latest"
+    : job.status === "queued"
     ? "Scheduled"
     : job.status === "running"
       ? "Lease ends"
@@ -2832,11 +2835,17 @@ function adminJobTimeLabel(job) {
 
 function adminJobCard(job) {
   const status = adminRecordDisplayLabel(job.status, "Unknown");
-  const attempt = job.maxAttempts
-    ? `${job.attempts} of ${job.maxAttempts} attempts used`
-    : `${job.attempts} attempts used`;
+  const completedGroup = job.displayKind === "completed_group";
+  const attempt = completedGroup
+    ? `${job.completedCount} completed run${job.completedCount === 1 ? "" : "s"}`
+    : job.maxAttempts
+      ? `${job.attempts} of ${job.maxAttempts} attempts used`
+      : `${job.attempts} attempts used`;
   const failure = job.failureSummary ? `<p class="admin-delivery-error">${escapeHtml(job.failureSummary)}</p>` : "";
-  const resolution = job.requiresAcknowledgement ? `
+  const resolution = completedGroup ? `
+    <div class="admin-job-actions">
+      <a class="button secondary" href="${escapeAttr(job.workspaceHref)}">Open ${escapeHtml(job.workspaceLabel)}</a>
+    </div>` : job.requiresAcknowledgement ? `
     <div class="admin-job-actions">
       <a class="button secondary" href="${escapeAttr(job.workspaceHref)}">Open ${escapeHtml(job.workspaceLabel)}</a>
       <form data-acknowledge-job="${escapeAttr(job.id)}" data-requires-permission="jobs:write">
@@ -2849,7 +2858,7 @@ function adminJobCard(job) {
       <span>Failure reviewed</span>
     </div>` : "";
   return `
-    <article class="admin-record-card admin-job-card" data-admin-job="${escapeAttr(job.id)}" data-job-status="${escapeAttr(job.status)}">
+    <article class="admin-record-card admin-job-card" data-automation-row data-job-status="${escapeAttr(job.status)}" data-job-count="${completedGroup ? job.completedCount : 1}"${completedGroup ? ' data-job-group="completed"' : ` data-admin-job="${escapeAttr(job.id)}"`}>
       <div><strong>${escapeHtml(job.label)}</strong><span>${escapeHtml(status)}</span></div>
       <p>${escapeHtml(attempt)} · ${escapeHtml(adminJobTimeLabel(job))}</p>
       ${failure}
@@ -2883,15 +2892,20 @@ function renderAdminJobs(data) {
   renderAdminJobHealth(data?.summary);
   const target = document.querySelector("#admin-job-list");
   if (!target) return;
-  target.innerHTML = data?.jobs?.length
-    ? data.jobs.map(adminJobCard).join("")
+  const rows = Array.isArray(data?.displayRows)
+    ? data.displayRows
+    : Array.isArray(data?.jobs)
+      ? data.jobs.map((job) => ({ ...job, displayKind: "job", completedCount: 0 }))
+      : [];
+  target.innerHTML = rows.length
+    ? rows.map(adminJobCard).join("")
     : '<article class="empty-state"><span>No background automation has run yet.</span></article>';
   bindAdminJobActions();
   if (adminSessionState) renderAdminSession(adminSessionState);
 }
 
 async function loadAdminJobHealth() {
-  const data = await adminFetch("/api/admin/jobs?limit=12");
+  const data = await adminFetch("/api/admin/jobs?limit=50");
   renderAdminJobs(data);
   return data;
 }
@@ -8566,7 +8580,7 @@ async function loadAdminTransactions() {
   button.disabled = true;
   try {
     const [jobs, orders, events, fulfillment, audit, snapshots] = await Promise.all([
-      adminFetch("/api/admin/jobs?limit=12"),
+      adminFetch("/api/admin/jobs?limit=50"),
       adminFetch("/api/admin/orders?limit=12"),
       adminFetch("/api/admin/payment-events?limit=12"),
       adminFetch("/api/admin/fulfillment?limit=12"),
