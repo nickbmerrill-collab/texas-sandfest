@@ -7,7 +7,7 @@
 
 import { spawn } from "node:child_process";
 import { createHash, createHmac } from "node:crypto";
-import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { createServer as createHttpServer } from "node:http";
 import { createServer } from "node:net";
 import twilio from "twilio";
@@ -334,6 +334,8 @@ import {
   selectPublicMediaAssets
 } from "../lib/public-media-selection.mjs";
 import {
+  beginIncidentDispatchProviderSubmission,
+  claimIncidentDispatchDelivery,
   createIncidentDispatch,
   createOperationsIncident,
   deriveCameraCondition,
@@ -341,6 +343,7 @@ import {
   evaluateCameraObservationIncident,
   failedFeedRefreshNeedsRetry,
   freshness,
+  incidentDispatchDeliveryJobKey,
   islandConditionsLiveFeedsEnabled,
   normalizeNwsForecast,
   normalizeTxdotFerryStatus,
@@ -5531,9 +5534,35 @@ Research First,construction,Corpus Christi,,78401,,,,Find decision maker,`;
   ok("dispatch team recipient is revalidated", !changedTeamRoute.ok && changedTeamRoute.error.includes("email changed"));
   const reapproved = reviewIncidentDispatchMessage(edited.doc, dispatched.dispatch.id, "approve", { actorId: "ops_2", taskRecipients: dispatchTaskRecipients, now: "2026-07-16T12:05:00.000Z" });
   const queued = queueIncidentDispatchMessage(reapproved.doc, dispatched.dispatch.id, { actorId: "ops_2", taskRecipients: dispatchTaskRecipients, now: "2026-07-16T12:06:00.000Z" });
-  const retrying = recordIncidentDispatchDelivery(queued.doc, dispatched.dispatch.id, { sent: false, provider: "brevo", error: "temporary failure" }, { terminal: false, now: "2026-07-16T12:07:00.000Z" });
-  const sent = recordIncidentDispatchDelivery(retrying.doc, dispatched.dispatch.id, { sent: true, provider: "brevo", providerMessageId: "dispatch_msg_1" }, { now: "2026-07-16T12:08:00.000Z" });
-  ok("dispatch delivery retry and proof", queued.dispatch.notification.status === "queued" && retrying.dispatch.notification.status === "queued" && sent.dispatch.notification.status === "sent" && sent.dispatch.notification.providerMessageId === "dispatch_msg_1" && sent.dispatch.notification.deliveryAttempts === 2);
+  const queuedAgain = queueIncidentDispatchMessage(queued.doc, dispatched.dispatch.id, { actorId: "ops_2", taskRecipients: dispatchTaskRecipients, now: "2026-07-16T12:06:30.000Z" });
+  const claimed = claimIncidentDispatchDelivery(queued.doc, dispatched.dispatch.id, { deliveryClaimId: "job_dispatch_1", taskRecipients: dispatchTaskRecipients, now: "2026-07-16T12:07:00.000Z" });
+  const staleBegin = beginIncidentDispatchProviderSubmission(claimed.doc, dispatched.dispatch.id, { deliveryClaimId: "job_dispatch_stale", taskRecipients: dispatchTaskRecipients, now: "2026-07-16T12:07:30.000Z" });
+  const begun = beginIncidentDispatchProviderSubmission(claimed.doc, dispatched.dispatch.id, { deliveryClaimId: "job_dispatch_1", taskRecipients: dispatchTaskRecipients, now: "2026-07-16T12:08:00.000Z" });
+  const retrying = recordIncidentDispatchDelivery(begun.doc, dispatched.dispatch.id, { sent: false, provider: "brevo", error: "temporary failure" }, { deliveryClaimId: "job_dispatch_1", terminal: false, now: "2026-07-16T12:09:00.000Z" });
+  const reclaimed = claimIncidentDispatchDelivery(retrying.doc, dispatched.dispatch.id, { deliveryClaimId: "job_dispatch_2", taskRecipients: dispatchTaskRecipients, now: "2026-07-16T12:10:00.000Z" });
+  const staleResult = recordIncidentDispatchDelivery(reclaimed.doc, dispatched.dispatch.id, { sent: true, provider: "brevo", providerMessageId: "dispatch_stale" }, { deliveryClaimId: "job_dispatch_1", now: "2026-07-16T12:10:30.000Z" });
+  const begunAgain = beginIncidentDispatchProviderSubmission(reclaimed.doc, dispatched.dispatch.id, { deliveryClaimId: "job_dispatch_2", taskRecipients: dispatchTaskRecipients, now: "2026-07-16T12:11:00.000Z" });
+  const sent = recordIncidentDispatchDelivery(begunAgain.doc, dispatched.dispatch.id, { sent: true, provider: "brevo", providerMessageId: "dispatch_msg_1" }, { deliveryClaimId: "job_dispatch_2", now: "2026-07-16T12:12:00.000Z" });
+  const unknown = recordIncidentDispatchDelivery(begun.doc, dispatched.dispatch.id, { sent: false, provider: "worker", error: "worker stopped after provider handoff" }, { deliveryClaimId: "job_dispatch_1", terminal: true, unknownOutcome: true, now: "2026-07-16T12:09:00.000Z" });
+  const unknownRetry = queueIncidentDispatchMessage(unknown.doc, dispatched.dispatch.id, { actorId: "ops_2", taskRecipients: dispatchTaskRecipients, now: "2026-07-16T12:10:00.000Z" });
+  ok("dispatch queue reservation is idempotent", queued.dispatch.notification.deliveryQueueVersion === 1 && queuedAgain.duplicate && queuedAgain.dispatch.notification.deliveryIdempotencyKey === queued.dispatch.notification.deliveryIdempotencyKey && incidentDispatchDeliveryJobKey(queued.dispatch) === incidentDispatchDeliveryJobKey(queuedAgain.dispatch));
+  ok("dispatch provider handoff is fenced", claimed.dispatch.notification.status === "sending" && !staleBegin.ok && staleBegin.canceled && begun.dispatch.notification.providerSubmissionStartedAt && !staleResult.ok && staleResult.error.includes("no longer owns"));
+  ok("dispatch delivery retry and proof", retrying.dispatch.notification.status === "queued" && retrying.dispatch.notification.deliveryIdempotencyKey === queued.dispatch.notification.deliveryIdempotencyKey && sent.dispatch.notification.status === "sent" && sent.dispatch.notification.providerMessageId === "dispatch_msg_1" && sent.dispatch.notification.deliveryAttempts === 2);
+  ok("dispatch ambiguous outcome fails closed with provider identity preserved", unknown.dispatch.notification.status === "failed" && unknown.dispatch.notification.deliveryOutcomeUnknown && unknownRetry.dispatch.notification.deliveryIdempotencyKey === queued.dispatch.notification.deliveryIdempotencyKey && unknownRetry.dispatch.notification.deliveryQueueVersion === 2);
+
+  const closedBeforeHandoff = updateOperationsIncident(claimed.doc, incident.incident.id, {
+    status: "resolved",
+    resolution: "South gate flow returned to normal before provider handoff."
+  }, { actorId: "ops_1", now: "2026-07-16T12:07:30.000Z" });
+  const canceledBeforeHandoff = closedBeforeHandoff.doc.dispatches.find(item => item.id === dispatched.dispatch.id);
+  const closedInFlight = updateOperationsIncident(begun.doc, incident.incident.id, {
+    status: "resolved",
+    resolution: "South gate flow returned to normal while notification delivery completed."
+  }, { actorId: "ops_1", now: "2026-07-16T12:08:30.000Z" });
+  const inFlightDispatch = closedInFlight.doc.dispatches.find(item => item.id === dispatched.dispatch.id);
+  const completedAfterClose = recordIncidentDispatchDelivery(closedInFlight.doc, dispatched.dispatch.id, { sent: true, provider: "brevo", providerMessageId: "dispatch_msg_after_close" }, { deliveryClaimId: "job_dispatch_1", now: "2026-07-16T12:09:00.000Z" });
+  ok("incident close cancels a pre-handoff delivery claim", canceledBeforeHandoff.notification.status === "canceled" && canceledBeforeHandoff.notification.deliveryClaimId === null && canceledBeforeHandoff.notification.providerSubmissionStartedAt === null);
+  ok("incident close preserves an in-flight provider handoff", inFlightDispatch.status === "canceled" && inFlightDispatch.notification.status === "sending" && completedAfterClose.ok && completedAfterClose.dispatch.notification.status === "sent");
 
   const volunteerIncident = createOperationsIncident(seed, {
     sourceType: "operator", sourceId: "volunteer-dispatch-test", title: "Guest services line support", severity: "moderate"
@@ -7032,6 +7061,109 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     ok("incident dispatch review and readiness gate", editedDispatch.status === 200 && editedDispatch.data.dispatch?.notification?.status === "draft_ready" && approvedDispatch.data.dispatch?.notification?.status === "approved" && disabledDispatchSend.status === 409);
     ok("incident dispatch uses governed team route", createdDispatch.data.dispatch?.assigneeName === "Traffic and parking" && createdDispatch.data.dispatch?.notification?.recipientAvailable === true);
     ok("incident dispatch response minimizes contacts", persistedDispatch?.notification?.recipientAvailable === true && !("recipient" in (persistedDispatch?.notification || {})) && !dispatchWorkspace.data.assignmentDirectory?.staff?.some(item => "email" in item) && !dispatchWorkspace.data.assignmentDirectory?.volunteers?.some(item => "email" in item));
+
+    const dispatchEmailPort = String(await freePort());
+    const dispatchSandboxPort = await freePort();
+    const dispatchApiBase = `http://127.0.0.1:${dispatchEmailPort}`;
+    const dispatchApiKey = "board-dispatch-api-key-0123456789";
+    const dispatchWebhookToken = "board-dispatch-webhook-token-0123456789";
+    const dispatchSandbox = await startBoardEmailSandbox({
+      config: boardEmailSandboxConfig({
+        SANDFEST_BOARD_EMAIL_SANDBOX: "true",
+        SANDFEST_BOARD_EMAIL_PORT: String(dispatchSandboxPort),
+        SANDFEST_BOARD_EMAIL_DELIVERY_DELAY_MS: "10",
+        BOARD_BREVO_API_KEY: dispatchApiKey,
+        BREVO_WEBHOOK_TOKEN: dispatchWebhookToken,
+        SANDFEST_BOARD_EMAIL_WEBHOOK_URL: `${dispatchApiBase}/api/webhooks/brevo`
+      })
+    });
+    let dispatchApiChild = null;
+    try {
+      const dispatchEmailEnv = {
+        ...apiChildEnv,
+        SANDFEST_API_PORT: dispatchEmailPort,
+        TRANSACTIONAL_EMAIL_ENABLED: "true",
+        BREVO_API_KEY: dispatchApiKey,
+        BREVO_SENDER_EMAIL: "operations@texassandfest.example",
+        BREVO_SENDER_NAME: "Texas SandFest Operations",
+        BREVO_API_ENDPOINT: `${dispatchSandbox.url}/v3/smtp/email`,
+        BREVO_WEBHOOK_TOKEN: dispatchWebhookToken
+      };
+      dispatchApiChild = spawn("node", ["scripts/admin-api-server.mjs"], {
+        cwd: ROOT,
+        env: dispatchEmailEnv,
+        stdio: ["ignore", "pipe", "pipe"]
+      });
+      let dispatchApiOutput = "";
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error(`Dispatch API start timeout:\n${dispatchApiOutput}`)), 8_000);
+        const onData = chunk => {
+          dispatchApiOutput += String(chunk);
+          if (dispatchApiOutput.includes("listening")) {
+            clearTimeout(timeout);
+            resolve();
+          }
+        };
+        dispatchApiChild.stdout.on("data", onData);
+        dispatchApiChild.stderr.on("data", onData);
+        dispatchApiChild.once("error", reject);
+      });
+      const dispatchHit = async (method, pathName, body = null) => {
+        const response = await fetch(`${dispatchApiBase}${pathName}`, {
+          method,
+          headers: { "content-type": "application/json", authorization: `Bearer ${TOKEN}` },
+          body: body ? JSON.stringify(body) : undefined
+        });
+        return { status: response.status, data: await response.json().catch(() => ({})) };
+      };
+      const recoveryIncident = await dispatchHit("POST", "/api/admin/island-conditions/incidents", {
+        title: "Dispatch queue recovery test",
+        summary: "Verify the durable incident email outbox.",
+        severity: "high",
+        ownerTeam: "traffic"
+      });
+      const recoveryDispatchPath = `/api/admin/island-conditions/incidents/${recoveryIncident.data.incident?.id}/dispatches`;
+      const recoveryDispatch = await dispatchHit("POST", recoveryDispatchPath, {
+        assigneeType: "team",
+        assigneeId: "traffic",
+        channel: "email",
+        title: "Verify durable dispatch delivery",
+        instructions: "Acknowledge the test dispatch and report to command."
+      });
+      const recoveryDispatchId = recoveryDispatch.data.dispatch?.id;
+      const recoveryApproval = await dispatchHit("POST", `${recoveryDispatchPath}/${recoveryDispatchId}/review`, { action: "approve" });
+      const recoveryQueue = await dispatchHit("POST", `${recoveryDispatchPath}/${recoveryDispatchId}/send`, {});
+      const recoveryQueueReplay = await dispatchHit("POST", `${recoveryDispatchPath}/${recoveryDispatchId}/send`, {});
+      await unlink(path.join(isolatedJobQueueDir, `${recoveryQueue.data.job?.id}.json`));
+      const recoveryWorker = await runSmokeWorkerOnce({
+        ...dispatchEmailEnv,
+        SANDFEST_WORKER_ONCE: "true",
+        SANDFEST_WORKER_BATCH: "25"
+      });
+      const recoveryWorkspace = await dispatchHit("GET", "/api/admin/island-conditions");
+      const recoveredDispatch = recoveryWorkspace.data.dispatches?.find(item => item.id === recoveryDispatchId);
+      const replayWorker = await runSmokeWorkerOnce({
+        ...dispatchEmailEnv,
+        SANDFEST_WORKER_ONCE: "true",
+        SANDFEST_WORKER_BATCH: "25"
+      });
+      for (let attempt = 0; attempt < 30; attempt += 1) {
+        const health = await fetch(`${dispatchSandbox.url}/health`).then(response => response.json());
+        if (health.deliveryCallbacks >= 1) break;
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
+      const dispatchSandboxHealth = await fetch(`${dispatchSandbox.url}/health`).then(response => response.json());
+      ok("incident dispatch API queue replay converges", recoveryIncident.status === 201 && recoveryDispatch.status === 201 && recoveryApproval.status === 200 && recoveryQueue.status === 202 && recoveryQueueReplay.status === 200 && recoveryQueueReplay.data.duplicate === true && recoveryQueueReplay.data.job?.id === recoveryQueue.data.job?.id);
+      ok("incident dispatch API withholds delivery ownership", !("deliveryIdempotencyKey" in (recoveryQueue.data.dispatch?.notification || {})) && !("deliveryClaimId" in (recoveryQueue.data.dispatch?.notification || {})) && !("deliveryIdempotencyKey" in (recoveredDispatch?.notification || {})));
+      ok("incident dispatch worker repairs a missing queue job", recoveryWorker.exitCode === 0 && recoveryWorker.stdout.includes("incident dispatch recovery queued=1 scheduled=1 failed=0") && recoveredDispatch?.notification?.status === "sent" && recoveredDispatch?.notification?.providerMessageId?.startsWith("board-mail-"));
+      ok("incident dispatch worker retry does not duplicate provider delivery", replayWorker.exitCode === 0 && dispatchSandboxHealth.acceptedMessages === 1 && dispatchSandboxHealth.deliveryCallbacks === 1);
+    } finally {
+      if (dispatchApiChild) {
+        dispatchApiChild.kill("SIGTERM");
+        await new Promise(resolve => dispatchApiChild.once("exit", resolve));
+      }
+      await dispatchSandbox.close();
+    }
     const rejectedResolution = await hit("PATCH", `/api/admin/island-conditions/incidents/${manualIncident.data.incident?.id}`, { status: "resolved" }, true);
     const acceptedResolution = await hit("PATCH", `/api/admin/island-conditions/incidents/${manualIncident.data.incident?.id}`, { status: "resolved", resolution: "Access confirmed and route restored." }, true);
     const closedDispatchWorkspace = await hit("GET", "/api/admin/island-conditions", null, true);
