@@ -5123,8 +5123,10 @@ async function handleRequest(request, response) {
           });
           return;
         }
-        sendJson(request, response, 409, { error: "A payment checkout is already being prepared. Please retry shortly." });
-        return;
+        if (reservation.checkout.status !== "creating") {
+          sendJson(request, response, 409, { error: "This payment checkout cannot be resumed. Please refresh the partner portal." });
+          return;
+        }
       }
       if (BOARD_TICKET_SANDBOX.enabled) {
         await writeAuditRecord(request, "partner.payment_checkout.board_created", { type: "payment_checkout", id: reservation.checkout.id }, null, {
@@ -5146,15 +5148,18 @@ async function handleRequest(request, response) {
           now: new Date().toISOString()
         }));
         if (!activated?.ok) throw new Error(activated?.error || "Stripe checkout state could not be saved.");
-        await writeAuditRecord(request, "partner.payment_checkout.created", { type: "payment_checkout", id: activated.checkout.id }, null, {
-          applicationId: activated.checkout.applicationId,
-          invoiceId: activated.checkout.invoiceId,
-          amountCents: activated.checkout.amountCents,
-          providerSessionId: activated.checkout.providerSessionId,
-          expiresAt: activated.checkout.expiresAt
-        });
-        sendJson(request, response, 201, {
-          duplicate: false,
+        if (!activated.duplicate) {
+          await writeAuditRecord(request, "partner.payment_checkout.created", { type: "payment_checkout", id: activated.checkout.id }, null, {
+            applicationId: activated.checkout.applicationId,
+            invoiceId: activated.checkout.invoiceId,
+            amountCents: activated.checkout.amountCents,
+            providerSessionId: activated.checkout.providerSessionId,
+            expiresAt: activated.checkout.expiresAt
+          });
+        }
+        const duplicate = reservation.duplicate === true || activated.duplicate === true;
+        sendJson(request, response, duplicate ? 200 : 201, {
+          duplicate,
           checkout: {
             id: activated.checkout.id,
             status: activated.checkout.status,
@@ -5163,9 +5168,22 @@ async function handleRequest(request, response) {
           }
         });
       } catch (error) {
-        await mutatePartnerOperations(doc => failPartnerPaymentCheckout(doc, reservation.checkout.id, error.message, {
+        const failed = await mutatePartnerOperations(doc => failPartnerPaymentCheckout(doc, reservation.checkout.id, error.message, {
           now: new Date().toISOString()
         }));
+        const recoveredCheckoutUrl = stripeHostedCheckoutUrl(failed?.checkout?.checkoutUrl);
+        if (failed?.checkout?.status === "open" && recoveredCheckoutUrl) {
+          sendJson(request, response, 200, {
+            duplicate: true,
+            checkout: {
+              id: failed.checkout.id,
+              status: failed.checkout.status,
+              checkoutUrl: recoveredCheckoutUrl,
+              expiresAt: failed.checkout.expiresAt
+            }
+          });
+          return;
+        }
         sendJson(request, response, 502, { error: "Stripe could not prepare this invoice payment. Please try again." });
       }
       return;
