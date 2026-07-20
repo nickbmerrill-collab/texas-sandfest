@@ -2,6 +2,8 @@ import SwiftUI
 
 struct TodayView: View {
     @EnvironmentObject private var dataStore: AppDataStore
+    let onAskSandy: (_ question: String?, _ submitImmediately: Bool) -> Void
+    let onShowTickets: () -> Void
 
     var body: some View {
         NavigationStack {
@@ -49,10 +51,18 @@ struct TodayView: View {
 
     private var quickActions: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-            action("Ask Sandy", "sparkles")
-            action("Tickets", "ticket")
-            action("ADA Help", "figure.roll")
-            action("Report Issue", "exclamationmark.bubble")
+            action("Ask Sandy", "sparkles") {
+                onAskSandy(nil, false)
+            }
+            action("Tickets", "ticket") {
+                onShowTickets()
+            }
+            action("ADA Help", "figure.roll") {
+                onAskSandy("What accessibility services are available?", true)
+            }
+            action("Safety Help", "cross.case.fill") {
+                onAskSandy("I need security for an emergency or safety issue.", true)
+            }
         }
     }
 
@@ -78,9 +88,8 @@ struct TodayView: View {
         }
     }
 
-    private func action(_ title: String, _ icon: String) -> some View {
-        Button {
-        } label: {
+    private func action(_ title: String, _ icon: String, perform: @escaping () -> Void) -> some View {
+        Button(action: perform) {
             Label(title, systemImage: icon)
                 .font(.subheadline.weight(.bold))
                 .frame(maxWidth: .infinity, minHeight: 48)

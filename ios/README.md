@@ -17,7 +17,7 @@ From the repository root, `npm run test:ios-xcode` selects an available iPhone s
 - Customer mode
   - Today
   - Schedule
-  - Beach Map
+  - Beach, with Live Beach and Sculptors views
   - Ask Sandy
   - Tickets
 - Admin mode
@@ -49,3 +49,25 @@ Staff-only sponsor, vendor, volunteer, finance, and zone-status collections are
 not written into the public cache. They remain bundled demonstration data until
 the native staff surface has an authenticated session and consumes the
 role-governed app bootstrap.
+
+## Ask Sandy
+
+The native concierge posts bounded questions to `POST /api/public/concierge`
+and renders the same source-cited, no-store response used by the visitor site.
+Responses are rejected unless they contain a valid confidence value and one to
+four safe internal or HTTPS sources. Network or validation failures retain the
+offline guide and show the current event contact instead of generating a local
+answer.
+
+Today shortcuts route to Sandy, Tickets, a prefilled accessibility request, or
+the server's emergency-escalation guidance. Beach and Sculptors share one
+segmented hub so Sandy and Tickets remain direct tabs instead of falling under
+iOS's automatic More navigation.
+
+For deterministic simulator acceptance, launch with an API base and a question:
+
+```bash
+xcrun simctl launch booted com.portalcodex.texassandfest \
+  -apiBase http://127.0.0.1:8806 \
+  -conciergePrompt "What accessibility services are available?"
+```

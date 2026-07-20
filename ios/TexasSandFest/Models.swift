@@ -8,6 +8,10 @@ struct EventGuide: Identifiable, Codable {
     let dateRange: String
     let timeZone: String?
     let location: String
+    let phone: String?
+    let email: String?
+    let sourceUrl: String?
+    let sourceCheckedAt: Date?
     let lastUpdated: Date
 
     init(
@@ -18,6 +22,10 @@ struct EventGuide: Identifiable, Codable {
         dateRange: String,
         timeZone: String? = nil,
         location: String,
+        phone: String? = nil,
+        email: String? = nil,
+        sourceUrl: String? = nil,
+        sourceCheckedAt: Date? = nil,
         lastUpdated: Date
     ) {
         self.id = id
@@ -27,6 +35,10 @@ struct EventGuide: Identifiable, Codable {
         self.dateRange = dateRange
         self.timeZone = timeZone
         self.location = location
+        self.phone = phone
+        self.email = email
+        self.sourceUrl = sourceUrl
+        self.sourceCheckedAt = sourceCheckedAt
         self.lastUpdated = lastUpdated
     }
 }
@@ -262,6 +274,28 @@ struct PublicSandFestPayload: Codable {
     let schedule: [ScheduleItem]
     let zones: [PublicVenueZone]
     let runtime: PublicRuntime?
+}
+
+enum ConciergeConfidence: String, Codable, Equatable {
+    case high
+    case medium
+    case low
+}
+
+struct PublicConciergeSource: Identifiable, Codable {
+    let id: String
+    let label: String
+    let href: String
+    let updatedAt: String?
+}
+
+struct PublicConciergeResponse: Codable {
+    let answer: String
+    let topic: String
+    let confidence: ConciergeConfidence
+    let escalated: Bool
+    let sources: [PublicConciergeSource]
+    let suggestions: [String]
 }
 
 // MARK: - Live Beach
