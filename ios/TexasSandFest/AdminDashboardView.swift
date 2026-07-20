@@ -39,7 +39,7 @@ struct AdminDashboardView: View {
                 HStack {
                     statusPill("Public web", "Live")
                     statusPill("iOS", dataStore.syncState.label)
-                    statusPill("QBO", "Ready")
+                    statusPill("QBO", "Deferred")
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

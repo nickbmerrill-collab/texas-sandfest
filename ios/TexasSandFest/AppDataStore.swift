@@ -35,6 +35,7 @@ final class AppDataStore: ObservableObject {
     @Published private(set) var alert: EmergencyAlert
     @Published private(set) var source: String
     @Published private(set) var syncState: SyncState = .cached
+    @Published private(set) var staffAccessMode: StaffAccessMode
 
     private let bundledPayload: SandFestPayload
     private let resolvedAPIBase: URL
@@ -65,10 +66,12 @@ final class AppDataStore: ObservableObject {
             payload = merged
             alert = merged.alert
             source = Self.sourceLabel(for: cached, cached: true)
+            staffAccessMode = Self.staffAccessMode(for: cached, apiBase: resolvedAPIBase)
         } else {
             payload = seedResult.payload
             alert = seedResult.payload.alert
             source = seedResult.source
+            staffAccessMode = .visitorOnly
         }
     }
 
@@ -117,6 +120,7 @@ final class AppDataStore: ObservableObject {
             payload = merged
             alert = merged.alert
             source = Self.sourceLabel(for: publicPayload, cached: false)
+            staffAccessMode = Self.staffAccessMode(for: publicPayload, apiBase: targetBase)
             syncState = .live
             Self.persist(publicPayload, to: cacheURL, apiBase: targetBase)
         } catch {
@@ -307,6 +311,21 @@ final class AppDataStore: ObservableObject {
         return cached ? "Cached public guide" : "Live public guide"
     }
 
+    private static func staffAccessMode(
+        for payload: PublicSandFestPayload,
+        apiBase: URL
+    ) -> StaffAccessMode {
+        guard payload.runtime?.mode == "board_demo", isLoopback(apiBase) else {
+            return .visitorOnly
+        }
+        return .boardDemo
+    }
+
+    private static func isLoopback(_ url: URL) -> Bool {
+        guard let host = url.host?.lowercased() else { return false }
+        return host == "localhost" || host == "127.0.0.1" || host == "::1"
+    }
+
     private static func publicBootstrapURL(apiBase: URL) -> URL {
         publicURL(apiBase: apiBase, path: ["api", "public", "bootstrap"])
     }
@@ -409,5 +428,14 @@ enum SyncState: Equatable {
         case .live: "Live"
         case .offline: "Offline"
         }
+    }
+}
+
+enum StaffAccessMode: Equatable {
+    case visitorOnly
+    case boardDemo
+
+    var allowsAdmin: Bool {
+        self == .boardDemo
     }
 }

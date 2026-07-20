@@ -112,6 +112,7 @@ final class AppDataStoreTests: XCTestCase {
         await liveStore.refreshPublicData()
 
         XCTAssertEqual(liveStore.syncState, .live)
+        XCTAssertEqual(liveStore.staffAccessMode, .visitorOnly)
         XCTAssertEqual(liveStore.source, "Live public guide")
         XCTAssertEqual(liveStore.payload.guide.dateRange, "April 16-18, 2027 - Live")
         XCTAssertEqual(liveStore.payload.schedule.map(\.id), ["live-schedule"])
@@ -125,6 +126,7 @@ final class AppDataStoreTests: XCTestCase {
             transport: AppDataTransport { _ in throw TestFailure.offline }
         )
         XCTAssertEqual(cachedStore.source, "Cached public guide")
+        XCTAssertEqual(cachedStore.staffAccessMode, .visitorOnly)
         XCTAssertEqual(cachedStore.payload.schedule.map(\.id), ["live-schedule"])
 
         await cachedStore.refreshPublicData()
@@ -139,6 +141,7 @@ final class AppDataStoreTests: XCTestCase {
             transport: AppDataTransport { _ in throw TestFailure.offline }
         )
         XCTAssertEqual(otherOrigin.source, "Bundled seed")
+        XCTAssertEqual(otherOrigin.staffAccessMode, .visitorOnly)
         XCTAssertEqual(otherOrigin.payload.guide.dateRange, SampleData.guide.dateRange)
     }
 
@@ -214,10 +217,31 @@ final class AppDataStoreTests: XCTestCase {
 
         XCTAssertEqual(store.syncState, .live)
         XCTAssertEqual(store.source, "Live board demo")
+        XCTAssertEqual(store.staffAccessMode, .boardDemo)
         XCTAssertGreaterThan(store.payload.schedule.count, 10)
         XCTAssertEqual(store.payload.schedule.first(where: { $0.id == "fri-gates" })?.time, "9:15 AM")
         XCTAssertTrue(store.payload.schedule.contains(where: { $0.id == "board-only" }))
         XCTAssertTrue(store.payload.schedule.contains(where: { $0.id == "sat-headliner" }))
+
+        let cachedStore = AppDataStore(
+            seedPayload: .sample,
+            apiBase: try XCTUnwrap(URL(string: "http://127.0.0.1:8806")),
+            cacheURL: directory.appendingPathComponent("public-bootstrap.json"),
+            transport: AppDataTransport { _ in throw TestFailure.offline }
+        )
+        XCTAssertEqual(cachedStore.staffAccessMode, .boardDemo)
+
+        let remoteStore = AppDataStore(
+            seedPayload: .sample,
+            apiBase: try XCTUnwrap(URL(string: "https://sandfest-api.example.com")),
+            cacheURL: nil,
+            transport: AppDataTransport { _ in
+                AppDataHTTPResponse(data: responseData, statusCode: 200)
+            }
+        )
+        await remoteStore.refreshPublicData()
+        XCTAssertEqual(remoteStore.syncState, .live)
+        XCTAssertEqual(remoteStore.staffAccessMode, .visitorOnly)
     }
 
     @MainActor
