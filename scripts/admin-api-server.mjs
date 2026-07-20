@@ -170,6 +170,7 @@ import {
   queueFollowupDelivery,
   queuePartnerInvoiceReconciliation,
   queuePartnerInvoiceSync,
+  reconcileFollowupDelivery,
   reconcilePartnerStripePayment,
   reconcilePartnerStripeRefund,
   recordPartnerPayment,
@@ -1525,6 +1526,12 @@ function adminPartnerFollowupAuditView(followup) {
     editVersion: followup.editVersion || 0,
     subjectLength: String(followup.subject || "").length,
     bodyLength: String(followup.body || "").length,
+    deliveryOutcomeUnknown: followup.deliveryOutcomeUnknown === true,
+    deliveryResolution: followup.deliveryResolution || null,
+    deliveryReconciledAt: followup.deliveryReconciledAt || null,
+    deliveryReconciledBy: followup.deliveryReconciledBy || null,
+    provider: followup.provider || null,
+    providerMessageIdPresent: Boolean(followup.providerMessageId),
     editedAt: followup.editedAt || null,
     updatedAt: followup.updatedAt || null
   };
@@ -8171,11 +8178,42 @@ async function handleRequest(request, response) {
         ...recipientContext
       }));
       if (!result?.ok) {
-        sendJson(request, response, result?.error === "Follow-up not found." ? 404 : 400, { error: result?.error || "Follow-up could not be reviewed." });
+        sendJson(request, response, result?.error === "Follow-up not found." ? 404 : result?.conflict ? 409 : 400, { error: result?.error || "Follow-up could not be reviewed." });
         return;
       }
       await writeAuditRecord(request, `partner.followup.${body.action}`, { type: "followup", id: followupId }, adminPartnerFollowupView(before), adminPartnerFollowupView(result.followup));
       sendJson(request, response, 200, { followup: adminPartnerFollowupView(result.followup), email: publicEmailReadiness() });
+      return;
+    }
+
+    const partnerFollowupReconciliationMatch = pathname.match(/^\/api\/admin\/partners\/followups\/([^/]+)\/delivery-reconciliation$/);
+    if (method === "POST" && partnerFollowupReconciliationMatch) {
+      const session = await requirePermission(request, response, "partners:write");
+      if (!session) return;
+      const followupId = decodeURIComponent(partnerFollowupReconciliationMatch[1]);
+      const body = await readBody(request);
+      let result = null;
+      await updatePlatformDoc(ROOT, "partnerOps", current => {
+        result = reconcileFollowupDelivery(current, followupId, body, {
+          actorId: session.id,
+          idFactory: prefix => `${prefix}_${randomUUID()}`,
+          now: new Date().toISOString()
+        });
+        return result.ok ? result.doc : normalizePartnerOperations(current);
+      }, { fallback: emptyPartnerOperations() });
+      if (!result?.ok) {
+        sendJson(request, response, result?.error === "Follow-up not found." ? 404 : result?.conflict ? 409 : 400, { error: result?.error || "Message delivery could not be reconciled." });
+        return;
+      }
+      await writeAuditRecord(
+        request,
+        "partner.followup.delivery.reconcile",
+        { type: "followup", id: followupId },
+        adminPartnerFollowupAuditView(result.before),
+        adminPartnerFollowupAuditView(result.followup),
+        { resolution: result.action, providerProofRecorded: Boolean(result.followup.providerMessageId) }
+      );
+      sendJson(request, response, 200, { action: result.action, followup: adminPartnerFollowupView(result.followup) });
       return;
     }
 
@@ -8184,6 +8222,11 @@ async function handleRequest(request, response) {
       const session = await requirePermission(request, response, "partners:write");
       if (!session) return;
       const followupId = decodeURIComponent(partnerFollowupSendMatch[1]);
+      const currentFollowup = (await readPartnerOperations()).followups.find(item => item.id === followupId);
+      if (currentFollowup?.status === "delivery_unknown" || currentFollowup?.deliveryOutcomeUnknown) {
+        sendJson(request, response, 409, { error: "Verify the provider outcome before queueing this message again." });
+        return;
+      }
       const email = emailConfigFromEnv();
       if (!email.ready) {
         sendJson(request, response, 409, { error: email.reason || "Transactional email is not ready.", email: publicEmailReadiness(email) });
@@ -8195,7 +8238,7 @@ async function handleRequest(request, response) {
         ...recipientContext
       }));
       if (!result?.ok) {
-        sendJson(request, response, result?.error === "Follow-up not found." ? 404 : 400, { error: result?.error || "Follow-up could not be queued." });
+        sendJson(request, response, result?.error === "Follow-up not found." ? 404 : result?.conflict ? 409 : 400, { error: result?.error || "Follow-up could not be queued." });
         return;
       }
       let job;

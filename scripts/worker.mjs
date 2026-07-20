@@ -464,7 +464,7 @@ async function handleJob(job) {
       doc = normalizePartnerOperations(await readPlatformDoc(ROOT, "partnerOps", emptyPartnerOperations()));
       followup = doc.followups.find(item => item.id === job.payload.followupId);
     }
-    if (["draft_ready", "dismissed", "failed"].includes(followup?.status)) {
+    if (["draft_ready", "dismissed", "failed", "delivery_unknown"].includes(followup?.status)) {
       return { ok: true, canceled: true, followupId: followup.id, status: followup.status };
     }
     if (!["queued", "sending"].includes(followup.status)) throw new Error(`Follow-up is ${followup.status}, not queued or sending.`);
@@ -997,7 +997,7 @@ async function tick() {
         await updatePlatformDoc(ROOT, "partnerOps", current => {
           const doc = normalizePartnerOperations(current);
           const followup = doc.followups.find(item => item.id === job.payload.followupId);
-          if (!followup || ["draft_ready", "dismissed", "failed", "sent"].includes(followup.status)) {
+          if (!followup || ["draft_ready", "dismissed", "failed", "sent", "delivery_unknown"].includes(followup.status)) {
             partnerFailureHandled = true;
             return doc;
           }
