@@ -864,7 +864,7 @@ PG-B-01,${EVENT_ID},PG-EV-V-01,PG-EV-V-01,Postgres Booth Vendor,retail,vendor,po
   check("concurrent vendor intake uses configured pricing", vendorApplication?.offeringId === "marketplace-booth" && vendorApplication?.expectedAmountCents === 125000);
   const approvedPostgresVendor = await request(base, "PATCH", `/api/admin/partners/applications/${vendorApplication.id}`, { status: "approved" }, { auth: true });
   const postgresVendorInvoice = await request(base, "POST", `/api/admin/partners/applications/${vendorApplication.id}/invoices`, {}, { auth: true });
-  check("vendor invoice inherits offering fee and accounting item", approvedPostgresVendor.status === 200 && postgresVendorInvoice.status === 201 && postgresVendorInvoice.data.invoice?.amountCents === 125000 && postgresVendorInvoice.data.invoice?.quickBooksItemId === "postgres-vendor-marketplace-item");
+  check("vendor invoice inherits offering fee and accounting item", approvedPostgresVendor.status === 200 && approvedPostgresVendor.data.decisionNotice?.kind === "application_approved" && approvedPostgresVendor.data.decisionNotice?.status === "draft_ready" && approvedPostgresVendor.data.decisionNotice?.requiresManualReview === false && postgresVendorInvoice.status === 201 && postgresVendorInvoice.data.invoice?.amountCents === 125000 && postgresVendorInvoice.data.invoice?.quickBooksItemId === "postgres-vendor-marketplace-item");
   const postgresVendorAccess = { reference: vendorIntake.data.application?.reference, token: vendorIntake.data.portalAccess?.token };
   const postgresVendorProfile = await request(base, "POST", "/api/public/partner-vendor-profile", {
     ...postgresVendorAccess,
@@ -913,6 +913,8 @@ PG-B-01,${EVENT_ID},PG-EV-V-01,PG-EV-V-01,Postgres Booth Vendor,retail,vendor,po
   const postgresVendorConfirmation = await request(base, "POST", "/api/public/partner-vendor-assignment/confirm", postgresVendorAccess);
   const postgresVendorWorkspace = await request(base, "GET", "/api/admin/partners", undefined, { auth: true });
   check("vendor review and assignment persist", postgresVendorProfileApproval.status === 200 && postgresVendorRequirementApproval.status === 200 && postgresVendorAssignment.status === 200 && postgresVendorConfirmation.data.application?.vendorOnboarding?.assignment?.status === "confirmed" && postgresVendorWorkspace.data.vendorReadiness?.vendors?.some(item => item.applicationId === vendorApplication.id && item.compliance.approved === 1));
+  const postgresApplicationDecision = postgresVendorWorkspace.data.followups?.find(item => item.applicationId === vendorApplication.id && item.kind === "application_approved");
+  check("application decision notice persists in Postgres", postgresApplicationDecision?.status === "draft_ready" && postgresApplicationDecision?.sourceVersion === "decision:1:approved" && postgresApplicationDecision?.body?.includes("#partner-status?"));
   const postgresAssignmentNotice = postgresVendorWorkspace.data.followups?.find(item => item.applicationId === vendorApplication.id && item.kind === "vendor_assignment_ready");
   check("vendor workflow notification persists safely", postgresVendorAssignment.data.notificationDrafted === true && postgresAssignmentNotice?.status === "dismissed" && !postgresAssignmentNotice?.sentAt && postgresAssignmentNotice?.body.includes("South service gate"));
 

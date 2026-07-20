@@ -397,6 +397,9 @@ if (visitorUrl && operationsUrl) {
           .filter(item => item.textContent?.includes("automatic key-date reminder")).length,
         deliveredPaymentConfirmations: [...document.querySelectorAll('#admin-partner-followups [data-delivery-status="delivered"]')]
           .filter(item => item.textContent?.includes("automatic payment confirmation")).length,
+        deliveredApplicationDecisions: [...document.querySelectorAll('#admin-partner-followups [data-delivery-status="delivered"]')]
+          .filter(item => item.textContent?.includes("application approved")
+            && item.textContent?.includes("transactional automation")).length,
         deliveredSponsorProofReviews: [...document.querySelectorAll('#admin-partner-followups [data-delivery-status="delivered"]')]
           .filter(item => item.textContent?.includes("automatic sponsor proof review")).length,
         deliveredVendorOpenings: [...document.querySelectorAll('#admin-partner-followups [data-delivery-status="delivered"]')]
@@ -596,6 +599,7 @@ if (visitorUrl && operationsUrl) {
         || item?.deliveredCampaignMessages < 1
         || item?.deliveredMilestoneReminders < 1
         || item?.deliveredPaymentConfirmations < 1
+        || item?.deliveredApplicationDecisions < 1
         || item?.deliveredSponsorProofReviews < 1
         || item?.deliveredVendorOpenings < 1
         || item?.smsPreferenceVisible !== true
@@ -615,7 +619,7 @@ if (visitorUrl && operationsUrl) {
       ) {
         throw new Error("Local message automation, SMS preference, or three-way assignment proof is incomplete.");
       }
-      return `${item.deliveredFollowups} loopback messages include vendor opening, payment confirmation, sponsor proof review, automatic key-date, transactional, and campaign-approved delivery proof; the signed SMS preference control is ${item.smsPreferenceState.replace("_", " ")}; ${item.editableMessageDrafts} drafts can be revised before approval and ${item.reviewReadyOutreachMessages} outreach draft remains staff-controlled; ${item.tasks} tasks cover staff, volunteer, and team owners.`;
+      return `${item.deliveredFollowups} loopback messages include application decisions, vendor opening, payment confirmation, sponsor proof review, automatic key-date, transactional, and campaign-approved delivery proof; the signed SMS preference control is ${item.smsPreferenceState.replace("_", " ")}; ${item.editableMessageDrafts} drafts can be revised before approval and ${item.reviewReadyOutreachMessages} outreach draft remains staff-controlled; ${item.tasks} tasks cover staff, volunteer, and team owners.`;
     });
     await inspect("fulfillment_outreach", "Fulfillment and geofenced outreach", "Inspect sponsor branding, vendor readiness, and targeted campaign records.", async () => {
       const item = observations.operations;

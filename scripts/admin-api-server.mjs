@@ -7477,6 +7477,7 @@ async function handleRequest(request, response) {
       const result = await mutatePartnerOperations(doc => updatePartnerApplication(doc, applicationId, body, {
         actorId: session.id,
         idFactory: prefix => `${prefix}_${randomUUID()}`,
+        portalUrlForApplication: currentPartnerPortalUrl,
         now: new Date().toISOString()
       }));
       if (!result?.ok) {
@@ -7488,9 +7489,25 @@ async function handleRequest(request, response) {
         "partner.application.update",
         { type: "application", id: applicationId },
         before ? adminPartnerApplicationView(before) : null,
-        adminPartnerApplicationView(result.application)
+        adminPartnerApplicationView(result.application),
+        {
+          decisionNoticeKind: result.followup?.kind ?? null,
+          decisionNoticeStatus: result.followup?.status ?? null,
+          decisionNoticeRequiresManualReview: Boolean(result.followup?.manualReviewRequiredAt),
+          dismissedDecisionNotices: result.dismissedFollowups || 0
+        }
       );
-      sendJson(request, response, 200, { application: adminPartnerApplicationView(result.application) });
+      sendJson(request, response, 200, {
+        application: adminPartnerApplicationView(result.application),
+        decisionNotice: result.followup ? {
+          id: result.followup.id,
+          kind: result.followup.kind,
+          status: result.followup.status,
+          subject: result.followup.subject,
+          requiresManualReview: Boolean(result.followup.manualReviewRequiredAt)
+        } : null,
+        dismissedDecisionNotices: result.dismissedFollowups || 0
+      });
       return;
     }
 

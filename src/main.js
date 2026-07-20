@@ -8020,19 +8020,7 @@ function renderAdminPartners(payload, outreach) {
   }).map(item => {
     const deliveryStatus = item.deliveryStatus || (item.status === "sent" ? "accepted" : null);
     const deliveryAt = item.clickedAt || item.openedAt || item.deliveredAt || item.failedAt || item.acceptedAt || item.sentAt;
-    const automationLabel = item.automationPolicy === "outreach_campaign_v1"
-      ? "campaign-approved automation"
-      : item.automationPolicy && item.kind === "payment_received"
-        ? "automatic payment confirmation"
-        : item.automationPolicy && item.kind === "payment_adjustment"
-          ? "automatic payment adjustment"
-          : item.automationPolicy && item.kind === "sponsor_brand_changes"
-            ? "automatic sponsor brand review"
-            : item.automationPolicy && item.kind === "sponsor_deliverable_review"
-              ? "automatic sponsor proof review"
-              : item.automationPolicy && item.kind === "milestone_reminder"
-                ? "automatic key-date reminder"
-                : item.automationPolicy ? "transactional automation" : "";
+    const automationLabel = adminOperationsUi?.followupAutomationLabel(item) || "";
     return `<article data-followup="${escapeAttr(item.id)}" ${deliveryStatus ? `data-delivery-status="${escapeAttr(deliveryStatus)}"` : ""}>
       <header><strong>${escapeHtml(item.subject || conditionLabel(item.kind))}</strong><b>${escapeHtml(conditionLabel(deliveryStatus || item.status))}</b></header>
       <p>${escapeHtml(item.recipientLabel || item.recipient || (item.recipientAvailable ? "Recipient on file" : "Recipient unavailable"))}${item.campaignId ? ` · outreach sequence ${escapeHtml(item.sequenceStepId || "")}` : ""}${item.taskId ? " · delegated task" : ""}${automationLabel ? ` · ${escapeHtml(automationLabel)}` : ""}</p>
@@ -8163,60 +8151,15 @@ function renderAdminPartners(payload, outreach) {
       </div>
     </article>`;
   }).join("") || '<article class="empty-state"><span>No outreach campaigns.</span></article>';
-  applications.querySelectorAll("[data-save-application]").forEach(button => button.addEventListener("click", async () => {
-    const card = button.closest("[data-partner-application]");
-    button.disabled = true;
-    try {
-      await adminFetch(`/api/admin/partners/applications/${encodeURIComponent(button.dataset.saveApplication)}`, {
-        method: "PATCH", body: JSON.stringify({ status: card.querySelector('[name="status"]').value })
-      });
-      await loadAdminPartners({ quiet: true });
-      setAdminStatus("Application status saved.", "ok");
-    } catch (error) { setAdminStatus(error.message, "error"); } finally { button.disabled = false; }
-  }));
-  async function createFreshPartnerPortalAccess(applicationId) {
-    const result = await adminFetch(`/api/admin/partners/applications/${encodeURIComponent(applicationId)}/portal-access`, { method: "POST", body: "{}" });
-    let url = result.portalAccess.url;
-    if (BOARD_DEMO_ACCESS.enabled) {
-      const boardUrl = new URL(url);
-      boardUrl.searchParams.set("apiBase", adminApiBase());
-      url = boardUrl.toString();
-    }
-    return { ...result, portalAccess: { ...result.portalAccess, url } };
-  }
-  applications.querySelectorAll("[data-open-demo-portal]").forEach(button => button.addEventListener("click", async () => {
-    const popup = window.open("about:blank", "_blank");
-    if (!popup) {
-      setAdminStatus("The partner portal window could not be opened.", "error");
-      return;
-    }
-    popup.opener = null;
-    button.disabled = true;
-    try {
-      const result = await createFreshPartnerPortalAccess(button.dataset.openDemoPortal);
-      popup.location.replace(result.portalAccess.url);
-      await loadAdminPartners({ quiet: true });
-      setAdminStatus(`Opened a fresh private demo portal for ${result.application.reference}. The previous link no longer works.`, "ok");
-    } catch (error) {
-      if (!popup.closed) popup.close();
-      setAdminStatus(error.message, "error");
-    } finally {
-      button.disabled = false;
-    }
-  }));
-  applications.querySelectorAll("[data-rotate-portal]").forEach(button => button.addEventListener("click", async () => {
-    button.disabled = true;
-    try {
-      const result = await createFreshPartnerPortalAccess(button.dataset.rotatePortal);
-      const copied = await writeClipboardText(result.portalAccess.url);
-      await loadAdminPartners({ quiet: true });
-      setAdminStatus(copied
-        ? `A new private portal link for ${result.application.reference} is on the clipboard. The previous link no longer works.`
-        : BOARD_DEMO_ACCESS.enabled
-          ? `A new private portal link for ${result.application.reference} was created, but the browser blocked clipboard access. Use Open demo portal to continue.`
-          : `A new private portal link for ${result.application.reference} was created, but the browser blocked clipboard access. Allow clipboard access and rotate the link again before handing it off.`, copied ? "ok" : "warning");
-    } catch (error) { setAdminStatus(error.message, "error"); } finally { button.disabled = false; }
-  }));
+  adminOperationsUi?.bindApplicationStatusActions(applications, { adminFetch, loadAdminPartners, setAdminStatus });
+  adminOperationsUi?.bindPartnerPortalActions(applications, {
+    adminFetch,
+    apiBase: adminApiBase(),
+    boardDemoEnabled: BOARD_DEMO_ACCESS.enabled,
+    loadAdminPartners,
+    setAdminStatus,
+    writeClipboardText
+  });
   applications.querySelectorAll("[data-record-payment]").forEach(button => button.addEventListener("click", async () => {
     const card = button.closest("[data-partner-application]");
     const amount = Number(card.querySelector('[name="paymentAmount"]').value);
