@@ -8,6 +8,7 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadDotEnv } from "../lib/load-env.mjs";
+import { createStorage } from "../lib/storage.mjs";
 import { RUNTIME_OWNERSHIP_ERROR_CODE, resolveRuntimeRoot, withRuntimeOwnership } from "../lib/runtime-root.mjs";
 import { eventContextConfig } from "../lib/event-context.mjs";
 import { claimNextJobs, completeJob, enqueueJob, jobQueueConfig, listJobs, markTerminalJobHandled } from "../lib/job-queue.mjs";
@@ -34,6 +35,7 @@ import {
   generateDuePartnerFollowups,
   generateDueTaskFollowups,
   generatePartnerPaymentFollowups,
+  generateVendorApplicationOpeningFollowups,
   normalizePartnerOperations,
   prepareFollowupDraft,
   queueFollowupDelivery,
@@ -49,7 +51,8 @@ import {
   loadQuickBooksRuntimeCredentials,
   persistQuickBooksTokenRotation
 } from "../lib/quickbooks/credentials.mjs";
-import { issuePartnerPortalToken, partnerPortalConfig, partnerPortalUrl } from "../lib/partner-portal.mjs";
+import { issuePartnerPortalToken, partnerPortalConfig, partnerPortalUrl, vendorApplicationUrl } from "../lib/partner-portal.mjs";
+import { vendorOfferingCatalog } from "../lib/vendor-offerings.mjs";
 import { taskPortalConfig, taskPortalUrlForTask } from "../lib/task-portal.mjs";
 import {
   appendOutreachPreferenceFooter,
@@ -84,6 +87,13 @@ await loadDotEnv();
 
 const CODE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ROOT = resolveRuntimeRoot(CODE_ROOT);
+const CONFIG_PATH_OVERRIDE = process.env.SANDFEST_ADMIN_CONFIG_PATH
+  ? path.resolve(process.env.SANDFEST_ADMIN_CONFIG_PATH)
+  : null;
+const storage = await createStorage({
+  root: ROOT,
+  configPaths: CONFIG_PATH_OVERRIDE ? { "admin-config": CONFIG_PATH_OVERRIDE } : {}
+});
 const CURRENT_EVENT_ID = eventContextConfig(process.env).eventId;
 const POLL_MS = Number(process.env.SANDFEST_WORKER_POLL_MS || 2000);
 const ONCE = process.env.SANDFEST_WORKER_ONCE === "true";
@@ -118,14 +128,18 @@ function outreachPreferencesUrl(prospect) {
 }
 
 async function readRecipientContext() {
-  const [volunteerMirror, staffDirectoryInput] = await Promise.all([
+  const [volunteerMirror, staffDirectoryInput, adminConfig] = await Promise.all([
     readPlatformDoc(ROOT, "volunteers", { volunteers: [] }),
-    readPlatformDoc(ROOT, "staffDirectory", null)
+    readPlatformDoc(ROOT, "staffDirectory", null),
+    storage.config.read("admin-config")
   ]);
   const staffDirectory = normalizeStaffDirectory(staffDirectoryInput, { eventId: CURRENT_EVENT_ID });
+  const vendorCatalog = vendorOfferingCatalog(adminConfig);
   return {
     volunteers: volunteerMirror?.volunteers || [],
-    taskRecipients: staffTaskRecipients(staffDirectory, { eventId: CURRENT_EVENT_ID })
+    taskRecipients: staffTaskRecipients(staffDirectory, { eventId: CURRENT_EVENT_ID }),
+    vendorOfferings: vendorCatalog.ready ? vendorCatalog.activeOfferings : [],
+    applicationUrlForInterest: (application, offering) => vendorApplicationUrl(application, offering, { config: portalConfig })
   };
 }
 
@@ -745,6 +759,7 @@ async function reconcileTerminalQueueFailures() {
 async function tick() {
   let generatedDrafts = 0;
   let generatedPaymentDrafts = 0;
+  let generatedVendorOpeningDrafts = 0;
   let generatedMilestoneDrafts = 0;
   let generatedOutreachDrafts = 0;
   let generatedTaskDrafts = 0;
@@ -772,7 +787,11 @@ async function tick() {
     });
     if (!routed.ok) throw new Error(routed.error || "Document review task reconciliation failed.");
     reconciledDocumentReviewTasks = routed.summary.created + routed.summary.updated;
-    const payments = generatePartnerPaymentFollowups(routed.doc, {
+    const vendorOpenings = generateVendorApplicationOpeningFollowups(routed.doc, recipientContext.vendorOfferings, {
+      applicationUrlForInterest: recipientContext.applicationUrlForInterest,
+      idFactory: prefix => `${prefix}_${randomUUID()}`
+    });
+    const payments = generatePartnerPaymentFollowups(vendorOpenings.doc, {
       portalUrlForApplication: statusPortalUrl,
       idFactory: prefix => `${prefix}_${randomUUID()}`
     });
@@ -802,10 +821,11 @@ async function tick() {
       ...recipientContext
     });
     generatedTaskDrafts = tasks.generated.length;
+    generatedVendorOpeningDrafts = vendorOpenings.generated.length;
     generatedPaymentDrafts = payments.generated.length;
     generatedMilestoneDrafts = milestones.generated.length;
     generatedOutreachDrafts = outreach.generated.length;
-    generatedDrafts = generatedPaymentDrafts + generatedTaskDrafts + generatedMilestoneDrafts + generatedOutreachDrafts;
+    generatedDrafts = generatedVendorOpeningDrafts + generatedPaymentDrafts + generatedTaskDrafts + generatedMilestoneDrafts + generatedOutreachDrafts;
     autoApproved = outreachAutomated.approved.length + automated.approved.length;
     autoSkipped = outreachAutomated.skipped.length + automated.skipped.length;
     automationCandidates = automatedFollowupQueueCandidates(automated.doc, {
@@ -815,6 +835,7 @@ async function tick() {
     return automated.doc;
   }, { fallback: partnerSeed });
   if (generatedTaskDrafts) console.log(`[worker] generated ${generatedTaskDrafts} task notification draft(s)`);
+  if (generatedVendorOpeningDrafts) console.log(`[worker] generated ${generatedVendorOpeningDrafts} vendor application opening draft(s)`);
   if (generatedPaymentDrafts) console.log(`[worker] generated ${generatedPaymentDrafts} payment notification draft(s)`);
   if (reconciledDocumentReviewTasks) console.log(`[worker] reconciled ${reconciledDocumentReviewTasks} document review task(s)`);
   if (generatedMilestoneDrafts) console.log(`[worker] generated ${generatedMilestoneDrafts} milestone follow-up draft(s)`);
