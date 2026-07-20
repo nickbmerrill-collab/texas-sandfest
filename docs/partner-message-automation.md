@@ -10,6 +10,7 @@ Automatic approval is limited to messages for an existing vendor or sponsor appl
 - Payment received confirmations
 - Payment refund and void adjustments
 - Upcoming, due, and overdue milestone reminders
+- Vendor application-opening notices for matching consented interests
 - Sponsor brand profile and asset correction requests
 - Sponsor deliverable proof-ready notices
 - Vendor profile correction requests
@@ -40,6 +41,8 @@ Matches, invalid inputs, unknown references, wrong emails, and cooldown replays 
 7. Brevo acceptance, message ID, attempts, failures, and authenticated webhook events are recorded in the partner ledger.
 
 Recipient identity and consent are checked again immediately before delivery. A changed email, inactive or missing directory owner, withdrawn consent, completed milestone, rescheduled milestone, or changed payment state blocks the send. Provider failures use the durable worker retry policy and terminal failures remain visible for staff action.
+
+Vendor opening notices are derived from the current staff-managed offering catalog. The worker matches the interest's offering and category, requires the offering to be active in `application` mode, and versions the notice against its current name, public fee label, amount, and eligible categories. Closing or materially changing the offering dismisses stale unsent notices; delivered history is retained. The link contains only the offering and category and opens the normal public form, where the vendor must enter current identity details, review the current fee, grant current consent, and submit a new application.
 
 Sponsor brand feedback uses one workflow key per profile or asset kind. A profile resubmission, replacement asset, staff approval, or later review dismisses any unstarted correction notice. Publishing or revising deliverable proof creates one notice for the current proof version without copying the proof URL, internal owner, or staff metadata into the message; sponsor approval or a change request closes the active notice. Approval and delivery both fail closed when the referenced profile, asset, deliverable, proof version, or recipient is no longer current.
 

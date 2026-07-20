@@ -224,7 +224,8 @@ import {
   partnerPortalConfig,
   partnerPortalPath,
   partnerPortalUrl,
-  publicPartnerPortalStatus
+  publicPartnerPortalStatus,
+  vendorApplicationUrl
 } from "../lib/partner-portal.mjs";
 import {
   findTaskPortalTask,
@@ -1251,9 +1252,19 @@ async function incidentAssignmentDirectory(session) {
 }
 
 async function taskRecipientContext() {
-  const mirror = await readVolunteerMirror();
-  const staffDirectory = await readStaffDirectory();
-  return { volunteers: mirror.volunteers || [], taskRecipients: staffTaskRecipients(staffDirectory, { eventId: CURRENT_EVENT_ID }) };
+  const [mirror, staffDirectory, adminConfig] = await Promise.all([
+    readVolunteerMirror(),
+    readStaffDirectory(),
+    storage.config.read("admin-config")
+  ]);
+  const vendorCatalog = vendorOfferingCatalog(adminConfig);
+  const portalConfig = partnerPortalConfig();
+  return {
+    volunteers: mirror.volunteers || [],
+    taskRecipients: staffTaskRecipients(staffDirectory, { eventId: CURRENT_EVENT_ID }),
+    vendorOfferings: vendorCatalog.ready ? vendorCatalog.activeOfferings : [],
+    applicationUrlForInterest: (application, offering) => vendorApplicationUrl(application, offering, { config: portalConfig })
+  };
 }
 
 function incidentDispatchResponse(dispatch) {

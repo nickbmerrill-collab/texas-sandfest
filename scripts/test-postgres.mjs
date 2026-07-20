@@ -1592,6 +1592,41 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
   check("incident dispatch review persists", updatedDispatch.status === 200 && approvedDispatch.data.dispatch?.notification?.status === "approved" && persistedDispatch?.status === "on_scene" && persistedDispatch?.notification?.recipientAvailable === true && !("recipient" in (persistedDispatch?.notification || {})));
   check("incident dispatch delivery queues with provider ready", queuedDispatchSend.status === 202 && queuedDispatchSend.data.job?.status === "queued" && queuedDispatchSend.data.email?.ready === true);
 
+  const closedMarketplaceOffering = await request(base, "PATCH", "/api/admin/vendor-offerings/marketplace-booth", {
+    name: "Non-food vendor interest",
+    amount: 0,
+    publicLabel: "Fee confirmed when applications open",
+    intakeMode: "interest",
+    description: "Join the interest list for future retail, artisan, and service vendor applications.",
+    inclusions: ["Application opening notice", "Program updates", "Staff review when applications open"]
+  }, { auth: true });
+  const postgresVendorInterest = await request(base, "POST", "/api/public/vendor-applications", {
+    organizationName: "Postgres Vendor Interest",
+    contactName: "Morgan Rivera",
+    contactEmail: "vendor-opening@postgres-test.example",
+    category: "service",
+    vendorOfferingId: "marketplace-booth",
+    consentToContact: true
+  }, { headers: { "idempotency-key": "postgres-vendor-interest-0001" } });
+  const reopenedMarketplaceOffering = await request(base, "PATCH", "/api/admin/vendor-offerings/marketplace-booth", {
+    name: "Marketplace booth",
+    amount: 125000,
+    publicLabel: "$1,250 application fee",
+    intakeMode: "application",
+    description: "Synthetic Postgres marketplace offering for retail, artisan, and service vendors.",
+    inclusions: ["Marketplace booth footprint", "Vendor credentials", "Published booth listing"]
+  }, { auth: true });
+  const postgresVendorOpeningState = await request(base, "GET", "/api/admin/partners", undefined, { auth: true });
+  const persistedPostgresVendorInterest = postgresVendorOpeningState.data.applications?.find(item => item.id === postgresVendorInterest.data.application?.id);
+  check("Postgres vendor interest survives a catalog opening", closedMarketplaceOffering.status === 200
+    && postgresVendorInterest.status === 201
+    && postgresVendorInterest.data.application?.intakeMode === "interest"
+    && reopenedMarketplaceOffering.status === 200
+    && reopenedMarketplaceOffering.data.vendorOffering?.intakeMode === "application"
+    && reopenedMarketplaceOffering.data.vendorOffering?.amount === 125000
+    && persistedPostgresVendorInterest?.intakeMode === "interest"
+    && persistedPostgresVendorInterest?.expectedAmountCents === 0);
+
   console.log("\n=== Postgres worker and audit durability ===\n");
   await runChild(["scripts/worker.mjs"], {
     ...commonEnv,
@@ -1599,9 +1634,9 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
     SANDFEST_WORKER_BATCH: "50"
   }, "Postgres worker");
   const jobs = await listJobs(ROOT, { limit: 100 });
-  check("worker completed intake, extraction, recovery, and dispatch jobs", jobs.length === 17 && jobs.every(job => job.status === "done"), `${jobs.filter(job => job.status === "done").length}/${jobs.length} done`);
+  check("worker completed intake, extraction, recovery, and dispatch jobs", jobs.length === 18 && jobs.every(job => job.status === "done"), `${jobs.filter(job => job.status === "done").length}/${jobs.length} done`);
   const workerStatus = await readPlatformDoc(ROOT, "workerStatus", null);
-  check("worker heartbeat persisted", workerStatus?.state === "stopped" && workerStatus?.lastBatchSize === 17);
+  check("worker heartbeat persisted", workerStatus?.state === "stopped" && workerStatus?.lastBatchSize === 18);
   const postgresDocumentsAfterWorker = await request(base, "GET", "/api/admin/documents", undefined, { auth: true });
   const extractedPostgresBoardBriefing = postgresDocumentsAfterWorker.data.documents?.find(item => item.id === postgresBoardBriefingUpload.data.document?.id);
   check("Postgres worker persists extracted board briefing", extractedPostgresBoardBriefing?.extractionStatus === "ready" && extractedPostgresBoardBriefing?.textPreview?.includes("TEXAS SANDFEST") && extractedPostgresBoardBriefing?.extractedCharacterCount > 5_000 && extractedPostgresBoardBriefing?.extractedChunkCount > 0 && !JSON.stringify(extractedPostgresBoardBriefing).includes("extractionChunks"));
@@ -1611,9 +1646,15 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
   const sponsorAcknowledgment = partnerDocAfterWorker?.followups?.find(item => item.applicationId === sponsorApplication.id && item.kind === "application_received");
   const postgresPaymentAdjustment = partnerDocAfterWorker?.followups?.find(item => item.paymentId === postgresPayment.data.payment?.id && item.kind === "payment_adjustment");
   const deliveredPortalRecovery = partnerDocAfterWorker?.followups?.find(item => item.applicationId === sponsorApplication.id && item.kind === "portal_access_recovery");
+  const postgresVendorOpeningDraft = partnerDocAfterWorker?.followups?.find(item => item.applicationId === postgresVendorInterest.data.application?.id && item.kind === "vendor_applications_open");
   const portalRecoveryDelivery = emailMock.deliveries.find(item => item.body.subject === "Your Texas SandFest partner portal link");
   check("worker delivers the current recovered portal capability", deliveredPortalRecovery?.status === "sent" && portalRecoveryDelivery?.body.to?.[0]?.email === "sponsor@postgres-test.example" && portalRecoveryDelivery?.body.textContent?.includes(rotatedPortal.data.portalAccess?.url));
   check("worker acknowledgment includes secure portal link", sponsorAcknowledgment?.status === "draft_ready" && sponsorAcknowledgment.body.includes("#partner-status?reference="));
+  check("worker reads Postgres catalog and drafts the vendor opening once", postgresVendorOpeningDraft?.status === "draft_ready"
+    && postgresVendorOpeningDraft?.body.includes("has not been converted into an application")
+    && postgresVendorOpeningDraft?.body.includes("vendorOffering=marketplace-booth")
+    && postgresVendorOpeningDraft?.body.includes("vendorCategory=service")
+    && partnerDocAfterWorker?.followups?.filter(item => item.applicationId === postgresVendorInterest.data.application?.id && item.kind === "vendor_applications_open").length === 1);
   check("worker persists a privacy-safe payment adjustment", postgresPaymentAdjustment?.status === "draft_ready"
     && postgresPaymentAdjustment.body.includes("$1,250.00")
     && postgresPaymentAdjustment.body.includes("approved invoice balance is paid in full")
@@ -1785,9 +1826,11 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
   const reviewGatedOutreach = automatedPartnerDoc?.followups?.find(item => item.prospectId === automationProspect.data.prospect?.id && item.campaignId === campaignId && item.kind === "sponsor_outreach");
   const automatedOutreach = automatedPartnerDoc?.followups?.find(item => item.prospectId === automationProspect.data.prospect?.id && item.campaignId === approvedSequenceCampaignId && item.kind === "sponsor_outreach");
   const automatedTaskNotice = automatedPartnerDoc?.followups?.find(item => item.id === volunteerTaskNotice?.id);
+  const automatedVendorOpening = automatedPartnerDoc?.followups?.find(item => item.id === postgresVendorOpeningDraft?.id);
   const taskNoticeDeliveries = emailMock.deliveries.filter(item => item.body.tags?.includes(followupProviderTag(automatedTaskNotice?.id)));
   const automaticDeliveries = emailMock.deliveries.filter(item => item.body.tags?.includes(followupProviderTag(automatedAcknowledgment?.id)));
   const automatedOutreachDeliveries = emailMock.deliveries.filter(item => item.body.tags?.includes(followupProviderTag(automatedOutreach?.id)));
+  const vendorOpeningDeliveries = emailMock.deliveries.filter(item => item.body.tags?.includes(followupProviderTag(automatedVendorOpening?.id)));
   const automaticallySentFollowups = automatedPartnerDoc?.followups?.filter(item => item.status === "sent" && item.automationPolicy === "partner_transactional_v1") || [];
   const automationPool = await getPool();
   const automationJobRows = await automationPool.query("SELECT id, status FROM platform_jobs WHERE id = $1", [automatedAcknowledgment?.automationJobId]);
@@ -1802,6 +1845,12 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
   check("worker delivers one campaign-approved sponsor message", automatedOutreach?.status === "sent" && automatedOutreach?.approvedBy === "automation:outreach_campaign_v1" && automatedOutreach?.automationPolicy === "outreach_campaign_v1" && automatedOutreachDeliveries.length === 1 && automatedOutreachDeliveries[0]?.body.to?.[0]?.email === "outreach-review@postgres-auto.example");
   check("Postgres campaign funnel counts unique reached businesses without inventing provider outcomes", automatedCampaignMetrics?.funnel?.enrolled === 1 && automatedCampaignMetrics?.funnel?.reached === 1 && automatedCampaignMetrics?.funnel?.delivered === 0 && automatedCampaignMetrics?.funnel?.applications === 0 && !JSON.stringify(automatedCampaignMetrics).includes("outreach-review@postgres-auto.example"));
   check("worker auto-delivers volunteer task assignment once", automatedTaskNotice?.status === "sent" && automatedTaskNotice?.deliveryStatus === "accepted" && automatedTaskNotice?.approvedBy === "automation:partner_transactional_v1" && taskNoticeDeliveries.length === 1 && taskNoticeDeliveries[0]?.body.to?.[0]?.email === "alex@example.com");
+  check("worker auto-delivers the Postgres vendor opening once", automatedVendorOpening?.status === "sent"
+    && automatedVendorOpening?.automationPolicy === "partner_transactional_v1"
+    && vendorOpeningDeliveries.length === 1
+    && vendorOpeningDeliveries[0]?.body.to?.[0]?.email === "vendor-opening@postgres-test.example"
+    && vendorOpeningDeliveries[0]?.body.textContent?.includes("vendorOffering=marketplace-booth")
+    && automatedPartnerDoc?.followups?.filter(item => item.applicationId === postgresVendorInterest.data.application?.id && item.kind === "vendor_applications_open").length === 1);
   check("every automated follow-up has one provider call", automaticallySentFollowups.length > 0 && automaticallySentFollowups.every(followup => emailMock.deliveries.filter(item => item.body.tags?.includes(followupProviderTag(followup.id))).length === 1));
   check("transactional automation records activity proof", automatedPartnerDoc?.activity?.some(item => item.type === "automation.mode_changed" && item.actorId === "postgres-test-admin") && automatedPartnerDoc?.activity?.some(item => item.type === "followup.auto_approved" && item.entityId === automatedAcknowledgment?.id));
   const capacityRaceFollowupId = "followup_postgres_capacity_race";

@@ -155,6 +155,7 @@ import {
   generateDuePartnerFollowups,
   generateDueTaskFollowups,
   generatePartnerPaymentFollowups,
+  generateVendorApplicationOpeningFollowups,
   matchOutreachProspects,
   outreachDistanceMiles,
   outreachCampaignAutomationReadiness,
@@ -758,24 +759,25 @@ console.log("\n=== Pure library suite ===\n");
       automationMode: "review_first",
       automation: { providerReady: true, active: false },
       summary: {
-        applications: { total: 4, vendors: 2, sponsors: 2 },
+        applications: { total: 5, vendors: 3, sponsors: 2 },
         finance: { amountExpectedCents: 3_800_000, amountPaidCents: 1_000_000, balanceCents: 2_800_000 },
         operations: { dueSoonMilestones: 1 },
         outreach: { prospects: 2, qualified: 2, campaigns: 2, draftsAwaitingReview: 1, nextActionsScheduled: 2, unassigned: 0 }
       },
       invoices: [{ id: "demo_invoice", status: "approved" }],
       payments: [{ id: "demo_payment", status: "succeeded" }],
-      milestones: Array.from({ length: 8 }, (_, index) => ({
+      milestones: Array.from({ length: 9 }, (_, index) => ({
         id: `demo_milestone_${index + 1}`,
-        applicationId: `demo_application_${index % 4}`,
+        applicationId: `demo_application_${index % 5}`,
         dueAt: `2027-0${(index % 4) + 1}-15T17:00:00.000Z`
       })),
       followups: [
-        ...Array.from({ length: 4 }, (_, index) => ({ id: `demo_ack_${index + 1}`, kind: "application_received", status: "draft_ready" })),
+        ...Array.from({ length: 5 }, (_, index) => ({ id: `demo_ack_${index + 1}`, kind: "application_received", status: "draft_ready" })),
         ...Array.from({ length: 3 }, (_, index) => ({ id: `demo_task_notice_${index + 1}`, kind: "task_assignment", status: "draft_ready", body: `https://board.example/#task-status?task=task_${index + 1}&token=tsft_demo_${index + 1}` })),
         { id: "demo_milestone_reminder", kind: "milestone_reminder", status: "draft_ready", milestoneId: "demo_milestone_1" },
         { id: "demo_payment_received", kind: "payment_received", status: "draft_ready", paymentId: "demo_payment" },
         { id: "demo_sponsor_proof_review", kind: "sponsor_deliverable_review", status: "draft_ready", deliverableId: "demo_deliverable" },
+        { id: "demo_vendor_opening", kind: "vendor_applications_open", status: "draft_ready", offeringId: "marketplace-booth" },
         { id: "demo_review_outreach", kind: "sponsor_outreach", status: "draft_ready", campaignId: "demo_review_campaign", automationPolicy: null }
       ],
       tasks: [
@@ -789,7 +791,7 @@ console.log("\n=== Pure library suite ===\n");
         assets: { approved: 2 },
         deliverables: { total: 5 }
       },
-      vendorReadiness: { totals: { vendors: 2, ready: 1, blocked: 1 } },
+      vendorReadiness: { totals: { vendors: 2, interests: 1, ready: 1, blocked: 1 } },
       staffDirectory: { ready: true, routedTeams: 7, totalTeams: 7 },
       email: { ready: true }
     },
@@ -903,6 +905,10 @@ console.log("\n=== Pure library suite ===\n");
   missingSponsorProofReview.partners.followups = missingSponsorProofReview.partners.followups
     .filter(item => item.kind !== "sponsor_deliverable_review");
   const missingSponsorProofReviewReport = evaluateBoardDemoReadiness(missingSponsorProofReview);
+  const missingVendorOpening = structuredClone(localAutomationBoardState);
+  missingVendorOpening.partners.followups = missingVendorOpening.partners.followups
+    .filter(item => item.kind !== "vendor_applications_open");
+  const missingVendorOpeningReport = evaluateBoardDemoReadiness(missingVendorOpening);
   const missingDurableDeliveryProof = structuredClone(localAutomationBoardState);
   delete missingDurableDeliveryProof.partners.followups.at(-1).deliveryEvents;
   const missingDurableDeliveryReport = evaluateBoardDemoReadiness(missingDurableDeliveryProof);
@@ -930,11 +936,13 @@ console.log("\n=== Pure library suite ===\n");
     && !readyBoardCameraCheck?.detail.includes("live"));
   ok("board demo readiness requires loopback delivery proof in automatic mode", localAutomationBoardReport.ok
     && localAutomationBoardReport.checks.find(item => item.id === "operations")?.detail.includes("locally delivered messages")
+    && localAutomationBoardReport.checks.find(item => item.id === "operations")?.detail.includes("vendor opening")
     && missingLocalCampaignReport.checks.find(item => item.id === "operations")?.ok === false
     && missingReviewFirstReport.checks.find(item => item.id === "operations")?.ok === false
     && missingAutomaticKeyDateReport.checks.find(item => item.id === "operations")?.ok === false
     && missingPaymentConfirmationReport.checks.find(item => item.id === "operations")?.ok === false
     && missingSponsorProofReviewReport.checks.find(item => item.id === "operations")?.ok === false
+    && missingVendorOpeningReport.checks.find(item => item.id === "operations")?.ok === false
     && missingDurableDeliveryReport.checks.find(item => item.id === "operations")?.ok === false);
   ok("board demo readiness survives a fresh sandbox process when durable delivery proof is present", restartedLocalAutomationBoardReport.ok);
   const directionalCameraIds = ["harbor-island-entrance", "harbor-island-stacking", "ferry-loading", "ferry-stacking"];
@@ -2567,7 +2575,8 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   ok("follow-up review draft", drafted.ok && drafted.followup.status === "draft_ready" && !drafted.followup.sentAt && drafted.followup.body.includes(portalUrl));
   const reviewFirstAutomation = applyTransactionalFollowupAutomation(drafted.doc, { providerReady: true, now });
   const blockedAutomation = setPartnerAutomationMode(drafted.doc, "transactional_auto", { providerReady: false, actorId: "admin_1", now, idFactory });
-  const automationDrafts = PARTNER_TRANSACTIONAL_FOLLOWUP_KINDS.map((kind, index) => ({
+  const genericAutomationKinds = PARTNER_TRANSACTIONAL_FOLLOWUP_KINDS.filter(kind => kind !== "vendor_applications_open");
+  const automationDrafts = genericAutomationKinds.map((kind, index) => ({
     ...drafted.followup,
     id: `followup_auto_${index + 1}`,
     kind,
@@ -2612,16 +2621,16 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   const queueCandidates = automatedFollowupQueueCandidates(automated.doc);
   ok("transactional automation defaults to review", !reviewFirstAutomation.changed && reviewFirstAutomation.approved.length === 0);
   ok("transactional automation requires email provider", !blockedAutomation.ok && blockedAutomation.providerNotReady === true);
-  ok("transactional automation approves bounded message kinds", enabledAutomation.ok && automated.approved.length === PARTNER_TRANSACTIONAL_FOLLOWUP_KINDS.length && automated.approved.every(item => item.approvedBy === `automation:${PARTNER_TRANSACTIONAL_AUTOMATION_POLICY}`));
+  ok("transactional automation approves bounded message kinds", enabledAutomation.ok && automated.approved.length === genericAutomationKinds.length && automated.approved.every(item => item.approvedBy === `automation:${PARTNER_TRANSACTIONAL_AUTOMATION_POLICY}`));
   ok("sponsor outreach remains review gated", automated.doc.followups.find(item => item.id === "followup_outreach_review_gate")?.status === "draft_ready");
   ok("transactional automation revalidates recipients", automated.doc.followups.find(item => item.id === "followup_stale_recipient")?.status === "draft_ready" && automated.skipped.some(item => item.id === "followup_stale_recipient"));
   ok("automation readiness is privacy safe", automationReadiness.active && automationReadiness.eligibleKinds.length === PARTNER_TRANSACTIONAL_FOLLOWUP_KINDS.length && !JSON.stringify(automationReadiness).includes("avery@example.com"));
-  ok("automation queue candidates are explicit", queueCandidates.length === PARTNER_TRANSACTIONAL_FOLLOWUP_KINDS.length && queueCandidates.every(item => item.status === "approved"));
+  ok("automation queue candidates are explicit", queueCandidates.length === genericAutomationKinds.length && queueCandidates.every(item => item.status === "approved"));
   const returnedToReview = setPartnerAutomationMode(automated.doc, "review_first", { providerReady: true, actorId: "admin_1", now: "2026-07-16T12:02:00.000Z", idFactory });
-  ok("disabling automation returns unqueued approvals to review", returnedToReview.ok && returnedToReview.returnedToReview === PARTNER_TRANSACTIONAL_FOLLOWUP_KINDS.length && returnedToReview.doc.followups.filter(item => item.automationDecision === "returned_to_review").every(item => item.status === "draft_ready"));
+  ok("disabling automation returns unqueued approvals to review", returnedToReview.ok && returnedToReview.returnedToReview === genericAutomationKinds.length && returnedToReview.doc.followups.filter(item => item.automationDecision === "returned_to_review").every(item => item.status === "draft_ready"));
   const automationQueued = queueFollowupDelivery(automated.doc, queueCandidates[0].id, { now, automationJobId: "job_automation_inflight" });
   const disabledWithQueued = setPartnerAutomationMode(automationQueued.doc, "review_first", { providerReady: true, actorId: "admin_1", now: "2026-07-16T12:03:00.000Z", idFactory });
-  ok("disabling automation preserves an in-flight delivery", automationQueued.ok && disabledWithQueued.doc.followups.find(item => item.id === queueCandidates[0].id)?.status === "queued" && disabledWithQueued.returnedToReview === PARTNER_TRANSACTIONAL_FOLLOWUP_KINDS.length - 1);
+  ok("disabling automation preserves an in-flight delivery", automationQueued.ok && disabledWithQueued.doc.followups.find(item => item.id === queueCandidates[0].id)?.status === "queued" && disabledWithQueued.returnedToReview === genericAutomationKinds.length - 1);
   ok("legacy automation mode migrates safely", partnerAutomationReadiness({ ...emptyPartnerOperations(), automationMode: "enabled" }, { providerReady: true }).mode === "transactional_auto");
   const refreshedDraft = rotatePartnerPortalAccess(drafted.doc, created.application.id, {
     idFactory,
@@ -3401,6 +3410,107 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   ok("vendor interest acknowledgment and portal stay non-financial", vendorInterestDraft.followup.subject.includes("vendor interest") && !vendorInterestDraft.followup.subject.includes("application") && vendorInterestDraft.followup.body.includes("fees and availability will be confirmed") && vendorInterestPortal.intakeMode === "interest" && vendorInterestPortal.finance.paymentStatus === "not_applicable" && vendorInterestPortal.vendorOnboarding === null);
   ok("vendor interest is excluded from booth readiness", vendorInterestReadiness.totals.interests === 1 && vendorInterestReadiness.totals.vendors === 0 && vendorInterestReadiness.totals.blocked === 0);
   ok("vendor interest rejects pricing, invoicing, and payments", !pricedVendorInterest.ok && !repricedVendorInterest.ok && !invoicedVendorInterest.ok && !paidVendorInterest.ok && [pricedVendorInterest, repricedVendorInterest, invoicedVendorInterest, paidVendorInterest].every(item => item.error.includes("Vendor interest")));
+  const vendorOpeningUrl = "https://www.texassandfest.org/?vendorOffering=marketplace-booth&vendorCategory=service#vendor-application-form";
+  const applicationUrlForInterest = () => vendorOpeningUrl;
+  const vendorOpening = generateVendorApplicationOpeningFollowups(vendorInterest.doc, BOARD_DEMO_VENDOR_OFFERINGS, {
+    applicationUrlForInterest,
+    idFactory,
+    now
+  });
+  const vendorOpeningAgain = generateVendorApplicationOpeningFollowups(vendorOpening.doc, BOARD_DEMO_VENDOR_OFFERINGS, {
+    applicationUrlForInterest,
+    idFactory,
+    now
+  });
+  const openingNotice = vendorOpening.generated[0];
+  const openingAutomationEnabled = setPartnerAutomationMode(vendorOpening.doc, "transactional_auto", {
+    providerReady: true,
+    actorId: "admin_1",
+    idFactory,
+    now
+  });
+  const automatedOpening = applyTransactionalFollowupAutomation(openingAutomationEnabled.doc, {
+    providerReady: true,
+    vendorOfferings: BOARD_DEMO_VENDOR_OFFERINGS,
+    applicationUrlForInterest,
+    idFactory,
+    now
+  });
+  const changedOpeningRecipientDoc = {
+    ...automatedOpening.doc,
+    applications: automatedOpening.doc.applications.map(item => item.id === vendorInterest.application.id
+      ? { ...item, contactEmail: "new-contact@island-interest.example" }
+      : item)
+  };
+  const changedOpeningRecipient = queueFollowupDelivery(changedOpeningRecipientDoc, openingNotice.id, {
+    vendorOfferings: BOARD_DEMO_VENDOR_OFFERINGS,
+    applicationUrlForInterest,
+    now
+  });
+  const changedOpeningUrl = queueFollowupDelivery(automatedOpening.doc, openingNotice.id, {
+    vendorOfferings: BOARD_DEMO_VENDOR_OFFERINGS,
+    applicationUrlForInterest: () => "https://vendors.texassandfest.org/#vendor-application-form",
+    now
+  });
+  const closedOpeningReview = reviewFollowup(vendorOpening.doc, openingNotice.id, "approve", {
+    vendorOfferings: DEFAULT_VENDOR_OFFERINGS,
+    applicationUrlForInterest,
+    actorId: "admin_1",
+    now
+  });
+  const repricedOfferings = BOARD_DEMO_VENDOR_OFFERINGS.map(item => item.id === "marketplace-booth"
+    ? { ...item, amount: item.amount + 10000, publicLabel: "$1,350 application fee" }
+    : item);
+  const repricedOpening = generateVendorApplicationOpeningFollowups(vendorOpening.doc, repricedOfferings, {
+    applicationUrlForInterest,
+    idFactory,
+    now: "2026-07-16T13:00:00.000Z"
+  });
+  const sentOpeningDoc = {
+    ...vendorOpening.doc,
+    followups: vendorOpening.doc.followups.map(item => item.id === openingNotice.id ? { ...item, status: "sent", sentAt: now } : item)
+  };
+  const openingAfterSentTermsChange = generateVendorApplicationOpeningFollowups(sentOpeningDoc, repricedOfferings, {
+    applicationUrlForInterest,
+    idFactory,
+    now: "2026-07-16T13:00:00.000Z"
+  });
+  const categoryClosedOfferings = BOARD_DEMO_VENDOR_OFFERINGS.map(item => item.id === "marketplace-booth"
+    ? { ...item, categories: ["retail", "artisan"] }
+    : item);
+  const categoryClosedOpening = generateVendorApplicationOpeningFollowups(vendorOpening.doc, categoryClosedOfferings, {
+    applicationUrlForInterest,
+    idFactory,
+    now: "2026-07-16T13:00:00.000Z"
+  });
+  ok("vendor opening notice is explicit and privacy-minimized", vendorOpening.generated.length === 1
+    && openingNotice.status === "draft_ready"
+    && openingNotice.body.includes("has not been converted into an application")
+    && openingNotice.body.includes("submit a new application")
+    && openingNotice.body.includes("$1,250 application fee")
+    && openingNotice.applicationUrl === vendorOpeningUrl
+    && !openingNotice.applicationUrl.includes(vendorInterest.application.contactEmail)
+    && !openingNotice.applicationUrl.includes(vendorInterest.application.reference)
+    && !JSON.stringify(vendorOpening.doc.activity.at(-1)).includes(vendorInterest.application.contactEmail));
+  ok("vendor opening notice generation is idempotent", !vendorOpeningAgain.changed && vendorOpeningAgain.generated.length === 0);
+  ok("vendor opening notice participates in transactional automation", openingAutomationEnabled.ok
+    && automatedOpening.approved.length === 1
+    && automatedOpening.approved[0].id === openingNotice.id
+    && automatedOpening.approved[0].automationPolicy === PARTNER_TRANSACTIONAL_AUTOMATION_POLICY);
+  ok("vendor opening notice revalidates catalog and recipient before queue", !closedOpeningReview.ok
+    && closedOpeningReview.error.includes("no longer open")
+    && !changedOpeningRecipient.ok
+    && changedOpeningRecipient.error.includes("no longer matches")
+    && !changedOpeningUrl.ok
+    && changedOpeningUrl.error.includes("link changed"));
+  ok("vendor opening changes replace only unsent notice versions", repricedOpening.generated.length === 1
+    && repricedOpening.dismissedFollowups === 1
+    && repricedOpening.doc.followups.find(item => item.id === openingNotice.id)?.status === "dismissed"
+    && openingAfterSentTermsChange.generated.length === 1
+    && openingAfterSentTermsChange.doc.followups.find(item => item.id === openingNotice.id)?.status === "sent");
+  ok("vendor opening category removal dismisses without retargeting", categoryClosedOpening.generated.length === 0
+    && categoryClosedOpening.dismissedFollowups === 1
+    && categoryClosedOpening.doc.followups.find(item => item.id === openingNotice.id)?.status === "dismissed");
   const vendorCreated = createPartnerApplication(emptyPartnerOperations(), {
     type: "vendor",
     organizationName: "Coastal Tacos",

@@ -262,8 +262,8 @@ try {
   }
   const currentOwner = await assertRuntimeOwnership(ownershipRoot, { SANDFEST_RUNTIME_ROOT: ownershipRoot, SANDFEST_RUNTIME_OWNER_ID: secondOwnerId });
   check("runtime ownership rejects a stale process after handoff", staleOwnerRejected && currentOwner.required === true);
-  check("board seed covers core operations", prepared.applications === 4 && prepared.invoices === 1 && prepared.payments === 1
-    && prepared.budgetLines === 6 && prepared.expenses === 7 && prepared.tasks === 10 && prepared.prospects === 2 && prepared.safetySmsRecipients === 1);
+  check("board seed covers core operations", prepared.applications === 5 && prepared.invoices === 1 && prepared.payments === 1
+    && prepared.budgetLines === 6 && prepared.expenses === 7 && prepared.tasks === 11 && prepared.prospects === 2 && prepared.safetySmsRecipients === 1);
   check("board seed covers field operations", prepared.cameras === 8 && prepared.volunteerShifts === 12 && prepared.documents === 4);
   check("production refuses synthetic board conditions", await productionRejectsSyntheticConditions(targetRoot));
 
@@ -431,7 +431,7 @@ try {
   const seededSailfish = seeded.data.applications?.find(item => item.organizationName === "Port Aransas Marine Supply");
   const seededCreativeMilestone = seeded.data.milestones?.find(item => item.label === "Sponsor homepage creative approval");
   const seededCreativeReminder = seeded.data.followups?.find(item => item.milestoneId === seededCreativeMilestone?.id && item.kind === "milestone_reminder");
-  check("seeded sponsor and vendor finance is visible", seeded.status === 200 && seeded.data.applications?.length === 4 && seeded.data.summary?.applications?.vendors === 2 && seeded.data.summary?.applications?.sponsors === 2 && seeded.data.applications?.some(item => item.type === "vendor" && item.offeringId === "food-beverage-booth" && item.expectedAmountCents === 175000) && seededMarlin?.packageId === "marlin" && seededMarlin?.expectedAmountCents === 1500000 && seededSailfish?.packageId === "sailfish" && seededSailfish?.expectedAmountCents === 1000000 && seeded.data.invoices?.length === 1 && seeded.data.payments?.length === 1 && seeded.data.receivables?.totals?.collectedCents === 1000000);
+  check("seeded sponsor and vendor finance is visible", seeded.status === 200 && seeded.data.applications?.length === 5 && seeded.data.summary?.applications?.vendors === 3 && seeded.data.summary?.applications?.sponsors === 2 && seeded.data.applications?.some(item => item.type === "vendor" && item.offeringId === "food-beverage-booth" && item.expectedAmountCents === 175000) && seeded.data.applications?.some(item => item.type === "vendor" && item.intakeMode === "interest" && item.offeringId === "marketplace-booth" && item.expectedAmountCents === 0) && seededMarlin?.packageId === "marlin" && seededMarlin?.expectedAmountCents === 1500000 && seededSailfish?.packageId === "sailfish" && seededSailfish?.expectedAmountCents === 1000000 && seeded.data.invoices?.length === 1 && seeded.data.payments?.length === 1 && seeded.data.receivables?.totals?.collectedCents === 1000000);
   check("seeded sponsor brand kit contains two approved private assets", seeded.data.brandAssets?.filter(item => item.label?.startsWith("Gulf Shore Credit Union") && item.status === "approved").length === 2);
   check("seeded sponsor creative date enters the automatic follow-up window", seededCreativeMilestone?.source === "custom" && seededCreativeMilestone?.assigneeTeam === "sponsor" && seededCreativeMilestone?.reminderLeadDays === 3 && seeded.data.summary?.operations?.dueSoonMilestones === 1 && seededCreativeReminder?.status === "draft_ready" && seededCreativeReminder?.reminderPhase === "upcoming");
   check("revenue is current-event and includes site-native finance", revenue.status === 200 && revenue.data.eventId === DEFAULT_EVENT_ID && revenue.data.sources?.imported?.entries === 3 && revenue.data.sources?.partnerOperations?.entries === 1 && revenue.data.summary?.totals?.grossCents === 1750000 && revenue.data.summary?.tickets?.sold === 100 && revenue.data.entries?.every(item => item.eventId === DEFAULT_EVENT_ID) && revenue.data.imports?.length === 3 && revenue.data.imports?.every(item => item.fileName?.endsWith("-demo.csv")));
@@ -441,7 +441,7 @@ try {
     && budget.data.summary?.counts?.byStatus?.paid === 2 && budget.data.summary?.counts?.byStatus?.rejected === 1
     && budget.data.summary?.totals?.budgetCents === 53_000_000 && budget.data.summary?.totals?.committedCents === 18_640_000
     && budget.data.summary?.totals?.submittedCents === 9_200_000 && budget.data.expenses?.every(item => item.eventId === DEFAULT_EVENT_ID));
-  check("seeded work and outreach are visible", seeded.data.tasks?.length === 10 && seeded.data.followups?.length >= 4 && outreach.status === 200 && outreach.data.prospects?.length === 2 && outreach.data.campaigns?.length === 2);
+  check("seeded work and outreach are visible", seeded.data.tasks?.length === 11 && seeded.data.followups?.length >= 5 && outreach.status === 200 && outreach.data.prospects?.length === 2 && outreach.data.campaigns?.length === 2);
   const seededAssignmentTypes = new Set(seeded.data.tasks?.filter(item => item.assigneeId).map(item => item.assigneeType));
   check("board work demonstrates direct staff, volunteer, and team delegation", seededAssignmentTypes.has("staff") && seededAssignmentTypes.has("volunteer") && seededAssignmentTypes.has("team") && seeded.data.tasks?.some(item => item.assigneeType === "staff" && item.assigneeId === "staff_operations" && item.assigneeName === "Jamie Torres") && seeded.data.taskBoard?.totals?.unassigned === 0);
   const readyVendor = seeded.data.vendorReadiness?.vendors?.find(item => item.organizationName === "Coastal Bites");
@@ -539,7 +539,7 @@ try {
   const newApplicationIds = new Set([vendor.data.application?.id, sponsor.data.application?.id].filter(Boolean));
   const immediateIntakeReminders = (afterWorker.data.followups || []).filter(item => item.kind === "milestone_reminder" && newApplicationIds.has(item.applicationId));
   const taskAssignmentMessages = (afterWorker.data.followups || []).filter(item => item.kind === "task_assignment" && activeAssignedTaskIds.has(item.taskId));
-  check("worker prepares review-first messages", workerOutput.includes("processed 3 job(s)") && afterWorker.data.applications?.length === 7 && afterWorker.data.followups?.filter(item => item.status === "draft_ready").length >= 7);
+  check("worker prepares review-first messages", workerOutput.includes("processed 3 job(s)") && afterWorker.data.applications?.length === 8 && afterWorker.data.followups?.filter(item => item.status === "draft_ready").length >= 8);
   check("new partner acknowledgments are separated from milestone reminders", immediateIntakeReminders.length === 0);
   check("worker prepares one private notice per assigned task", taskAssignmentMessages.length === activeAssignedTaskIds.size && taskAssignmentMessages.every(item => item.status === "draft_ready" && item.recipientAvailable === true && item.recipientLabel && !("recipient" in item) && item.body?.includes("#task-status?task=") && item.body?.includes("&token=tsft_")));
   const taskPortalMessage = taskAssignmentMessages.find(item => item.taskId && item.body?.includes("#task-status?task="));
@@ -565,7 +565,8 @@ try {
       const milestoneReminder = workspace.data.followups?.find(item => item.kind === "milestone_reminder" && item.milestoneId === seededCreativeMilestone?.id);
       const paymentConfirmation = workspace.data.followups?.find(item => item.kind === "payment_received");
       const sponsorProofReview = workspace.data.followups?.find(item => item.kind === "sponsor_deliverable_review");
-      return applicationMessages.length >= 7
+      const vendorOpening = workspace.data.followups?.find(item => item.kind === "vendor_applications_open");
+      return applicationMessages.length >= 8
         && applicationMessages.every(item => item.status === "sent" && item.deliveryStatus === "delivered")
         && assignmentMessages.length === activeAssignedTaskIds.size
         && assignmentMessages.every(item => item.status === "sent" && item.deliveryStatus === "delivered")
@@ -575,6 +576,8 @@ try {
         && paymentConfirmation?.deliveryStatus === "delivered"
         && sponsorProofReview?.status === "sent"
         && sponsorProofReview?.deliveryStatus === "delivered"
+        && vendorOpening?.status === "sent"
+        && vendorOpening?.deliveryStatus === "delivered"
         ? workspace
         : null;
     }, 1_500);
@@ -587,6 +590,7 @@ try {
   const deliveredCreativeReminder = projectedMilestoneReminders.find(item => item.milestoneId === seededCreativeMilestone?.id);
   const deliveredPaymentConfirmation = latestWorkspace?.data.followups?.find(item => item.kind === "payment_received");
   const deliveredSponsorProofReview = latestWorkspace?.data.followups?.find(item => item.kind === "sponsor_deliverable_review");
+  const deliveredVendorOpening = latestWorkspace?.data.followups?.find(item => item.kind === "vendor_applications_open");
   const automationProof = {
     enableStatus: automationEnabled.status,
     enableAutomation: automationEnabled.data.automation,
@@ -615,6 +619,17 @@ try {
     && !deliveredSponsorProofReview?.body?.includes("gulf-shore-credit-union");
   check("board transactional automation delivers a private sponsor proof review", sponsorProofReviewReady,
     sponsorProofReviewReady ? "" : `status=${deliveredSponsorProofReview?.status || "missing"} delivery=${deliveredSponsorProofReview?.deliveryStatus || "missing"}`);
+  const vendorOpeningReady = deliveredVendorOpening?.status === "sent"
+    && deliveredVendorOpening?.deliveryStatus === "delivered"
+    && deliveredVendorOpening?.automationPolicy === "partner_transactional_v1"
+    && deliveredVendorOpening?.subject?.includes("vendor applications are open")
+    && deliveredVendorOpening?.body?.includes("has not been converted into an application")
+    && deliveredVendorOpening?.body?.includes("vendorOffering=marketplace-booth")
+    && deliveredVendorOpening?.body?.includes("vendorCategory=service")
+    && !deliveredVendorOpening?.body?.includes("cameron.brooks@example.com")
+    && !deliveredVendorOpening?.body?.includes("TSF-V-");
+  check("board transactional automation delivers the vendor opening handoff", vendorOpeningReady,
+    vendorOpeningReady ? "" : `status=${deliveredVendorOpening?.status || "missing"} delivery=${deliveredVendorOpening?.deliveryStatus || "missing"}`);
   const creativeReminderReady = deliveredCreativeReminder?.status === "sent"
     && deliveredCreativeReminder?.deliveryStatus === "delivered"
     && deliveredCreativeReminder?.automationPolicy === "partner_transactional_v1"

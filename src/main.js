@@ -2095,7 +2095,7 @@ app.innerHTML = `
             <label>State<input name="state" maxlength="40" value="TX" autocomplete="address-level1" /></label>
             <label class="partner-field-wide">Products and booth needs<textarea name="description" rows="4" maxlength="2000"></textarea></label>
           </div>
-          <p id="vendor-intake-availability" class="partner-availability-note">Vendor applications are not currently open. Join the interest list and review updates on the <a href="https://www.texassandfest.org/vendors" target="_blank" rel="noopener noreferrer">official vendor page</a>.</p>
+          <p id="vendor-intake-availability" class="partner-availability-note">Applications closed. Join the interest list or see the <a href="https://www.texassandfest.org/vendors" target="_blank" rel="noopener noreferrer">official vendor page</a>.</p>
           <p id="vendor-offering-summary" class="partner-offering-summary" aria-live="polite"></p>
           <p id="vendor-data-use-note" class="partner-data-use-note">${escapeHtml(vendorInterestContactNotice.disclosure)}</p>
           <label class="partner-consent"><input name="consentToContact" type="checkbox" required /><span id="vendor-consent-label">${escapeHtml(vendorInterestContactNotice.checkboxLabel)}</span></label>
@@ -5468,8 +5468,8 @@ function renderVendorIntakeMode(offering) {
   if (heading) heading.textContent = isInterest ? "Join the vendor interest list" : "Apply for the beach marketplace";
   if (availability) {
     availability.innerHTML = isInterest
-      ? 'Vendor applications are not currently open. Join the interest list and review updates on the <a href="https://www.texassandfest.org/vendors" target="_blank" rel="noopener noreferrer">official vendor page</a>.'
-      : 'Applications are open for this program. Fees and placement remain subject to approval; review updates on the <a href="https://www.texassandfest.org/vendors" target="_blank" rel="noopener noreferrer">official vendor page</a>.';
+      ? 'Applications closed. Join the interest list for an opening notice or see the <a href="https://www.texassandfest.org/vendors" target="_blank" rel="noopener noreferrer">official vendor page</a>.'
+      : 'Applications open. Fees and placement require approval; see the <a href="https://www.texassandfest.org/vendors" target="_blank" rel="noopener noreferrer">official vendor page</a>.';
   }
   if (disclosure) disclosure.textContent = notice.disclosure;
   if (consent) consent.textContent = notice.checkboxLabel;
@@ -5491,7 +5491,7 @@ function renderVendorOfferingChoices() {
   if (summary) {
     summary.textContent = selected
       ? `${selected.publicLabel || adminMoney(selected.amount)}. ${selected.description}${selected.inclusions?.length ? ` Includes ${selected.inclusions.join(", ").toLowerCase()}.` : ""}`
-      : "No active offering is available for this vendor type.";
+      : "No offering.";
     summary.dataset.state = selected ? "ready" : "unavailable";
   }
   renderVendorIntakeMode(selected);
@@ -5503,6 +5503,8 @@ function bindVendorOfferingChoices() {
   form.elements.category.addEventListener("change", renderVendorOfferingChoices);
   form.elements.vendorOfferingId.addEventListener("change", renderVendorOfferingChoices);
   renderVendorOfferingChoices();
+  if (!ADMIN_ENTRY) import("./vendor-application-prefill.js")
+    .then(module => module.applyVendorApplicationPrefill(form, renderVendorOfferingChoices));
 }
 
 async function loadPublicVendorOfferings() {
@@ -7900,7 +7902,7 @@ function renderAdminPartners(payload, outreach) {
     automationForm.onsubmit = async event => {
       event.preventDefault();
       const requestedMode = modeSelect.value;
-      if (requestedMode === "transactional_auto" && !window.confirm("Enable automatic applicant, payment, key-date, sponsor review, vendor workflow, and task notifications?")) return;
+      if (requestedMode === "transactional_auto" && !window.confirm("Enable notifications?")) return;
       saveButton.disabled = true;
       try {
         const result = await adminFetch("/api/admin/partners/automation", {

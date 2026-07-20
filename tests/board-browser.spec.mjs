@@ -396,9 +396,18 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await expect(page.locator("#vendor-application-form")).toBeInViewport({ ratio: 0.1 });
   await expect(page.locator("#vendor-intake-label")).toHaveText("Vendor application");
   await expect(page.locator("#vendor-intake-submit")).toHaveText("Submit vendor application");
-  await expect(page.locator("#vendor-intake-availability")).toContainText("Applications are open for this program");
+  await expect(page.locator("#vendor-intake-availability")).toContainText("Applications open");
   await expect(page.locator("#vendor-data-use-note")).toContainText("Do not submit payment card, bank, tax ID, or health information here.");
   await expect(page.locator("#sponsor-inquiry-form .partner-data-use-note")).toContainText("private partner status portal");
+  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor&vendorOffering=marketplace-booth&vendorCategory=artisan#vendor-application-form`);
+  const openingHandoffForm = page.locator("#vendor-application-form");
+  await expect(openingHandoffForm).toBeInViewport({ ratio: 0.1 });
+  await expect(openingHandoffForm.locator('[name="category"]')).toHaveValue("artisan");
+  await expect(openingHandoffForm.locator('[name="vendorOfferingId"]')).toHaveValue("marketplace-booth");
+  await expect(openingHandoffForm.locator('[name="organizationName"]')).toHaveValue("");
+  await expect(openingHandoffForm.locator('[name="contactName"]')).toHaveValue("");
+  await expect(openingHandoffForm.locator('[name="contactEmail"]')).toHaveValue("");
+  await expect(openingHandoffForm.locator('[name="consentToContact"]')).not.toBeChecked();
   const galleryImages = page.locator("#media .media-gallery img");
   await expect(galleryImages).toHaveCount(8);
   await expect.poll(() => galleryImages.evaluateAll(images => images.every(image => image.complete && image.naturalWidth > 0))).toBe(true);
@@ -1711,6 +1720,21 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
     deliveredSponsorProofReviewId = proofReview?.id || null;
     return Boolean(deliveredSponsorProofReviewId);
   }, { timeout: 15_000 }).toBe(true);
+  let deliveredVendorOpeningId = null;
+  await expect.poll(async () => {
+    const response = await fetch(`${apiBase}/api/admin/partners`, { headers: { authorization: `Bearer ${TOKEN}` } });
+    const payload = await response.json();
+    const opening = payload.followups?.find(item => item.kind === "vendor_applications_open"
+      && item.automationPolicy === "partner_transactional_v1"
+      && item.status === "sent"
+      && item.deliveryStatus === "delivered"
+      && item.body?.includes("has not been converted into an application")
+      && item.body?.includes("vendorOffering=marketplace-booth")
+      && item.body?.includes("vendorCategory=service")
+      && !item.body?.includes("cameron.brooks@example.com"));
+    deliveredVendorOpeningId = opening?.id || null;
+    return Boolean(deliveredVendorOpeningId);
+  }, { timeout: 15_000 }).toBe(true);
   const reloadPartners = Promise.all([
     page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/partners" && response.request().method() === "GET"),
     page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/outreach" && response.request().method() === "GET")
@@ -1746,6 +1770,12 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   await expect(deliveredSponsorProofReview).toHaveAttribute("data-delivery-status", "delivered");
   await expect(deliveredSponsorProofReview).toContainText("Texas SandFest sponsor proof ready");
   await expect(deliveredSponsorProofReview).toContainText("automatic sponsor proof review");
+  const deliveredVendorOpening = page.locator(`#admin-partner-followups [data-followup="${deliveredVendorOpeningId}"]`);
+  await expect(deliveredVendorOpening).toHaveCount(1);
+  await expect(deliveredVendorOpening).toHaveAttribute("data-delivery-status", "delivered");
+  await expect(deliveredVendorOpening).toContainText("Texas SandFest vendor applications are open");
+  await expect(deliveredVendorOpening).toContainText("has not been converted into an application");
+  await expect(deliveredVendorOpening).toContainText("transactional automation");
   const freshSponsorMilestone = page.locator(`#admin-partner-milestones [data-admin-milestone="${createdSponsorMilestone.id}"]`);
   await expect(freshSponsorMilestone).toContainText(milestoneLabel);
   await expect(freshSponsorMilestone).toContainText("latest reminder upcoming (sent)");
