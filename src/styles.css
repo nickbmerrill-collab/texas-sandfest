@@ -3910,7 +3910,12 @@ time {
   position: relative;
   border-radius: 22px;
   overflow: hidden;
-  background: #fff1d3;
+  background: linear-gradient(
+    to bottom,
+    var(--lb-cream) 0 12.5%,
+    #fff1d3 12.5% 87.5%,
+    var(--lb-navy) 87.5% 100%
+  );
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.7) inset,
     0 30px 60px -30px rgba(14, 42, 71, 0.45),
@@ -4056,7 +4061,7 @@ time {
   box-shadow: 0 12px 28px -12px rgba(14, 42, 71, 0.4);
   border-radius: 14px;
   padding: 12px 14px;
-  min-width: 220px;
+  width: min(220px, calc(100% - 16px));
   font-family: Inter, sans-serif;
   z-index: 4;
 }
@@ -4393,7 +4398,10 @@ time {
     border-radius: 22px;
   }
   .lb-headline { font-size: 32px; }
-  .lb-canvas   { aspect-ratio: 1 / 1; }
+  .lb-pin-hit  { r: 74px; }
+  .lb-pin-halo { r: 54px; stroke-width: 4; }
+  .lb-pin-core { r: 36px; stroke-width: 4; }
+  .lb-pin-num  { font-size: 32px; }
   .lb-stat-grid { grid-template-columns: 1fr 1fr; }
   .lb-scrub    { padding: 16px 16px 18px; }
 }

@@ -707,7 +707,7 @@ app.innerHTML = `
         </aside>
 
         <div class="lb-canvas" id="lb-canvas">
-          <svg class="lb-svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+          <svg class="lb-svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid meet">
             <defs>
               <linearGradient id="lb-sky" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stop-color="#f3e8c8"/>
@@ -10034,10 +10034,15 @@ function startLiveBeach() {
   };
 
   // Pin hover popover
-  const showPop = (s, evt) => {
+  const showPop = (s) => {
     const rect = canvas.getBoundingClientRect();
-    const cx = px(s.x) / W * rect.width;
-    const cy = py(s.y) / H * rect.height;
+    const svgPoint = svg.createSVGPoint();
+    svgPoint.x = px(s.x);
+    svgPoint.y = py(s.y);
+    const screenMatrix = svg.getScreenCTM();
+    const screenPoint = screenMatrix ? svgPoint.matrixTransform(screenMatrix) : null;
+    const cx = screenPoint ? screenPoint.x - rect.left : px(s.x) / W * rect.width;
+    const cy = screenPoint ? screenPoint.y - rect.top : py(s.y) / H * rect.height;
     popEl.querySelector(".lb-pop-num").textContent = `Sculpture #${s.id}`;
     popEl.querySelector(".lb-pop-flag").textContent = s.country;
     popEl.querySelector(".lb-pop-crowd").textContent = crowdLabel[s.crowd];
@@ -10047,16 +10052,20 @@ function startLiveBeach() {
     const dist = Math.hypot(s.x - visitor.x, s.y - visitor.y);
     const minutes = Math.max(1, Math.round(dist * 18));
     popEl.querySelector(".lb-pop-walk").textContent = `${minutes} min walk from you`;
-    popEl.style.left = `${cx}px`;
-    popEl.style.top  = `${cy - 16}px`;
     popEl.hidden = false;
+    const margin = 8;
+    const halfWidth = popEl.offsetWidth / 2;
+    const clampedX = Math.min(rect.width - halfWidth - margin, Math.max(halfWidth + margin, cx));
+    const clampedY = Math.min(rect.height - margin, Math.max(popEl.offsetHeight + margin, cy - 16));
+    popEl.style.left = `${clampedX}px`;
+    popEl.style.top = `${clampedY}px`;
   };
   const hidePop = () => { popEl.hidden = true; };
 
   pinsGroup.querySelectorAll(".lb-pin").forEach((g) => {
     const id = Number(g.dataset.pinId);
     const s = sculptures.find(x => x.id === id);
-    g.addEventListener("pointerenter", (e) => showPop(s, e));
+    g.addEventListener("pointerenter", () => showPop(s));
     g.addEventListener("pointerleave", hidePop);
     g.addEventListener("focus", () => showPop(s));
     g.addEventListener("blur",  hidePop);
