@@ -188,6 +188,7 @@ import {
   summarizePartnerMilestones,
   summarizePartnerReceivables,
   summarizeSponsorFulfillment,
+  summarizeTaskNotifications,
   summarizeVendorReadiness,
   summarizeTaskBoard,
   updateOutreachCampaignStatus,
@@ -411,6 +412,7 @@ import { boardDemoEngagement } from "../lib/board-runtime.mjs";
 import { boardDemoSyntheticConditions } from "../lib/board-conditions.mjs";
 import { boardPartnerFormPreset } from "../src/board-demo/partner-form-presets.js";
 import { developmentPublicApiBase } from "../src/dev-public-api-base.js";
+import { taskAssignmentNoticeAction } from "../src/admin-operations-ui.js";
 import { eventArchiveDigest, planEventRollover, ROLLOVER_DOCUMENT_KEYS } from "../lib/event-rollover.mjs";
 import {
   cleanAuthCallbackUrl,
@@ -3431,6 +3433,50 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   });
   ok("staff can reissue the current secure task notice", requestedAssignmentResend.ok && requestedAssignmentResend.task.assignmentNoticeVersion === 1 && resentAssignmentNotice.generated.length === 1 && resentAssignmentNotice.generated[0].sourceVersion === "assignment:1:notice:1" && resentAssignmentNotice.generated[0].body.includes(taskPortalUrl) && approvedResentAssignmentNotice.ok);
   ok("task notice resend requests are idempotent and suppress active duplicates", replayedAssignmentResend.replay === true && replayedAssignmentResend.task.assignmentNoticeVersion === 1 && !duplicatePendingResend.ok && duplicatePendingResend.conflict === true);
+  const visibleTaskNoticeSummary = summarizeTaskNotifications(task.task, [
+    {
+      taskId: task.task.id,
+      kind: "task_assignment",
+      sourceVersion: "assignment:0",
+      status: "sent",
+      deliveryStatus: "delivered",
+      recipient: "revoked-assignee@example.com",
+      updatedAt: "2026-07-14T12:30:00.000Z"
+    },
+    {
+      taskId: task.task.id,
+      kind: "task_assignment",
+      sourceVersion: "assignment:1",
+      status: "sent",
+      deliveryStatus: "delivered",
+      deliveredAt: "2026-07-14T12:16:00.000Z",
+      updatedAt: "2026-07-14T12:16:00.000Z"
+    },
+    {
+      taskId: task.task.id,
+      kind: "task_assignment",
+      sourceVersion: "assignment:1:notice:1",
+      status: "failed",
+      updatedAt: "2026-07-14T12:20:00.000Z"
+    },
+    {
+      taskId: task.task.id,
+      kind: "task_overdue",
+      status: "sent",
+      deliveryStatus: "delivered",
+      deliveredAt: "2026-07-21T12:00:00.000Z",
+      updatedAt: "2026-07-21T12:00:00.000Z"
+    }
+  ]);
+  const visibleTaskNoticeAction = taskAssignmentNoticeAction(task.task, "volunteer", visibleTaskNoticeSummary);
+  const unassignedTaskNoticeSummary = summarizeTaskNotifications({ ...task.task, assigneeType: "unassigned", assigneeId: null }, []);
+  ok("task notice history summarizes only the current assignment", visibleTaskNoticeSummary.count === 2
+    && visibleTaskNoticeSummary.latestStatus === "failed"
+    && visibleTaskNoticeSummary.assignmentLabel.includes("2 issued · latest failed")
+    && visibleTaskNoticeSummary.followupLabel.includes("task overdue · delivered")
+    && visibleTaskNoticeAction.label === "Resend notice"
+    && unassignedTaskNoticeSummary.assignmentLabel === "Assignment notices · not configured"
+    && !JSON.stringify(visibleTaskNoticeSummary).includes("revoked-assignee@example.com"));
   const acknowledgedTask = updatePartnerTaskFromAssignee(task.doc, task.task.id, { action: "acknowledge", note: "I have the art checklist." }, { idFactory, now: "2026-07-14T12:20:00.000Z" });
   const acknowledgedReplay = updatePartnerTaskFromAssignee(acknowledgedTask.doc, task.task.id, { action: "acknowledge" }, { idFactory, now: "2026-07-14T12:21:00.000Z" });
   const startedByAssignee = updatePartnerTaskFromAssignee(acknowledgedTask.doc, task.task.id, { action: "start" }, { idFactory, now: "2026-07-14T12:25:00.000Z" });

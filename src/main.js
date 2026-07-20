@@ -6690,15 +6690,8 @@ function renderAdminTaskBoard(payload) {
     const assignmentType = taskAssignmentType(task);
     const dueState = taskDueState(task, now);
     const owner = task.assigneeName || task.assigneeId || task.assigneeRole || "Unassigned";
-    const notification = (payload.followups || [])
-      .filter(item => item.taskId === task.id)
-      .sort((a, b) => String(b.updatedAt || b.createdAt).localeCompare(String(a.updatedAt || a.createdAt)))[0];
-    const assignmentNotice = (payload.followups || [])
-      .filter(item => item.taskId === task.id && item.kind === "task_assignment")
-      .sort((a, b) => String(b.updatedAt || b.createdAt).localeCompare(String(a.updatedAt || a.createdAt)))[0];
-    const notificationState = notification?.deliveryStatus || notification?.status || (assignmentType === "unassigned" ? "not_configured" : "awaiting_directory");
-    const assignmentNoticeAction = adminOperationsUi?.taskAssignmentNoticeAction(task, assignmentType, assignmentNotice)
-      || { disabled: true, label: "Notice unavailable" };
+    const notificationSummary = task.notificationSummary || { count: 0, latestStatus: null, assignmentLabel: "Assignment notices · unavailable", followupLabel: null };
+    const assignmentNoticeAction = adminOperationsUi.taskAssignmentNoticeAction(task, assignmentType, notificationSummary);
     const currentUpdates = (task.assigneeUpdates || []).filter(item => Number(item.assignmentVersion || 1) === Number(task.assignmentVersion || 1));
     const latestUpdate = currentUpdates[currentUpdates.length - 1];
     const responseState = task.acknowledgedAt
@@ -6707,7 +6700,8 @@ function renderAdminTaskBoard(payload) {
     return `<article class="admin-task-card" data-task="${escapeAttr(task.id)}" data-due-state="${escapeAttr(dueState)}" data-priority="${escapeAttr(task.priority || "normal")}">
       <header><div><strong>${escapeHtml(task.title)}</strong><span>${escapeHtml(conditionLabel(task.priority || "normal"))} priority</span></div><b>${escapeHtml(conditionLabel(task.status))}</b></header>
       <p>${escapeHtml(owner)} · ${escapeHtml(conditionLabel(assignmentType))} · ${task.dueAt ? `Due ${escapeHtml(new Date(task.dueAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }))}` : "No due date"}</p>
-      <span>Notification · ${escapeHtml(conditionLabel(notificationState))}${notification?.kind ? ` · ${escapeHtml(conditionLabel(notification.kind))}` : ""}</span>
+      <span>${escapeHtml(notificationSummary.assignmentLabel)}</span>
+      ${notificationSummary.followupLabel ? `<span>${escapeHtml(notificationSummary.followupLabel)}</span>` : ""}
       <span>Assignee response · ${escapeHtml(responseState)}</span>
       ${latestUpdate?.note ? `<blockquote class="admin-task-assignee-note"><strong>Latest assignee note</strong><span>${escapeHtml(latestUpdate.note)}</span></blockquote>` : ""}
       ${task.description ? `<span>${escapeHtml(task.description)}</span>` : ""}
