@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A10000000000000000000001 /* TexasSandFestTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000002 /* TexasSandFestTests.swift */; };
 		0C1B4720FEFDCA8CF6BE9A71 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45FBC9090CA50C1CC8EB6171 /* RootView.swift */; };
 		1775818503EFAFFF2CC2BC15 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8A17B986F097F115828A9018 /* Assets.xcassets */; };
 		1F24D12EB45E476233EE799E /* SandFestTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 806C8EDE8EE727731CC8DF59 /* SandFestTheme.swift */; };
@@ -37,7 +38,19 @@
 		FD939155C5210E2D22B680BB /* AdminSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35FA2B9DDE9ACE64C9208A4F /* AdminSettingsView.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		A1000000000000000000000A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 48D4C323D0928CD227A5AC97 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AC0D20584DFF09EEC0C8E628;
+			remoteInfo = TexasSandFest;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		A10000000000000000000002 /* TexasSandFestTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TexasSandFestTests.swift; sourceTree = "<group>"; };
+		A10000000000000000000003 /* TexasSandFestTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TexasSandFestTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		14666CC63BD806C8F2385B35 /* sandfest-seed.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "sandfest-seed.json"; sourceTree = "<group>"; };
 		1FE52C12D256F44D441A73E8 /* TexasSandFestApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TexasSandFestApp.swift; sourceTree = "<group>"; };
 		250D6E54785B8CFE8754310F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -71,11 +84,22 @@
 		F7A4D6B7050CE53483611B82 /* AppDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDataStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFrameworksBuildPhase section */
+		A10000000000000000000007 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
 /* Begin PBXGroup section */
 		1979F7610BE0258CEB1E06C7 /* Products */ = {
 			isa = PBXGroup;
 			children = (
 				419EDC2EDEEA3CF4FFED6B65 /* TexasSandFest.app */,
+				A10000000000000000000003 /* TexasSandFestTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -92,6 +116,7 @@
 			isa = PBXGroup;
 			children = (
 				D9CEECC0ABC5AE7329A950F4 /* TexasSandFest */,
+				A10000000000000000000004 /* TexasSandFestTests */,
 				1979F7610BE0258CEB1E06C7 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -133,9 +158,37 @@
 			path = TexasSandFest;
 			sourceTree = "<group>";
 		};
+		A10000000000000000000004 /* TexasSandFestTests */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000002 /* TexasSandFestTests.swift */,
+			);
+			path = TexasSandFestTests;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		A10000000000000000000005 /* TexasSandFestTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A1000000000000000000000D /* Build configuration list for PBXNativeTarget "TexasSandFestTests" */;
+			buildPhases = (
+				A10000000000000000000006 /* Sources */,
+				A10000000000000000000007 /* Frameworks */,
+				A10000000000000000000008 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A10000000000000000000009 /* PBXTargetDependency */,
+			);
+			name = TexasSandFestTests;
+			packageProductDependencies = (
+			);
+			productName = TexasSandFestTests;
+			productReference = A10000000000000000000003 /* TexasSandFestTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		AC0D20584DFF09EEC0C8E628 /* TexasSandFest */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = A8D7D0A627A452AF3F0CE7F4 /* Build configuration list for PBXNativeTarget "TexasSandFest" */;
@@ -162,6 +215,12 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					A10000000000000000000005 = {
+						CreatedOnToolsVersion = 26.6;
+						TestTargetID = AC0D20584DFF09EEC0C8E628;
+					};
+				};
 			};
 			buildConfigurationList = D5AC1BFCF6CE07B9D6C2CA5B /* Build configuration list for PBXProject "TexasSandFest" */;
 			compatibilityVersion = "Xcode 14.0";
@@ -178,11 +237,19 @@
 			projectRoot = "";
 			targets = (
 				AC0D20584DFF09EEC0C8E628 /* TexasSandFest */,
+				A10000000000000000000005 /* TexasSandFestTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		A10000000000000000000008 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		723B4F242AD55CB70E3C7C62 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -195,6 +262,14 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		A10000000000000000000006 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000001 /* TexasSandFestTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		FC77D586F3DC4A5427177CA3 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -230,13 +305,57 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		A10000000000000000000009 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AC0D20584DFF09EEC0C8E628 /* TexasSandFest */;
+			targetProxy = A1000000000000000000000A /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		A1000000000000000000000B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.portalcodex.texassandfest.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TexasSandFest.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/TexasSandFest";
+			};
+			name = Debug;
+		};
+		A1000000000000000000000C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.portalcodex.texassandfest.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TexasSandFest.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/TexasSandFest";
+			};
+			name = Release;
+		};
 		3A07C9D7C074A3458AEAA3DA /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = TexasSandFest/TexasSandFest.entitlements;
-				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
 				INFOPLIST_FILE = TexasSandFest/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -311,7 +430,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = TexasSandFest/TexasSandFest.entitlements;
-				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
 				INFOPLIST_FILE = TexasSandFest/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -391,6 +510,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		A1000000000000000000000D /* Build configuration list for PBXNativeTarget "TexasSandFestTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1000000000000000000000B /* Debug */,
+				A1000000000000000000000C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		A8D7D0A627A452AF3F0CE7F4 /* Build configuration list for PBXNativeTarget "TexasSandFest" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

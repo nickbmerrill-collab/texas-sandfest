@@ -19,13 +19,32 @@ struct QRScannerView: UIViewControllerRepresentable {
     func updateUIViewController(_ vc: ScannerVC, context: Context) {}
 }
 
+private final class CaptureSessionRunner: @unchecked Sendable {
+    let session = AVCaptureSession()
+    private let queue = DispatchQueue(label: "tsf.qr.scanner")
+
+    // AVCaptureSession is not Sendable, but all runtime mutations are confined
+    // to this serial queue after the main actor finishes initial configuration.
+    func start() {
+        queue.async { [self] in
+            if !session.isRunning { session.startRunning() }
+        }
+    }
+
+    func stop() {
+        queue.async { [self] in
+            if session.isRunning { session.stopRunning() }
+        }
+    }
+}
+
 @MainActor
 final class ScannerVC: UIViewController, @preconcurrency AVCaptureMetadataOutputObjectsDelegate {
     var onScan: ((String) -> Void)?
 
-    private let session = AVCaptureSession()
+    private let capture = CaptureSessionRunner()
+    private var session: AVCaptureSession { capture.session }
     private var preview: AVCaptureVideoPreviewLayer!
-    private let queue = DispatchQueue(label: "tsf.qr.scanner")
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -40,16 +59,12 @@ final class ScannerVC: UIViewController, @preconcurrency AVCaptureMetadataOutput
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        if !session.isRunning {
-            queue.async { [weak self] in self?.session.startRunning() }
-        }
+        capture.start()
     }
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
-        if session.isRunning {
-            queue.async { [weak self] in self?.session.stopRunning() }
-        }
+        capture.stop()
     }
 
     private func configure() {
@@ -132,6 +147,6 @@ final class ScannerVC: UIViewController, @preconcurrency AVCaptureMetadataOutput
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         onScan?(payload)
         // Stop after first hit so we don't fire repeatedly.
-        queue.async { [weak self] in self?.session.stopRunning() }
+        capture.stop()
     }
 }
