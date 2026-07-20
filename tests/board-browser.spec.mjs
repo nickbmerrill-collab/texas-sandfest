@@ -134,6 +134,27 @@ async function assertNoHorizontalOverflow(page) {
   expect(dimensions.scrollWidth, JSON.stringify(dimensions.offenders, null, 2)).toBeLessThanOrEqual(dimensions.clientWidth + 1);
 }
 
+async function assertChoiceTargets(page, label) {
+  const issues = await page.locator('input[type="checkbox"], input[type="radio"]').evaluateAll(inputs => inputs.filter(input => {
+    const bounds = input.getBoundingClientRect();
+    const styles = getComputedStyle(input);
+    return bounds.width > 0 && bounds.height > 0 && styles.display !== "none" && styles.visibility !== "hidden";
+  }).map(input => {
+    const enclosingLabel = input.closest("label");
+    const externalLabel = !enclosingLabel && input.id
+      ? document.querySelector(`label[for="${CSS.escape(input.id)}"]`)
+      : null;
+    const target = enclosingLabel || externalLabel || input;
+    const bounds = target.getBoundingClientRect();
+    return {
+      label: input.getAttribute("aria-label") || target.textContent?.trim() || input.name || input.id || input.type,
+      width: Math.round(bounds.width * 10) / 10,
+      height: Math.round(bounds.height * 10) / 10
+    };
+  }).filter(target => target.width < 24 || target.height < 24));
+  expect(issues, `${label} choice controls must expose a 24px pointer target`).toEqual([]);
+}
+
 async function assertNoAccessibilityViolations(page, label) {
   const results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
@@ -1791,7 +1812,7 @@ test("operations command summary fits and navigates across board viewports", asy
 });
 
 test("prepared partner portals land on authenticated status at mobile width", async ({ browser }) => {
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const context = await browser.newContext({ viewport: { width: 320, height: 740 } });
   const admin = await context.newPage();
   try {
     await admin.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}`);
@@ -1814,6 +1835,7 @@ test("prepared partner portals land on authenticated status at mobile width", as
         const targetBounds = target.getBoundingClientRect();
         return labelBounds.bottom <= titleBounds.top && titleBounds.bottom <= targetBounds.top;
       })).toBe(true);
+      await assertChoiceTargets(portal, `${organizationName} partner portal`);
       await assertNoHorizontalOverflow(portal);
       await portal.close();
     }
@@ -1973,6 +1995,7 @@ test("critical public and operations views fit a mobile viewport", async ({ page
         && popoverBox.bottom <= canvasBox.bottom + 1;
     })).toBe(true);
   }
+  await assertChoiceTargets(page, "Mobile visitor signup");
   expect(await page.locator(".corridor-map").evaluate(map => {
     const targets = [...map.querySelectorAll(".corridor-pin-amenity .corridor-pin-label, .corridor-axis")].map(node => ({
       label: node.textContent?.trim() || "axis",
@@ -2078,6 +2101,7 @@ test("critical public and operations views fit a mobile viewport", async ({ page
       && styles.visibility !== "hidden"
       && (bounds.width < 24 || bounds.height < 24);
   }).map(control => control.getAttribute("aria-label") || control.textContent?.trim() || control.getAttribute("name") || control.id))).toEqual([]);
+  await assertChoiceTargets(page, "Mobile Operations");
   const accountingLink = workspaceNav.getByRole("link", { name: "Accounting", exact: true });
   await expect(accountingLink).toHaveAttribute("href", "#admin-budget");
   await accountingLink.click();

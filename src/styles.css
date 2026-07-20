@@ -5976,7 +5976,7 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 [data-outreach-prospect][data-due-state="today"] { border-left: 4px solid var(--coral); }
 [data-outreach-prospect][data-due-state="upcoming"] { border-left: 4px solid var(--gulf); }
 [data-outreach-prospect][data-due-state="unscheduled"] { border-left: 4px solid var(--sun); }
-.admin-prospect-location-controls label { align-items: center; color: var(--muted); display: flex; font-size: 11px; gap: 6px; grid-column: 1 / -1; }
+.admin-prospect-location-controls label { align-items: center; color: var(--muted); display: flex; font-size: 11px; gap: 6px; grid-column: 1 / -1; min-height: 24px; }
 .admin-prospect-location-controls label input { height: 16px; margin: 0; width: 16px; }
 .admin-prospect-controls { display: grid; gap: 6px; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr) auto; }
 .admin-prospect-controls .button,
