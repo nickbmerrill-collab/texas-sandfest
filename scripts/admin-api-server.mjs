@@ -197,6 +197,7 @@ import {
   updatePartnerBrandProfile,
   updatePartnerDeliverable,
   updatePartnerTask,
+  updatePartnerTaskFromAssignee,
   updatePartnerMilestone,
   updatePartnerStripeCheckoutState,
   updateVendorAssignment,
@@ -222,6 +223,11 @@ import {
   partnerPortalUrl,
   publicPartnerPortalStatus
 } from "../lib/partner-portal.mjs";
+import {
+  findTaskPortalTask,
+  publicTaskPortalStatus,
+  taskPortalConfig
+} from "../lib/task-portal.mjs";
 import {
   findOutreachPreferenceProspect,
   outreachPreferencesConfig,
@@ -772,6 +778,7 @@ const DEPLOYMENT_CHECK_PRESENTATION = Object.freeze({
   rateLimitBackend: ["Shared rate limiter", "Platform"],
   partnerIntakeBotProtection: ["Partner intake protection", "Partners"],
   partnerPortal: ["Private partner portal", "Partners"],
+  taskPortal: ["Private task portal", "Partners"],
   outreachPreferences: ["Outreach preferences", "Partners"],
   outreachDiscovery: ["Regional business discovery", "Partners"],
   sponsorInvitations: ["Sponsor invitations", "Partners"],
@@ -1917,6 +1924,14 @@ async function deploymentProfile(options = {}) {
         production ? "error" : "warning"
       );
     })(),
+    taskPortal: (() => {
+      const portal = taskPortalConfig();
+      return checkStatus(
+        portal.ready,
+        portal.ready ? "Secure staff and volunteer task updates are ready." : portal.reason,
+        production ? "error" : "warning"
+      );
+    })(),
     outreachPreferences: checkStatus(
       OUTREACH_PREFERENCES.ready,
       OUTREACH_PREFERENCES.ready ? "Recipient-controlled sponsor outreach preferences are ready." : OUTREACH_PREFERENCES.reason,
@@ -2303,7 +2318,7 @@ function rateLimitProfile(pathname, method) {
     return { name: "checkout", limit: CHECKOUT_RATE_LIMIT };
   }
   if (method === "POST" && pathname === "/api/public/concierge") return { name: "concierge", limit: PUBLIC_RATE_LIMIT };
-  if (method === "POST" && ["/api/public/partner-status", "/api/public/partner-portal-recovery", "/api/public/partner-payment-checkout", "/api/public/outreach-preferences"].includes(pathname)) {
+  if (method === "POST" && ["/api/public/partner-status", "/api/public/partner-portal-recovery", "/api/public/partner-payment-checkout", "/api/public/outreach-preferences", "/api/public/task-status", "/api/public/task-status/update"].includes(pathname)) {
     return { name: "partner-status", limit: PARTNER_STATUS_RATE_LIMIT };
   }
   // Unauthenticated write paths get a stricter bucket (festival abuse protection).
@@ -2576,6 +2591,33 @@ async function writeSystemAuditRecord(action, target, after, metadata = {}) {
     before: null,
     after: redactAuditValue(after),
     metadata: redactAuditValue(metadata),
+    createdAt: new Date().toISOString()
+  };
+  await storage.audit.write(record);
+  return record;
+}
+
+async function writeTaskAssigneeAuditRecord(request, task, action, noteProvided) {
+  const { updates: _updates, ...taskStatus } = publicTaskPortalStatus(task);
+  const record = {
+    id: `audit_${randomUUID()}`,
+    eventId: CURRENT_EVENT_ID,
+    action: `task.assignee.${action}`,
+    target: { type: "task", id: task.id },
+    actor: {
+      id: `task-assignee:${task.assigneeType}:${task.assigneeId}`,
+      role: task.assigneeRole || task.assigneeType,
+      permissions: ["task:self:update"],
+      type: "capability-link",
+      issuer: null,
+      tokenId: null,
+      ip: null,
+      userAgent: null
+    },
+    requestId: request.requestId ?? null,
+    before: null,
+    after: redactAuditValue(taskStatus),
+    metadata: { action, noteProvided: noteProvided === true },
     createdAt: new Date().toISOString()
   };
   await storage.audit.write(record);
@@ -4663,6 +4705,58 @@ async function handleRequest(request, response) {
         return;
       }
       sendJson(request, response, 200, { application: publicPartnerStatus(doc, access.application) });
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/public/task-status") {
+      const config = taskPortalConfig();
+      if (!config.ready) {
+        sendJson(request, response, 503, { error: "Task status is temporarily unavailable." }, { "cache-control": "no-store" });
+        return;
+      }
+      const body = await readBody(request);
+      const doc = await readPartnerOperations();
+      const access = findTaskPortalTask(doc, body.taskId, body.token, { config });
+      if (!access.ok) {
+        sendJson(request, response, 404, { error: access.error }, { "cache-control": "no-store" });
+        return;
+      }
+      sendJson(request, response, 200, { task: publicTaskPortalStatus(access.task) }, { "cache-control": "no-store" });
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/public/task-status/update") {
+      const config = taskPortalConfig();
+      if (!config.ready) {
+        sendJson(request, response, 503, { error: "Task status is temporarily unavailable." }, { "cache-control": "no-store" });
+        return;
+      }
+      const body = await readBody(request);
+      const result = await mutatePartnerOperations(doc => {
+        const access = findTaskPortalTask(doc, body.taskId, body.token, { config });
+        if (!access.ok) return access;
+        return updatePartnerTaskFromAssignee(doc, access.task.id, {
+          action: body.action,
+          note: body.note
+        }, {
+          idFactory: prefix => `${prefix}_${randomUUID()}`,
+          now: new Date().toISOString()
+        });
+      });
+      if (!result?.ok) {
+        const invalidAccess = result?.error === "Task assignment not found or access link invalid.";
+        sendJson(request, response, invalidAccess ? 404 : result?.conflict ? 409 : 400, {
+          error: result?.error || "Task status could not be updated."
+        }, { "cache-control": "no-store" });
+        return;
+      }
+      if (result.changed) {
+        await writeTaskAssigneeAuditRecord(request, result.task, body.action, Boolean(String(body.note || "").trim()));
+      }
+      sendJson(request, response, 200, {
+        task: publicTaskPortalStatus(result.task),
+        replay: result.replay === true
+      }, { "cache-control": "no-store" });
       return;
     }
 

@@ -4310,6 +4310,9 @@ function armPartnerBotProtection() {
 }
 
 const PARTNER_PORTAL_SESSION_KEY = "sandfest_partner_portal_v1";
+const TASK_PORTAL_SESSION_KEY = "sandfest_task_portal_v1";
+let taskPortalController = null;
+let taskPortalControllerLoad = null;
 let activeOutreachPreferenceAccess = null;
 let lastLoadedOutreachPreference = null;
 let outreachPreferenceLoadVersion = 0;
@@ -4321,6 +4324,34 @@ function partnerPortalAccessFromFragment() {
   const reference = params.get("reference")?.trim();
   const token = params.get("token")?.trim();
   return reference && token ? { reference, token } : null;
+}
+
+function taskPortalRequested() {
+  if (window.location.hash.startsWith("#task-status?")) return true;
+  if (window.location.hash !== "#task-status") return false;
+  try { return Boolean(sessionStorage.getItem(TASK_PORTAL_SESSION_KEY)); } catch { return false; }
+}
+
+async function loadTaskPortalFromLocation(options = {}) {
+  if (!taskPortalControllerLoad) {
+    taskPortalControllerLoad = import("./task-portal-ui.js").then(({ createTaskPortalController }) => {
+      taskPortalController = createTaskPortalController({
+        document,
+        window,
+        storage: sessionStorage,
+        publicApiBase,
+        fetchWithTimeout,
+        friendlyRequestError,
+        conditionLabel,
+        stabilizeRenderedHashTarget
+      });
+      return taskPortalController;
+    }).catch(error => {
+      taskPortalControllerLoad = null;
+      throw error;
+    });
+  }
+  return (await taskPortalControllerLoad).loadFromLocation(options);
 }
 
 function outreachPreferenceAccessFromFragment() {
@@ -6541,6 +6572,11 @@ function taskDateTimeInput(value) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+function taskTimeLabel(value) {
+  const date = new Date(value || "");
+  return Number.isNaN(date.getTime()) ? "Not recorded" : date.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+}
+
 function taskDueState(task, now = new Date()) {
   if (["done", "completed", "cancelled"].includes(task.status)) return "complete";
   if (!task.dueAt) return "unscheduled";
@@ -6658,10 +6694,17 @@ function renderAdminTaskBoard(payload) {
       .filter(item => item.taskId === task.id)
       .sort((a, b) => String(b.updatedAt || b.createdAt).localeCompare(String(a.updatedAt || a.createdAt)))[0];
     const notificationState = notification?.deliveryStatus || notification?.status || (assignmentType === "unassigned" ? "not_configured" : "awaiting_directory");
+    const currentUpdates = (task.assigneeUpdates || []).filter(item => Number(item.assignmentVersion || 1) === Number(task.assignmentVersion || 1));
+    const latestUpdate = currentUpdates[currentUpdates.length - 1];
+    const responseState = task.acknowledgedAt
+      ? `Acknowledged ${taskTimeLabel(task.acknowledgedAt)}${latestUpdate ? ` · ${conditionLabel(latestUpdate.action)} ${taskTimeLabel(latestUpdate.at)}` : ""}`
+      : assignmentType === "unassigned" ? "No assignee response expected" : "Awaiting assignee acknowledgement";
     return `<article class="admin-task-card" data-task="${escapeAttr(task.id)}" data-due-state="${escapeAttr(dueState)}" data-priority="${escapeAttr(task.priority || "normal")}">
       <header><div><strong>${escapeHtml(task.title)}</strong><span>${escapeHtml(conditionLabel(task.priority || "normal"))} priority</span></div><b>${escapeHtml(conditionLabel(task.status))}</b></header>
       <p>${escapeHtml(owner)} · ${escapeHtml(conditionLabel(assignmentType))} · ${task.dueAt ? `Due ${escapeHtml(new Date(task.dueAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }))}` : "No due date"}</p>
       <span>Notification · ${escapeHtml(conditionLabel(notificationState))}${notification?.kind ? ` · ${escapeHtml(conditionLabel(notification.kind))}` : ""}</span>
+      <span>Assignee response · ${escapeHtml(responseState)}</span>
+      ${latestUpdate?.note ? `<blockquote class="admin-task-assignee-note"><strong>Latest assignee note</strong><span>${escapeHtml(latestUpdate.note)}</span></blockquote>` : ""}
       ${task.description ? `<span>${escapeHtml(task.description)}</span>` : ""}
       <div class="admin-task-controls">
         <select name="status" aria-label="${escapeAttr(task.title)} status">${taskStatusOptions(task.status)}</select>
@@ -7326,6 +7369,7 @@ const adminPartnerActivityTypes = {
   "followup.sent": { category: "messaging", one: "Partner message accepted", many: "Partner messages accepted" },
   "task.created": { category: "work", one: "Task assigned", many: "Tasks assigned" },
   "task.updated": { category: "work", one: "Task updated", many: "Tasks updated" },
+  "task.assignee_updated": { category: "work", one: "Assignee updated a task", many: "Assignee task updates" },
   "task.followup.generated": { category: "work", one: "Assignment notice prepared", many: "Assignment notices prepared" },
   "brand.profile_submitted": { category: "branding", one: "Brand profile submitted", many: "Brand profiles submitted" },
   "brand.profile_approved": { category: "branding", one: "Brand profile approved", many: "Brand profiles approved" },
@@ -7395,6 +7439,7 @@ function adminPartnerActivityActor(actorId) {
   if (actor === "automation") return "Automation";
   if (actor === "public") return "Public site";
   if (actor.startsWith("partner:")) return "Partner portal";
+  if (actor.startsWith("task-assignee:")) return "Task assignee";
   if (actor.includes("finance")) return "Finance team";
   if (actor.includes("sponsor")) return "Sponsor team";
   if (actor.includes("vendor")) return "Vendor team";
@@ -9876,7 +9921,12 @@ if (!ADMIN_ENTRY) {
   ];
   if (sculptorRosterVisible) initialPublicLoads.push(loadVoting());
   armPartnerBotProtection();
-  const initialPartnerPortalAccess = partnerPortalAccessFromFragment() || savedPartnerPortalAccess();
+  const initialTaskPortalRequested = taskPortalRequested();
+  if (initialTaskPortalRequested) initialPublicLoads.push(loadTaskPortalFromLocation({
+    scroll: true,
+    scrollBehavior: "auto"
+  }));
+  const initialPartnerPortalAccess = initialTaskPortalRequested ? null : partnerPortalAccessFromFragment() || savedPartnerPortalAccess();
   if (initialPartnerPortalAccess) initialPublicLoads.push(loadPartnerPortalStatus(initialPartnerPortalAccess, {
     scroll: true,
     scrollBehavior: "auto"
@@ -9895,6 +9945,10 @@ if (!ADMIN_ENTRY) {
   };
   scheduleIslandConditionsRefresh();
   window.addEventListener("hashchange", () => {
+    if (taskPortalRequested()) {
+      loadTaskPortalFromLocation({ scroll: true });
+      return;
+    }
     const portalAccess = partnerPortalAccessFromFragment();
     if (portalAccess) {
       loadPartnerPortalStatus(portalAccess, { scroll: true });
@@ -9937,6 +9991,7 @@ function recoverPublicConnectivity() {
     loadPublicAlert()
   ];
   if (sculptorRosterVisible) recoveryLoads.push(loadVoting());
+  if (taskPortalController?.hasAccess() || taskPortalRequested()) recoveryLoads.push(loadTaskPortalFromLocation());
   const portalAccess = activePartnerPortalAccess || savedPartnerPortalAccess();
   if (portalAccess) recoveryLoads.push(loadPartnerPortalStatus(portalAccess));
   Promise.allSettled(recoveryLoads);
@@ -10392,11 +10447,14 @@ function scrollToRenderedHashTarget(options = {}) {
 
   const behavior = options?.behavior === "smooth" ? "smooth" : "instant";
   const scroll = () => {
-    const scrollTarget = target.id === "partner-status"
-      && activePartnerPortalApplication
-      && window.matchMedia("(max-width: 720px)").matches
-      ? document.querySelector("#partner-status-result") || target
-      : target;
+    const mobilePrivateResult = window.matchMedia("(max-width: 720px)").matches
+      ? target.id === "partner-status" && activePartnerPortalApplication
+        ? document.querySelector("#partner-status-result")
+        : target.id === "task-status" && taskPortalController?.activeTask()
+          ? document.querySelector("#task-status-result")
+          : null
+      : null;
+    const scrollTarget = mobilePrivateResult || target;
     scrollTarget.scrollIntoView({ behavior, block: "start" });
   };
   requestAnimationFrame(() => {

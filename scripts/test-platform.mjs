@@ -195,6 +195,7 @@ import {
   updatePartnerBrandProfile,
   updatePartnerDeliverable,
   updatePartnerTask,
+  updatePartnerTaskFromAssignee,
   updatePartnerMilestone,
   updateVendorAssignment,
   updateVendorProfile
@@ -210,8 +211,18 @@ import {
 import {
   forgetMatchingPartnerPortalAccess,
   partnerPortalSafeHash,
-  shouldForgetPartnerPortalAccess
+  shouldForgetPartnerPortalAccess,
+  taskPortalSafeHash
 } from "../lib/partner-portal-session.mjs";
+import {
+  findTaskPortalTask,
+  issueTaskPortalToken,
+  publicTaskPortalStatus,
+  taskPortalConfig,
+  taskPortalPath,
+  taskPortalUrlForTask,
+  verifyTaskPortalToken
+} from "../lib/task-portal.mjs";
 import {
   findOutreachPreferenceProspect,
   issueOutreachPreferenceToken,
@@ -755,7 +766,7 @@ console.log("\n=== Pure library suite ===\n");
       })),
       followups: [
         ...Array.from({ length: 4 }, (_, index) => ({ id: `demo_ack_${index + 1}`, kind: "application_received", status: "draft_ready" })),
-        ...Array.from({ length: 3 }, (_, index) => ({ id: `demo_task_notice_${index + 1}`, kind: "task_assignment", status: "draft_ready" })),
+        ...Array.from({ length: 3 }, (_, index) => ({ id: `demo_task_notice_${index + 1}`, kind: "task_assignment", status: "draft_ready", body: `https://board.example/#task-status?task=task_${index + 1}&token=tsft_demo_${index + 1}` })),
         { id: "demo_milestone_reminder", kind: "milestone_reminder", status: "draft_ready", milestoneId: "demo_milestone_1" },
         { id: "demo_review_outreach", kind: "sponsor_outreach", status: "draft_ready", campaignId: "demo_review_campaign", automationPolicy: null }
       ],
@@ -1021,7 +1032,7 @@ console.log("\n=== Pure library suite ===\n");
   storage.setItem(key, JSON.stringify(current));
   const preservedNewer = !forgetMatchingPartnerPortalAccess(storage, key, stale) && storage.getItem(key) != null;
   const removedCurrent = forgetMatchingPartnerPortalAccess(storage, key, current) && storage.getItem(key) == null;
-  ok("partner portal fragment capability is concealed", partnerPortalSafeHash("#partner-status?reference=TSF-V-000001&token=private") === "#partner-status" && partnerPortalSafeHash("#sponsors") == null);
+  ok("private portal fragment capabilities are concealed", partnerPortalSafeHash("#partner-status?reference=TSF-V-000001&token=private") === "#partner-status" && taskPortalSafeHash("#task-status?task=task_1&token=private") === "#task-status" && partnerPortalSafeHash("#sponsors") == null && taskPortalSafeHash("#sponsors") == null);
   ok("partner portal rejection classification preserves outage retries", shouldForgetPartnerPortalAccess(404) && shouldForgetPartnerPortalAccess(401) && !shouldForgetPartnerPortalAccess(429) && !shouldForgetPartnerPortalAccess(503) && !shouldForgetPartnerPortalAccess(0));
   ok("partner portal forgets only the rejected saved capability", preservedNewer && removedCurrent);
 }
@@ -3361,8 +3372,19 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
     dueAt: "2026-07-16T11:00:00.000Z"
   }, { actorId: "ops_1", idFactory, now: "2026-07-14T12:00:00.000Z" });
   ok("delegated volunteer task", task.ok && task.task.assigneeType === "volunteer" && task.task.assigneeName === "Alex Rivera" && task.task.createdBy === "ops_1" && task.task.assignmentVersion === 1 && task.task.scheduleVersion === 1);
+  const taskPortal = taskPortalConfig({
+    SANDFEST_ENV: "production",
+    SANDFEST_TASK_PORTAL_SECRET: "0123456789abcdef0123456789abcdef-task",
+    SANDFEST_PUBLIC_SITE_URL: "https://www.texassandfest.org"
+  });
+  const taskPortalToken = issueTaskPortalToken(task.task, { config: taskPortal });
+  const taskPortalUrl = taskPortalUrlForTask(task.task, { config: taskPortal });
+  const taskPortalAccess = findTaskPortalTask(task.doc, task.task.id, taskPortalToken, { config: taskPortal });
+  const privateTaskStatus = publicTaskPortalStatus(task.task);
+  ok("task portal production capability", taskPortal.ready && taskPortalToken?.startsWith("tsft_") && verifyTaskPortalToken(task.task, taskPortalToken, { config: taskPortal }) && taskPortalAccess.ok && taskPortalPath(task.task, taskPortalToken).startsWith("/#task-status?") && taskPortalUrl.includes("#task-status?task="));
+  ok("task portal projection is assignment-safe", privateTaskStatus.assignee.name === "Alex Rivera" && privateTaskStatus.allowedActions.includes("acknowledge") && !("assigneeId" in privateTaskStatus.assignee) && !("assignmentVersion" in privateTaskStatus) && !JSON.stringify(privateTaskStatus).includes(taskPortalToken));
   const taskVolunteers = [{ id: "vol_001", name: "Alex Rivera", email: "alex@example.com", status: "confirmed" }];
-  const assignmentNotice = generateDueTaskFollowups(task.doc, { idFactory, volunteers: taskVolunteers, now: "2026-07-14T12:00:00.000Z" });
+  const assignmentNotice = generateDueTaskFollowups(task.doc, { idFactory, volunteers: taskVolunteers, taskPortalUrlForTask: assignedTask => taskPortalUrlForTask(assignedTask, { config: taskPortal }), now: "2026-07-14T12:00:00.000Z" });
   const assignmentNoticeAgain = generateDueTaskFollowups(assignmentNotice.doc, { idFactory, volunteers: taskVolunteers, now: "2026-07-14T12:05:00.000Z" });
   const staleAssignmentReview = reviewFollowup(assignmentNotice.doc, assignmentNotice.generated[0].id, "approve", {
     actorId: "ops_1",
@@ -3372,8 +3394,22 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   const approvedAssignmentNotice = reviewFollowup(assignmentNotice.doc, assignmentNotice.generated[0].id, "approve", { actorId: "ops_1", volunteers: taskVolunteers, now: "2026-07-14T12:10:00.000Z" });
   const queuedAssignmentNotice = queueFollowupDelivery(approvedAssignmentNotice.doc, assignmentNotice.generated[0].id, { volunteers: taskVolunteers, now: "2026-07-14T12:15:00.000Z" });
   const sentAssignmentNotice = recordFollowupDelivery(queuedAssignmentNotice.doc, assignmentNotice.generated[0].id, { sent: true, provider: "brevo", providerMessageId: "task-assignment-1" }, { now: "2026-07-14T12:16:00.000Z" });
-  ok("volunteer assignment notification is retry safe", assignmentNotice.generated.length === 1 && assignmentNotice.generated[0].kind === "task_assignment" && assignmentNotice.generated[0].recipient === "alex@example.com" && assignmentNoticeAgain.generated.length === 0);
+  ok("volunteer assignment notification is retry safe", assignmentNotice.generated.length === 1 && assignmentNotice.generated[0].kind === "task_assignment" && assignmentNotice.generated[0].recipient === "alex@example.com" && assignmentNotice.generated[0].body.includes(taskPortalUrl) && assignmentNoticeAgain.generated.length === 0);
   ok("volunteer notification revalidates directory email", !staleAssignmentReview.ok && staleAssignmentReview.error.includes("email changed") && approvedAssignmentNotice.ok && sentAssignmentNotice.followup.status === "sent");
+  const acknowledgedTask = updatePartnerTaskFromAssignee(task.doc, task.task.id, { action: "acknowledge", note: "I have the art checklist." }, { idFactory, now: "2026-07-14T12:20:00.000Z" });
+  const acknowledgedReplay = updatePartnerTaskFromAssignee(acknowledgedTask.doc, task.task.id, { action: "acknowledge" }, { idFactory, now: "2026-07-14T12:21:00.000Z" });
+  const startedByAssignee = updatePartnerTaskFromAssignee(acknowledgedTask.doc, task.task.id, { action: "start" }, { idFactory, now: "2026-07-14T12:25:00.000Z" });
+  const missingBlocker = updatePartnerTaskFromAssignee(startedByAssignee.doc, task.task.id, { action: "block" }, { idFactory, now: "2026-07-14T12:30:00.000Z" });
+  const blockedByAssignee = updatePartnerTaskFromAssignee(startedByAssignee.doc, task.task.id, { action: "block", note: "Waiting for the vector logo." }, { idFactory, now: "2026-07-14T12:31:00.000Z" });
+  const completedByAssignee = updatePartnerTaskFromAssignee(blockedByAssignee.doc, task.task.id, { action: "complete", note: "Print-ready art is approved." }, { idFactory, now: "2026-07-14T12:40:00.000Z" });
+  const completionReplay = updatePartnerTaskFromAssignee(completedByAssignee.doc, task.task.id, { action: "complete" }, { idFactory, now: "2026-07-14T12:41:00.000Z" });
+  const completedTaskStatus = publicTaskPortalStatus(completedByAssignee.task);
+  ok("assignee task lifecycle is durable and idempotent", acknowledgedTask.task.acknowledgedAt === "2026-07-14T12:20:00.000Z" && acknowledgedReplay.replay && startedByAssignee.task.status === "in_progress" && !missingBlocker.ok && blockedByAssignee.task.status === "blocked" && completedByAssignee.task.status === "done" && completionReplay.replay && completedTaskStatus.allowedActions.length === 0 && completedTaskStatus.updates.length === 4);
+  ok("assignee activity excludes private note text", completedByAssignee.doc.activity.at(-1).type === "task.assignee_updated" && completedByAssignee.doc.activity.at(-1).detail.noteProvided === true && !JSON.stringify(completedByAssignee.doc.activity.at(-1)).includes("Print-ready art"));
+  const reassignedTask = updatePartnerTask(acknowledgedTask.doc, task.task.id, { assigneeType: "staff", assigneeId: "staff_operations", assigneeName: "Jamie Torres" }, { actorId: "ops_1", idFactory, now: "2026-07-14T12:45:00.000Z" });
+  const staleTaskPortalAccess = findTaskPortalTask(reassignedTask.doc, task.task.id, taskPortalToken, { config: taskPortal });
+  const reassignedTaskStatus = publicTaskPortalStatus(reassignedTask.task);
+  ok("task reassignment revokes stale access and resets acknowledgement", !staleTaskPortalAccess.ok && reassignedTask.task.assignmentVersion === 2 && reassignedTask.task.acknowledgedAt === null && reassignedTaskStatus.updates.length === 0);
   const overdueTaskNotice = generateDueTaskFollowups(sentAssignmentNotice.doc, { idFactory, volunteers: taskVolunteers, now });
   const overdueTaskNoticeAgain = generateDueTaskFollowups(overdueTaskNotice.doc, { idFactory, volunteers: taskVolunteers, now: "2026-07-23T12:00:00.000Z" });
   const inFlightOverdueTaskDoc = {
@@ -6831,15 +6867,31 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     dueAt: "2026-07-17T13:00:00.000Z"
   }, true);
   ok("POST volunteer task assignment", delegatedTask.status === 201 && delegatedTask.data.task?.assigneeName === "Alex Rivera");
+  const apiTaskPortalConfig = taskPortalConfig(apiChildEnv);
+  const apiTaskToken = issueTaskPortalToken(delegatedTask.data.task, { config: apiTaskPortalConfig });
+  const taskPortalStatusApi = await hit("POST", "/api/public/task-status", { taskId: delegatedTask.data.task?.id, token: apiTaskToken });
+  const invalidTaskPortalApi = await hit("POST", "/api/public/task-status", { taskId: delegatedTask.data.task?.id, token: `${apiTaskToken}invalid` });
+  const acknowledgedTaskApi = await hit("POST", "/api/public/task-status/update", { taskId: delegatedTask.data.task?.id, token: apiTaskToken, action: "acknowledge", note: "Gate briefing received." });
+  const startedTaskApi = await hit("POST", "/api/public/task-status/update", { taskId: delegatedTask.data.task?.id, token: apiTaskToken, action: "start" });
+  const rejectedBlockerApi = await hit("POST", "/api/public/task-status/update", { taskId: delegatedTask.data.task?.id, token: apiTaskToken, action: "block" });
+  const blockedTaskApi = await hit("POST", "/api/public/task-status/update", { taskId: delegatedTask.data.task?.id, token: apiTaskToken, action: "block", note: "Radio inventory is short by two units." });
+  const completedTaskApi = await hit("POST", "/api/public/task-status/update", { taskId: delegatedTask.data.task?.id, token: apiTaskToken, action: "complete", note: "Radios reassigned and briefing complete." });
+  const completedTaskReplayApi = await hit("POST", "/api/public/task-status/update", { taskId: delegatedTask.data.task?.id, token: apiTaskToken, action: "complete" });
+  ok("public task portal authenticates without enumerating assignments", taskPortalStatusApi.status === 200 && taskPortalStatusApi.data.task?.assignee?.name === "Alex Rivera" && !("assigneeId" in taskPortalStatusApi.data.task.assignee) && invalidTaskPortalApi.status === 404 && invalidTaskPortalApi.data.error === "Task assignment not found or access link invalid.");
+  ok("public task portal persists the assignee lifecycle", acknowledgedTaskApi.status === 200 && acknowledgedTaskApi.data.task?.acknowledgedAt && startedTaskApi.data.task?.status === "in_progress" && rejectedBlockerApi.status === 400 && blockedTaskApi.data.task?.status === "blocked" && blockedTaskApi.data.task?.updates?.at(-1)?.note.includes("Radio inventory") && completedTaskApi.data.task?.status === "done" && completedTaskApi.data.task?.allowedActions?.length === 0 && completedTaskReplayApi.data.replay === true);
   const advancedTask = await hit("PATCH", `/api/admin/partners/tasks/${encodeURIComponent(delegatedTask.data.task?.id)}`, {
     status: "blocked",
     assigneeType: "team",
     assigneeId: "operations",
     priority: "urgent"
   }, true);
+  const staleTaskPortalApi = await hit("POST", "/api/public/task-status", { taskId: delegatedTask.data.task?.id, token: apiTaskToken });
   const taskWorkspace = await hit("GET", "/api/admin/partners", null, true);
+  const taskAuditApi = await hit("GET", "/api/admin/audit?limit=200", null, true);
+  const assigneeAudit = taskAuditApi.data.audit?.find(item => item.record?.action === "task.assignee.block")?.record;
   ok("PATCH task lifecycle", advancedTask.status === 200 && advancedTask.data.task?.status === "blocked" && advancedTask.data.task?.assigneeName === "Operations team");
-  ok("task board API summary", taskWorkspace.data.taskBoard?.totals?.blocked === 1 && taskWorkspace.data.assignmentDirectory?.volunteers?.some(item => item.id === "vol_001" && !("email" in item)));
+  ok("task board API summary", taskWorkspace.data.taskBoard?.totals?.blocked === 1 && taskWorkspace.data.assignmentDirectory?.volunteers?.some(item => item.id === "vol_001" && !("email" in item)) && staleTaskPortalApi.status === 404 && taskWorkspace.data.tasks?.find(item => item.id === delegatedTask.data.task?.id)?.acknowledgedAt === null);
+  ok("task assignee audit is capability- and note-minimized", assigneeAudit?.actor?.type === "capability-link" && assigneeAudit.metadata?.noteProvided === true && !JSON.stringify(assigneeAudit).includes(apiTaskToken) && !JSON.stringify(assigneeAudit).includes("Radio inventory"));
   const staffDirectoryApiOk = taskWorkspace.data.staffDirectory?.ready === false
     && taskWorkspace.data.staffDirectory?.routedTeams === 7
     && taskWorkspace.data.staffDirectory?.errors?.some(item => item.includes("does not match texas-sandfest-2027"))

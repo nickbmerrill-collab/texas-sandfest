@@ -49,6 +49,7 @@ import {
   persistQuickBooksTokenRotation
 } from "../lib/quickbooks/credentials.mjs";
 import { issuePartnerPortalToken, partnerPortalConfig, partnerPortalUrl } from "../lib/partner-portal.mjs";
+import { taskPortalConfig, taskPortalUrlForTask } from "../lib/task-portal.mjs";
 import {
   appendOutreachPreferenceFooter,
   outreachPreferencesConfig,
@@ -88,6 +89,7 @@ const ONCE = process.env.SANDFEST_WORKER_ONCE === "true";
 const BATCH = Number(process.env.SANDFEST_WORKER_BATCH || 10);
 const QUEUE = jobQueueConfig();
 const portalConfig = partnerPortalConfig();
+const taskPortalLinkConfig = taskPortalConfig();
 const outreachPreferenceConfig = outreachPreferencesConfig();
 const sponsorInvitationLinkConfig = sponsorInvitationConfig();
 const incomingDocumentStorage = incomingDocumentStorageConfig(ROOT);
@@ -104,6 +106,10 @@ function currentPartnerOperations(input) {
 function statusPortalUrl(application) {
   const token = issuePartnerPortalToken(application, { config: portalConfig });
   return token ? partnerPortalUrl(application, token, { config: portalConfig }) : null;
+}
+
+function assignmentPortalUrl(task) {
+  return taskPortalUrlForTask(task, { config: taskPortalLinkConfig });
 }
 
 function outreachPreferencesUrl(prospect) {
@@ -766,6 +772,7 @@ async function tick() {
     reconciledDocumentReviewTasks = routed.summary.created + routed.summary.updated;
     const tasks = generateDueTaskFollowups(routed.doc, {
       ...recipientContext,
+      taskPortalUrlForTask: assignmentPortalUrl,
       idFactory: prefix => `${prefix}_${randomUUID()}`
     });
     const milestones = generateDuePartnerFollowups(tasks.doc, {

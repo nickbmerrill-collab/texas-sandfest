@@ -5598,6 +5598,55 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .partner-status-empty { align-content: center; border: 1px dashed #9db9b5; display: grid; gap: 6px; min-height: 190px; padding: 24px; }
 .partner-status-empty strong { color: var(--deep); font-size: 18px; }
 .partner-status-empty span { color: var(--muted); line-height: 1.5; }
+.task-status-section {
+  background: var(--white);
+  border-bottom: 1px solid var(--line);
+  border-top: 6px solid var(--gulf);
+  display: grid;
+  gap: 22px 28px;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, .8fr);
+  scroll-margin-top: 88px;
+}
+.task-status-section[hidden] { display: none; }
+.task-status-heading { align-items: end; display: flex; gap: 20px; grid-column: 1 / -1; justify-content: space-between; }
+.task-status-heading h2 { font-size: 44px; margin: 0; }
+.task-status-heading > span { background: #eef6f5; border: 1px solid #b8cecb; color: var(--gulf); font-size: 11px; font-weight: 900; padding: 8px 10px; text-transform: uppercase; }
+.task-status-result { border-left: 5px solid var(--gulf); display: grid; gap: 14px; min-width: 0; padding: 20px 22px; scroll-margin-top: 88px; }
+.task-status-result:focus { outline: 2px solid var(--gulf); outline-offset: 3px; }
+.task-status-result[data-state="blocked"],
+.task-status-result[data-state="error"] { border-left-color: var(--coral); }
+.task-status-result > header { align-items: start; display: flex; gap: 16px; justify-content: space-between; }
+.task-status-result > header div { display: grid; gap: 4px; min-width: 0; }
+.task-status-result > header span { color: var(--coral); font-size: 11px; font-weight: 900; text-transform: uppercase; }
+.task-status-result h3 { color: var(--deep); font-size: 25px; margin: 0; overflow-wrap: anywhere; }
+.task-status-result > header b { color: var(--gulf); font-size: 12px; text-transform: capitalize; }
+.task-status-result > span,
+.task-status-owner,
+.task-status-description { color: var(--muted); line-height: 1.55; margin: 0; overflow-wrap: anywhere; }
+.task-status-owner { font-size: 13px; font-weight: 700; }
+.task-status-facts { display: grid; gap: 1px; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; }
+.task-status-facts div { background: #f4f7f6; display: grid; gap: 4px; min-width: 0; padding: 11px; }
+.task-status-facts dt { color: var(--muted); font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.task-status-facts dd { color: var(--deep); font-size: 12px; font-weight: 700; margin: 0; overflow-wrap: anywhere; }
+.task-status-history { border-top: 1px solid var(--line); display: grid; gap: 9px; padding-top: 13px; }
+.task-status-history > strong { color: var(--deep); font-size: 13px; }
+.task-status-history ul { display: grid; gap: 8px; list-style: none; margin: 0; padding: 0; }
+.task-status-history li { border-left: 3px solid var(--sun); display: grid; gap: 4px; padding: 5px 9px; }
+.task-status-history li div { align-items: center; display: flex; gap: 10px; justify-content: space-between; }
+.task-status-history li strong { color: var(--deep); font-size: 12px; text-transform: capitalize; }
+.task-status-history li span,
+.task-status-history li p { color: var(--muted); font-size: 12px; margin: 0; overflow-wrap: anywhere; }
+.task-status-update { align-content: start; background: #f4f7f6; display: grid; gap: 13px; padding: 18px; }
+.task-status-update[hidden] { display: none; }
+.task-status-update label { color: var(--deep); display: grid; font-size: 12px; font-weight: 800; gap: 7px; }
+.task-status-update textarea { background: var(--white); border: 1px solid var(--line); border-radius: 6px; color: var(--ink); font: inherit; line-height: 1.45; min-height: 96px; padding: 11px; resize: vertical; width: 100%; }
+.task-status-actions { display: grid; gap: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.task-status-actions .button { justify-content: center; min-height: 44px; min-width: 0; padding: 9px 10px; white-space: normal; }
+.task-status-actions .button[hidden] { display: none; }
+.task-status-message { font-size: 13px; margin: 0; min-height: 20px; }
+.task-status-message[data-state="ok"] { color: #28694c; }
+.task-status-message[data-state="error"] { color: #9f3127; }
+.task-status-privacy { color: var(--muted); font-size: 12px; grid-column: 1 / -1; line-height: 1.5; margin: 0; }
 .outreach-preferences-portal {
   align-items: center;
   border-left: 4px solid var(--coral);
@@ -5926,6 +5975,9 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .admin-task-card header b { color: var(--gulf); font-size: 11px; text-transform: capitalize; }
 .admin-task-card p,
 .admin-task-card > span { color: var(--muted); font-size: 12px; line-height: 1.45; margin: 0; }
+.admin-task-assignee-note { border-left: 3px solid var(--sun); display: grid; gap: 3px; margin: 0; padding: 7px 9px; }
+.admin-task-assignee-note strong { color: var(--deep); font-size: 10px; text-transform: uppercase; }
+.admin-task-assignee-note span { color: var(--muted); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
 .admin-task-controls { display: grid; gap: 6px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .admin-task-controls .button { min-height: 38px; padding: 8px 10px; }
 .admin-key-date-board { background: #f6f7ee; border-left: 5px solid var(--sun); display: grid; gap: 12px; padding: 16px; }
@@ -6374,6 +6426,11 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
   .admin-conditions-columns,
   .admin-campaign-fields { grid-template-columns: 1fr; }
   .partner-status-result { grid-column: auto; grid-row: auto; }
+  .task-status-section { grid-template-columns: 1fr; }
+  .task-status-heading,
+  .task-status-privacy { grid-column: auto; }
+  .task-status-facts { grid-template-columns: 1fr; }
+  .task-status-heading h2 { font-size: 32px; }
   .partner-form-heading { align-items: stretch; flex-direction: column; }
   .partner-demo-preset { align-self: flex-start; }
   .admin-incident-create,
@@ -6615,7 +6672,9 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
   body.runtime-board-demo #sponsor-inquiry-form,
   body.runtime-board-demo #vendor-application-form,
   body.runtime-board-demo #partner-status,
-  body.runtime-board-demo #partner-status-result {
+  body.runtime-board-demo #partner-status-result,
+  body.runtime-board-demo #task-status,
+  body.runtime-board-demo #task-status-result {
     scroll-margin-top: 136px;
   }
 }
