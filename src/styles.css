@@ -1544,6 +1544,7 @@ time {
 
 .admin-api-bar input,
 .admin-form-grid input,
+.admin-form-grid select,
 .admin-edit-card textarea {
   background: var(--white);
   border: 1px solid var(--line);
@@ -5230,6 +5231,8 @@ body.mode-ops header nav a[data-audience="public"] {
   .site-mode-toggle a { padding: 6px 9px; }
   .admin-shell-body #admin-config .section-heading { flex-direction: column; }
   .admin-shell-body #admin-config .section-heading h1 { font-size: 32px; }
+  .admin-launch-readiness-heading { align-items: stretch; flex-direction: column; }
+  .admin-launch-readiness-actions { width: 100%; }
 }
 
 /* Partner center, outreach operations, and Island Conditions */
@@ -5583,7 +5586,7 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .island-camera-card dd { color: var(--deep); font-size: 15px; font-weight: 800; margin: 0; }
 .island-camera-card small { color: var(--muted); }
 
-.admin-partners-panel { display: grid; gap: 16px; margin-top: 28px; }
+.admin-partners-panel { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); margin-top: 28px; }
 .admin-partner-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 10px; }
 .admin-partner-activity-board { background: #f2f5f4; border-left: 5px solid var(--sun); display: grid; gap: 12px; padding: 16px; }
 .admin-partner-activity { display: grid; gap: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 420px; overflow: auto; }
@@ -5861,7 +5864,7 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .admin-discovery-summary b { color: var(--deep); }
 .admin-discovery-summary a,
 .admin-discovery-links a,
-.admin-prospect-source a { color: var(--gulf); font-weight: 800; }
+.admin-prospect-source a { align-items: center; color: var(--gulf); display: inline-flex; font-weight: 800; min-height: 24px; }
 .admin-discovery-candidates { display: grid; max-height: 360px; overflow: auto; }
 .admin-discovery-candidate { align-items: center; border-top: 1px solid var(--line); display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr) auto; padding: 10px 2px; }
 .admin-discovery-candidate:first-child { border-top: 0; }
@@ -5916,6 +5919,8 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .admin-outreach-map-heading > div > span { color: var(--coral); font-size: 10px; font-weight: 900; text-transform: uppercase; }
 .admin-outreach-map-heading > div > strong { color: var(--deep); font-size: 20px; }
 .admin-outreach-map-heading label { color: var(--muted); display: grid; font-size: 10px; font-weight: 800; gap: 5px; min-width: min(360px, 48%); text-transform: uppercase; }
+.admin-outreach-map-heading select,
+.admin-prospect-schedule-controls input { background: var(--white); border: 1px solid var(--line); border-radius: 7px; color: var(--ink); font: inherit; min-height: 42px; min-width: 0; padding: 10px 12px; width: 100%; }
 .admin-outreach-map-summary { display: grid; gap: 6px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .admin-outreach-map-summary > div { background: var(--foam); display: grid; gap: 2px; padding: 9px 11px; }
 .admin-outreach-map-summary strong { color: var(--deep); font-size: 18px; }
@@ -6419,6 +6424,9 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
   .admin-shell-body #admin-outreach-prospects {
     scroll-margin-top: 244px;
   }
+}
+@media (max-width: 360px) {
+  .admin-workspace-nav a { font-size: 12px; padding-inline: 2px; }
 }
 .runtime-data-notice {
   align-items: center;
