@@ -544,7 +544,8 @@ if (visitorUrl && operationsUrl) {
         || !item?.partnerKpis?.Received?.includes("1 active payment")
         || !item?.partnerKpis?.Received?.includes("0 accounts paid in full")
         || !item?.partnerKpis?.QuickBooks?.includes("Post-board")
-        || !item?.partnerKpis?.["Online invoices"]?.includes("Post-board")
+        || !item?.partnerKpis?.["Online invoices"]?.includes("Local sandbox")
+        || !item?.partnerKpis?.["Online invoices"]?.includes("Private portal payments active")
         || !item?.partnerKpis?.Messaging?.includes("Automatic")
         || !item?.partnerKpis?.Messaging?.includes("awaiting staff review")
         || item?.budgetLines !== 6

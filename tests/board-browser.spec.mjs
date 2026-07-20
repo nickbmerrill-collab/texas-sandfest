@@ -726,7 +726,8 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await expect(partnerKpis.locator("article").filter({ hasText: "Received" })).toContainText("1 active payment");
   await expect(partnerKpis.locator("article").filter({ hasText: "Received" })).toContainText("0 accounts paid in full");
   await expect(partnerKpis.locator("article").filter({ hasText: "QuickBooks" })).toContainText("Post-board");
-  await expect(partnerKpis.locator("article").filter({ hasText: "Online invoices" })).toContainText("Post-board");
+  await expect(partnerKpis.locator("article").filter({ hasText: "Online invoices" })).toContainText("Local sandbox");
+  await expect(partnerKpis.locator("article").filter({ hasText: "Online invoices" })).toContainText("Stripe post-board");
   const messagingKpi = partnerKpis.locator("article").filter({ hasText: "Messaging" });
   await expect(messagingKpi).toContainText("Review first");
   await expect(messagingKpi).toContainText(/\d+ drafts? awaiting staff review/);
@@ -1255,6 +1256,57 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await expect(freshSponsorPortal.locator(".partner-brand-center")).toContainText("Brand center");
   await expect(freshSponsorPortal.locator("[data-partner-brand-asset]")).toHaveCount(1);
   await expect(freshSponsorPortal.locator("[data-partner-deliverable]")).toHaveCount(6);
+  await expect(freshSponsorPortal.locator("[data-partner-pay-invoice]")).toHaveText("Pay in local sandbox");
+  const partnerCheckoutResponse = freshSponsorPortal.waitForResponse(response => new URL(response.url()).pathname === "/api/public/partner-payment-checkout" && response.request().method() === "POST");
+  await freshSponsorPortal.locator("[data-partner-pay-invoice]").click();
+  const partnerCheckoutResult = await partnerCheckoutResponse;
+  expect(partnerCheckoutResult.status()).toBe(201);
+  const partnerCheckout = (await partnerCheckoutResult.json()).demoCheckout;
+  expect(partnerCheckout).toMatchObject({
+    mode: "board_sandbox",
+    amountCents: 500000,
+    currency: "usd",
+    completeEndpoint: "/api/public/board-partner-checkout/complete"
+  });
+  expect(partnerCheckout.token).toEqual(expect.any(String));
+  const tamperedPartnerPayment = await fetch(`${apiBase}${partnerCheckout.completeEndpoint}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ token: `${partnerCheckout.token}x` })
+  });
+  expect(tamperedPartnerPayment.status).toBe(400);
+  const partnerPaymentSandbox = freshSponsorPortal.locator("[data-partner-payment-sandbox]");
+  await expect(partnerPaymentSandbox).toContainText("$5,000.00 demo");
+  await expect(partnerPaymentSandbox).toContainText("No external charge is sent");
+  await expect(partnerPaymentSandbox).not.toContainText("Stripe");
+  await freshSponsorPortal.setViewportSize({ width: 390, height: 844 });
+  await assertNoHorizontalOverflow(freshSponsorPortal);
+  await assertNoAccessibilityViolations(freshSponsorPortal, "local partner payment sandbox");
+  const partnerPaymentResponse = freshSponsorPortal.waitForResponse(response => new URL(response.url()).pathname === partnerCheckout.completeEndpoint && response.request().method() === "POST");
+  await partnerPaymentSandbox.locator("[data-complete-partner-demo-payment]").click();
+  const partnerPaymentResult = await partnerPaymentResponse;
+  expect(partnerPaymentResult.status()).toBe(200);
+  const partnerPayment = await partnerPaymentResult.json();
+  expect(partnerPayment.duplicate).toBe(false);
+  expect(partnerPayment.receipt).toMatchObject({
+    invoiceId: createdInvoice.id,
+    amountCents: 500000,
+    currency: "usd",
+    environment: "board_sandbox"
+  });
+  expect(partnerPayment.receipt.paymentId).toEqual(expect.any(String));
+  await expect(freshSponsorPortal.locator(".partner-status-kpis")).toContainText("$0.00");
+  await expect(freshSponsorPortal.locator(".partner-status-kpis")).toContainText("paid");
+  await expect(freshSponsorPortal.locator("[data-partner-pay-invoice]")).toHaveCount(0);
+  const partnerPaymentReplay = await fetch(`${apiBase}${partnerCheckout.completeEndpoint}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ token: partnerCheckout.token })
+  });
+  expect(partnerPaymentReplay.status).toBe(200);
+  const partnerPaymentReplayResult = await partnerPaymentReplay.json();
+  expect(partnerPaymentReplayResult.duplicate).toBe(true);
+  expect(partnerPaymentReplayResult.receipt.paymentId).toBe(partnerPayment.receipt.paymentId);
   const freshSponsorPortalDeliverable = freshSponsorPortal.locator(`[data-partner-deliverable="${freshSponsorDeliverableId}"]`);
   await expect(freshSponsorPortalDeliverable).toContainText("Delivery proof · version 1");
   await expect(freshSponsorPortalDeliverable.locator('.partner-deliverable-review[data-status="pending"]')).toContainText("Partner review: pending");
@@ -1267,6 +1319,12 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   const refreshedSponsorPartners = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/partners" && response.request().method() === "GET");
   await page.locator("#admin-load-partners").click();
   await refreshedSponsorPartners;
+  await expect(sponsorCard).toContainText("$5,000.00 / $5,000.00");
+  await expect(sponsorCard.locator(`[data-partner-invoice="${createdInvoice.id}"]`)).toContainText("$0.00 open");
+  const boardPartnerPayment = sponsorCard.locator(`[data-partner-payment="${partnerPayment.receipt.paymentId}"]`);
+  await expect(boardPartnerPayment).toContainText("card");
+  await expect(boardPartnerPayment).toContainText("board:pi_board_");
+  await expect(sponsorPaymentMilestone.locator('[name="status"]')).toHaveValue("completed");
   await freshSponsorDeliverable().locator('[name="status"]').selectOption("complete");
   const freshSponsorDeliverableCompletion = page.waitForResponse(response => new URL(response.url()).pathname === `/api/admin/partners/deliverables/${freshSponsorDeliverableId}` && response.request().method() === "PATCH");
   await freshSponsorDeliverable().locator("[data-save-deliverable]").click();

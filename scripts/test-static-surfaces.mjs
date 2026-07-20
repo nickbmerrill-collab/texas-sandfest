@@ -262,6 +262,15 @@ assert(publicSculptorRoster.sculptors?.length === 0 && publicSculptorRoster.entr
 assert(sourceVoting.publicationStatus === "unpublished" && sourceVoting.votingOpen === false && sourceVoting.entries?.length === 0 && sourceVoting.votes?.length === 0, "Repository voting seed exposes an unpublished ballot.");
 assert(sourcePassport.hunt?.active === false && sourcePassport.checkpoints?.length === 0, "Repository passport seed exposes unpublished checkpoints.");
 assert(!(await exists(path.join(publicDir, "board-demo"))) && !(await exists(path.join(publicDir, "data", "sculptors-demo.json"))) && !(await exists(path.join(publicDir, "data", "live-beach-demo.json"))), "Production artifact contains local board-demonstration data files.");
+assert(
+  visitorSource.includes('if (import.meta.env.DEV && data.demoCheckout)')
+    && visitorSource.includes('import("./board-demo/partner-payment-sandbox.js")'),
+  "Partner invoice sandbox is not isolated behind the development build boundary."
+);
+for (const marker of ["board-partner-checkout", "partner-payment-sandbox"]) {
+  assert(!publicJavaScript.includes(marker), `Public production JavaScript contains the board-only partner payment marker ${marker}.`);
+  assert(!adminJavaScript.includes(marker), `Admin production JavaScript contains the board-only partner payment marker ${marker}.`);
+}
 for (const marker of fictionalPublicContentMarkers) {
   assert(!serializedPublicRoster.includes(marker), `Public sculptor roster contains fictional marker ${marker}.`);
   assert(!publicJavaScript.includes(marker), `Public production JavaScript contains fictional marker ${marker}.`);

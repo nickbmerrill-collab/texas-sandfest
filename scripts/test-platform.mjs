@@ -741,7 +741,9 @@ console.log("\n=== Pure library suite ===\n");
       service: "sandfest-admin-api",
       publicSiteUrl: "http://127.0.0.1:5175",
       ticketCheckoutReady: true,
-      ticketCheckoutEnvironment: "board_sandbox"
+      ticketCheckoutEnvironment: "board_sandbox",
+      partnerPaymentCheckoutReady: true,
+      partnerPaymentCheckoutEnvironment: "board_sandbox"
     },
     bootstrap: { guide: { id: "texas-sandfest-2027" }, runtime: { mode: "board_demo" } },
     tickets: {
@@ -2709,6 +2711,41 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   ok("partner Stripe payment reconciliation", stripePaid.ok && stripePaid.reconciled && stripePaid.payment.method === "stripe" && stripePaid.invoice.balanceCents === 0 && stripePaid.doc.applications[0].status === "paid");
   ok("Stripe payment completes payment key date", stripePaidMilestone?.status === "completed" && stripePaidMilestone?.completedBy === "automation:payment_reconciliation");
   ok("partner Stripe payment idempotency", stripePaidAgain.ok && stripePaidAgain.duplicate && stripePaidAgain.doc.payments.length === 2);
+  const boardPartnerCheckout = beginPartnerPaymentCheckout(partnerCheckout.doc, created.application.id, invoiceDraft.invoice.id, {
+    idFactory,
+    actorId: `partner:${created.application.reference}`,
+    now,
+    expiresAt: "2026-07-16T12:30:00.000Z",
+    provider: "board_sandbox"
+  });
+  const boardPartnerPayment = reconcilePartnerStripePayment(boardPartnerCheckout.doc, {
+    checkoutId: boardPartnerCheckout.checkout.id,
+    applicationId: created.application.id,
+    invoiceId: invoiceDraft.invoice.id,
+    providerSessionId: "cs_board_partner_001",
+    paymentIntentId: "pi_board_partner_001",
+    providerEventId: "evt_board_partner_001",
+    amountCents: 2000000,
+    currency: "usd",
+    paymentStatus: "paid",
+    receivedAt: now
+  }, {
+    idFactory,
+    actorId: "board-payment-sandbox",
+    now,
+    paymentMethod: "card",
+    paymentReferencePrefix: "board",
+    paymentNotes: `Local board payment sandbox checkout ${boardPartnerCheckout.checkout.id}`
+  });
+  ok("board partner checkout uses the real reconciliation contract", !boardPartnerCheckout.duplicate
+    && boardPartnerCheckout.doc.paymentCheckouts.length === 2
+    && boardPartnerCheckout.checkout.provider === "board_sandbox"
+    && boardPartnerPayment.ok
+    && boardPartnerPayment.reconciled
+    && boardPartnerPayment.payment.method === "card"
+    && boardPartnerPayment.payment.externalRef === "board:pi_board_partner_001"
+    && boardPartnerPayment.invoice.balanceCents === 0
+    && boardPartnerPayment.doc.milestones.find(item => item.kind === "payment_due")?.status === "completed");
   const stripeRefunded = reconcilePartnerStripeRefund(stripePaid.doc, {
     paymentIntentId: "pi_partner_001",
     refundedAmountCents: 250000,
