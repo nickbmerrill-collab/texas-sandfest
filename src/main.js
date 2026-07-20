@@ -36,8 +36,8 @@ import {
   selectPublicMediaAssets
 } from "../lib/public-media-selection.mjs";
 
-const adminTicketPolicyUi = (import.meta.env.DEV || import.meta.env.VITE_SANDFEST_SURFACE === "admin")
-  ? await import("./admin-ticket-policy.js")
+const adminOperationsUi = (import.meta.env.DEV || import.meta.env.VITE_SANDFEST_SURFACE === "admin")
+  ? await import("./admin-operations-ui.js")
   : null;
 
 const siteBase = import.meta.env.BASE_URL || "/";
@@ -1767,7 +1767,7 @@ app.innerHTML = `
             <p class="eyebrow">Ticket pricing</p>
             <h2>GA, VIP, raffle gates</h2>
           </div>
-          ${adminTicketPolicyUi?.ticketPolicyEditorMarkup() || ""}
+          ${adminOperationsUi?.ticketPolicyEditorMarkup() || ""}
           <div id="admin-ticket-editor" class="admin-editor-list">
             <article class="empty-state">
               <strong>No API config loaded</strong>
@@ -3493,7 +3493,7 @@ function ticketAdminCard(product) {
 }
 
 function renderAdminTicketPolicy() {
-  adminTicketPolicyUi?.renderTicketPolicyEditor(adminConfigState);
+  adminOperationsUi?.renderTicketPolicyEditor(adminConfigState);
 }
 
 function sponsorAdminCard(sponsorPackage) {
@@ -6697,9 +6697,8 @@ function renderAdminTaskBoard(payload) {
       .filter(item => item.taskId === task.id && item.kind === "task_assignment")
       .sort((a, b) => String(b.updatedAt || b.createdAt).localeCompare(String(a.updatedAt || a.createdAt)))[0];
     const notificationState = notification?.deliveryStatus || notification?.status || (assignmentType === "unassigned" ? "not_configured" : "awaiting_directory");
-    const assignmentNoticePending = ["pending", "draft_ready", "approved", "queued", "sending"].includes(assignmentNotice?.status);
-    const assignmentNoticeAllowed = ["open", "in_progress", "blocked"].includes(task.status) && assignmentType !== "unassigned" && !assignmentNoticePending;
-    const assignmentNoticeLabel = assignmentNotice ? "Resend notice" : "Send notice";
+    const assignmentNoticeAction = adminOperationsUi?.taskAssignmentNoticeAction(task, assignmentType, assignmentNotice)
+      || { disabled: true, label: "Notice unavailable" };
     const currentUpdates = (task.assigneeUpdates || []).filter(item => Number(item.assignmentVersion || 1) === Number(task.assignmentVersion || 1));
     const latestUpdate = currentUpdates[currentUpdates.length - 1];
     const responseState = task.acknowledgedAt
@@ -6719,7 +6718,7 @@ function renderAdminTaskBoard(payload) {
         <input name="dueAt" type="datetime-local" value="${escapeAttr(taskDateTimeInput(task.dueAt))}" aria-label="${escapeAttr(task.title)} due date" />
         <select name="priority" aria-label="${escapeAttr(task.title)} priority">${taskPriorityOptions(task.priority)}</select>
         <button type="button" class="button secondary" data-save-task="${escapeAttr(task.id)}" ${adminCan("partners:write") ? "" : "disabled"}>Save task</button>
-        <button type="button" class="button secondary" data-resend-task="${escapeAttr(task.id)}" ${adminCan("partners:write") && assignmentNoticeAllowed ? "" : "disabled"}>${escapeHtml(assignmentNoticePending ? "Notice pending" : assignmentNoticeLabel)}</button>
+        <button type="button" class="button secondary" data-resend-task="${escapeAttr(task.id)}" ${adminCan("partners:write") && !assignmentNoticeAction.disabled ? "" : "disabled"}>${escapeHtml(assignmentNoticeAction.label)}</button>
       </div>
     </article>`;
   }).join("") || '<article class="empty-state"><span>No tasks match these filters.</span></article>';
@@ -6744,18 +6743,7 @@ function renderAdminTaskBoard(payload) {
     } catch (error) { setAdminStatus(error.message, "error"); } finally { button.disabled = false; }
   }));
 
-  tasks.querySelectorAll("[data-resend-task]").forEach(button => button.addEventListener("click", async () => {
-    button.disabled = true;
-    try {
-      const requestId = globalThis.crypto?.randomUUID?.() || `notice-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      const result = await adminFetch(`/api/admin/partners/tasks/${encodeURIComponent(button.dataset.resendTask)}/assignment-notice`, {
-        method: "POST",
-        body: JSON.stringify({ requestId })
-      });
-      await loadAdminPartners({ quiet: true });
-      setAdminStatus(result.replay ? "Assignment notice was already queued." : "Assignment notice queued.", "ok");
-    } catch (error) { setAdminStatus(error.message, "error"); } finally { button.disabled = false; }
-  }));
+  adminOperationsUi?.bindTaskAssignmentNoticeActions(tasks, { adminFetch, loadAdminPartners, setAdminStatus });
 }
 
 function milestoneStatusOptions(selected) {
@@ -8866,7 +8854,7 @@ function centsFromInput(value) {
 }
 
 function bindAdminSaveButtons() {
-  adminTicketPolicyUi?.bindTicketPolicyEditor({
+  adminOperationsUi?.bindTicketPolicyEditor({
     adminFetch,
     getConfigState: () => adminConfigState,
     getSessionState: () => adminSessionState,
