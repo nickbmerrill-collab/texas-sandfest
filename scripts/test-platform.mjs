@@ -151,6 +151,7 @@ import {
   activatePartnerPaymentCheckout,
   beginPartnerPaymentCheckout,
   emptyPartnerOperations,
+  editFollowupDraft,
   generateDueOutreachFollowups,
   generateDuePartnerFollowups,
   generateDueTaskFollowups,
@@ -4239,6 +4240,41 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   const campaignDraftAgain = generateDueOutreachFollowups(campaignDraft.doc, { idFactory, now });
   ok("outreach personalized draft", campaignDraft.generated.length === 1 && campaignDraft.generated[0].subject.includes("Island Hotel") && campaignDraft.generated[0].status === "draft_ready" && campaignDraft.generated[0].body.includes(preferenceUrl) && campaignDraft.generated[0].body.includes(issuedInvitation.invitationUrl));
   ok("outreach draft idempotency", campaignDraftAgain.generated.length === 0);
+  const editedDraftAt = "2026-07-16T12:00:01.000Z";
+  const editedCampaignDraft = editFollowupDraft(campaignDraft.doc, campaignDraft.generated[0].id, {
+    subject: "A reviewed SandFest partnership for Island Hotel",
+    body: campaignDraft.generated[0].body.replace("Hello Jordan Lee", "Hello Jordan,\n\nOur sponsorship team reviewed this note for you."),
+    expectedUpdatedAt: campaignDraft.generated[0].updatedAt
+  }, { actorId: "sponsor_1", idFactory, now: editedDraftAt });
+  const staleCampaignEdit = editFollowupDraft(editedCampaignDraft.doc, campaignDraft.generated[0].id, {
+    subject: "Stale edit",
+    body: editedCampaignDraft.followup.body,
+    expectedUpdatedAt: campaignDraft.generated[0].updatedAt
+  }, { actorId: "sponsor_2", idFactory, now: "2026-07-16T12:00:02.000Z" });
+  const missingPreferenceEdit = editFollowupDraft(campaignDraft.doc, campaignDraft.generated[0].id, {
+    subject: campaignDraft.generated[0].subject,
+    body: campaignDraft.generated[0].body.replace(preferenceUrl, ""),
+    expectedUpdatedAt: campaignDraft.generated[0].updatedAt
+  }, { actorId: "sponsor_1", idFactory, now: editedDraftAt });
+  const editedAutoApproval = applyOutreachCampaignAutomation({
+    ...editedCampaignDraft.doc,
+    campaigns: editedCampaignDraft.doc.campaigns.map(item => item.id === campaign.campaign.id ? { ...item, deliveryMode: "approved_sequence" } : item)
+  }, { idFactory, now: editedDraftAt, providerReady: true });
+  const approvedEditedDraft = reviewFollowup(editedCampaignDraft.doc, editedCampaignDraft.followup.id, "approve", { actorId: "sponsor_1", now: editedDraftAt });
+  const lockedApprovedEdit = editFollowupDraft(approvedEditedDraft.doc, approvedEditedDraft.followup.id, {
+    subject: approvedEditedDraft.followup.subject,
+    body: approvedEditedDraft.followup.body,
+    expectedUpdatedAt: approvedEditedDraft.followup.updatedAt
+  }, { actorId: "sponsor_1", idFactory, now: editedDraftAt });
+  const emptySubjectEdit = editFollowupDraft(campaignDraft.doc, campaignDraft.generated[0].id, {
+    subject: "",
+    body: campaignDraft.generated[0].body,
+    expectedUpdatedAt: campaignDraft.generated[0].updatedAt
+  }, { actorId: "sponsor_1", idFactory, now: editedDraftAt });
+  ok("staff can edit a ready message without approving it", editedCampaignDraft.ok && editedCampaignDraft.changed && editedCampaignDraft.followup.status === "draft_ready" && editedCampaignDraft.followup.editVersion === 1 && editedCampaignDraft.followup.editedBy === "sponsor_1" && editedCampaignDraft.doc.activity.at(-1)?.type === "followup.edited" && !JSON.stringify(editedCampaignDraft.doc.activity.at(-1)).includes(editedCampaignDraft.followup.body));
+  ok("message edits are conflict-safe and preserve private links", !staleCampaignEdit.ok && staleCampaignEdit.conflict === true && !missingPreferenceEdit.ok && missingPreferenceEdit.error.includes("private action"));
+  ok("message edit validation locks approved drafts and empty content", approvedEditedDraft.ok && !lockedApprovedEdit.ok && lockedApprovedEdit.conflict === true && !emptySubjectEdit.ok && emptySubjectEdit.error.includes("subject is required"));
+  ok("edited messages remain under human review", editedAutoApproval.approved.length === 0 && editedAutoApproval.doc.followups.find(item => item.id === editedCampaignDraft.followup.id)?.status === "draft_ready");
   const automatedProspect = createOutreachProspect(campaignDraft.doc, {
     organizationName: "Harbor Lodging Group",
     contactName: "Taylor Morgan",

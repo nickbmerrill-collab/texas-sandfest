@@ -8040,6 +8040,7 @@ function renderAdminPartners(payload, outreach) {
       ${item.lastError ? `<span class="admin-delivery-error">${escapeHtml(item.lastError)}</span>` : ""}
       ${item.sentAt ? `<span>Provider accepted ${escapeHtml(new Date(item.sentAt).toLocaleString())}${item.providerMessageId ? ` · ${escapeHtml(item.providerMessageId)}` : ""}</span>` : ""}
       ${deliveryStatus && deliveryAt ? `<span>Delivery ${escapeHtml(conditionLabel(deliveryStatus))} · ${escapeHtml(new Date(deliveryAt).toLocaleString())}</span>` : ""}
+      ${adminOperationsUi?.draftEditor(item) || ""}
       <div class="admin-followup-actions">
         ${item.status === "draft_ready" ? `<button type="button" class="button secondary" data-review-followup="${escapeAttr(item.id)}" data-action="approve">Approve</button>` : ""}
         ${["draft_ready", "approved", "failed"].includes(item.status) ? `<button type="button" class="button secondary" data-review-followup="${escapeAttr(item.id)}" data-action="dismiss">Dismiss</button>` : ""}
@@ -8301,6 +8302,7 @@ function renderAdminPartners(payload, outreach) {
       setAdminStatus(button.dataset.action === "approve" ? "Message approved. It has not been sent yet." : "Message dismissed.", "ok");
     } catch (error) { setAdminStatus(error.message, "error"); } finally { button.disabled = false; }
   }));
+  adminOperationsUi?.bindDraftEditors(followups, { adminFetch, loadAdminPartners, setAdminStatus });
   followups.querySelectorAll("[data-send-followup]").forEach(button => button.addEventListener("click", async () => {
     button.disabled = true;
     try {

@@ -62,7 +62,7 @@ Changing a prospect's location, qualification, contact basis, or email dismisses
 2. Set targeting by industry, city, state, ZIP, optional center/radius, and minimum fit score.
 3. Activate the campaign. Activation fails when no eligible prospects match; approved-sequence activation also fails until email delivery and authenticated callbacks are ready.
 4. Generate due drafts manually or allow the background worker to generate them.
-5. In review-first mode, review each `draft_ready` message and approve or dismiss it. In approved-sequence mode, the worker approves only the current campaign's eligible drafts within its daily limit.
+5. In review-first mode, review each `draft_ready` message, revise its subject or body when needed, and then approve or dismiss it. A revision keeps private action, invitation, and outreach-preference links intact, requires the last-seen draft timestamp, and remains under human review even when an automation policy is otherwise enabled. In approved-sequence mode, the worker approves only the current campaign's eligible, unedited drafts within its daily limit.
 6. Queue approved messages for Brevo delivery. The daily limit reserves automation-approved messages and counts every queued, in-flight, delivered, or provider-failed campaign message for the day, including messages a staff member queues manually. Retry-safe job keys bind the campaign policy, message, and approval timestamp, while a stable Brevo idempotency key protects immediate provider retries. A provider duplicate response is held for manual delivery verification instead of being retried after the provider TTL.
 7. After delivery is proven, the next sequence step becomes eligible when its delay expires.
 8. Pause, complete, or archive the campaign when appropriate. Pausing returns approved or queued automated messages to review and clears their jobs. The worker atomically claims a queued message, then revalidates the persisted recipient, suppression, targeting, and campaign state in a short provider-handoff transaction before making the network request. A pause or opt-out that commits first cancels the send; once the provider-handoff marker commits, the delivery remains visible as in flight without holding the partner ledger lock during the request. Failed deliveries remain failed, lose their automation approval, and require an explicit staff retry after reactivation. Completing or archiving dismisses all unsent, unclaimed campaign messages.
@@ -103,10 +103,11 @@ Unknown template fields are rejected when the campaign is created.
 
 Message approval and delivery use the shared partner endpoints:
 
+- `PATCH /api/admin/partners/followups/:id/draft` (`subject`, `body`, and `expectedUpdatedAt` are required)
 - `POST /api/admin/partners/followups/:id/review`
 - `POST /api/admin/partners/followups/:id/send`
 
-All mutations create admin audit records. Provider message IDs, attempts, failures, accepted timestamps, and bounded delivery-event histories remain in the partner operations ledger. Brevo hard bounce, invalid, blocked, spam/complaint, and unsubscribe events automatically suppress the prospect and dismiss every unsent message; webhook audits retain aggregate counts only.
+All mutations create admin audit records. Draft-edit audits retain status, version, changed-field flags, and content lengths without storing the subject, body, or recipient. Provider message IDs, attempts, failures, accepted timestamps, and bounded delivery-event histories remain in the partner operations ledger. Brevo hard bounce, invalid, blocked, spam/complaint, and unsubscribe events automatically suppress the prospect and dismiss every unsent message; webhook audits retain aggregate counts only.
 
 Production uses `SANDFEST_PUBLIC_SITE_URL` plus `SANDFEST_OUTREACH_PREFERENCES_SECRET`. When the outreach-specific secret is empty, the existing 32+ character `SANDFEST_PARTNER_PORTAL_SECRET` is reused with a domain-separated signature. If the override is configured, the API and worker must receive the same value.
 

@@ -470,6 +470,32 @@ try {
   check("board-approved outreach sequence delivers through the local sandbox", boardCampaignActivation.status === 200 && boardCampaignActivation.data.automation?.active === true && outreachWorkerOutput.includes("outreach_campaign_v1") && deliveredOutreach?.message?.automationPolicy === "outreach_campaign_v1" && deliveredOutreach?.message?.body?.includes(boardSponsorInvitation.data.invitation?.url));
   const reviewFirstDraft = deliveredOutreach?.workspace?.data.followups?.find(item => item.campaignId === seededReviewCampaign?.id);
   check("review-first outreach stays in the staff approval queue", reviewFirstDraft?.status === "draft_ready" && !reviewFirstDraft?.automationPolicy && reviewFirstDraft?.subject?.includes("Coastal Bend Community Bank"));
+  const reviewFirstProtectedUrl = reviewFirstDraft?.body?.match(/https?:\/\/\S+#outreach-preferences\?\S+/)?.[0];
+  const unauthenticatedReviewFirstEdit = await request(base, "PATCH", `/api/admin/partners/followups/${reviewFirstDraft?.id}/draft`, {
+    subject: reviewFirstDraft?.subject,
+    body: reviewFirstDraft?.body,
+    expectedUpdatedAt: reviewFirstDraft?.updatedAt
+  });
+  const missingLinkReviewFirstEdit = await request(base, "PATCH", `/api/admin/partners/followups/${reviewFirstDraft?.id}/draft`, {
+    subject: reviewFirstDraft?.subject,
+    body: reviewFirstDraft?.body?.replace(reviewFirstProtectedUrl, ""),
+    expectedUpdatedAt: reviewFirstDraft?.updatedAt
+  }, { auth: true });
+  const editedReviewFirstDraft = await request(base, "PATCH", `/api/admin/partners/followups/${reviewFirstDraft?.id}/draft`, {
+    subject: `${reviewFirstDraft?.subject} | Board reviewed`,
+    body: reviewFirstDraft?.body?.replace("Hello", "Hello from the reviewed SandFest sponsor team,"),
+    expectedUpdatedAt: reviewFirstDraft?.updatedAt
+  }, { auth: true });
+  const staleReviewFirstEdit = await request(base, "PATCH", `/api/admin/partners/followups/${reviewFirstDraft?.id}/draft`, {
+    subject: "Stale board edit",
+    body: reviewFirstDraft?.body,
+    expectedUpdatedAt: reviewFirstDraft?.updatedAt
+  }, { auth: true });
+  const messageEditAudit = await request(base, "GET", "/api/admin/audit?limit=100", undefined, { auth: true });
+  const messageEditAuditRecord = messageEditAudit.data.audit?.find(item => item.record?.action === "partner.followup.edit" && item.record?.target?.id === reviewFirstDraft?.id)?.record;
+  check("message draft edits require staff and preserve protected links", unauthenticatedReviewFirstEdit.status === 401 && Boolean(reviewFirstProtectedUrl) && missingLinkReviewFirstEdit.status === 400 && missingLinkReviewFirstEdit.data.error?.includes("private action"));
+  check("staff can safely revise a board message before approval", editedReviewFirstDraft.status === 200 && editedReviewFirstDraft.data.followup?.status === "draft_ready" && editedReviewFirstDraft.data.followup?.editVersion === 1 && editedReviewFirstDraft.data.followup?.subject?.endsWith("Board reviewed") && staleReviewFirstEdit.status === 409);
+  check("message edit audit records change evidence without message content", messageEditAuditRecord?.metadata?.subjectChanged === true && messageEditAuditRecord?.metadata?.bodyChanged === true && messageEditAuditRecord?.after?.subjectLength > 0 && messageEditAuditRecord?.after?.bodyLength > 0 && !JSON.stringify(messageEditAuditRecord).includes(editedReviewFirstDraft.data.followup?.subject) && !JSON.stringify(messageEditAuditRecord).includes(editedReviewFirstDraft.data.followup?.body));
   const boardPublicInvitation = await request(base, "POST", "/api/public/sponsor-invitation", { token: boardSponsorInvitationToken });
   const boardInvitedSponsor = await request(base, "POST", "/api/public/sponsor-inquiries", {
     organizationName: seededSponsorProspect?.organizationName,

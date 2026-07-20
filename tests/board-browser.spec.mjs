@@ -2043,6 +2043,19 @@ test("operations command summary fits and navigates across board viewports", asy
   }), { timeout: 500 }).toBe(true);
   const firstFollowup = page.locator("#admin-partner-followups [data-followup]").first();
   await expect(firstFollowup.locator('[data-review-followup][data-action="approve"]')).toBeVisible();
+  const editedFollowupId = await firstFollowup.getAttribute("data-followup");
+  await firstFollowup.locator("summary").click();
+  const draftSubject = firstFollowup.locator('.admin-followup-editor input[aria-label="Message subject"]');
+  const draftBody = firstFollowup.locator('.admin-followup-editor textarea[aria-label="Message body"]');
+  const editedSubject = `${await draftSubject.inputValue()} | Browser reviewed`;
+  await draftSubject.fill(editedSubject);
+  await draftBody.fill(`${await draftBody.inputValue()}\n\nReviewed in Operations before approval.`);
+  const editResponsePromise = page.waitForResponse(response => new URL(response.url()).pathname === `/api/admin/partners/followups/${editedFollowupId}/draft` && response.request().method() === "PATCH");
+  await firstFollowup.locator("[data-save-draft]").click();
+  const editResponse = await editResponsePromise;
+  expect(editResponse.status()).toBe(200);
+  await expect(page.locator(`#admin-partner-followups [data-followup="${editedFollowupId}"] header strong`)).toHaveText(editedSubject);
+  await expect(page.locator(`#admin-partner-followups [data-followup="${editedFollowupId}"] [data-review-followup][data-action="approve"]`)).toBeVisible();
   const reviewReadyOutreach = page.locator("#admin-partner-followups [data-followup]")
     .filter({ hasText: "outreach sequence" })
     .filter({ has: page.locator('[data-review-followup][data-action="approve"]') });

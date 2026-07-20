@@ -1505,6 +1505,14 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
   const outreachDrafts = outreach.data.followups?.filter(item => item.campaignId === campaignId) || [];
   const persistedGeoCampaign = outreach.data.campaigns?.find(item => item.id === campaignId);
   check("personalized geofenced draft persisted", outreachDrafts.length === 1 && outreachDrafts[0].subject.includes("Postgres Island Hotel") && persistedGeoCampaign?.metrics?.matched === 1 && persistedGeoCampaign?.targeting?.geofence?.radiusMiles === 25);
+  const postgresEditedDraft = await request(base, "PATCH", `/api/admin/partners/followups/${outreachDrafts[0]?.id}/draft`, {
+    subject: `${outreachDrafts[0]?.subject} | Finance reviewed`,
+    body: outreachDrafts[0]?.body?.replace("Hello", "Hello from the reviewed SandFest team,"),
+    expectedUpdatedAt: outreachDrafts[0]?.updatedAt
+  }, { auth: true });
+  const postgresEditedWorkspace = await request(base, "GET", "/api/admin/outreach", undefined, { auth: true });
+  const persistedEditedDraft = postgresEditedWorkspace.data.followups?.find(item => item.id === outreachDrafts[0]?.id);
+  check("Postgres persists staff message revisions under review", postgresEditedDraft.status === 200 && postgresEditedDraft.data.followup?.status === "draft_ready" && persistedEditedDraft?.editVersion === 1 && persistedEditedDraft?.subject?.endsWith("Finance reviewed") && persistedEditedDraft?.manualReviewRequiredAt);
   const movedOutreachProspect = await request(base, "PATCH", `/api/admin/outreach/prospects/${prospect.data.prospect?.id}`, {
     city: "Austin",
     postalCode: "78701",

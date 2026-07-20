@@ -142,7 +142,8 @@ export default defineConfig(({ mode }) => {
       emptyOutDir: true,
       sourcemap,
       rollupOptions: {
-        input: buildInputs
+        input: buildInputs,
+        output: buildTarget === "admin" ? { inlineDynamicImports: true } : undefined
       }
     }
   };
