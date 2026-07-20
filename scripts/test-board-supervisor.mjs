@@ -325,6 +325,13 @@ try {
   const deliveredMessages = (partnerWorkspace.followups || []).filter(item => item.status === "sent" && item.deliveryStatus === "delivered");
   const deliveredMilestoneReminders = deliveredMessages.filter(item => item.kind === "milestone_reminder" && item.automationPolicy === "partner_transactional_v1");
   const reviewReadyOutreach = (partnerWorkspace.followups || []).filter(item => item.kind === "sponsor_outreach" && item.status === "draft_ready" && !item.automationPolicy);
+  const providerChecks = (partnerWorkspace.followups || []).filter(item => item.status === "delivery_unknown" && item.deliveryOutcomeUnknown === true);
+  const providerCheck = providerChecks[0];
+  const blockedProviderRetryResponse = await fetch(`${initial.endpoints.apiBase}/api/admin/partners/followups/${encodeURIComponent(providerCheck?.id || "missing")}/send`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${ADMIN_TOKEN}` }
+  });
+  const blockedProviderRetry = await blockedProviderRetryResponse.json();
   const localAutomationReady = partnerResponse.ok
     && emailSandboxResponse.ok
     && partnerWorkspace.automationMode === "transactional_auto"
@@ -333,11 +340,22 @@ try {
     && deliveredMessages.some(item => item.automationPolicy === "outreach_campaign_v1")
     && deliveredMilestoneReminders.length >= 1
     && reviewReadyOutreach.length >= 1
+    && providerChecks.length === 1
+    && partnerWorkspace.summary?.operations?.unknownDeliveryMessages === 1
+    && providerCheck?.kind === "provider_verification_demo"
+    && providerCheck?.provider === "worker"
+    && providerCheck?.providerMessageId == null
+    && Number.isFinite(Date.parse(providerCheck?.providerSubmissionStartedAt))
+    && providerCheck?.deliveryAttempts === 1
+    && !("deliveryIdempotencyKey" in providerCheck)
+    && !("deliveryClaimId" in providerCheck)
+    && blockedProviderRetryResponse.status === 409
+    && blockedProviderRetry.error?.includes("Verify the provider outcome")
     && emailSandbox.acceptedMessages >= 2
     && emailSandbox.deliveryCallbacks >= 2
     && emailSandbox.callbackFailures === 0;
   if (!localAutomationReady) throw new Error("Board startup did not produce loopback-only transactional and campaign delivery proof.");
-  console.log(`  ok local automation delivers ${deliveredMessages.length} synthetic messages including ${deliveredMilestoneReminders.length} key-date reminder and preserves ${reviewReadyOutreach.length} outreach draft for staff review`);
+  console.log(`  ok local automation delivers ${deliveredMessages.length} synthetic messages including ${deliveredMilestoneReminders.length} key-date reminder, preserves ${reviewReadyOutreach.length} outreach draft for staff review, and locks ${providerChecks.length} ambiguous provider outcome against retry`);
 
   const initialReport = await preflight(sessionFile);
   if (initialReport.links?.visitor !== initial.links?.visitor || initialReport.links?.operations !== initial.links?.operations) {

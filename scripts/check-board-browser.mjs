@@ -410,10 +410,16 @@ if (visitorUrl && operationsUrl) {
         smsPreferenceText: document.querySelector("#admin-board-sms-preference")?.textContent?.replace(/\s+/g, " ").trim(),
         smsStopEnabled: document.querySelector('[data-board-sms-preference="STOP"]')?.disabled === false,
         smsStartEnabled: document.querySelector('[data-board-sms-preference="START"]')?.disabled === false,
-        reviewQueueShowsAutomaticReminder: document.querySelector("#admin-partner-followups [data-followup]:nth-child(2)")?.textContent?.includes("automatic key-date reminder") === true,
+        reviewQueueShowsAutomaticReminder: [...document.querySelectorAll("#admin-partner-followups [data-followup]")]
+          .some(item => item.textContent?.includes("automatic key-date reminder")),
         reviewReadyOutreachMessages: [...document.querySelectorAll("#admin-partner-followups [data-followup]")]
           .filter(item => item.querySelector("[data-review-followup]") && item.textContent?.includes("outreach sequence")).length,
-        reviewQueueStartsActionable: Boolean(document.querySelector('#admin-partner-followups [data-followup]:first-child [data-review-followup][data-action="approve"]')),
+        providerVerificationForms: document.querySelectorAll("#admin-partner-followups [data-reconcile-followup]").length,
+        providerVerificationProofFields: document.querySelectorAll('#admin-partner-followups [data-reconcile-followup] [name="providerMessageId"], #admin-partner-followups [data-reconcile-followup] [name="resolutionNote"]').length,
+        providerVerificationActions: document.querySelectorAll('#admin-partner-followups [data-reconcile-followup] button[type="submit"]').length,
+        providerVerificationLockedRows: [...document.querySelectorAll("#admin-partner-followups [data-followup]")]
+          .filter(item => item.querySelector("[data-reconcile-followup]") && !item.querySelector("[data-send-followup], [data-review-followup]")).length,
+        reviewQueueStartsWithProviderCheck: Boolean(document.querySelector("#admin-partner-followups [data-followup]:first-child [data-reconcile-followup]")),
         editableMessageDrafts: document.querySelectorAll('#admin-partner-followups [data-followup] .admin-followup-editor [data-save-draft]').length,
         documents: document.querySelectorAll("#admin-document-list [data-admin-document]").length,
         extractionReady: document.querySelectorAll('#admin-document-list .admin-document-extraction[data-state="ready"]').length,
@@ -564,8 +570,8 @@ if (visitorUrl && operationsUrl) {
         || !item?.partnerKpis?.QuickBooks?.includes("Post-board")
         || !item?.partnerKpis?.["Online invoices"]?.includes("Local sandbox")
         || !item?.partnerKpis?.["Online invoices"]?.includes("Private portal payments active")
-        || !item?.partnerKpis?.Messaging?.includes("Automatic")
-        || !item?.partnerKpis?.Messaging?.includes("awaiting staff review")
+        || !item?.partnerKpis?.Messaging?.includes("Provider check")
+        || !item?.partnerKpis?.Messaging?.includes("provider verification required before retry")
         || item?.budgetLines !== 6
         || item?.budgetAllocationEdits !== 6
         || item?.budgetExports !== 2
@@ -594,7 +600,8 @@ if (visitorUrl && operationsUrl) {
       if (
         item?.followups < 4
         || item?.deliveredFollowups < 2
-        || !item?.commandSignalText?.messages?.includes("automatic follow-up")
+        || !item?.commandSignalText?.messages?.includes("1 provider check")
+        || !item?.commandSignalText?.messages?.includes("need verification")
         || item?.deliveredTransactionalMessages < 1
         || item?.deliveredCampaignMessages < 1
         || item?.deliveredMilestoneReminders < 1
@@ -610,7 +617,11 @@ if (visitorUrl && operationsUrl) {
         || (item?.smsPreferenceState === "opted_out" && (item?.smsStopEnabled || !item?.smsStartEnabled))
         || item?.reviewQueueShowsAutomaticReminder !== true
         || item?.reviewReadyOutreachMessages < 1
-        || item?.reviewQueueStartsActionable !== true
+        || item?.providerVerificationForms !== 1
+        || item?.providerVerificationProofFields !== 2
+        || item?.providerVerificationActions !== 2
+        || item?.providerVerificationLockedRows !== 1
+        || item?.reviewQueueStartsWithProviderCheck !== true
         || item?.editableMessageDrafts < 1
         || item?.tasks < 9
         || !item?.taskSummary?.includes("active")
@@ -619,7 +630,7 @@ if (visitorUrl && operationsUrl) {
       ) {
         throw new Error("Local message automation, SMS preference, or three-way assignment proof is incomplete.");
       }
-      return `${item.deliveredFollowups} loopback messages include application decisions, vendor opening, payment confirmation, sponsor proof review, automatic key-date, transactional, and campaign-approved delivery proof; the signed SMS preference control is ${item.smsPreferenceState.replace("_", " ")}; ${item.editableMessageDrafts} drafts can be revised before approval and ${item.reviewReadyOutreachMessages} outreach draft remains staff-controlled; ${item.tasks} tasks cover staff, volunteer, and team owners.`;
+      return `${item.deliveredFollowups} loopback messages include application decisions, vendor opening, payment confirmation, sponsor proof review, automatic key-date, transactional, and campaign-approved delivery proof; 1 provider outcome is locked for staff verification before retry; the signed SMS preference control is ${item.smsPreferenceState.replace("_", " ")}; ${item.editableMessageDrafts} drafts can be revised before approval and ${item.reviewReadyOutreachMessages} outreach draft remains staff-controlled; ${item.tasks} tasks cover staff, volunteer, and team owners.`;
     });
     await inspect("fulfillment_outreach", "Fulfillment and geofenced outreach", "Inspect sponsor branding, vendor readiness, and targeted campaign records.", async () => {
       const item = observations.operations;
