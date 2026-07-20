@@ -62,9 +62,11 @@ import {
 import { sponsorInvitationConfig, sponsorInvitationUrlForProspect } from "../lib/sponsor-invitations.mjs";
 import { normalizeStaffDirectory, staffTaskRecipients } from "../lib/staff-directory.mjs";
 import {
+  beginIncidentDispatchProviderSubmission,
+  claimIncidentDispatchDelivery,
+  incidentDispatchDeliveryJobKey,
   normalizeIslandConditions,
   recordIncidentDispatchDelivery,
-  resolveIncidentDispatchRecipient
 } from "../lib/island-conditions.mjs";
 import {
   beginIncomingDocumentExtraction,
@@ -548,35 +550,100 @@ async function handleJob(job) {
     return { ok: true, followupId: followup.id, provider: delivery.provider, providerMessageId: delivery.providerMessageId };
   }
   case "incident.dispatch.send": {
-    const doc = normalizeIslandConditions(await readPlatformDoc(ROOT, "islandConditions", null));
-    const dispatch = doc.dispatches.find(item => item.id === job.payload.dispatchId);
+    let doc = normalizeIslandConditions(await readPlatformDoc(ROOT, "islandConditions", null));
+    let dispatch = doc.dispatches.find(item => item.id === job.payload.dispatchId);
     if (!dispatch) throw new Error("Incident dispatch not found.");
     if (dispatch.notification.status === "sent") return { ok: true, alreadySent: true, dispatchId: dispatch.id };
+    if (dispatch.notification.status === "sending") {
+      if (dispatch.notification.deliveryClaimId !== job.id) {
+        return { ok: true, canceled: true, dispatchId: dispatch.id, status: dispatch.notification.status };
+      }
+      if (dispatch.notification.providerSubmissionStartedAt) {
+        let unknown = null;
+        await updatePlatformDoc(ROOT, "islandConditions", current => {
+          unknown = recordIncidentDispatchDelivery(current, dispatch.id, {
+            sent: false,
+            provider: "worker",
+            error: "A previous worker stopped after starting provider submission; verify the provider before a manual retry."
+          }, { terminal: true, unknownOutcome: true, deliveryClaimId: job.id });
+          return unknown.ok ? unknown.doc : normalizeIslandConditions(current);
+        }, { fallback: doc });
+        if (!unknown?.ok) throw new Error(unknown?.error || "Unknown incident email outcome could not be recorded.");
+        return { ok: true, deliveryUnknown: true, dispatchId: dispatch.id, status: unknown.dispatch.notification.status };
+      }
+    }
     if (dispatch.status === "canceled" || dispatch.notification.status === "canceled") {
       return { ok: true, canceled: true, dispatchId: dispatch.id };
     }
-    if (dispatch.notification.status !== "queued") throw new Error(`Incident dispatch message is ${dispatch.notification.status}, not queued.`);
+    if (["dismissed", "failed"].includes(dispatch.notification.status)) {
+      return { ok: true, canceled: true, dispatchId: dispatch.id, status: dispatch.notification.status };
+    }
+    if (!["queued", "sending"].includes(dispatch.notification.status)) throw new Error(`Incident dispatch message is ${dispatch.notification.status}, not queued or sending.`);
     const recipientContext = await readRecipientContext();
-    const resolved = resolveIncidentDispatchRecipient(doc, dispatch.id, recipientContext);
-    if (!resolved.ok) throw new Error(resolved.error);
+    if (dispatch.notification.status === "queued") {
+      let claimed = null;
+      await updatePlatformDoc(ROOT, "islandConditions", current => {
+        claimed = claimIncidentDispatchDelivery(current, dispatch.id, {
+          ...recipientContext,
+          deliveryClaimId: job.id,
+          actorId: "worker",
+          now: new Date().toISOString()
+        });
+        return claimed.ok ? claimed.doc : normalizeIslandConditions(current);
+      }, { fallback: doc });
+      if (!claimed?.ok) {
+        if (claimed?.canceled || claimed?.status === "sent") {
+          return { ok: true, canceled: claimed.status !== "sent", alreadySent: claimed.status === "sent", dispatchId: dispatch.id, status: claimed.status };
+        }
+        throw new Error(claimed?.error || "Incident dispatch delivery could not be claimed.");
+      }
+      doc = claimed.doc;
+      dispatch = claimed.dispatch;
+    }
+    let begun = null;
+    await updatePlatformDoc(ROOT, "islandConditions", current => {
+      begun = beginIncidentDispatchProviderSubmission(current, dispatch.id, {
+        ...recipientContext,
+        deliveryClaimId: job.id,
+        actorId: "worker",
+        now: new Date().toISOString()
+      });
+      return begun.ok ? begun.doc : normalizeIslandConditions(current);
+    }, { fallback: doc });
+    if (!begun?.ok) {
+      if (begun?.canceled || begun?.status === "sent") {
+        return { ok: true, canceled: begun.status !== "sent", alreadySent: begun.status === "sent", dispatchId: dispatch.id, status: begun.status };
+      }
+      throw new Error(begun?.error || "Incident provider submission could not be started.");
+    }
+    dispatch = begun.dispatch;
     const delivery = await withRuntimeOwnership(ROOT, () => sendTransactionalEmail({
-      toEmail: resolved.recipient,
-      toName: resolved.toName,
+      toEmail: begun.recipient,
+      toName: begun.toName,
       subject: dispatch.notification.subject,
       textContent: dispatch.notification.body,
+      idempotencyKey: dispatch.notification.deliveryIdempotencyKey,
       tags: ["sandfest-operations", "incident-dispatch"]
     }, { config: emailConfigFromEnv() }));
-    if (!delivery.sent) {
+    if (!delivery.sent && !delivery.duplicate) {
       const error = new Error(delivery.error || delivery.reason || "Incident dispatch email was not sent.");
       error.delivery = delivery;
       throw error;
     }
     let recorded = null;
     await updatePlatformDoc(ROOT, "islandConditions", current => {
-      recorded = recordIncidentDispatchDelivery(current, dispatch.id, delivery);
+      recorded = recordIncidentDispatchDelivery(current, dispatch.id, delivery.duplicate ? {
+        ...delivery,
+        error: "Brevo already accepted this idempotency key; verify provider delivery before a manual retry."
+      } : delivery, {
+        terminal: delivery.duplicate === true,
+        unknownOutcome: delivery.duplicate === true,
+        deliveryClaimId: job.id
+      });
       return recorded.ok ? recorded.doc : normalizeIslandConditions(current);
     }, { fallback: doc });
     if (!recorded?.ok) throw new Error(recorded?.error || "Dispatch email sent but delivery proof could not be recorded.");
+    if (delivery.duplicate) return { ok: true, deliveryUnknown: true, dispatchId: dispatch.id, status: recorded.dispatch.notification.status };
     console.log(`[worker] incident.dispatch.send job=${job.id} dispatch=${dispatch.id} provider=${delivery.provider} message=${delivery.providerMessageId || "accepted"}`);
     return { ok: true, dispatchId: dispatch.id, provider: delivery.provider, providerMessageId: delivery.providerMessageId };
   }
@@ -650,6 +717,46 @@ async function scheduleAutomatedFollowups(candidates, recipientContext = {}) {
   return { queued, failed };
 }
 
+async function recoverQueuedIncidentDispatchJobs() {
+  const conditions = normalizeIslandConditions(await readPlatformDoc(ROOT, "islandConditions", null));
+  const queued = conditions.dispatches
+    .filter(dispatch => dispatch.notification.status === "queued" && dispatch.status !== "canceled")
+    .slice(0, BATCH);
+  let scheduled = 0;
+  let failed = 0;
+  for (const dispatch of queued) {
+    try {
+      const idempotencyKey = incidentDispatchDeliveryJobKey(dispatch);
+      if (!idempotencyKey) throw new Error("Dispatch delivery reservation is invalid.");
+      const job = await enqueueJob(ROOT, {
+        type: "incident.dispatch.send",
+        payload: { incidentId: dispatch.incidentId, dispatchId: dispatch.id },
+        maxAttempts: 5,
+        idempotencyKey
+      });
+      if (!["queued", "running"].includes(job.status)) {
+        let reconciled = null;
+        await updatePlatformDoc(ROOT, "islandConditions", current => {
+          reconciled = recordIncidentDispatchDelivery(current, dispatch.id, {
+            sent: false,
+            provider: "worker",
+            error: `Delivery job ${job.id} is ${job.status}; review the provider before retrying.`
+          }, { terminal: true, unknownOutcome: job.status === "done" });
+          return reconciled.ok ? reconciled.doc : normalizeIslandConditions(current);
+        }, { fallback: conditions });
+        if (!reconciled?.ok) throw new Error(reconciled?.error || "Terminal delivery job could not be reconciled.");
+        failed += 1;
+        continue;
+      }
+      scheduled += 1;
+    } catch (error) {
+      failed += 1;
+      console.error(`[worker] incident dispatch queue recovery failed id=${dispatch.id}: ${error.message}`);
+    }
+  }
+  return { queued: queued.length, scheduled, failed };
+}
+
 async function reconcileTerminalQueueFailures() {
   const failedJobs = (await listJobs(ROOT, { limit: 1000, statuses: ["failed"], unhandledOnly: true }))
     .filter(job => job.lastError?.startsWith("Worker lease expired"));
@@ -709,12 +816,16 @@ async function reconcileTerminalQueueFailures() {
       await updatePlatformDoc(ROOT, "islandConditions", current => {
         const doc = normalizeIslandConditions(current);
         const dispatch = doc.dispatches.find(item => item.id === job.payload.dispatchId);
-        if (dispatch?.notification?.status !== "queued") return doc;
+        if (!dispatch || !["queued", "sending"].includes(dispatch.notification.status)) return doc;
         const result = recordIncidentDispatchDelivery(doc, job.payload.dispatchId, {
           sent: false,
           provider: "worker",
           error: job.lastError
-        }, { terminal: true });
+        }, {
+          terminal: true,
+          unknownOutcome: dispatch.notification.status === "sending" && Boolean(dispatch.notification.providerSubmissionStartedAt),
+          deliveryClaimId: dispatch.notification.status === "sending" ? job.id : undefined
+        });
         reconciled = result.ok;
         return result.ok ? result.doc : doc;
       }, { fallback: normalizeIslandConditions(null) });
@@ -852,6 +963,10 @@ async function tick() {
     }
     console.log(`[worker] message automation approved=${autoApproved} queued=${automated.queued} skipped=${autoSkipped} failed=${automated.failed}`);
   }
+  const recoveredIncidentDispatches = await recoverQueuedIncidentDispatchJobs();
+  if (recoveredIncidentDispatches.queued) {
+    console.log(`[worker] incident dispatch recovery queued=${recoveredIncidentDispatches.queued} scheduled=${recoveredIncidentDispatches.scheduled} failed=${recoveredIncidentDispatches.failed}`);
+  }
   const jobs = await claimNextJobs(ROOT, { limit: BATCH, workerId: QUEUE.workerId, leaseMs: QUEUE.leaseMs });
   await reconcileTerminalQueueFailures();
   for (const job of jobs) {
@@ -904,14 +1019,28 @@ async function tick() {
         terminalHandled = partnerFailureHandled;
       }
       if (job.type === "incident.dispatch.send" && job.payload?.dispatchId) {
+        let dispatchFailureHandled = false;
         await updatePlatformDoc(ROOT, "islandConditions", current => {
-          const result = recordIncidentDispatchDelivery(current, job.payload.dispatchId, error.delivery || {
+          const doc = normalizeIslandConditions(current);
+          const dispatch = doc.dispatches.find(item => item.id === job.payload.dispatchId);
+          if (!dispatch || ["failed", "sent", "dismissed", "canceled"].includes(dispatch.notification.status)) {
+            dispatchFailureHandled = true;
+            return doc;
+          }
+          const terminal = job.attempts >= job.maxAttempts;
+          const result = recordIncidentDispatchDelivery(doc, job.payload.dispatchId, error.delivery || {
             sent: false,
             provider: "brevo",
             error: error.message
-          }, { terminal: job.attempts >= job.maxAttempts });
-          return result.ok ? result.doc : normalizeIslandConditions(current);
+          }, {
+            terminal,
+            unknownOutcome: terminal && dispatch.notification.status === "sending" && Boolean(dispatch.notification.providerSubmissionStartedAt),
+            deliveryClaimId: dispatch.notification.status === "sending" ? job.id : undefined
+          });
+          dispatchFailureHandled = result.ok;
+          return result.ok ? result.doc : doc;
         }, { fallback: normalizeIslandConditions(null) });
+        terminalHandled = dispatchFailureHandled;
       }
       if (job.type === "quickbooks.partner_invoice.sync" && job.payload?.invoiceId) {
         await updatePlatformDoc(ROOT, "partnerOps", current => {

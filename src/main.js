@@ -8433,8 +8433,8 @@ function renderIncidentDispatch(dispatch, incident, payload, canWrite) {
   const emailDraft = notification.channel === "email" ? `
     <div class="admin-dispatch-message" data-dispatch-message>
       <div><strong>Operational email</strong><span data-status="${escapeAttr(notification.status)}">${escapeHtml(messageStatus)} · version ${notification.version || 1}</span></div>
-      <label><span>Subject</span><input name="subject" maxlength="998" value="${escapeAttr(notification.subject || "")}" ${["queued", "sent", "canceled"].includes(notification.status) ? "disabled" : ""} /></label>
-      <label><span>Message</span><textarea name="body" rows="5" maxlength="10000" ${["queued", "sent", "canceled"].includes(notification.status) ? "disabled" : ""}>${escapeHtml(notification.body || "")}</textarea></label>
+      <label><span>Subject</span><input name="subject" maxlength="998" value="${escapeAttr(notification.subject || "")}" ${["queued", "sending", "sent", "canceled"].includes(notification.status) ? "disabled" : ""} /></label>
+      <label><span>Message</span><textarea name="body" rows="5" maxlength="10000" ${["queued", "sending", "sent", "canceled"].includes(notification.status) ? "disabled" : ""}>${escapeHtml(notification.body || "")}</textarea></label>
       ${notification.lastError ? `<p class="admin-delivery-error">${escapeHtml(notification.lastError)}</p>` : ""}
       <div class="admin-dispatch-message-actions">
         ${canReview ? `<button class="button secondary" type="button" data-review-dispatch="approve" data-incident-id="${escapeAttr(incident.id)}" data-dispatch-id="${escapeAttr(dispatch.id)}">Approve draft</button>` : ""}

@@ -1643,11 +1643,13 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
   }, { auth: true });
   const approvedDispatch = await request(base, "POST", `${dispatchPath}/${dispatchId}/review`, { action: "approve" }, { auth: true });
   const queuedDispatchSend = await request(base, "POST", `${dispatchPath}/${dispatchId}/send`, {}, { auth: true });
+  const replayedDispatchSend = await request(base, "POST", `${dispatchPath}/${dispatchId}/send`, {}, { auth: true });
   const persistedDispatchState = await request(base, "GET", "/api/admin/island-conditions", undefined, { auth: true });
   const persistedDispatch = persistedDispatchState.data.dispatches?.find(item => item.id === dispatchId);
   check("incident dispatch persists and deduplicates", createdDispatch.status === 201 && repeatedDispatch.status === 200 && repeatedDispatch.data.duplicate === true && persistedDispatchState.data.dispatches?.filter(item => item.id === dispatchId).length === 1);
   check("incident dispatch review persists", updatedDispatch.status === 200 && approvedDispatch.data.dispatch?.notification?.status === "approved" && persistedDispatch?.status === "on_scene" && persistedDispatch?.notification?.recipientAvailable === true && !("recipient" in (persistedDispatch?.notification || {})));
   check("incident dispatch delivery queues with provider ready", queuedDispatchSend.status === 202 && queuedDispatchSend.data.job?.status === "queued" && queuedDispatchSend.data.email?.ready === true);
+  check("Postgres incident dispatch queue replay converges", replayedDispatchSend.status === 200 && replayedDispatchSend.data.duplicate === true && replayedDispatchSend.data.job?.id === queuedDispatchSend.data.job?.id && !("deliveryIdempotencyKey" in (replayedDispatchSend.data.dispatch?.notification || {})) && !("deliveryClaimId" in (replayedDispatchSend.data.dispatch?.notification || {})));
 
   const closedMarketplaceOffering = await request(base, "PATCH", "/api/admin/vendor-offerings/marketplace-booth", {
     name: "Non-food vendor interest",
@@ -1728,7 +1730,8 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
   const deliveredDispatchState = await request(base, "GET", "/api/admin/island-conditions", undefined, { auth: true });
   const deliveredDispatch = deliveredDispatchState.data.dispatches?.find(item => item.id === dispatchId);
   const dispatchDelivery = emailMock.deliveries.find(item => item.body.to?.[0]?.email === "postgres-traffic@example.com");
-  check("worker delivers incident dispatch through provider", deliveredDispatch?.notification?.status === "sent" && deliveredDispatch.notification.providerMessageId === dispatchDelivery?.messageId && dispatchDelivery?.headers["api-key"] === "postgres-brevo-api-key");
+  const dispatchDeliveries = emailMock.deliveries.filter(item => item.body.to?.[0]?.email === "postgres-traffic@example.com");
+  check("worker delivers incident dispatch through provider", deliveredDispatch?.notification?.status === "sent" && deliveredDispatch.notification.providerMessageId === dispatchDelivery?.messageId && dispatchDelivery?.headers["api-key"] === "postgres-brevo-api-key" && /^[0-9a-f-]{36}$/i.test(dispatchDelivery?.body.headers?.["Idempotency-Key"] || "") && dispatchDeliveries.length === 1);
 
   const smsBefore = await request(base, "GET", "/api/admin/sms", undefined, { auth: true });
   const postgresAlert = {

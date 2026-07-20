@@ -325,6 +325,7 @@ import {
   failedFeedRefreshNeedsRetry,
   fetchPortAransasFerryStatus,
   fetchPortAransasWeather,
+  incidentDispatchDeliveryJobKey,
   islandConditionsLiveFeedsEnabled,
   weatherForecastNeedsRefresh,
   normalizeIslandConditions,
@@ -1274,7 +1275,12 @@ async function taskRecipientContext() {
 
 function incidentDispatchResponse(dispatch) {
   if (!dispatch) return dispatch;
-  const { recipient: _recipient, ...notification } = dispatch.notification || {};
+  const {
+    recipient: _recipient,
+    deliveryIdempotencyKey: _deliveryIdempotencyKey,
+    deliveryClaimId: _deliveryClaimId,
+    ...notification
+  } = dispatch.notification || {};
   return {
     ...dispatch,
     notification: {
@@ -8449,7 +8455,17 @@ async function handleRequest(request, response) {
       }
       let job;
       try {
-        job = await enqueueJob(ROOT, { type: "incident.dispatch.send", payload: { incidentId, dispatchId }, maxAttempts: 5 });
+        const idempotencyKey = incidentDispatchDeliveryJobKey(result.dispatch);
+        if (!idempotencyKey) throw new Error("Dispatch delivery reservation is invalid.");
+        job = await enqueueJob(ROOT, {
+          type: "incident.dispatch.send",
+          payload: { incidentId, dispatchId },
+          maxAttempts: 5,
+          idempotencyKey
+        });
+        if (!["queued", "running"].includes(job.status)) {
+          throw new Error(`Dispatch delivery job ${job.id} is ${job.status}; queue the reviewed message again.`);
+        }
       } catch (error) {
         await updatePlatformDoc(ROOT, "islandConditions", current => {
           const failed = recordIncidentDispatchDelivery(current, dispatchId, { sent: false, provider: email.provider, error: `Queue failure: ${String(error.message).slice(0, 500)}` }, { terminal: true });
@@ -8457,8 +8473,15 @@ async function handleRequest(request, response) {
         }, { fallback: normalizeIslandConditions(null) });
         throw error;
       }
-      await writeAuditRecord(request, "conditions.dispatch.message.queue", { type: "incident_dispatch", id: dispatchId }, null, result.dispatch, { incidentId, jobId: job.id, provider: email.provider });
-      sendJson(request, response, 202, { dispatch: incidentDispatchResponse(result.dispatch), job: { id: job.id, status: job.status }, email: publicEmailReadiness(email) });
+      if (result.changed) {
+        await writeAuditRecord(request, "conditions.dispatch.message.queue", { type: "incident_dispatch", id: dispatchId }, null, incidentDispatchResponse(result.dispatch), { incidentId, jobId: job.id, provider: email.provider });
+      }
+      sendJson(request, response, result.changed ? 202 : 200, {
+        dispatch: incidentDispatchResponse(result.dispatch),
+        duplicate: result.duplicate === true,
+        job: { id: job.id, status: job.status },
+        email: publicEmailReadiness(email)
+      });
       return;
     }
 
