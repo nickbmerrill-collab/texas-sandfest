@@ -356,6 +356,7 @@ import {
   stripePartnerEventContext,
   stripePartnerPaymentsConfig
 } from "../lib/stripe-partner-payments.mjs";
+import { stripeHostedCheckoutUrl } from "../lib/stripe-checkout-url.mjs";
 import {
   applyOutreachProspectImport,
   normalizeOutreachImportDefaults,
@@ -2985,10 +2986,11 @@ async function createStripeCheckoutSession(lines, order, idempotencyKeyHash) {
   if (!response.ok) {
     throw new Error(data.error?.message || "Stripe Checkout Session creation failed.");
   }
-  if (!/^cs_[A-Za-z0-9_]+$/.test(data.id || "") || !/^https:\/\/checkout\.stripe\.com\//.test(data.url || "")) {
+  const checkoutUrl = stripeHostedCheckoutUrl(data.url);
+  if (!/^cs_[A-Za-z0-9_]+$/.test(data.id || "") || !checkoutUrl) {
     throw new Error("Stripe returned an invalid Checkout Session.");
   }
-  return data;
+  return { ...data, url: checkoutUrl };
 }
 
 async function handleCreateCheckoutSession(request, response) {
@@ -3034,13 +3036,14 @@ async function handleCreateCheckoutSession(request, response) {
     sendJson(request, response, 503, { error: "The local board ticket sandbox is not enabled." });
     return;
   }
-  if (existing?.stripeCheckoutSessionId && (existing?.checkoutUrl || existing?.checkoutEnvironment === "board_sandbox")) {
+  const existingCheckoutUrl = stripeHostedCheckoutUrl(existing?.checkoutUrl);
+  if (existing?.stripeCheckoutSessionId && (existingCheckoutUrl || existing?.checkoutEnvironment === "board_sandbox")) {
     sendJson(request, response, 200, {
       ok: true,
       duplicate: true,
       orderId: existing.id,
       checkoutSessionId: existing.stripeCheckoutSessionId,
-      ...(existing.checkoutUrl ? { checkoutUrl: existing.checkoutUrl } : {}),
+      ...(existingCheckoutUrl ? { checkoutUrl: existingCheckoutUrl } : {}),
       ...(existing.checkoutEnvironment === "board_sandbox" ? { demoCheckout: boardTicketCheckout(existing) } : {})
     });
     return;
@@ -5107,13 +5110,14 @@ async function handleRequest(request, response) {
           sendJson(request, response, 200, { duplicate: true, demoCheckout: boardPartnerCheckout(reservation.checkout) });
           return;
         }
-        if (reservation.checkout.status === "open" && reservation.checkout.checkoutUrl) {
+        const reusableCheckoutUrl = stripeHostedCheckoutUrl(reservation.checkout.checkoutUrl);
+        if (reservation.checkout.status === "open" && reusableCheckoutUrl) {
           sendJson(request, response, 200, {
             duplicate: true,
             checkout: {
               id: reservation.checkout.id,
               status: reservation.checkout.status,
-              checkoutUrl: reservation.checkout.checkoutUrl,
+              checkoutUrl: reusableCheckoutUrl,
               expiresAt: reservation.checkout.expiresAt
             }
           });

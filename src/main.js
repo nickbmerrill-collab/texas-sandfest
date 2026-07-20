@@ -31,6 +31,7 @@ import { publicIslandConditionsRefreshDelay } from "../lib/island-conditions.mjs
 import { DEFAULT_EVENT_ID } from "../lib/event-context.mjs";
 import { publicSculptorRosterPublication } from "../lib/public-roster.mjs";
 import { canonicalPublicWebRoute } from "../lib/public-deep-links.mjs";
+import { stripeHostedCheckoutUrl } from "../lib/stripe-checkout-url.mjs";
 import {
   PUBLIC_FIELD_MEDIA,
   PUBLIC_GALLERY_MEDIA,
@@ -2703,10 +2704,10 @@ document.querySelector("#checkout-btn").addEventListener("click", async () => {
       throw checkoutError;
     }
     if (data.checkoutUrl) {
-      const checkoutUrl = new URL(data.checkoutUrl);
-      if (checkoutUrl.protocol !== "https:" || checkoutUrl.hostname !== "checkout.stripe.com") throw new Error("Checkout returned an invalid payment address.");
+      const checkoutUrl = stripeHostedCheckoutUrl(data.checkoutUrl);
+      if (!checkoutUrl) throw new Error("Checkout returned an invalid payment address.");
       setFormStatus(status, "Stripe Checkout session created. Redirecting...", "ok");
-      window.location.href = checkoutUrl.toString();
+      window.location.href = checkoutUrl;
       return;
     }
     if (data.demoCheckout) {
@@ -4815,8 +4816,9 @@ function renderPartnerPortalStatus(application) {
   const onlinePayment = finance.onlinePayment || {};
   const localPayment = onlinePayment.provider === "board_sandbox";
   const canPayOnline = invoice && invoice.balanceCents > 0 && ["approved", "queued", "synced", "failed"].includes(invoice.status) && onlinePayment.ready;
-  const checkoutAction = finance.checkout?.checkoutUrl
-    ? `<a class="button primary" href="${escapeAttr(finance.checkout.checkoutUrl)}" rel="noopener noreferrer">Resume secure payment</a>`
+  const resumableCheckoutUrl = stripeHostedCheckoutUrl(finance.checkout?.checkoutUrl);
+  const checkoutAction = resumableCheckoutUrl
+    ? `<a class="button primary" href="${escapeAttr(resumableCheckoutUrl)}" rel="noopener noreferrer">Resume secure payment</a>`
     : canPayOnline
       ? `<button class="button primary" type="button" data-partner-pay-invoice="${escapeAttr(invoice.id)}">${localPayment ? "Pay in local sandbox" : "Pay securely"}</button>`
       : "";
@@ -4910,11 +4912,11 @@ function bindPartnerPaymentActions() {
         status.textContent = "Review the local invoice payment below. No external charge will be sent.";
         return;
       }
-      const checkoutUrl = new URL(data.checkout?.checkoutUrl);
-      if (checkoutUrl.protocol !== "https:") throw new Error("Stripe returned an invalid payment address.");
+      const checkoutUrl = stripeHostedCheckoutUrl(data.checkout?.checkoutUrl);
+      if (!checkoutUrl) throw new Error("Stripe returned an invalid payment address.");
       status.dataset.state = "ok";
       status.textContent = "Opening Stripe...";
-      window.location.assign(checkoutUrl.toString());
+      window.location.assign(checkoutUrl);
     } catch (error) {
       status.dataset.state = "error";
       status.textContent = error.message;
