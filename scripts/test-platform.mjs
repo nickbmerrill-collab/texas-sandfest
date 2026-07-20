@@ -6,7 +6,7 @@
 //   (with API already running) node scripts/test-platform.mjs --api --base http://127.0.0.1:8806
 
 import { spawn } from "node:child_process";
-import { createHash, createHmac } from "node:crypto";
+import { createHash, createHmac, randomUUID } from "node:crypto";
 import { cp, mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { createServer as createHttpServer } from "node:http";
 import { createServer } from "node:net";
@@ -86,6 +86,7 @@ import {
 import { applyStamp, DEFAULT_HUNT_ID, normalizeHunt, parsePassportPayload, summarizePassport } from "../lib/passport.mjs";
 import { applyVote, tallyVotes, summarizeVoting, normalizeTicketRef, publicVotingPublication } from "../lib/voting.mjs";
 import { claimNextJobs, completeJob, enqueueJob, getQueueHealth, listJobs, markTerminalJobHandled } from "../lib/job-queue.mjs";
+import { updatePlatformDoc } from "../lib/platform-data.mjs";
 import {
   adminJobDisplayRows,
   adminJobView,
@@ -345,11 +346,13 @@ import {
   freshness,
   incidentDispatchDeliveryJobKey,
   islandConditionsLiveFeedsEnabled,
+  normalizeIslandConditions,
   normalizeNwsForecast,
   normalizeTxdotFerryStatus,
   publicIslandConditionsRefreshDelay,
   publicIslandConditions,
   queueIncidentDispatchMessage,
+  reconcileIncidentDispatchDelivery,
   recordCameraHeartbeat,
   recordCameraObservation,
   recordIncidentDispatchDelivery,
@@ -363,6 +366,7 @@ import {
   updateCameraSource,
   weatherForecastNeedsRefresh
 } from "../lib/island-conditions.mjs";
+
 import {
   cameraCredentialReadiness,
   cameraIngestConfig,
@@ -440,6 +444,38 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+async function forceUnknownIncidentDelivery(root, dispatchId, options = {}) {
+  let forced = null;
+  await updatePlatformDoc(root, "islandConditions", current => {
+    const doc = normalizeIslandConditions(current);
+    const dispatch = doc.dispatches.find(item => item.id === dispatchId);
+    if (!dispatch) throw new Error("Test dispatch not found.");
+    const recipientContext = dispatch.assigneeType === "volunteer"
+      ? { volunteers: [{ id: dispatch.assigneeId, name: dispatch.assigneeName, email: dispatch.notification.recipient, status: "active" }] }
+      : { taskRecipients: [{ id: dispatch.assigneeId, assigneeType: dispatch.assigneeType, name: dispatch.assigneeName, email: dispatch.notification.recipient, status: "active" }] };
+    const queued = queueIncidentDispatchMessage(doc, dispatchId, { ...recipientContext, actorId: "test-operator", now: options.queuedAt || "2026-07-16T13:00:00.000Z" });
+    if (!queued.ok) throw new Error(queued.error);
+    const deliveryClaimId = options.deliveryClaimId || `job_test_${randomUUID()}`;
+    const claimed = claimIncidentDispatchDelivery(queued.doc, dispatchId, { ...recipientContext, deliveryClaimId, now: options.claimedAt || "2026-07-16T13:01:00.000Z" });
+    if (!claimed.ok) throw new Error(claimed.error);
+    const begun = beginIncidentDispatchProviderSubmission(claimed.doc, dispatchId, { ...recipientContext, deliveryClaimId, now: options.begunAt || "2026-07-16T13:02:00.000Z" });
+    if (!begun.ok) throw new Error(begun.error);
+    forced = recordIncidentDispatchDelivery(begun.doc, dispatchId, {
+      sent: false,
+      provider: "worker",
+      error: "Test worker stopped after provider submission began."
+    }, {
+      deliveryClaimId,
+      terminal: true,
+      unknownOutcome: true,
+      now: options.failedAt || "2026-07-16T13:03:00.000Z"
+    });
+    if (!forced.ok) throw new Error(forced.error);
+    return forced.doc;
+  }, { fallback: normalizeIslandConditions(null) });
+  return forced.dispatch;
+}
 const wantApi = process.argv.includes("--api");
 const baseArg = process.argv.find(a => a.startsWith("--base="));
 let API_BASE = baseArg ? baseArg.slice(7) : null;
@@ -5544,11 +5580,33 @@ Research First,construction,Corpus Christi,,78401,,,,Find decision maker,`;
   const begunAgain = beginIncidentDispatchProviderSubmission(reclaimed.doc, dispatched.dispatch.id, { deliveryClaimId: "job_dispatch_2", taskRecipients: dispatchTaskRecipients, now: "2026-07-16T12:11:00.000Z" });
   const sent = recordIncidentDispatchDelivery(begunAgain.doc, dispatched.dispatch.id, { sent: true, provider: "brevo", providerMessageId: "dispatch_msg_1" }, { deliveryClaimId: "job_dispatch_2", now: "2026-07-16T12:12:00.000Z" });
   const unknown = recordIncidentDispatchDelivery(begun.doc, dispatched.dispatch.id, { sent: false, provider: "worker", error: "worker stopped after provider handoff" }, { deliveryClaimId: "job_dispatch_1", terminal: true, unknownOutcome: true, now: "2026-07-16T12:09:00.000Z" });
-  const unknownRetry = queueIncidentDispatchMessage(unknown.doc, dispatched.dispatch.id, { actorId: "ops_2", taskRecipients: dispatchTaskRecipients, now: "2026-07-16T12:10:00.000Z" });
+  const blockedUnknownRetry = queueIncidentDispatchMessage(unknown.doc, dispatched.dispatch.id, { actorId: "ops_2", taskRecipients: dispatchTaskRecipients, now: "2026-07-16T12:10:00.000Z" });
+  const blockedUnknownDismissal = reviewIncidentDispatchMessage(unknown.doc, dispatched.dispatch.id, "dismiss", { actorId: "ops_2", taskRecipients: dispatchTaskRecipients, now: "2026-07-16T12:10:00.000Z" });
+  const missingProviderProof = reconcileIncidentDispatchDelivery(unknown.doc, dispatched.dispatch.id, {
+    action: "confirmed_sent",
+    resolutionNote: "Brevo delivery history was reviewed."
+  }, { actorId: "ops_2", now: "2026-07-16T12:10:00.000Z" });
+  const confirmedSent = reconcileIncidentDispatchDelivery(unknown.doc, dispatched.dispatch.id, {
+    action: "confirmed_sent",
+    providerMessageId: "dispatch_provider_verified_1",
+    resolutionNote: "Brevo delivery history confirms provider acceptance."
+  }, { actorId: "ops_2", now: "2026-07-16T12:10:00.000Z" });
+  const confirmedNotSent = reconcileIncidentDispatchDelivery(unknown.doc, dispatched.dispatch.id, {
+    action: "confirmed_not_sent",
+    resolutionNote: "Brevo confirms that no message was accepted for this request."
+  }, { actorId: "ops_2", now: "2026-07-16T12:10:00.000Z" });
+  const repeatedReconciliation = reconcileIncidentDispatchDelivery(confirmedSent.doc, dispatched.dispatch.id, {
+    action: "confirmed_sent",
+    providerMessageId: "dispatch_provider_verified_1",
+    resolutionNote: "Duplicate provider verification must be rejected."
+  }, { actorId: "ops_2", now: "2026-07-16T12:10:30.000Z" });
+  const unknownRetry = queueIncidentDispatchMessage(confirmedNotSent.doc, dispatched.dispatch.id, { actorId: "ops_2", taskRecipients: dispatchTaskRecipients, now: "2026-07-16T12:11:00.000Z" });
   ok("dispatch queue reservation is idempotent", queued.dispatch.notification.deliveryQueueVersion === 1 && queuedAgain.duplicate && queuedAgain.dispatch.notification.deliveryIdempotencyKey === queued.dispatch.notification.deliveryIdempotencyKey && incidentDispatchDeliveryJobKey(queued.dispatch) === incidentDispatchDeliveryJobKey(queuedAgain.dispatch));
   ok("dispatch provider handoff is fenced", claimed.dispatch.notification.status === "sending" && !staleBegin.ok && staleBegin.canceled && begun.dispatch.notification.providerSubmissionStartedAt && !staleResult.ok && staleResult.error.includes("no longer owns"));
   ok("dispatch delivery retry and proof", retrying.dispatch.notification.status === "queued" && retrying.dispatch.notification.deliveryIdempotencyKey === queued.dispatch.notification.deliveryIdempotencyKey && sent.dispatch.notification.status === "sent" && sent.dispatch.notification.providerMessageId === "dispatch_msg_1" && sent.dispatch.notification.deliveryAttempts === 2);
-  ok("dispatch ambiguous outcome fails closed with provider identity preserved", unknown.dispatch.notification.status === "failed" && unknown.dispatch.notification.deliveryOutcomeUnknown && unknownRetry.dispatch.notification.deliveryIdempotencyKey === queued.dispatch.notification.deliveryIdempotencyKey && unknownRetry.dispatch.notification.deliveryQueueVersion === 2);
+  ok("dispatch ambiguous outcome blocks review and retry", unknown.dispatch.notification.status === "failed" && unknown.dispatch.notification.deliveryOutcomeUnknown && blockedUnknownRetry.conflict && blockedUnknownRetry.outcomeUnknown && blockedUnknownDismissal.conflict && blockedUnknownDismissal.outcomeUnknown);
+  ok("dispatch delivered reconciliation requires provider proof", !missingProviderProof.ok && missingProviderProof.error.includes("provider message ID") && confirmedSent.ok && confirmedSent.dispatch.notification.status === "sent" && confirmedSent.dispatch.notification.providerMessageId === "dispatch_provider_verified_1" && confirmedSent.dispatch.notification.deliveryResolution === "confirmed_sent" && !confirmedSent.dispatch.notification.deliveryOutcomeUnknown && repeatedReconciliation.conflict);
+  ok("dispatch no-delivery reconciliation releases an explicit retry", confirmedNotSent.ok && confirmedNotSent.dispatch.notification.status === "failed" && confirmedNotSent.dispatch.notification.deliveryResolution === "confirmed_not_sent" && confirmedNotSent.dispatch.notification.deliveryResolutionNote.includes("no message was accepted") && unknownRetry.ok && unknownRetry.dispatch.notification.deliveryIdempotencyKey === queued.dispatch.notification.deliveryIdempotencyKey && unknownRetry.dispatch.notification.deliveryQueueVersion === 2 && unknownRetry.dispatch.notification.deliveryResolution === null);
 
   const closedBeforeHandoff = updateOperationsIncident(claimed.doc, incident.incident.id, {
     status: "resolved",
@@ -5561,8 +5619,18 @@ Research First,construction,Corpus Christi,,78401,,,,Find decision maker,`;
   }, { actorId: "ops_1", now: "2026-07-16T12:08:30.000Z" });
   const inFlightDispatch = closedInFlight.doc.dispatches.find(item => item.id === dispatched.dispatch.id);
   const completedAfterClose = recordIncidentDispatchDelivery(closedInFlight.doc, dispatched.dispatch.id, { sent: true, provider: "brevo", providerMessageId: "dispatch_msg_after_close" }, { deliveryClaimId: "job_dispatch_1", now: "2026-07-16T12:09:00.000Z" });
+  const closedUnknown = updateOperationsIncident(unknown.doc, incident.incident.id, {
+    status: "resolved",
+    resolution: "South gate flow returned to normal before provider verification completed."
+  }, { actorId: "ops_1", now: "2026-07-16T12:09:30.000Z" });
+  const confirmedAfterClose = reconcileIncidentDispatchDelivery(closedUnknown.doc, dispatched.dispatch.id, {
+    action: "confirmed_sent",
+    providerMessageId: "dispatch_provider_verified_after_close",
+    resolutionNote: "Brevo delivery history confirms acceptance after incident close."
+  }, { actorId: "ops_2", now: "2026-07-16T12:10:00.000Z" });
   ok("incident close cancels a pre-handoff delivery claim", canceledBeforeHandoff.notification.status === "canceled" && canceledBeforeHandoff.notification.deliveryClaimId === null && canceledBeforeHandoff.notification.providerSubmissionStartedAt === null);
   ok("incident close preserves an in-flight provider handoff", inFlightDispatch.status === "canceled" && inFlightDispatch.notification.status === "sending" && completedAfterClose.ok && completedAfterClose.dispatch.notification.status === "sent");
+  ok("incident close preserves unknown delivery for later reconciliation", closedUnknown.doc.dispatches.find(item => item.id === dispatched.dispatch.id)?.notification.deliveryOutcomeUnknown === true && confirmedAfterClose.ok && confirmedAfterClose.dispatch.status === "canceled" && confirmedAfterClose.dispatch.notification.status === "sent");
 
   const volunteerIncident = createOperationsIncident(seed, {
     sourceType: "operator", sourceId: "volunteer-dispatch-test", title: "Guest services line support", severity: "moderate"
@@ -7061,6 +7129,37 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     ok("incident dispatch review and readiness gate", editedDispatch.status === 200 && editedDispatch.data.dispatch?.notification?.status === "draft_ready" && approvedDispatch.data.dispatch?.notification?.status === "approved" && disabledDispatchSend.status === 409);
     ok("incident dispatch uses governed team route", createdDispatch.data.dispatch?.assigneeName === "Traffic and parking" && createdDispatch.data.dispatch?.notification?.recipientAvailable === true);
     ok("incident dispatch response minimizes contacts", persistedDispatch?.notification?.recipientAvailable === true && !("recipient" in (persistedDispatch?.notification || {})) && !dispatchWorkspace.data.assignmentDirectory?.staff?.some(item => "email" in item) && !dispatchWorkspace.data.assignmentDirectory?.volunteers?.some(item => "email" in item));
+
+    const forcedUnknownDispatch = await forceUnknownIncidentDelivery(isolatedRuntimeRoot, dispatchId, { deliveryClaimId: "job_api_unknown_dispatch" });
+    const reconciliationPath = `${dispatchPath}/${dispatchId}/delivery-reconciliation`;
+    const unauthorizedReconciliation = await hit("POST", reconciliationPath, {
+      action: "confirmed_not_sent",
+      resolutionNote: "Brevo confirms no delivery for this request."
+    });
+    const blockedUnknownDismissal = await hit("POST", `${dispatchPath}/${dispatchId}/review`, { action: "dismiss" }, true);
+    const shortReconciliation = await hit("POST", reconciliationPath, {
+      action: "confirmed_not_sent",
+      resolutionNote: "Too short"
+    }, true);
+    const missingProviderProof = await hit("POST", reconciliationPath, {
+      action: "confirmed_sent",
+      resolutionNote: "Brevo delivery history confirms provider acceptance."
+    }, true);
+    const confirmedNoDelivery = await hit("POST", reconciliationPath, {
+      action: "confirmed_not_sent",
+      resolutionNote: "Brevo confirms that no message was accepted for this request."
+    }, true);
+    const duplicateReconciliation = await hit("POST", reconciliationPath, {
+      action: "confirmed_not_sent",
+      resolutionNote: "Duplicate reconciliation must not overwrite the first decision."
+    }, true);
+    const reconciledWorkspace = await hit("GET", "/api/admin/island-conditions", null, true);
+    const reconciledDispatch = reconciledWorkspace.data.dispatches?.find(item => item.id === dispatchId);
+    const reconciliationAudit = await hit("GET", "/api/admin/audit?limit=100", null, true);
+    const reconciliationAuditRecord = reconciliationAudit.data.audit?.find(item => item.record?.action === "conditions.dispatch.delivery.reconcile")?.record;
+    ok("incident delivery reconciliation is authenticated, validated, and conflict safe", unauthorizedReconciliation.status === 401 && blockedUnknownDismissal.status === 409 && shortReconciliation.status === 400 && missingProviderProof.status === 400 && confirmedNoDelivery.status === 200 && duplicateReconciliation.status === 409);
+    ok("incident no-delivery reconciliation persists staff evidence", reconciledDispatch?.notification?.status === "failed" && reconciledDispatch.notification.deliveryOutcomeUnknown === false && reconciledDispatch.notification.deliveryResolution === "confirmed_not_sent" && reconciledDispatch.notification.deliveryResolutionNote.includes("no message was accepted") && reconciledDispatch.notification.deliveryReconciledBy === "local-admin");
+    ok("incident reconciliation response and audit withhold delivery ownership", !("recipient" in (confirmedNoDelivery.data.dispatch?.notification || {})) && !("deliveryIdempotencyKey" in (confirmedNoDelivery.data.dispatch?.notification || {})) && reconciliationAuditRecord?.metadata?.resolution === "confirmed_not_sent" && !JSON.stringify(reconciliationAuditRecord).includes(forcedUnknownDispatch.notification.deliveryIdempotencyKey) && !JSON.stringify(reconciliationAuditRecord).includes(forcedUnknownDispatch.notification.recipient));
 
     const dispatchEmailPort = String(await freePort());
     const dispatchSandboxPort = await freePort();

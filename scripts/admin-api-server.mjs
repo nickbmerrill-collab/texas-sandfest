@@ -331,6 +331,7 @@ import {
   normalizeIslandConditions,
   publicIslandConditions,
   queueIncidentDispatchMessage,
+  reconcileIncidentDispatchDelivery,
   recordCameraHeartbeat,
   recordCameraObservation,
   recordIncidentDispatchDelivery,
@@ -8420,11 +8421,43 @@ async function handleRequest(request, response) {
         return result.ok ? result.doc : doc;
       }, { fallback: normalizeIslandConditions(null) });
       if (!result?.ok) {
-        sendJson(request, response, result?.error === "Dispatch not found." ? 404 : 400, { error: result?.error || "Dispatch message could not be reviewed." });
+        sendJson(request, response, result?.error === "Dispatch not found." ? 404 : result?.conflict ? 409 : 400, { error: result?.error || "Dispatch message could not be reviewed." });
         return;
       }
       await writeAuditRecord(request, `conditions.dispatch.message.${body.action}`, { type: "incident_dispatch", id: dispatchId }, result.before, result.dispatch, { incidentId });
       sendJson(request, response, 200, { dispatch: incidentDispatchResponse(result.dispatch), email: publicEmailReadiness() });
+      return;
+    }
+
+    const dispatchReconciliationMatch = pathname.match(/^\/api\/admin\/island-conditions\/incidents\/([^/]+)\/dispatches\/([^/]+)\/delivery-reconciliation$/);
+    if (method === "POST" && dispatchReconciliationMatch) {
+      const session = await requirePermission(request, response, "conditions:write");
+      if (!session) return;
+      const incidentId = decodeURIComponent(dispatchReconciliationMatch[1]);
+      const dispatchId = decodeURIComponent(dispatchReconciliationMatch[2]);
+      const body = await readBody(request);
+      let result = null;
+      await updatePlatformDoc(ROOT, "islandConditions", current => {
+        const doc = normalizeIslandConditions(current);
+        const target = doc.dispatches.find(item => item.id === dispatchId);
+        result = target && target.incidentId !== incidentId
+          ? { ok: false, error: "Dispatch does not belong to this incident." }
+          : reconcileIncidentDispatchDelivery(doc, dispatchId, body, { actorId: session.id, now: new Date().toISOString() });
+        return result.ok ? result.doc : doc;
+      }, { fallback: normalizeIslandConditions(null) });
+      if (!result?.ok) {
+        sendJson(request, response, result?.error === "Dispatch not found." ? 404 : result?.conflict ? 409 : 400, { error: result?.error || "Dispatch delivery could not be reconciled." });
+        return;
+      }
+      await writeAuditRecord(
+        request,
+        "conditions.dispatch.delivery.reconcile",
+        { type: "incident_dispatch", id: dispatchId },
+        incidentDispatchResponse(result.before),
+        incidentDispatchResponse(result.dispatch),
+        { incidentId, resolution: result.action }
+      );
+      sendJson(request, response, 200, { action: result.action, dispatch: incidentDispatchResponse(result.dispatch) });
       return;
     }
 
@@ -8450,7 +8483,7 @@ async function handleRequest(request, response) {
         return result.ok ? result.doc : doc;
       }, { fallback: normalizeIslandConditions(null) });
       if (!result?.ok) {
-        sendJson(request, response, result?.error === "Dispatch not found." ? 404 : 400, { error: result?.error || "Dispatch email could not be queued." });
+        sendJson(request, response, result?.error === "Dispatch not found." ? 404 : result?.conflict ? 409 : 400, { error: result?.error || "Dispatch email could not be queued." });
         return;
       }
       let job;

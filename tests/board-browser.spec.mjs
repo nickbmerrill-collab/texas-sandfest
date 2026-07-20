@@ -9,6 +9,14 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { prepareBoardRuntime } from "../lib/board-runtime.mjs";
 import { DEFAULT_EVENT_ID } from "../lib/event-context.mjs";
+import {
+  beginIncidentDispatchProviderSubmission,
+  claimIncidentDispatchDelivery,
+  normalizeIslandConditions,
+  queueIncidentDispatchMessage,
+  recordIncidentDispatchDelivery
+} from "../lib/island-conditions.mjs";
+import { updatePlatformDoc } from "../lib/platform-data.mjs";
 import { taskPortalConfig, taskPortalUrlForTask } from "../lib/task-portal.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -27,6 +35,7 @@ let webProcess;
 let emailProcess;
 let smsProcess;
 let workerProcess;
+let runtimeRoot;
 let apiBase;
 let webBase;
 
@@ -112,6 +121,42 @@ async function submitAndCapture(page, form, pathname) {
   const response = await responsePromise;
   expect(response.status()).toBe(201);
   return response.json();
+}
+
+async function adminApi(pathname, { method = "GET", body } = {}) {
+  const response = await fetch(`${apiBase}${pathname}`, {
+    method,
+    headers: { authorization: `Bearer ${TOKEN}`, ...(body === undefined ? {} : { "content-type": "application/json" }) },
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
+  return { status: response.status, data: await response.json().catch(() => ({})) };
+}
+
+async function forceUnknownIncidentDelivery(dispatchId, deliveryClaimId) {
+  await updatePlatformDoc(runtimeRoot, "islandConditions", current => {
+    const doc = normalizeIslandConditions(current);
+    const dispatch = doc.dispatches.find(item => item.id === dispatchId);
+    if (!dispatch) throw new Error("Browser test dispatch not found.");
+    const recipientContext = {
+      taskRecipients: [{
+        id: dispatch.assigneeId,
+        assigneeType: dispatch.assigneeType,
+        name: dispatch.assigneeName,
+        email: dispatch.notification.recipient,
+        status: "active"
+      }]
+    };
+    const queued = queueIncidentDispatchMessage(doc, dispatchId, { ...recipientContext, actorId: "board-browser-acceptance" });
+    const claimed = queued.ok && claimIncidentDispatchDelivery(queued.doc, dispatchId, { ...recipientContext, deliveryClaimId });
+    const begun = claimed?.ok && beginIncidentDispatchProviderSubmission(claimed.doc, dispatchId, { ...recipientContext, deliveryClaimId });
+    const unknown = begun?.ok && recordIncidentDispatchDelivery(begun.doc, dispatchId, {
+      sent: false,
+      provider: "worker",
+      error: "Browser test worker stopped after provider submission began."
+    }, { deliveryClaimId, terminal: true, unknownOutcome: true });
+    if (!unknown?.ok) throw new Error(unknown?.error || begun?.error || claimed?.error || queued.error);
+    return unknown.doc;
+  }, { fallback: normalizeIslandConditions(null) });
 }
 
 async function assertNoHorizontalOverflow(page) {
@@ -211,7 +256,7 @@ function presentationUploadCopy(buffer, comment) {
 
 test.beforeAll(async () => {
   temporaryRoot = await mkdtemp(path.join(tmpdir(), "sandfest-board-browser-"));
-  const runtimeRoot = path.join(temporaryRoot, "runtime");
+  runtimeRoot = path.join(temporaryRoot, "runtime");
   await prepareBoardRuntime({
     sourceRoot: ROOT,
     targetRoot: runtimeRoot,
@@ -2002,6 +2047,118 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   await expect(page.locator("#island-condition-kpis article").filter({ hasText: "Ferry wait" })).toContainText("simulated");
   await expect(page.locator("#island-camera-grid")).not.toContainText("operationally live");
   expect(pageErrors).toEqual([]);
+});
+
+test("incident delivery verification safely resolves ambiguous provider outcomes", async ({ page }) => {
+  test.setTimeout(60_000);
+  const runId = randomUUID().slice(0, 8);
+  const title = `Provider verification drill ${runId}`;
+  const incidentResult = await adminApi("/api/admin/island-conditions/incidents", {
+    method: "POST",
+    body: {
+      title,
+      summary: "Verify ambiguous provider outcomes without duplicate operational email.",
+      severity: "high",
+      ownerTeam: "operations"
+    }
+  });
+  expect(incidentResult.status).toBe(201);
+  const incidentId = incidentResult.data.incident.id;
+  const dispatchPath = `/api/admin/island-conditions/incidents/${incidentId}/dispatches`;
+  const deliveredResult = await adminApi(dispatchPath, {
+    method: "POST",
+    body: {
+      assigneeType: "team",
+      assigneeId: "operations",
+      channel: "email",
+      title: `Board provider-delivered check ${runId}`,
+      instructions: "Verify the provider result before any retry."
+    }
+  });
+  const notDeliveredResult = await adminApi(dispatchPath, {
+    method: "POST",
+    body: {
+      assigneeType: "team",
+      assigneeId: "guest-services",
+      channel: "email",
+      title: `Board provider-not-delivered check ${runId}`,
+      instructions: "Confirm no provider acceptance before retrying."
+    }
+  });
+  expect(deliveredResult.status).toBe(201);
+  expect(notDeliveredResult.status).toBe(201);
+  const deliveredDispatchId = deliveredResult.data.dispatch.id;
+  const notDeliveredDispatchId = notDeliveredResult.data.dispatch.id;
+  for (const dispatchId of [deliveredDispatchId, notDeliveredDispatchId]) {
+    const approval = await adminApi(`${dispatchPath}/${dispatchId}/review`, {
+      method: "POST",
+      body: { action: "approve" }
+    });
+    expect(approval.status).toBe(200);
+  }
+  await forceUnknownIncidentDelivery(deliveredDispatchId, `browser-delivered-${runId}`);
+  await forceUnknownIncidentDelivery(notDeliveredDispatchId, `browser-not-delivered-${runId}`);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#admin-island-conditions`);
+  await expect(page.locator("#network-status")).toHaveText("Demo");
+  await expect(page.locator("#admin-api-status")).toContainText("Loaded", { timeout: 25_000 });
+  const incidentCard = page.locator(".admin-incident-card").filter({ hasText: title });
+  await expect(incidentCard).toBeVisible();
+
+  let deliveredRow = incidentCard.locator(`[data-dispatch-control="${deliveredDispatchId}"]`);
+  let deliveredForm = deliveredRow.locator("[data-reconcile-dispatch]");
+  await expect(deliveredForm).toContainText("Provider verification required");
+  await expect(deliveredRow.getByRole("button", { name: "Queue email" })).toHaveCount(0);
+  await expect(deliveredRow.getByRole("button", { name: "Dismiss draft" })).toHaveCount(0);
+  await deliveredForm.locator('[name="resolutionNote"]').fill("Brevo delivery log checked by the operations lead.");
+  await deliveredForm.getByRole("button", { name: "Record delivered" }).click();
+  await expect(page.locator("#admin-api-status")).toContainText(/provider message ID/i);
+
+  await deliveredForm.locator('[name="providerMessageId"]').fill(`brevo-board-${runId}`);
+  const deliveredResponse = page.waitForResponse(response => {
+    const url = new URL(response.url());
+    return url.pathname === `${dispatchPath}/${deliveredDispatchId}/delivery-reconciliation`
+      && response.request().method() === "POST";
+  });
+  await deliveredForm.getByRole("button", { name: "Record delivered" }).click();
+  expect((await deliveredResponse).status()).toBe(200);
+  await expect(page.locator("#admin-api-status")).toContainText("Provider delivery recorded");
+  deliveredRow = incidentCard.locator(`[data-dispatch-control="${deliveredDispatchId}"]`);
+  await expect(deliveredRow.locator('[data-dispatch-message] [data-status="sent"]')).toBeVisible();
+  await expect(deliveredRow.locator('[data-resolution="confirmed_sent"]')).toContainText("Provider delivery confirmed");
+  await expect(deliveredRow.locator("[data-reconcile-dispatch]")).toHaveCount(0);
+
+  let notDeliveredRow = incidentCard.locator(`[data-dispatch-control="${notDeliveredDispatchId}"]`);
+  const notDeliveredForm = notDeliveredRow.locator("[data-reconcile-dispatch]");
+  await notDeliveredForm.locator('[name="resolutionNote"]').fill("Brevo confirms no message was accepted for delivery.");
+  const notDeliveredResponse = page.waitForResponse(response => {
+    const url = new URL(response.url());
+    return url.pathname === `${dispatchPath}/${notDeliveredDispatchId}/delivery-reconciliation`
+      && response.request().method() === "POST";
+  });
+  await notDeliveredForm.getByRole("button", { name: "Confirm not delivered" }).click();
+  expect((await notDeliveredResponse).status()).toBe(200);
+  await expect(page.locator("#admin-api-status")).toContainText("ready for staff follow-up");
+  notDeliveredRow = incidentCard.locator(`[data-dispatch-control="${notDeliveredDispatchId}"]`);
+  await expect(notDeliveredRow.locator('[data-dispatch-message] [data-status="failed"]')).toBeVisible();
+  await expect(notDeliveredRow.locator('[data-resolution="confirmed_not_sent"]')).toContainText("Provider confirmed no delivery");
+  await expect(notDeliveredRow.getByRole("button", { name: "Queue email" })).toBeVisible();
+  await expect(notDeliveredRow.locator("[data-reconcile-dispatch]")).toHaveCount(0);
+
+  const undersizedControls = await incidentCard.locator('button, input:not([type="checkbox"]):not([type="radio"]), select, textarea').evaluateAll(controls => controls.filter(control => {
+    const bounds = control.getBoundingClientRect();
+    const styles = getComputedStyle(control);
+    return bounds.width > 0
+      && bounds.height > 0
+      && styles.display !== "none"
+      && styles.visibility !== "hidden"
+      && (bounds.width < 24 || bounds.height < 24);
+  }).map(control => control.getAttribute("name") || control.textContent?.trim() || control.id));
+  expect(undersizedControls).toEqual([]);
+  await assertChoiceTargets(page, "Incident provider verification");
+  await assertNoHorizontalOverflow(page);
+  await assertNoAccessibilityViolations(page, "Incident provider verification");
 });
 
 test("operations command summary fits and navigates across board viewports", async ({ page }) => {

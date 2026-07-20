@@ -38,7 +38,8 @@ import {
   selectPublicMediaAssets
 } from "../lib/public-media-selection.mjs";
 
-const adminOperationsUi = (import.meta.env.DEV || import.meta.env.VITE_SANDFEST_SURFACE === "admin")
+const ADMIN_UI_ENABLED = import.meta.env.DEV || import.meta.env.VITE_SANDFEST_SURFACE === "admin";
+const adminOperationsUi = ADMIN_UI_ENABLED
   ? await import("./admin-operations-ui.js")
   : null;
 
@@ -8427,20 +8428,28 @@ function renderIncidentDispatch(dispatch, incident, payload, canWrite) {
   const notification = dispatch.notification || {};
   const messageStatus = conditionLabel(notification.status || "not_requested");
   const statusOptions = ["assigned", "acknowledged", "en_route", "on_scene", "completed", "canceled"];
+  const outcomeUnknown = notification.deliveryOutcomeUnknown === true;
   const canReview = canWrite && notification.status === "draft_ready";
-  const canDismiss = canWrite && ["draft_ready", "approved", "failed"].includes(notification.status);
-  const canSend = canWrite && ["approved", "failed"].includes(notification.status) && payload.email?.ready;
+  const canDismiss = canWrite && !outcomeUnknown && ["draft_ready", "approved", "failed"].includes(notification.status);
+  const canSend = canWrite && !outcomeUnknown && ["approved", "failed"].includes(notification.status) && payload.email?.ready;
+  const deliveryResolution = notification.deliveryResolution
+    ? `<span data-delivery-resolution-slot="${escapeAttr(dispatch.id)}"></span>`
+    : "";
+  const reconciliation = outcomeUnknown ? `
+    <span data-reconcile-dispatch-slot data-incident-id="${escapeAttr(incident.id)}" data-dispatch-id="${escapeAttr(dispatch.id)}"></span>` : "";
   const emailDraft = notification.channel === "email" ? `
     <div class="admin-dispatch-message" data-dispatch-message>
       <div><strong>Operational email</strong><span data-status="${escapeAttr(notification.status)}">${escapeHtml(messageStatus)} · version ${notification.version || 1}</span></div>
       <label><span>Subject</span><input name="subject" maxlength="998" value="${escapeAttr(notification.subject || "")}" ${["queued", "sending", "sent", "canceled"].includes(notification.status) ? "disabled" : ""} /></label>
       <label><span>Message</span><textarea name="body" rows="5" maxlength="10000" ${["queued", "sending", "sent", "canceled"].includes(notification.status) ? "disabled" : ""}>${escapeHtml(notification.body || "")}</textarea></label>
       ${notification.lastError ? `<p class="admin-delivery-error">${escapeHtml(notification.lastError)}</p>` : ""}
+      ${deliveryResolution}
+      ${reconciliation}
       <div class="admin-dispatch-message-actions">
         ${canReview ? `<button class="button secondary" type="button" data-review-dispatch="approve" data-incident-id="${escapeAttr(incident.id)}" data-dispatch-id="${escapeAttr(dispatch.id)}">Approve draft</button>` : ""}
         ${canDismiss ? `<button class="button secondary" type="button" data-review-dispatch="dismiss" data-incident-id="${escapeAttr(incident.id)}" data-dispatch-id="${escapeAttr(dispatch.id)}">Dismiss draft</button>` : ""}
-        ${["approved", "failed"].includes(notification.status) ? `<button class="button primary" type="button" data-send-dispatch data-incident-id="${escapeAttr(incident.id)}" data-dispatch-id="${escapeAttr(dispatch.id)}" ${canSend ? "" : "disabled"}>Queue email</button>` : ""}
-        ${["approved", "failed"].includes(notification.status) && !payload.email?.ready ? '<span>Transactional email is not configured.</span>' : ""}
+        ${!outcomeUnknown && ["approved", "failed"].includes(notification.status) ? `<button class="button primary" type="button" data-send-dispatch data-incident-id="${escapeAttr(incident.id)}" data-dispatch-id="${escapeAttr(dispatch.id)}" ${canSend ? "" : "disabled"}>Queue email</button>` : ""}
+        ${!outcomeUnknown && ["approved", "failed"].includes(notification.status) && !payload.email?.ready ? '<span>Transactional email is not configured.</span>' : ""}
         ${notification.sentAt ? `<span>Sent ${escapeHtml(new Date(notification.sentAt).toLocaleString())}${notification.provider ? ` via ${escapeHtml(notification.provider)}` : ""}</span>` : ""}
       </div>
     </div>` : "";
@@ -8491,7 +8500,7 @@ function renderAdminConditions(payload) {
     revenueKpiCard("Responding", `${summary.responding || 0}`, `${summary.monitoring || 0} monitoring`),
     revenueKpiCard("Critical", `${summary.critical || 0}`, `${summary.unassigned || 0} without owner`),
     revenueKpiCard("Dispatches", `${dispatchSummary.active || 0}`, `${dispatchSummary.onScene || 0} on scene`),
-    revenueKpiCard("Message review", `${dispatchSummary.draftsAwaitingReview || 0}`, `${dispatchSummary.failedMessages || 0} failed`),
+    revenueKpiCard("Message review", `${dispatchSummary.draftsAwaitingReview || 0}`, `${dispatchSummary.unknownDeliveryMessages || 0} provider check${dispatchSummary.unknownDeliveryMessages === 1 ? "" : "s"}`),
     revenueKpiCard("Public review", `${summary.publicAlertRecommended || 0}`, `${summary.publicNotices || 0} approved notices`)
   ].join("");
   if (incidentSummary) incidentSummary.textContent = `${summary.active || 0} active · ${dispatchSummary.active || 0} responder assignments · ${dispatchSummary.draftsAwaitingReview || 0} messages awaiting review`;
@@ -8632,6 +8641,15 @@ function renderAdminConditions(payload) {
         setAdminStatus("Dispatch email queued for delivery.", "ok");
       } catch (error) { setAdminStatus(error.message, "error"); } finally { button.disabled = !adminCan("conditions:write") || !adminConditionsState?.email?.ready; }
     }));
+    if (ADMIN_UI_ENABLED && incidentList.querySelector("[data-reconcile-dispatch-slot], [data-delivery-resolution-slot]")) {
+      void import("./admin-incident-delivery-reconciliation.js").then(module => module.bindIncidentDeliveryReconciliation(incidentList, {
+        adminFetch,
+        canWrite,
+        dispatches: payload.dispatches,
+        loadAdminConditions,
+        setAdminStatus
+      })).catch(error => setAdminStatus(error.message, "error"));
+    }
   }
   if (!container) return;
   if (feeds) {
