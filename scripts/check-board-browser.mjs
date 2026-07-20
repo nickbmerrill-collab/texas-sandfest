@@ -246,6 +246,10 @@ if (visitorUrl && operationsUrl) {
         checkoutProducts: document.querySelectorAll('#ticket-product-grid [data-ticket-action="increase"]').length,
         checkoutLabel: document.querySelector("#ticketing-status-pill")?.textContent?.trim(),
         checkoutButton: document.querySelector("#checkout-btn")?.textContent?.trim(),
+        checkoutPolicyVisible: document.querySelector("#ticket-policy-fieldset")?.hidden === false,
+        checkoutPolicySummary: document.querySelector("#ticket-policy-summary")?.textContent?.trim(),
+        checkoutPolicyNotices: document.querySelectorAll("#ticket-policy-notices [data-ticket-policy-notice]").length,
+        checkoutPolicyAccepted: document.querySelector("#ticket-policy-acceptance")?.checked === true,
         sponsorCards: document.querySelectorAll("#public-sponsor-showcase .public-sponsor-card").length,
         sponsorLogoLoaded: [...document.querySelectorAll("#public-sponsor-showcase img")].some(image => image.complete && image.naturalWidth > 0),
         cameras: document.querySelectorAll("#island-camera-grid article").length,
@@ -285,10 +289,10 @@ if (visitorUrl && operationsUrl) {
     await inspect("public_intake", "Vendor and sponsor intake", "Inspect the public catalog API and signup form controls.", async () => {
       const item = observations.visitor;
       const expectedSponsorPackages = ["flounder", "trout", "tarpon", "sailfish", "marlin", "shark", "vip-tent-sponsor", "whale", "giant-squid", "megalodon", "the-kraken"];
-      if (item?.sponsorTiers !== 11 || item?.sponsorPackageIds?.join(",") !== expectedSponsorPackages.join(",") || item?.sponsorAmounts?.marlin !== "$15,000 sponsorship" || item?.sponsorAmounts?.whale !== "$50,000 sponsorship" || item?.sponsorAmounts?.["the-kraken"] !== "$250,000 sponsorship" || item?.vendorOfferings < 1 || item?.vendorApplicationAction !== "Apply as a vendor" || !item?.sponsorPresetVisible || !item?.vendorPresetVisible || item?.sponsorConsentChecked || item?.vendorConsentChecked || !item?.vendorSubmitEnabled || !item?.sponsorSubmitEnabled || item?.checkoutProducts < 4 || item?.checkoutLabel !== "Local payment sandbox" || item?.checkoutButton !== "Open demo checkout") {
+      if (item?.sponsorTiers !== 11 || item?.sponsorPackageIds?.join(",") !== expectedSponsorPackages.join(",") || item?.sponsorAmounts?.marlin !== "$15,000 sponsorship" || item?.sponsorAmounts?.whale !== "$50,000 sponsorship" || item?.sponsorAmounts?.["the-kraken"] !== "$250,000 sponsorship" || item?.vendorOfferings < 1 || item?.vendorApplicationAction !== "Apply as a vendor" || !item?.sponsorPresetVisible || !item?.vendorPresetVisible || item?.sponsorConsentChecked || item?.vendorConsentChecked || !item?.vendorSubmitEnabled || !item?.sponsorSubmitEnabled || item?.checkoutProducts < 4 || item?.checkoutLabel !== "Local payment sandbox" || item?.checkoutButton !== "Open demo checkout" || !item?.checkoutPolicyVisible || item?.checkoutPolicySummary !== "Review demonstration policies" || item?.checkoutPolicyNotices !== 4 || item?.checkoutPolicyAccepted) {
         throw new Error("The public signup catalogs or submit actions are incomplete.");
       }
-      return `${item.sponsorTiers} sponsor packages, ${item.vendorOfferings} category-compatible vendor offering${item.vendorOfferings === 1 ? "" : "s"}, consent-safe board presets, and ${item.checkoutProducts} local-checkout ticket products are actionable.`;
+      return `${item.sponsorTiers} sponsor packages, ${item.vendorOfferings} category-compatible vendor offering${item.vendorOfferings === 1 ? "" : "s"}, consent-safe board presets, and ${item.checkoutProducts} policy-gated local-checkout ticket products are actionable.`;
     });
     await inspect("sponsor_brand", "Sponsor branding", "Inspect the approved board sponsor asset and showcase projection.", async () => {
       const item = observations.visitor;
@@ -329,6 +333,9 @@ if (visitorUrl && operationsUrl) {
         runtimeLabel: document.querySelector("#runtime-data-notice")?.textContent?.trim(),
         apiStatus: document.querySelector("#admin-api-status")?.textContent?.trim(),
         deployment: document.querySelector("#admin-deployment-summary")?.textContent?.trim(),
+        ticketPolicyState: document.querySelector("#admin-ticket-policy-state")?.textContent?.trim(),
+        ticketPolicyVersion: document.querySelector('#admin-ticket-policy-form [name="version"]')?.value,
+        ticketPolicyNotices: document.querySelectorAll("#admin-ticket-policy-notices textarea").length,
         activationBoundary: document.querySelector("#admin-board-stage-summary")?.textContent?.replace(/\s+/g, " ").trim(),
         activationStages: document.querySelectorAll("#admin-board-stage-summary [data-board-stage]").length,
         commandSignals: document.querySelectorAll("#admin-command-signals [data-command-signal]").length,
@@ -464,6 +471,9 @@ if (visitorUrl && operationsUrl) {
         || !item.runtimeLabel?.includes("Synthetic 2027 data")
         || !item.runtimeLabel?.includes("No external messages, charges, or live-provider calls")
         || !item.deployment?.includes("board demo · ready · live providers post-board")
+        || item.ticketPolicyState !== "Approved"
+        || item.ticketPolicyVersion !== "board-demo-2027-v1"
+        || item.ticketPolicyNotices !== 4
         || item.activationStages !== 2
         || !item.activationBoundary?.includes("Real workflows with synthetic providers")
         || !item.activationBoundary?.includes("Stripe, QuickBooks, Brevo, Twilio, NWS, TxDOT, eight webcam edge agents, OIDC, Turnstile, DNS, and managed recovery")

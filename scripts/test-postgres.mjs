@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import pg from "pg";
 import twilio from "twilio";
 import { emptyBudgetControl } from "../lib/budget-control.mjs";
+import { REQUIRED_TICKET_POLICY_NOTICES } from "../lib/ticket-policy-schema.mjs";
 import { BOARD_DEMO_VENDOR_OFFERINGS } from "../lib/vendor-offerings.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -1120,12 +1121,27 @@ postgres_eventeny_settlement_1,2026-07-16,vendor_fee,250.00,7.50,242.50,eventeny
     active: true,
     requiresReview: false
   }, { auth: true });
+  const postgresTicketPolicy = await request(base, "PATCH", "/api/admin/ticket-policy", {
+    action: "approve",
+    version: "postgres-ticket-2027-v1",
+    acknowledgment: "I agree to the approved Texas SandFest ticket policies listed above.",
+    notices: REQUIRED_TICKET_POLICY_NOTICES.map(item => ({
+      id: item.id,
+      summary: `${item.label} reviewed for the 2027 Postgres checkout acceptance test.`
+    }))
+  }, { auth: true });
   const postgresTicketCatalog = await request(base, "GET", "/api/public/tickets");
   const publicPostgresTicket = postgresTicketCatalog.data.products?.find(item => item.id === "general-admission-3-day");
+  const publicPostgresTicketPolicy = postgresTicketCatalog.data.checkoutPolicy;
   const postgresTicketPayload = {
     items: [{ productId: "general-admission-3-day", quantity: 2 }],
     customer: { email: "postgres-ticket-buyer@example.com", phone: "361-555-0188" },
-    consent: { emailMarketing: false, smsMarketing: false, smsSafety: true }
+    consent: { emailMarketing: false, smsMarketing: false, smsSafety: true },
+    policyAcceptance: {
+      accepted: true,
+      version: publicPostgresTicketPolicy.version,
+      digest: publicPostgresTicketPolicy.digest
+    }
   };
   const postgresTicketRequestsBefore = stripeMock.requests.length;
   const postgresTicketCheckout = await request(base, "POST", "/api/stripe/create-checkout-session", postgresTicketPayload, {
@@ -1136,8 +1152,8 @@ postgres_eventeny_settlement_1,2026-07-16,vendor_fee,250.00,7.50,242.50,eventeny
   });
   const postgresTicketProviderRequests = stripeMock.requests.slice(postgresTicketRequestsBefore);
   const postgresTicketProviderRequest = postgresTicketProviderRequests[0];
-  check("Postgres public ticket catalog is checkout-ready and provider-private", postgresTicketConfig.status === 200 && publicPostgresTicket?.availableForCheckout === true && !JSON.stringify(postgresTicketCatalog.data).includes("stripePriceId"));
-  check("Postgres ticket checkout stores one trusted provider request", postgresTicketCheckout.status === 200 && postgresTicketProviderRequests.length === 1 && postgresTicketProviderRequest?.body.get("line_items[0][price]") === "price_postgres_ga_2027" && postgresTicketProviderRequest?.body.get("line_items[0][quantity]") === "2");
+  check("Postgres public ticket catalog is checkout-ready and provider-private", postgresTicketConfig.status === 200 && postgresTicketPolicy.status === 200 && publicPostgresTicketPolicy?.ready === true && publicPostgresTicketPolicy?.version === "postgres-ticket-2027-v1" && publicPostgresTicketPolicy?.notices?.length === 4 && publicPostgresTicket?.availableForCheckout === true && !JSON.stringify(postgresTicketCatalog.data).includes("stripePriceId"));
+  check("Postgres ticket checkout stores one trusted provider request", postgresTicketCheckout.status === 200 && postgresTicketProviderRequests.length === 1 && postgresTicketProviderRequest?.body.get("line_items[0][price]") === "price_postgres_ga_2027" && postgresTicketProviderRequest?.body.get("line_items[0][quantity]") === "2" && postgresTicketProviderRequest?.body.get("metadata[ticket_policy_version]") === "postgres-ticket-2027-v1" && postgresTicketProviderRequest?.body.get("metadata[ticket_policy_digest]") === publicPostgresTicketPolicy.digest);
   check("Postgres ticket checkout retry returns the original session", postgresTicketReplay.status === 200 && postgresTicketReplay.data.duplicate === true && postgresTicketReplay.data.checkoutSessionId === postgresTicketCheckout.data.checkoutSessionId);
 
   const postgresTicketPaidEvent = {
@@ -1172,7 +1188,7 @@ postgres_eventeny_settlement_1,2026-07-16,vendor_fee,250.00,7.50,242.50,eventeny
   const paidPostgresTicketOrder = postgresTicketOrdersAfterPayment.data.pendingOrders?.find(item => item.record?.id === postgresTicketCheckout.data.orderId)?.record;
   const paidPostgresTicketEvent = postgresTicketEventsAfterPayment.data.paymentEvents?.find(item => item.record?.id === postgresTicketPaidEvent.id)?.record;
   const paidPostgresTicketFulfillment = postgresTicketFulfillmentAfterPayment.data.fulfillment?.filter(item => item.record?.orderId === postgresTicketCheckout.data.orderId) || [];
-  check("Postgres signed ticket payment persists trusted fulfillment", postgresTicketPaidWebhook.status === 200 && postgresTicketPaidWebhook.data.record?.ticketReconciliation?.status === "fulfilled" && paidPostgresTicketOrder?.status === "paid" && paidPostgresTicketOrder?.paymentIntentId === "pi_ticket_postgres_paid_001" && paidPostgresTicketFulfillment.length === 2);
+  check("Postgres signed ticket payment persists trusted fulfillment", postgresTicketPaidWebhook.status === 200 && postgresTicketPaidWebhook.data.record?.ticketReconciliation?.status === "fulfilled" && paidPostgresTicketOrder?.status === "paid" && paidPostgresTicketOrder?.paymentIntentId === "pi_ticket_postgres_paid_001" && paidPostgresTicketOrder?.policyAcceptance?.version === "postgres-ticket-2027-v1" && paidPostgresTicketOrder?.policyAcceptance?.digest === publicPostgresTicketPolicy.digest && paidPostgresTicketFulfillment.length === 2);
   check("Postgres ticket event replay is idempotent and privacy-minimized", postgresTicketPaidReplay.data.duplicate === true && paidPostgresTicketFulfillment.length === 2 && !Object.hasOwn(paidPostgresTicketEvent || {}, "raw") && !JSON.stringify(paidPostgresTicketEvent || {}).includes("postgres-ticket-buyer@example.com"));
 
   const postgresTicketPartialRefundEvent = {

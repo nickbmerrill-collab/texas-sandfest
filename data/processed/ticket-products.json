@@ -9,6 +9,37 @@
     "webDomain": "texassandfest.org",
     "iosMerchantIdentifier": "merchant.org.texassandfest"
   },
+  "checkoutPolicy": {
+    "eventId": "texas-sandfest-2027",
+    "version": "2027-draft-1",
+    "status": "draft",
+    "acknowledgment": "I acknowledge the current Texas SandFest ticket terms, refund policy, filming notice, and service-animal policy.",
+    "notices": [
+      {
+        "id": "ticket_terms",
+        "label": "Ticket terms",
+        "summary": "Resale is not allowed and wristbands must remain attached for re-entry. Final 2027 purchase and entry terms require board approval before sales open."
+      },
+      {
+        "id": "refund_policy",
+        "label": "Refund policy",
+        "summary": "The 2027 refund, cancellation, transfer, and weather policies have not yet been approved. Checkout remains closed until review is complete."
+      },
+      {
+        "id": "filming_notice",
+        "label": "Filming and photography notice",
+        "summary": "Entry is expected to include the official filming and photography notice. Final 2027 language requires board approval."
+      },
+      {
+        "id": "service_animals",
+        "label": "Service-animal policy",
+        "summary": "Texas SandFest is expected to remain a service-animals-only event. Final 2027 entry language requires board approval."
+      }
+    ],
+    "approvedAt": null,
+    "approvedBy": null,
+    "updatedAt": "2026-04-30T21:40:48.383Z"
+  },
   "products": [
     {
       "id": "general-admission-3-day",

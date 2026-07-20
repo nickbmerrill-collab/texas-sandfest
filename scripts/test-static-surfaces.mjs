@@ -246,6 +246,7 @@ assert(visitorSource.includes('checkoutUrl.hostname !== "checkout.stripe.com"'),
 const serializedPublicTickets = JSON.stringify(publicTicketCatalog);
 assert(publicTicketCatalog.checkoutEndpoint === "/api/stripe/create-checkout-session", "Static ticket catalog contains an unsafe checkout endpoint.");
 assert(!serializedPublicTickets.includes("stripePriceId") && !serializedPublicTickets.includes("price_replace"), "Static ticket catalog exposes private or placeholder Stripe configuration.");
+assert(publicTicketCatalog.checkoutPolicy?.ready === false && publicTicketCatalog.checkoutPolicy?.notices?.length === 0, "Static ticket catalog must not publish unapproved ticket policy text.");
 assert(publicTicketCatalog.products?.length > 0 && publicTicketCatalog.products.every(product => product.availableForCheckout === false), "Static ticket catalog must fail closed until the ready API is loaded.");
 
 const serializedPublicRoster = JSON.stringify(publicSculptorRoster);

@@ -1258,6 +1258,59 @@ time {
   margin-top: 2px;
   flex-shrink: 0;
 }
+.checkout-policy {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 12px 14px;
+}
+.checkout-policy legend {
+  color: var(--deep);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  padding: 0 6px;
+  text-transform: uppercase;
+}
+.checkout-policy details {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 8px;
+}
+.checkout-policy summary {
+  align-items: center;
+  color: var(--gulf);
+  cursor: pointer;
+  display: flex;
+  font-size: 13px;
+  font-weight: 800;
+  min-height: 44px;
+}
+.ticket-policy-notices {
+  display: grid;
+}
+.ticket-policy-notices article {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 4px;
+  padding: 10px 0;
+}
+.ticket-policy-notices strong {
+  color: var(--deep);
+  font-size: 13px;
+}
+.ticket-policy-notices p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 0;
+}
+.ticket-policy-check {
+  align-items: center;
+  min-height: 44px;
+}
 .admin-consent-panel {
   margin-top: 28px;
   display: grid;
@@ -2546,6 +2599,75 @@ time {
   display: grid;
   gap: 15px;
   padding: 18px;
+}
+
+.admin-ticket-policy {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 12px 36px rgba(18, 51, 58, 0.08);
+  display: grid;
+  gap: 15px;
+  margin-bottom: 14px;
+  padding: 18px;
+}
+
+.admin-ticket-policy .admin-edit-title > div,
+.admin-ticket-policy label {
+  display: grid;
+  gap: 7px;
+}
+
+.admin-ticket-policy label > span,
+.admin-ticket-policy .admin-edit-title span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.admin-ticket-policy input,
+.admin-ticket-policy textarea {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--ink);
+  font: inherit;
+  min-height: 42px;
+  min-width: 0;
+  padding: 10px 12px;
+  resize: vertical;
+}
+
+.admin-ticket-policy-notices {
+  display: grid;
+  gap: 12px;
+}
+
+#admin-ticket-policy-state {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 11px;
+  padding: 5px 8px;
+}
+
+#admin-ticket-policy-state[data-state="ok"] {
+  border-color: rgba(20, 118, 74, 0.4);
+  color: #14764a;
+}
+
+.admin-ticket-policy .admin-edit-actions > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-ticket-policy .admin-edit-actions > span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .admin-edit-title {
@@ -6384,6 +6506,18 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
   .admin-document-state { align-self: flex-start; }
 }
 @media (max-width: 720px) {
+  .admin-ticket-policy .admin-edit-title,
+  .admin-ticket-policy .admin-edit-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .admin-ticket-policy .admin-edit-actions > div {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .admin-ticket-policy .admin-edit-actions button {
+    width: 100%;
+  }
   .admin-workspace-nav {
     display: grid;
     gap: 4px;

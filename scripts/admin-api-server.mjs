@@ -283,7 +283,13 @@ import {
   syncIncomingDocumentReviewTask
 } from "../lib/document-review-routing.mjs";
 import { approvedPublicSponsorAsset, publicSponsorShowcase } from "../lib/sponsor-showcase.mjs";
-import { publicTicketCatalog } from "../lib/ticket-catalog.mjs";
+import {
+  REQUIRED_TICKET_POLICY_NOTICES,
+  normalizeTicketCheckoutPolicy,
+  publicTicketCatalog,
+  ticketCheckoutPolicyReadiness,
+  validateTicketPolicyAcceptance
+} from "../lib/ticket-catalog.mjs";
 import { emailConfigFromEnv, publicEmailReadiness } from "../lib/email.mjs";
 import {
   applyBrevoDeliveryEvents,
@@ -775,6 +781,7 @@ const DEPLOYMENT_CHECK_PRESENTATION = Object.freeze({
   stripeWebhook: ["Stripe webhook", "Revenue"],
   stripeUrls: ["Stripe return addresses", "Revenue"],
   stripeApiOrigin: ["Stripe API origin", "Revenue"],
+  ticketPolicy: ["Ticket policies", "Revenue"],
   stripeTicketing: ["Ticket checkout", "Revenue"],
   stripePartnerPayments: ["Partner invoice payments", "Revenue"],
   quickBooksInvoices: ["QuickBooks invoices", "Revenue"],
@@ -1713,6 +1720,7 @@ async function deploymentProfile(options = {}) {
     || item.stripePriceId.startsWith("price_replace")
     || !Number.isInteger(item.unitAmount)
     || item.unitAmount < 1);
+  const ticketPolicy = ticketCheckoutPolicyReadiness(ticketCatalog, { eventId: CURRENT_EVENT_ID });
   const recovery = recoveryReadiness(process.env);
   const vendorCatalog = adminConfigResult.error
     ? {
@@ -1729,7 +1737,8 @@ async function deploymentProfile(options = {}) {
     && STRIPE_CANCEL_URL.startsWith("https://")
     && (!production || STRIPE_API_BASE_URL === "https://api.stripe.com")
     && checkoutProducts.length > 0
-    && invalidCheckoutProducts.length === 0;
+    && invalidCheckoutProducts.length === 0
+    && ticketPolicy.ready;
   const sponsorCatalog = sponsorPackageCatalog(adminConfigResult.value || {});
   const checks = {
     environment: checkStatus(["development", "staging", "production"].includes(SANDFEST_ENV), `SANDFEST_ENV=${SANDFEST_ENV}`),
@@ -1859,12 +1868,19 @@ async function deploymentProfile(options = {}) {
       production ? "Stripe ticketing must use the official Stripe API origin." : `Stripe ticketing API origin: ${STRIPE_API_BASE_URL}.`,
       production && STRIPE_ENABLED ? "error" : "warning"
     ),
+    ticketPolicy: checkStatus(
+      ticketPolicy.ready,
+      ticketPolicy.ready
+        ? `Approved ticket policy ${ticketPolicy.policy.version} covers ${ticketPolicy.policy.notices.length} required notices.`
+        : ticketPolicy.errors.join(" "),
+      production ? "error" : "warning"
+    ),
     stripeTicketing: checkStatus(
       !capabilityPolicy.required.has("stripe_ticketing") || stripeTicketingReady,
       stripeTicketingReady
         ? `Stripe ticketing is ready for ${checkoutProducts.length} checkout product${checkoutProducts.length === 1 ? "" : "s"}.`
         : capabilityPolicy.required.has("stripe_ticketing")
-          ? `Required Stripe ticketing is not ready${invalidCheckoutProducts.length ? `; set trusted amounts and Stripe Price IDs for: ${invalidCheckoutProducts.map(item => item.id).join(", ")}` : "."}`
+          ? `Required Stripe ticketing is not ready${!ticketPolicy.ready ? "; approve the current ticket policies" : invalidCheckoutProducts.length ? `; set trusted amounts and Stripe Price IDs for: ${invalidCheckoutProducts.map(item => item.id).join(", ")}` : "."}`
           : "Stripe ticketing is optional in this environment.",
       capabilityPolicy.required.has("stripe_ticketing") ? "error" : "warning"
     ),
@@ -2668,6 +2684,11 @@ function ticketCheckoutIdempotency(request, body = {}) {
       emailMarketing: body.consent?.emailMarketing === true,
       smsMarketing: body.consent?.smsMarketing === true,
       smsSafety: body.consent?.smsSafety === true
+    },
+    policyAcceptance: {
+      accepted: body.policyAcceptance?.accepted === true,
+      version: String(body.policyAcceptance?.version || "").trim(),
+      digest: String(body.policyAcceptance?.digest || "").trim()
     }
   };
   const hash = value => createHash("sha256").update(value).digest("hex");
@@ -2692,6 +2713,7 @@ function publicTicketOrder(order) {
     })),
     totals: order.totals,
     consent: order.consent,
+    policyAcceptance: order.policyAcceptance,
     createdAt: order.createdAt,
     updatedAt: order.updatedAt
   };
@@ -2706,8 +2728,9 @@ function stripeReady() {
     && (SANDFEST_ENV !== "production" || STRIPE_API_BASE_URL === "https://api.stripe.com");
 }
 
-function ticketCheckoutReady() {
-  return stripeReady() || BOARD_TICKET_SANDBOX.enabled;
+function ticketCheckoutReady(ticketCatalog) {
+  return (stripeReady() || BOARD_TICKET_SANDBOX.enabled)
+    && ticketCheckoutPolicyReadiness(ticketCatalog, { eventId: CURRENT_EVENT_ID }).ready;
 }
 
 function boardTicketSessionId(orderId) {
@@ -2785,8 +2808,12 @@ async function createStripeCheckoutSession(lines, order, idempotencyKeyHash) {
   body.set("client_reference_id", order.id);
   body.set("metadata[event_id]", CURRENT_EVENT_ID);
   body.set("metadata[order_id]", order.id);
+  body.set("metadata[ticket_policy_version]", order.policyAcceptance.version);
+  body.set("metadata[ticket_policy_digest]", order.policyAcceptance.digest);
   body.set("payment_intent_data[metadata][event_id]", CURRENT_EVENT_ID);
   body.set("payment_intent_data[metadata][order_id]", order.id);
+  body.set("payment_intent_data[metadata][ticket_policy_version]", order.policyAcceptance.version);
+  body.set("payment_intent_data[metadata][ticket_policy_digest]", order.policyAcceptance.digest);
   if (order.customer.email) body.set("customer_email", order.customer.email);
   if (order.customer.phone) body.set("phone_number_collection[enabled]", "true");
   lines.forEach((line, index) => {
@@ -2828,6 +2855,14 @@ async function handleCreateCheckoutSession(request, response) {
   const validation = validateCheckoutItems(tickets.products, body.items);
   if (validation.error) {
     sendJson(request, response, 400, { error: validation.error });
+    return;
+  }
+  const policyAcceptance = validateTicketPolicyAcceptance(tickets, body.policyAcceptance, { eventId: CURRENT_EVENT_ID });
+  if (!policyAcceptance.ok) {
+    sendJson(request, response, policyAcceptance.code === "policy_not_ready" ? 503 : 400, {
+      code: policyAcceptance.code,
+      error: policyAcceptance.error
+    });
     return;
   }
 
@@ -2885,7 +2920,7 @@ async function handleCreateCheckoutSession(request, response) {
   const order = {
     id: orderId,
     eventId: CURRENT_EVENT_ID,
-    status: ticketCheckoutReady() ? "creating_checkout_session" : "checkout_not_configured",
+    status: ticketCheckoutReady(tickets) ? "creating_checkout_session" : "checkout_not_configured",
     provider: "stripe",
     checkoutEnvironment: BOARD_TICKET_SANDBOX.enabled ? "board_sandbox" : "stripe",
     idempotencyKeyHash: idempotency.idempotencyKeyHash,
@@ -2901,6 +2936,10 @@ async function handleCreateCheckoutSession(request, response) {
       smsSafety: consentRecord.smsSafety.optedIn,
       consentId: hasContact && hasOptIn ? consentRecord.id : null
     },
+    policyAcceptance: {
+      ...policyAcceptance.evidence,
+      acceptedAt: now
+    },
     totals: {
       knownAmount: validation.lines.reduce((sum, line) => sum + (line.unitAmount ?? 0) * line.quantity, 0),
       currency: tickets.currency ?? "usd"
@@ -2911,7 +2950,7 @@ async function handleCreateCheckoutSession(request, response) {
 
   await storage.orders.write(order, { prefix: "ticket-order" });
 
-  if (!ticketCheckoutReady()) {
+  if (!ticketCheckoutReady(tickets)) {
     await storage.orders.write(order, { prefix: "ticket-order" });
     sendJson(request, response, 202, {
       ok: false,
@@ -3678,6 +3717,80 @@ async function handleAdminTicketPatch(request, response, productId) {
   sendJson(request, response, 200, { product, lastUpdated: tickets.lastUpdated });
 }
 
+async function handleAdminTicketPolicyPatch(request, response) {
+  if (!(await requirePermission(request, response, "ticket:write"))) return;
+  const body = await readBody(request);
+  const action = body.action === "approve" ? "approve" : body.action === "save_draft" ? "save_draft" : null;
+  if (!action) {
+    sendJson(request, response, 400, { error: "Ticket policy action must be save_draft or approve." });
+    return;
+  }
+  const version = String(body.version || "").trim();
+  const acknowledgment = String(body.acknowledgment || "").trim();
+  if (version.length > 80 || acknowledgment.length > 500) {
+    sendJson(request, response, 400, { error: "Ticket policy version or acknowledgment is too long." });
+    return;
+  }
+  const submittedNotices = Array.isArray(body.notices) ? body.notices : [];
+  const noticeById = new Map(submittedNotices.map(item => [String(item?.id || "").trim().toLowerCase(), item]));
+  if (submittedNotices.length !== noticeById.size || [...noticeById.keys()].some(id => !REQUIRED_TICKET_POLICY_NOTICES.some(item => item.id === id))) {
+    sendJson(request, response, 400, { error: "Ticket policy notices must use each supported notice ID once." });
+    return;
+  }
+  const notices = REQUIRED_TICKET_POLICY_NOTICES.map(required => ({
+    id: required.id,
+    label: required.label,
+    summary: String(noticeById.get(required.id)?.summary || "").trim()
+  }));
+  if (notices.some(item => item.summary.length > 2_000)) {
+    sendJson(request, response, 400, { error: "Ticket policy notice summaries cannot exceed 2,000 characters." });
+    return;
+  }
+
+  const tickets = await storage.config.read("ticket-products");
+  const before = structuredClone(tickets.checkoutPolicy || null);
+  const now = new Date().toISOString();
+  const next = normalizeTicketCheckoutPolicy({
+    eventId: CURRENT_EVENT_ID,
+    version,
+    status: action === "approve" ? "approved" : "draft",
+    acknowledgment,
+    notices,
+    approvedAt: action === "approve" ? now : null,
+    approvedBy: action === "approve" ? adminActor(request).id : null,
+    updatedAt: now
+  });
+  const readiness = ticketCheckoutPolicyReadiness({ checkoutPolicy: next }, { eventId: CURRENT_EVENT_ID, now });
+  if (action === "approve" && !readiness.ready) {
+    sendJson(request, response, 400, { error: readiness.errors.join(" "), readiness: { ready: false, errors: readiness.errors } });
+    return;
+  }
+
+  tickets.checkoutPolicy = next;
+  tickets.lastUpdated = now;
+  await writeConfigSnapshot(request, { type: "ticketCatalog", id: "ticket-products" }, {
+    ...tickets,
+    checkoutPolicy: before
+  }, `Before ticket policy ${action}`);
+  await storage.config.write("ticket-products", tickets);
+  await writeAuditRecord(request, `ticket.policy.${action === "approve" ? "approved" : "draft_saved"}`, {
+    type: "ticketPolicy",
+    id: CURRENT_EVENT_ID
+  }, before, next, {
+    version: next.version,
+    noticeIds: next.notices.map(item => item.id)
+  });
+  sendJson(request, response, 200, {
+    policy: next,
+    readiness: {
+      ready: readiness.ready,
+      errors: readiness.errors,
+      digest: readiness.digest
+    },
+    lastUpdated: tickets.lastUpdated
+  });
+}
+
 async function handleAdminSponsorPatch(request, response, sponsorId) {
   if (!(await requirePermission(request, response, "sponsor:write"))) return;
   const patch = filterPatch(await readBody(request), patchableSponsorFields);
@@ -3926,7 +4039,7 @@ async function handleRequest(request, response) {
         adminRole: authModeIsJwt() ? "jwt-claims" : ADMIN_ROLE,
         authMode: authMode(),
         stripeReady: stripeReady(),
-        ticketCheckoutReady: ticketCheckoutReady(),
+        ticketCheckoutReady: (stripeReady() || BOARD_TICKET_SANDBOX.enabled) && deployment.checks.ticketPolicy?.ok === true,
         ticketCheckoutEnvironment: BOARD_TICKET_SANDBOX.enabled ? "board_sandbox" : stripeReady() ? "stripe" : "disabled",
         safetySmsReady: smsConfigFromEnv().ready,
         transactionalEmailReady: emailConfigFromEnv().ready && BREVO_WEBHOOK.ready,
@@ -4086,7 +4199,8 @@ async function handleRequest(request, response) {
       const answer = answerPublicConcierge(question.question, {
         bootstrap: publicAppBootstrap(bootstrapInput, { includeBoardRuntime: BOARD_DEMO_RUNTIME }),
         tickets: publicTicketCatalog(ticketInput, {
-          checkoutEnabled: ticketCheckoutReady(),
+          checkoutEnabled: ticketCheckoutReady(ticketInput),
+          eventId: CURRENT_EVENT_ID,
           checkoutEnvironment: BOARD_TICKET_SANDBOX.enabled ? "board_sandbox" : undefined
         }),
         sponsors: {
@@ -4107,10 +4221,12 @@ async function handleRequest(request, response) {
     }
 
     if (method === "GET" && pathname === "/api/public/tickets") {
+      const tickets = await storage.config.read("ticket-products");
       sendJson(request, response, 200, publicTicketCatalog(
-        await storage.config.read("ticket-products"),
+        tickets,
         {
-          checkoutEnabled: ticketCheckoutReady(),
+          checkoutEnabled: ticketCheckoutReady(tickets),
+          eventId: CURRENT_EVENT_ID,
           checkoutEnvironment: BOARD_TICKET_SANDBOX.enabled ? "board_sandbox" : undefined
         }
       ), publicCacheHeaders(60));
@@ -5225,6 +5341,10 @@ async function handleRequest(request, response) {
           errors: vendorCatalog.errors
         },
         tickets,
+        ticketPolicyReadiness: (() => {
+          const readiness = ticketCheckoutPolicyReadiness(tickets, { eventId: CURRENT_EVENT_ID });
+          return { ready: readiness.ready, errors: readiness.errors, digest: readiness.digest };
+        })(),
         bootstrap,
         eventGuideReadiness: eventGuideReadiness(bootstrap.guide, { maxSourceAgeDays: EVENT_GUIDE_SOURCE_MAX_AGE_DAYS })
       });
@@ -8145,6 +8265,11 @@ async function handleRequest(request, response) {
     const fulfillmentMatch = pathname.match(/^\/api\/admin\/fulfillment\/([^/]+)$/);
     if (method === "PATCH" && fulfillmentMatch) {
       await handleFulfillmentPatch(request, response, decodeURIComponent(fulfillmentMatch[1]));
+      return;
+    }
+
+    if (method === "PATCH" && pathname === "/api/admin/ticket-policy") {
+      await handleAdminTicketPolicyPatch(request, response);
       return;
     }
 

@@ -368,7 +368,12 @@ import { escapeHtml } from "../lib/html-escape.mjs";
 import { updateJsonFile } from "../lib/safe-json-store.mjs";
 import { normalizeRequestId, redactAuditValue, safeErrorResponse } from "../lib/security.mjs";
 import { recoveryReadiness } from "../lib/recovery-readiness.mjs";
-import { publicTicketCatalog } from "../lib/ticket-catalog.mjs";
+import {
+  REQUIRED_TICKET_POLICY_NOTICES,
+  publicTicketCatalog,
+  ticketCheckoutPolicyReadiness,
+  validateTicketPolicyAcceptance
+} from "../lib/ticket-catalog.mjs";
 import {
   csvCell,
   milestonesCalendarExport,
@@ -3057,9 +3062,20 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   ok("document extraction source requires production HTTPS and a shared secret", productionExtractionSource.remoteReady && !unsafeProductionExtractionSource.remoteReady && verifyDocumentExtractionSourceAuthorization({ authorization: `Bearer ${SMOKE_DOCUMENT_EXTRACTION_SECRET}` }, { config: productionExtractionSource }) && !verifyDocumentExtractionSourceAuthorization({ authorization: "Bearer wrong-secret" }, { config: productionExtractionSource }));
   if (storedIncoming.ok) await deleteIncomingDocumentUpload(ROOT, storedIncoming.storageKey, { config: incomingConfig });
   await rm(incomingDir, { recursive: true, force: true });
+  const approvedTicketPolicy = {
+    eventId: DEFAULT_EVENT_ID,
+    version: "2027-test-v1",
+    status: "approved",
+    acknowledgment: "I acknowledge all current ticket purchase and festival entry policies.",
+    notices: REQUIRED_TICKET_POLICY_NOTICES.map(item => ({ ...item, summary: `${item.label} is complete and approved for the current platform test event.` })),
+    approvedAt: "2026-07-19T12:00:00.000Z",
+    approvedBy: "ticketing_test",
+    updatedAt: "2026-07-19T12:00:00.000Z"
+  };
   const safeTicketCatalog = publicTicketCatalog({
     currency: "usd",
     checkoutEndpoint: "/unsafe-override",
+    checkoutPolicy: approvedTicketPolicy,
     products: [{
       id: "ga-test",
       name: "GA Test",
@@ -3069,10 +3085,22 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
       requiresReview: false,
       quantity: { min: 1, max: 4 }
     }]
-  }, { checkoutEnabled: true });
+  }, { checkoutEnabled: true, eventId: DEFAULT_EVENT_ID });
+  const acceptedTicketPolicy = validateTicketPolicyAcceptance({ checkoutPolicy: approvedTicketPolicy }, {
+    accepted: true,
+    version: safeTicketCatalog.checkoutPolicy.version,
+    digest: safeTicketCatalog.checkoutPolicy.digest
+  }, { eventId: DEFAULT_EVENT_ID });
+  const staleTicketPolicy = validateTicketPolicyAcceptance({ checkoutPolicy: approvedTicketPolicy }, {
+    accepted: true,
+    version: "2027-test-v0",
+    digest: safeTicketCatalog.checkoutPolicy.digest
+  }, { eventId: DEFAULT_EVENT_ID });
+  ok("ticket checkout policy requires current-event approval and complete notices", ticketCheckoutPolicyReadiness({ checkoutPolicy: approvedTicketPolicy }, { eventId: DEFAULT_EVENT_ID }).ready && safeTicketCatalog.checkoutPolicy.notices.length === 4);
+  ok("ticket checkout policy acceptance binds version and digest", acceptedTicketPolicy.ok && acceptedTicketPolicy.evidence.noticeIds.length === 4 && !staleTicketPolicy.ok && staleTicketPolicy.code === "policy_version_changed");
   ok("public ticket catalog derives checkout readiness", safeTicketCatalog.checkoutEndpoint === "/api/stripe/create-checkout-session" && safeTicketCatalog.products[0].availableForCheckout === true);
   ok("public ticket catalog hides provider configuration", !JSON.stringify(safeTicketCatalog).includes("stripePriceId") && !JSON.stringify(safeTicketCatalog).includes("price_private_config_001"));
-  ok("public ticket catalog fails closed without a ready checkout integration", publicTicketCatalog({
+  ok("public ticket catalog fails closed without approved policies or a ready checkout integration", publicTicketCatalog({
     products: [{
       id: "ga-test",
       name: "GA Test",
@@ -3080,7 +3108,10 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
       stripePriceId: "price_private_config_001",
       active: true
     }]
-  }).products[0].availableForCheckout === false);
+  }, { checkoutEnabled: true, eventId: DEFAULT_EVENT_ID }).products[0].availableForCheckout === false && publicTicketCatalog({
+    checkoutPolicy: { ...approvedTicketPolicy, status: "draft", approvedAt: null, approvedBy: null },
+    products: [{ id: "ga-test", name: "GA Test", unitAmount: 4500, stripePriceId: "price_private_config_001", active: true }]
+  }, { checkoutEnabled: true, eventId: DEFAULT_EVENT_ID }).products[0].availableForCheckout === false);
   const sponsorConfig = {
     sponsorPackages: [
       { id: "tarpon", name: "Tarpon", amount: 500000, currency: "usd", publicLabel: "$5k", active: true, requiresApproval: true, benefits: ["Web listing"], stripePriceId: null, quickBooksItemId: "77" },
@@ -5771,7 +5802,25 @@ B-API-WRONG,texas-sandfest-2026,EV-V-WRONG,EV-V-WRONG,Wrong Event Booth,retail,v
 
   const initialTicketCatalogApi = await hit("GET", "/api/public/tickets");
   const initialGaTicket = initialTicketCatalogApi.data.products?.find(item => item.id === "general-admission-3-day");
-  ok("public ticket catalog is provider-private", initialTicketCatalogApi.status === 200 && initialGaTicket?.availableForCheckout === false && !JSON.stringify(initialTicketCatalogApi.data).includes("stripePriceId") && !JSON.stringify(initialTicketCatalogApi.data).includes("price_replace"));
+  ok("public ticket catalog is provider-private and policy-gated", initialTicketCatalogApi.status === 200 && initialTicketCatalogApi.data.checkoutPolicy?.ready === false && initialGaTicket?.availableForCheckout === false && !JSON.stringify(initialTicketCatalogApi.data).includes("stripePriceId") && !JSON.stringify(initialTicketCatalogApi.data).includes("price_replace"));
+  const ticketPolicyNoticesApi = REQUIRED_TICKET_POLICY_NOTICES.map(item => ({
+    id: item.id,
+    summary: `${item.label} is reviewed and approved for the current API checkout test.`
+  }));
+  const incompleteTicketPolicyApi = await hit("PATCH", "/api/admin/ticket-policy", {
+    action: "approve",
+    version: "2027-api-v1",
+    acknowledgment: "Too short",
+    notices: ticketPolicyNoticesApi
+  }, true);
+  const approvedTicketPolicyApi = await hit("PATCH", "/api/admin/ticket-policy", {
+    action: "approve",
+    version: "2027-api-v1",
+    acknowledgment: "I acknowledge the current ticket terms, refund policy, filming notice, and service-animal policy.",
+    notices: ticketPolicyNoticesApi
+  }, true);
+  const policyReadyAdminConfigApi = await hit("GET", "/api/admin/config", null, true);
+  ok("ticket policy approval rejects incomplete text and records current readiness", incompleteTicketPolicyApi.status === 400 && approvedTicketPolicyApi.status === 200 && approvedTicketPolicyApi.data.readiness?.ready === true && policyReadyAdminConfigApi.data.ticketPolicyReadiness?.ready === true && approvedTicketPolicyApi.data.policy?.approvedBy === "local-admin");
   const configuredGaTicket = await hit("PATCH", "/api/admin/tickets/general-admission-3-day", {
     unitAmount: 4500,
     priceLabel: "$45.00",
@@ -5781,15 +5830,28 @@ B-API-WRONG,texas-sandfest-2026,EV-V-WRONG,EV-V-WRONG,Wrong Event Booth,retail,v
   }, true);
   const readyTicketCatalogApi = await hit("GET", "/api/public/tickets");
   const readyGaTicket = readyTicketCatalogApi.data.products?.find(item => item.id === "general-admission-3-day");
-  ok("staff ticket configuration enables public checkout safely", configuredGaTicket.status === 200 && readyGaTicket?.unitAmount === 4500 && readyGaTicket?.availableForCheckout === true && !Object.hasOwn(readyGaTicket, "stripePriceId"));
+  ok("staff ticket configuration enables public checkout safely", configuredGaTicket.status === 200 && readyTicketCatalogApi.data.checkoutPolicy?.ready === true && readyTicketCatalogApi.data.checkoutPolicy?.notices?.length === 4 && readyGaTicket?.unitAmount === 4500 && readyGaTicket?.availableForCheckout === true && !Object.hasOwn(readyGaTicket, "stripePriceId"));
   const ticketCheckoutPayload = {
     items: [{ productId: "general-admission-3-day", quantity: 2 }],
     customer: { email: "ticket-buyer@example.com", phone: "361-555-0188" },
     email: "ticket-buyer@example.com",
     phone: "361-555-0188",
-    consent: { emailMarketing: false, smsMarketing: false, smsSafety: true }
+    consent: { emailMarketing: false, smsMarketing: false, smsSafety: true },
+    policyAcceptance: {
+      accepted: true,
+      version: readyTicketCatalogApi.data.checkoutPolicy.version,
+      digest: readyTicketCatalogApi.data.checkoutPolicy.digest
+    }
   };
   const missingTicketRetryKey = await hit("POST", "/api/stripe/create-checkout-session", ticketCheckoutPayload);
+  const missingTicketPolicyAcceptance = await hit("POST", "/api/stripe/create-checkout-session", {
+    ...ticketCheckoutPayload,
+    policyAcceptance: undefined
+  }, false, { "idempotency-key": "ticket-platform-missing-policy-0001" });
+  const staleTicketPolicyAcceptance = await hit("POST", "/api/stripe/create-checkout-session", {
+    ...ticketCheckoutPayload,
+    policyAcceptance: { ...ticketCheckoutPayload.policyAcceptance, version: "2027-api-v0" }
+  }, false, { "idempotency-key": "ticket-platform-stale-policy-0001" });
   const ticketRetryKey = "ticket-platform-smoke-retry-0001";
   const ticketCheckoutApi = await hit("POST", "/api/stripe/create-checkout-session", ticketCheckoutPayload, false, { "idempotency-key": ticketRetryKey });
   const ticketCheckoutReplayApi = await hit("POST", "/api/stripe/create-checkout-session", ticketCheckoutPayload, false, { "idempotency-key": ticketRetryKey });
@@ -5800,7 +5862,8 @@ B-API-WRONG,texas-sandfest-2026,EV-V-WRONG,EV-V-WRONG,Wrong Event Booth,retail,v
   const ticketStripeRequests = stripeMock?.requests.filter(item => item.body.get("metadata[order_id]") === ticketCheckoutApi.data.orderId) || [];
   const ticketStripeRequest = ticketStripeRequests[0];
   ok("ticket checkout requires a browser retry key", missingTicketRetryKey.status === 400 && missingTicketRetryKey.data.error?.includes("Idempotency-Key"));
-  ok("ticket checkout trusts server catalog and creates one Stripe session", ticketCheckoutApi.status === 200 && ticketCheckoutApi.data.checkoutUrl?.startsWith("https://checkout.stripe.com/") && ticketStripeRequests.length === 1 && ticketStripeRequest?.body.get("line_items[0][price]") === "price_platform_ga_2027" && ticketStripeRequest?.body.get("line_items[0][quantity]") === "2" && ticketStripeRequest?.body.get("customer_email") === "ticket-buyer@example.com" && ticketStripeRequest?.headers["idempotency-key"]?.startsWith("sandfest-ticket-"));
+  ok("ticket checkout requires the exact approved policy", missingTicketPolicyAcceptance.status === 400 && missingTicketPolicyAcceptance.data.code === "policy_acceptance_required" && staleTicketPolicyAcceptance.status === 400 && staleTicketPolicyAcceptance.data.code === "policy_version_changed");
+  ok("ticket checkout trusts server catalog and creates one Stripe session", ticketCheckoutApi.status === 200 && ticketCheckoutApi.data.checkoutUrl?.startsWith("https://checkout.stripe.com/") && ticketStripeRequests.length === 1 && ticketStripeRequest?.body.get("line_items[0][price]") === "price_platform_ga_2027" && ticketStripeRequest?.body.get("line_items[0][quantity]") === "2" && ticketStripeRequest?.body.get("customer_email") === "ticket-buyer@example.com" && ticketStripeRequest?.body.get("metadata[ticket_policy_version]") === "2027-api-v1" && ticketStripeRequest?.body.get("metadata[ticket_policy_digest]") === readyTicketCatalogApi.data.checkoutPolicy.digest && ticketStripeRequest?.headers["idempotency-key"]?.startsWith("sandfest-ticket-"));
   ok("ticket checkout replay returns the original session", ticketCheckoutReplayApi.status === 200 && ticketCheckoutReplayApi.data.duplicate === true && ticketCheckoutReplayApi.data.checkoutSessionId === ticketCheckoutApi.data.checkoutSessionId && ticketStripeRequests.length === 1);
   ok("ticket checkout retry key rejects a changed cart", ticketCheckoutConflictApi.status === 409 && ticketCheckoutConflictApi.data.error?.includes("different ticket order"));
 
@@ -5910,7 +5973,7 @@ B-API-WRONG,texas-sandfest-2026,EV-V-WRONG,EV-V-WRONG,Wrong Event Booth,retail,v
   const paidTicketOrder = ticketOrdersAfterPayment.data.pendingOrders?.find(item => item.record?.id === ticketCheckoutApi.data.orderId)?.record;
   const paidTicketFulfillment = ticketFulfillmentAfterPayment.data.fulfillment?.filter(item => item.record?.orderId === ticketCheckoutApi.data.orderId) || [];
   ok("ticket webhook requires a valid Stripe signature", unsignedTicketWebhook.status === 400 && unsignedTicketWebhook.data.error?.includes("missing_signature"));
-  ok("signed ticket payment fulfills the stored order", ticketPaidWebhook.status === 200 && ticketPaidWebhook.data.record?.ticketReconciliation?.status === "fulfilled" && paidTicketOrder?.status === "paid" && paidTicketOrder?.paymentIntentId === "pi_ticket_api_paid_001" && paidTicketFulfillment.length === 2 && paidTicketFulfillment.every(item => item.record?.productId === "general-admission-3-day"));
+  ok("signed ticket payment fulfills the stored accepted-policy order", ticketPaidWebhook.status === 200 && ticketPaidWebhook.data.record?.ticketReconciliation?.status === "fulfilled" && paidTicketOrder?.status === "paid" && paidTicketOrder?.paymentIntentId === "pi_ticket_api_paid_001" && paidTicketOrder?.policyAcceptance?.version === "2027-api-v1" && paidTicketOrder?.policyAcceptance?.digest === readyTicketCatalogApi.data.checkoutPolicy.digest && paidTicketFulfillment.length === 2 && paidTicketFulfillment.every(item => item.record?.productId === "general-admission-3-day"));
   ok("ticket fulfillment replay is idempotent and payment evidence is minimized", ticketPaidWebhookReplay.status === 200 && ticketPaidWebhookReplay.data.duplicate === true && !Object.hasOwn(ticketPaidWebhook.data.record || {}, "raw") && paidTicketFulfillment.length === 2);
 
   const ticketPartialRefundEvent = {
