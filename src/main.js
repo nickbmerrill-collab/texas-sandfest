@@ -7900,7 +7900,7 @@ function renderAdminPartners(payload, outreach) {
     automationForm.onsubmit = async event => {
       event.preventDefault();
       const requestedMode = modeSelect.value;
-      if (requestedMode === "transactional_auto" && !window.confirm("Enable automatic delivery for applicant acknowledgments, payment confirmations and adjustments, partner key-date reminders, sponsor brand and proof reviews, vendor workflow notices, and directory-backed task notifications?")) return;
+      if (requestedMode === "transactional_auto" && !window.confirm("Enable automatic applicant, payment, key-date, sponsor review, vendor workflow, and task notifications?")) return;
       saveButton.disabled = true;
       try {
         const result = await adminFetch("/api/admin/partners/automation", {
@@ -8006,7 +8006,7 @@ function renderAdminPartners(payload, outreach) {
             ? "automatic sponsor brand review"
             : item.automationPolicy && item.kind === "sponsor_deliverable_review"
               ? "automatic sponsor proof review"
-          : item.automationPolicy && item.kind === "milestone_reminder"
+              : item.automationPolicy && item.kind === "milestone_reminder"
                 ? "automatic key-date reminder"
                 : item.automationPolicy ? "transactional automation" : "";
     return `<article data-followup="${escapeAttr(item.id)}" ${deliveryStatus ? `data-delivery-status="${escapeAttr(deliveryStatus)}"` : ""}>
