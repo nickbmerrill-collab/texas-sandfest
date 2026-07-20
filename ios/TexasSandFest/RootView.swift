@@ -39,11 +39,15 @@ struct RootView: View {
 struct CustomerRootView: View {
     @State private var selectedTab: CustomerTab = {
         // Default to the Beach tab if launched with -startTab beach (handy for demos / screenshots).
+        if CommandLine.arguments.contains("-conciergePrompt") {
+            return .concierge
+        }
         if CommandLine.arguments.contains(where: { $0 == "-startTab" }),
            let idx = CommandLine.arguments.firstIndex(of: "-startTab"),
            idx + 1 < CommandLine.arguments.count {
             switch CommandLine.arguments[idx + 1] {
             case "beach": return .map
+            case "sculptors": return .map
             case "sandy": return .concierge
             case "tickets": return .tickets
             case "schedule": return .schedule
@@ -52,10 +56,29 @@ struct CustomerRootView: View {
         }
         return .today
     }()
+    @State private var conciergeRequest: ConciergeRequest? = {
+        let arguments = CommandLine.arguments
+        guard let index = arguments.firstIndex(of: "-conciergePrompt"),
+              index + 1 < arguments.count else {
+            return nil
+        }
+        return ConciergeRequest(question: arguments[index + 1], submitImmediately: true)
+    }()
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            TodayView()
+            TodayView(
+                onAskSandy: { question, submitImmediately in
+                    conciergeRequest = ConciergeRequest(
+                        question: question,
+                        submitImmediately: submitImmediately
+                    )
+                    selectedTab = .concierge
+                },
+                onShowTickets: {
+                    selectedTab = .tickets
+                }
+            )
                 .tabItem { Label("Today", systemImage: "sun.max") }
                 .tag(CustomerTab.today)
 
@@ -63,15 +86,13 @@ struct CustomerRootView: View {
                 .tabItem { Label("Schedule", systemImage: "calendar") }
                 .tag(CustomerTab.schedule)
 
-            LiveBeachView()
+            BeachExperienceView()
                 .tabItem { Label("Beach", systemImage: "sparkles.tv") }
                 .tag(CustomerTab.map)
 
-            SculptorsView()
-                .tabItem { Label("Sculptors", systemImage: "photo.artframe") }
-                .tag(CustomerTab.sculptors)
-
-            ConciergeView()
+            ConciergeView(request: $conciergeRequest) { href in
+                openConciergeSource(href)
+            }
                 .tabItem { Label("Sandy", systemImage: "sparkles") }
                 .tag(CustomerTab.concierge)
 
@@ -81,6 +102,73 @@ struct CustomerRootView: View {
         }
         .tint(.sandFestGulf)
     }
+
+    private func openConciergeSource(_ href: String) {
+        switch href {
+        case "#tickets":
+            selectedTab = .tickets
+        case "#schedule":
+            selectedTab = .schedule
+        case "#operations", "#island-conditions", "#map":
+            selectedTab = .map
+        default:
+            selectedTab = .today
+        }
+    }
+}
+
+struct BeachExperienceView: View {
+    @State private var section: BeachSection = CommandLine.arguments.contains("sculptors")
+        ? .sculptors
+        : .live
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Picker("Beach View", selection: $section) {
+                ForEach(BeachSection.allCases) { section in
+                    Label(section.title, systemImage: section.icon).tag(section)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+            .background(.bar)
+
+            switch section {
+            case .live:
+                LiveBeachView()
+            case .sculptors:
+                SculptorsView()
+            }
+        }
+    }
+}
+
+enum BeachSection: String, CaseIterable, Identifiable {
+    case live
+    case sculptors
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .live: "Live Beach"
+        case .sculptors: "Sculptors"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .live: "wave.3.right"
+        case .sculptors: "photo.artframe"
+        }
+    }
+}
+
+struct ConciergeRequest: Identifiable, Equatable {
+    let id = UUID()
+    let question: String?
+    let submitImmediately: Bool
 }
 
 struct AdminRootView: View {
@@ -134,7 +222,6 @@ enum CustomerTab {
     case today
     case schedule
     case map
-    case sculptors
     case concierge
     case tickets
 }

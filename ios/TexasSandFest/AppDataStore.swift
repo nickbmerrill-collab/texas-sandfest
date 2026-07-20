@@ -25,6 +25,10 @@ private struct PublicBootstrapCache: Codable {
     let payload: PublicSandFestPayload
 }
 
+private struct ConciergeQuestion: Encodable {
+    let question: String
+}
+
 @MainActor
 final class AppDataStore: ObservableObject {
     @Published private(set) var payload: SandFestPayload
@@ -120,6 +124,30 @@ final class AppDataStore: ObservableObject {
         }
     }
 
+    func askSandy(_ questionInput: String, apiBase: URL? = nil) async throws -> PublicConciergeResponse {
+        let question = questionInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard (2...280).contains(question.count) else {
+            throw AppDataError.invalidQuestion
+        }
+
+        let targetBase = apiBase ?? resolvedAPIBase
+        var request = URLRequest(url: Self.publicURL(apiBase: targetBase, path: ["api", "public", "concierge"]))
+        request.httpMethod = "POST"
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.timeoutInterval = 12
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try Self.encoder.encode(ConciergeQuestion(question: question))
+
+        let response = try await transport.load(request)
+        guard response.statusCode == 200 else {
+            throw AppDataError.httpStatus(response.statusCode)
+        }
+        let answer = try Self.decoder.decode(PublicConciergeResponse.self, from: response.data)
+        try Self.validate(answer)
+        return answer
+    }
+
     private static var decoder: JSONDecoder {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
@@ -193,6 +221,33 @@ final class AppDataStore: ObservableObject {
         }
     }
 
+    private static func validate(_ answer: PublicConciergeResponse) throws {
+        let answerText = answer.answer.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !answerText.isEmpty,
+              answerText.count <= 2_000,
+              !answer.topic.isEmpty,
+              (1...4).contains(answer.sources.count),
+              Set(answer.sources.map(\.id)).count == answer.sources.count,
+              answer.sources.allSatisfy({ source in
+                  !source.id.isEmpty
+                      && !source.label.isEmpty
+                      && validConciergeHref(source.href)
+              }),
+              answer.suggestions.count <= 4,
+              Set(answer.suggestions).count == answer.suggestions.count,
+              answer.suggestions.allSatisfy({ !$0.isEmpty && $0.count <= 120 }) else {
+            throw AppDataError.invalidConciergeResponse
+        }
+    }
+
+    private static func validConciergeHref(_ href: String) -> Bool {
+        if href.range(of: #"^#[A-Za-z][A-Za-z0-9_-]*$"#, options: .regularExpression) != nil {
+            return true
+        }
+        guard let url = URL(string: href) else { return false }
+        return url.scheme?.lowercased() == "https" && url.host != nil
+    }
+
     private static func merge(_ publicPayload: PublicSandFestPayload, into bundled: SandFestPayload) -> SandFestPayload {
         let boardDemo = publicPayload.runtime?.mode == "board_demo"
         let schedule = boardDemo
@@ -253,10 +308,13 @@ final class AppDataStore: ObservableObject {
     }
 
     private static func publicBootstrapURL(apiBase: URL) -> URL {
-        apiBase
-            .appendingPathComponent("api")
-            .appendingPathComponent("public")
-            .appendingPathComponent("bootstrap")
+        publicURL(apiBase: apiBase, path: ["api", "public", "bootstrap"])
+    }
+
+    private static func publicURL(apiBase: URL, path: [String]) -> URL {
+        path.reduce(apiBase) { url, component in
+            url.appendingPathComponent(component)
+        }
     }
 
     private static func defaultCacheURL() -> URL? {
@@ -334,6 +392,8 @@ enum AppDataError: Error {
     case httpStatus(Int)
     case invalidBootstrap
     case eventMismatch(expected: String, received: String)
+    case invalidQuestion
+    case invalidConciergeResponse
 }
 
 enum SyncState: Equatable {

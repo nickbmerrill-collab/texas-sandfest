@@ -220,6 +220,103 @@ final class AppDataStoreTests: XCTestCase {
         XCTAssertTrue(store.payload.schedule.contains(where: { $0.id == "sat-headliner" }))
     }
 
+    @MainActor
+    func testConciergePostsBoundedQuestionAndReturnsSourceCitedAnswer() async throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let recorder = ConciergeRequestRecorder()
+        let responsePayload = PublicConciergeResponse(
+            answer: "Published accessibility help is available at North Gate.",
+            topic: "accessibility",
+            confidence: .high,
+            escalated: false,
+            sources: [
+                PublicConciergeSource(
+                    id: "accessibility-locations",
+                    label: "Published accessibility locations",
+                    href: "#operations",
+                    updatedAt: "2026-07-17T00:00:00.000Z"
+                )
+            ],
+            suggestions: ["Is parking information available?"]
+        )
+        let responseData = try encoded(responsePayload)
+        let store = AppDataStore(
+            seedPayload: .sample,
+            apiBase: try XCTUnwrap(URL(string: "https://api.texassandfest.example")),
+            cacheURL: directory.appendingPathComponent("public-bootstrap.json"),
+            transport: AppDataTransport { request in
+                await recorder.record(request)
+                return AppDataHTTPResponse(data: responseData, statusCode: 200)
+            }
+        )
+
+        let answer = try await store.askSandy("  What accessibility services are available?  ")
+        let recordedRequest = await recorder.value()
+        let request = try XCTUnwrap(recordedRequest)
+        let body = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: request.body) as? [String: String]
+        )
+
+        XCTAssertEqual(answer.topic, "accessibility")
+        XCTAssertEqual(answer.confidence, .high)
+        XCTAssertEqual(answer.sources.map(\.href), ["#operations"])
+        XCTAssertEqual(request.url, "https://api.texassandfest.example/api/public/concierge")
+        XCTAssertEqual(request.method, "POST")
+        XCTAssertEqual(request.accept, "application/json")
+        XCTAssertEqual(request.contentType, "application/json")
+        XCTAssertEqual(request.cachePolicy, URLRequest.CachePolicy.reloadIgnoringLocalCacheData.rawValue)
+        XCTAssertEqual(body["question"], "What accessibility services are available?")
+    }
+
+    @MainActor
+    func testConciergeRejectsUnsafeSourcesAndInvalidQuestions() async throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let unsafeResponse = PublicConciergeResponse(
+            answer: "Unsafe answer",
+            topic: "unknown",
+            confidence: .low,
+            escalated: true,
+            sources: [
+                PublicConciergeSource(
+                    id: "unsafe",
+                    label: "Unsafe source",
+                    href: "http://private.example/source",
+                    updatedAt: nil
+                )
+            ],
+            suggestions: []
+        )
+        let responseData = try encoded(unsafeResponse)
+        let store = AppDataStore(
+            seedPayload: .sample,
+            apiBase: try XCTUnwrap(URL(string: "https://api.texassandfest.example")),
+            cacheURL: directory.appendingPathComponent("public-bootstrap.json"),
+            transport: AppDataTransport { _ in
+                AppDataHTTPResponse(data: responseData, statusCode: 200)
+            }
+        )
+
+        do {
+            _ = try await store.askSandy("Where should I go?")
+            XCTFail("An insecure concierge source should fail validation.")
+        } catch AppDataError.invalidConciergeResponse {
+            // Expected.
+        } catch {
+            XCTFail("Unexpected concierge error: \(error)")
+        }
+
+        do {
+            _ = try await store.askSandy("x")
+            XCTFail("A one-character question should fail before transport.")
+        } catch AppDataError.invalidQuestion {
+            // Expected.
+        } catch {
+            XCTFail("Unexpected question error: \(error)")
+        }
+    }
+
     private func publicPayload(
         guide: EventGuide,
         schedule: [ScheduleItem],
@@ -278,7 +375,7 @@ final class AppDataStoreTests: XCTestCase {
         )
     }
 
-    private func encoded(_ payload: PublicSandFestPayload) throws -> Data {
+    private func encoded<T: Encodable>(_ payload: T) throws -> Data {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         return try encoder.encode(payload)
@@ -294,4 +391,32 @@ final class AppDataStoreTests: XCTestCase {
 
 private enum TestFailure: Error {
     case offline
+}
+
+private struct ConciergeRequestSnapshot: Sendable {
+    let url: String
+    let method: String
+    let accept: String?
+    let contentType: String?
+    let cachePolicy: UInt
+    let body: Data
+}
+
+private actor ConciergeRequestRecorder {
+    private var snapshot: ConciergeRequestSnapshot?
+
+    func record(_ request: URLRequest) {
+        snapshot = ConciergeRequestSnapshot(
+            url: request.url?.absoluteString ?? "",
+            method: request.httpMethod ?? "",
+            accept: request.value(forHTTPHeaderField: "Accept"),
+            contentType: request.value(forHTTPHeaderField: "Content-Type"),
+            cachePolicy: request.cachePolicy.rawValue,
+            body: request.httpBody ?? Data()
+        )
+    }
+
+    func value() -> ConciergeRequestSnapshot? {
+        snapshot
+    }
 }
