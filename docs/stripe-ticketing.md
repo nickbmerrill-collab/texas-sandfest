@@ -79,7 +79,7 @@ Vendor and sponsor charges use a separate, review-gated path from ticket sales:
 1. Staff approves the application amount, creates an invoice, and approves that invoice.
 2. The partner opens the rotatable private portal and requests checkout for that invoice ID.
 3. The API reserves one active checkout for the current server-computed balance and reuses it on retries.
-4. `lib/stripe-partner-payments.mjs` creates a one-line Stripe Checkout Session with inline `price_data`; the browser never submits or controls the amount.
+4. `lib/stripe-partner-payments.mjs` creates a one-line Stripe Checkout Session with inline `price_data`; the browser never submits or controls the amount. Provider responses, saved retry links, private-portal projections, and browser navigation all require the exact `https://checkout.stripe.com` origin; lookalike or corrupted destinations fail closed.
 5. `checkout.session.completed` or `checkout.session.async_payment_succeeded` must carry a valid, fresh Stripe signature and matching checkout, application, invoice, amount, currency, and paid status.
 6. A valid event records one Stripe payment in the partner ledger, updates the invoice balance, and marks the checkout complete. It does not create ticket fulfillment.
 7. Replayed event IDs and repeated PaymentIntent IDs are idempotent.
@@ -179,6 +179,7 @@ Recommended categories:
 - Confirm the static production artifact reports every ticket unavailable until it reaches the ready API.
 - Verify webhook signatures using the raw request body.
 - Submit one checkout twice with the same key and confirm both responses return the same Checkout Session and only one provider session exists.
+- Return a lookalike partner-payment destination such as `https://checkout.stripe.com.evil.example/` and confirm the API, saved portal, and browser all refuse it.
 - Reuse that key with a changed cart and confirm the API rejects it.
 - Replay the same sandbox webhook twice and confirm no additional fulfillment records are created.
 - Send amount, currency, event-year, order, and Checkout Session mismatches and confirm no fulfillment is created.

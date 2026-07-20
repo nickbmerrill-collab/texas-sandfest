@@ -378,9 +378,11 @@ import {
 } from "../lib/board-camera-playback.mjs";
 import {
   buildStripePartnerCheckoutRequest,
+  createStripePartnerCheckoutSession,
   stripePartnerEventContext,
   stripePartnerPaymentsConfig
 } from "../lib/stripe-partner-payments.mjs";
+import { stripeHostedCheckoutUrl } from "../lib/stripe-checkout-url.mjs";
 import { escapeHtml } from "../lib/html-escape.mjs";
 import { updateJsonFile } from "../lib/safe-json-store.mjs";
 import { normalizeRequestId, redactAuditValue, safeErrorResponse } from "../lib/security.mjs";
@@ -2899,6 +2901,28 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
     config: stripePartnerConfig
   });
   ok("partner Stripe server amount contract", stripePartnerConfig.ready && partnerCheckoutBody.get("line_items[0][price_data][unit_amount]") === "2000000" && partnerCheckoutBody.get("metadata[partner_invoice_id]") === invoiceDraft.invoice.id && partnerCheckoutBody.get("customer_email") === created.application.contactEmail);
+  ok("Stripe hosted checkout requires the exact provider origin",
+    stripeHostedCheckoutUrl("https://checkout.stripe.com/c/pay/cs_partner_001") === "https://checkout.stripe.com/c/pay/cs_partner_001"
+    && stripeHostedCheckoutUrl("https://checkout.stripe.com.evil.example/c/pay/cs_partner_001") === null
+    && stripeHostedCheckoutUrl("https://checkout.stripe.com@evil.example/c/pay/cs_partner_001") === null
+    && stripeHostedCheckoutUrl("javascript:alert(1)") === null);
+  let unsafePartnerProviderResponse;
+  try {
+    await createStripePartnerCheckoutSession({
+      checkout: partnerCheckout.checkout,
+      invoice: invoiceApproved.invoice,
+      application: created.application
+    }, {
+      config: stripePartnerConfig,
+      fetchImpl: async () => new Response(JSON.stringify({
+        id: "cs_partner_lookalike",
+        url: "https://checkout.stripe.com.evil.example/c/pay/cs_partner_lookalike"
+      }), { status: 200, headers: { "content-type": "application/json" } })
+    });
+  } catch (error) {
+    unsafePartnerProviderResponse = error;
+  }
+  ok("partner Stripe provider response rejects lookalike checkout hosts", unsafePartnerProviderResponse?.message === "Stripe returned an invalid partner Checkout Session.");
   const unsafeStripePartnerConfig = stripePartnerPaymentsConfig({
     SANDFEST_ENV: "production",
     STRIPE_PARTNER_PAYMENTS_ENABLED: "true",
@@ -2909,13 +2933,30 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
     STRIPE_API_BASE_URL: "https://stripe-proxy.example.com"
   });
   ok("partner Stripe production origin gate", !unsafeStripePartnerConfig.ready && unsafeStripePartnerConfig.missing.some(item => item.includes("official Stripe origin")));
+  const unsafeActivatedPartnerCheckout = activatePartnerPaymentCheckout(partnerCheckout.doc, partnerCheckout.checkout.id, {
+    id: "cs_partner_lookalike",
+    url: "https://checkout.stripe.com.evil.example/c/pay/cs_partner_lookalike",
+    expires_at: Date.parse("2026-07-16T12:30:00.000Z") / 1000
+  }, { now: "2026-07-16T12:01:00.000Z" });
   const activatedPartnerCheckout = activatePartnerPaymentCheckout(partnerCheckout.doc, partnerCheckout.checkout.id, {
     id: "cs_partner_001",
     url: "https://checkout.stripe.com/c/pay/cs_partner_001",
     expires_at: Date.parse("2026-07-16T12:30:00.000Z") / 1000
   }, { now: "2026-07-16T12:01:00.000Z" });
   const publicCheckout = publicPartnerPortalStatus(activatedPartnerCheckout.doc, created.application, { now: "2026-07-16T12:01:00.000Z" }).finance.checkout;
-  ok("partner portal secure checkout", activatedPartnerCheckout.ok && activatedPartnerCheckout.checkout.status === "open" && publicCheckout?.checkoutUrl.startsWith("https://checkout.stripe.com/") && !("providerSessionId" in publicCheckout));
+  const corruptedPartnerCheckoutDoc = {
+    ...activatedPartnerCheckout.doc,
+    paymentCheckouts: activatedPartnerCheckout.doc.paymentCheckouts.map(item => item.id === activatedPartnerCheckout.checkout.id
+      ? { ...item, checkoutUrl: "https://checkout.stripe.com.evil.example/c/pay/cs_partner_001" }
+      : item)
+  };
+  const corruptedDuplicateActivation = activatePartnerPaymentCheckout(corruptedPartnerCheckoutDoc, activatedPartnerCheckout.checkout.id, {
+    id: "cs_partner_001",
+    url: "https://checkout.stripe.com.evil.example/c/pay/cs_partner_001"
+  }, { now: "2026-07-16T12:02:00.000Z" });
+  const corruptedPublicCheckout = publicPartnerPortalStatus(corruptedPartnerCheckoutDoc, created.application, { now: "2026-07-16T12:01:00.000Z" }).finance.checkout;
+  ok("partner portal secure checkout", !unsafeActivatedPartnerCheckout.ok && activatedPartnerCheckout.ok && activatedPartnerCheckout.checkout.status === "open" && publicCheckout?.checkoutUrl.startsWith("https://checkout.stripe.com/") && !("providerSessionId" in publicCheckout));
+  ok("partner portal suppresses corrupted checkout destinations", !corruptedDuplicateActivation.ok && corruptedPublicCheckout === null);
   const stripeEvent = {
     id: "evt_partner_paid_001",
     type: "checkout.session.completed",

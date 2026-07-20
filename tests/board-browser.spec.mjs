@@ -2300,6 +2300,74 @@ test("approved sponsor branding stays readable with a pale brand palette", async
   await assertNoHorizontalOverflow(page);
 });
 
+test("partner invoice checkout refuses lookalike Stripe destinations", async ({ page }) => {
+  const attemptedExternalRequests = [];
+  page.on("request", request => {
+    if (request.url().includes("checkout.stripe.com.evil.example")) attemptedExternalRequests.push(request.url());
+  });
+  await page.route("**/api/public/partner-status", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    await route.fulfill({
+      status: 200,
+      headers: { "access-control-allow-origin": webBase, "cache-control": "no-store" },
+      contentType: "application/json",
+      body: JSON.stringify({
+        application: {
+          reference: "TSF-S-SECURE-PAYMENT",
+          type: "sponsor",
+          intakeMode: "application",
+          status: "invoiced",
+          organizationName: "Secure Payment Sponsor",
+          submittedAt: "2026-07-20T12:00:00.000Z",
+          updatedAt: "2026-07-20T12:00:00.000Z",
+          nextStep: null,
+          contactPreference: { allowed: true, version: 1, updatedAt: "2026-07-20T12:00:00.000Z" },
+          finance: {
+            currency: "usd",
+            expectedAmountCents: 500000,
+            paidAmountCents: 0,
+            balanceCents: 500000,
+            paymentStatus: "unpaid",
+            onlinePayment: { enabled: true, ready: true, provider: "stripe" },
+            invoice: { id: "invoice_secure_payment", status: "approved", amountCents: 500000, balanceCents: 500000, dueAt: "2027-03-01T12:00:00.000Z" },
+            checkout: { status: "open", checkoutUrl: "https://checkout.stripe.com.evil.example/c/pay/cs_stored_lookalike", expiresAt: "2027-03-01T12:30:00.000Z" }
+          },
+          milestones: [],
+          branding: null,
+          vendorOnboarding: null
+        }
+      })
+    });
+  });
+  await page.route("**/api/public/partner-payment-checkout", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    await route.fulfill({
+      status: 201,
+      headers: { "access-control-allow-origin": webBase, "cache-control": "no-store" },
+      contentType: "application/json",
+      body: JSON.stringify({
+        checkout: {
+          id: "checkout_lookalike",
+          status: "open",
+          checkoutUrl: "https://checkout.stripe.com.evil.example/c/pay/cs_response_lookalike",
+          expiresAt: "2027-03-01T12:30:00.000Z"
+        }
+      })
+    });
+  });
+
+  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#partner-status?reference=TSF-S-SECURE-PAYMENT&token=tsfp_browser_origin_test`);
+  await expect(page.locator("#partner-status-form .partner-form-status")).toContainText("Secure status loaded");
+  await expect(page.locator('a[href*="checkout.stripe.com.evil.example"]')).toHaveCount(0);
+  const payButton = page.locator('[data-partner-pay-invoice="invoice_secure_payment"]');
+  await expect(payButton).toHaveText("Pay securely");
+  await payButton.click();
+  await expect(page.locator(".partner-payment-status")).toHaveText("Stripe returned an invalid payment address.");
+  await expect(payButton).toBeEnabled();
+  expect(page.url()).toContain(webBase);
+  expect(attemptedExternalRequests).toEqual([]);
+});
+
 test("critical public and operations views fit a mobile viewport", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 740 });
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor`);

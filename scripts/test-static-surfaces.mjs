@@ -264,7 +264,7 @@ for (const marker of ["public-sponsor-showcase", "/api/public/sponsor-showcase/a
 for (const marker of ["/api/public/tickets", "idempotency-key", "checkout.stripe.com"]) {
   assert(publicJavaScript.includes(marker), `Public artifact is missing the ticket-commerce marker ${marker}.`);
 }
-assert(visitorSource.includes('checkoutUrl.hostname !== "checkout.stripe.com"'), "Visitor checkout does not require Stripe's exact hosted-checkout hostname.");
+assert(visitorSource.includes("stripeHostedCheckoutUrl"), "Visitor checkout does not use the shared Stripe hosted-checkout URL policy.");
 const serializedPublicTickets = JSON.stringify(publicTicketCatalog);
 assert(publicTicketCatalog.checkoutEndpoint === "/api/stripe/create-checkout-session", "Static ticket catalog contains an unsafe checkout endpoint.");
 assert(!serializedPublicTickets.includes("stripePriceId") && !serializedPublicTickets.includes("price_replace"), "Static ticket catalog exposes private or placeholder Stripe configuration.");
