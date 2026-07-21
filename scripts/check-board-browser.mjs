@@ -129,6 +129,79 @@ async function verifyCommandNavigation(page) {
   };
 }
 
+async function responsiveLayoutObservation(page, { surface, url, width, height }) {
+  await page.setViewportSize({ width, height });
+  await page.goto(url, { waitUntil: "domcontentloaded", timeout: timeoutMs });
+  await page.waitForFunction(() => document.querySelector("#network-status")?.textContent?.trim() === "Demo", null, { timeout: timeoutMs });
+  if (surface === "visitor") {
+    await page.waitForFunction(() => document.querySelectorAll("#public-sponsor-tiers [data-package-id]").length === 11, null, { timeout: timeoutMs });
+  } else {
+    await page.waitForFunction(() => document.querySelector("#admin-api-status")?.textContent?.includes("Loaded"), null, { timeout: timeoutMs });
+    await page.waitForFunction(() => document.querySelectorAll(".admin-workspace-nav a").length === 7, null, { timeout: timeoutMs });
+  }
+
+  return page.evaluate(({ surface, width, height }) => {
+    const visible = element => {
+      const bounds = element.getBoundingClientRect();
+      const styles = getComputedStyle(element);
+      return bounds.width > 0
+        && bounds.height > 0
+        && styles.display !== "none"
+        && styles.visibility !== "hidden";
+    };
+    const label = element => element.getAttribute("aria-label")
+      || element.textContent?.replace(/\s+/g, " ").trim().slice(0, 80)
+      || element.getAttribute("name")
+      || element.id
+      || element.tagName.toLowerCase();
+    const dimensions = element => {
+      const bounds = element.getBoundingClientRect();
+      return {
+        label: label(element),
+        width: Math.round(bounds.width * 10) / 10,
+        height: Math.round(bounds.height * 10) / 10
+      };
+    };
+    const clipped = element => element.scrollWidth > element.clientWidth + 1
+      || element.scrollHeight > element.clientHeight + 1;
+    const controls = [...document.querySelectorAll('button, input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]), select, textarea, a[href], [role="button"]')]
+      .filter(visible);
+    const controlTargetIssues = controls.map(dimensions)
+      .filter(item => item.width < 24 || item.height < 24);
+    const choiceTargetIssues = [...document.querySelectorAll('input[type="checkbox"], input[type="radio"]')]
+      .filter(visible)
+      .map(input => input.closest("label") || (input.id ? document.querySelector(`label[for="${CSS.escape(input.id)}"]`) : null) || input)
+      .map(dimensions)
+      .filter(item => item.width < 24 || item.height < 24);
+    const workspaceNav = document.querySelector(".admin-workspace-nav");
+    const workspaceLinks = [...document.querySelectorAll(".admin-workspace-nav a")].filter(visible);
+    const readinessFilters = [...document.querySelectorAll(".admin-readiness-filter button")].filter(visible);
+    const sourceLinks = [...document.querySelectorAll(".admin-prospect-source a")].filter(visible);
+    return {
+      surface,
+      width,
+      height,
+      overflowPixels: Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth),
+      controlCount: controls.length,
+      controlTargetIssues,
+      choiceTargetIssues,
+      workspaceNavigation: {
+        labels: workspaceLinks.map(item => item.textContent?.trim()),
+        overflowPixels: workspaceNav ? Math.max(0, workspaceNav.scrollWidth - workspaceNav.clientWidth) : null,
+        clippedLabels: workspaceLinks.filter(clipped).map(label)
+      },
+      readinessFilters: {
+        count: readinessFilters.length,
+        clippedLabels: readinessFilters.filter(clipped).map(label)
+      },
+      sourceLinks: {
+        count: sourceLinks.length,
+        targetIssues: sourceLinks.map(dimensions).filter(item => item.width < 24 || item.height < 24)
+      }
+    };
+  }, { surface, width, height });
+}
+
 async function presentationSession() {
   let value = await readBoardDemoSession(sessionFile);
   const transitionalStates = new Set(["starting", "recovering", "resetting"]);
@@ -663,6 +736,69 @@ if (visitorUrl && operationsUrl) {
       }
       return `${item.documents} governed documents rendered with ${item.extractionReady} completed extraction and ${item.extractedPreviews} staff-only previews.`;
     });
+    try {
+      const responsivePage = await context.newPage();
+      responsivePage.on("pageerror", error => pageErrors.push(error.message));
+      responsivePage.on("console", message => {
+        if (message.type() === "error") consoleErrors.push(message.text());
+      });
+      responsivePage.on("response", response => {
+        if (response.status() >= 400) httpErrors.push(`${response.status()} ${response.url()}`);
+      });
+      try {
+        observations.responsive = {
+          visitor320: await responsiveLayoutObservation(responsivePage, {
+            surface: "visitor",
+            url: visitorUrl,
+            width: 320,
+            height: 740
+          }),
+          operations320: await responsiveLayoutObservation(responsivePage, {
+            surface: "operations",
+            url: operationsUrl,
+            width: 320,
+            height: 740
+          }),
+          operations768: await responsiveLayoutObservation(responsivePage, {
+            surface: "operations",
+            url: operationsUrl,
+            width: 768,
+            height: 844
+          })
+        };
+      } finally {
+        await responsivePage.close();
+      }
+    } catch (error) {
+      observations.responsiveError = error.message;
+    }
+
+    await inspect("responsive_layout", "Phone and tablet presentation layout", "Inspect the active Visitor and Operations links at 320px and 768px.", async () => {
+      const snapshots = observations.responsive;
+      if (!snapshots) throw new Error(observations.responsiveError || "Responsive presentation checks did not run.");
+      const expectedWorkspaceLabels = ["Overview", "Documents", "Partners", "Accounting", "Staffing", "Island conditions", "Systems"];
+      const required = [snapshots.visitor320, snapshots.operations320, snapshots.operations768];
+      const issue = required.find(item => (
+        !item
+        || item.controlCount < 1
+        || item.overflowPixels > 0
+        || item.controlTargetIssues.length > 0
+        || item.choiceTargetIssues.length > 0
+        || item.sourceLinks.targetIssues.length > 0
+      ));
+      if (issue) throw new Error(`Responsive target or overflow failure: ${JSON.stringify(issue)}`);
+      for (const item of [snapshots.operations320, snapshots.operations768]) {
+        if (
+          item.workspaceNavigation.labels.join("|") !== expectedWorkspaceLabels.join("|")
+          || item.workspaceNavigation.overflowPixels > 1
+          || item.workspaceNavigation.clippedLabels.length > 0
+          || item.readinessFilters.count !== 2
+          || item.readinessFilters.clippedLabels.length > 0
+        ) throw new Error(`Operations navigation or readiness labels are clipped: ${JSON.stringify(item)}`);
+      }
+      return `The active Visitor fits at 320x740 and Operations fits at 320x740 and 768x844 with ${required.reduce((total, item) => total + item.controlCount, 0)} visible controls at least 24px, unclipped workspace/readiness labels, and no horizontal overflow.`;
+    });
+
     await inspect("browser_health", "Browser render health", "Inspect browser errors and page-width layout on both presentation surfaces.", async () => {
       if (pageErrors.length || consoleErrors.length || httpErrors.length) {
         throw new Error(`Browser errors: ${[...httpErrors, ...pageErrors, ...consoleErrors].slice(0, 3).join(" | ")}`);
@@ -687,6 +823,7 @@ if (visitorUrl && operationsUrl) {
       ["messaging_delegation", "Automated messages and delegation"],
       ["fulfillment_outreach", "Fulfillment and geofenced outreach"],
       ["document_ingestion", "Private document ingestion"],
+      ["responsive_layout", "Phone and tablet presentation layout"],
       ["browser_health", "Browser render health"]
     ];
     for (const [id, label] of pending) {
@@ -707,6 +844,7 @@ if (visitorUrl && operationsUrl) {
     ["messaging_delegation", "Automated messages and delegation"],
     ["fulfillment_outreach", "Fulfillment and geofenced outreach"],
     ["document_ingestion", "Private document ingestion"],
+    ["responsive_layout", "Phone and tablet presentation layout"],
     ["browser_health", "Browser render health"]
   ]) record(id, label, false, "The active presentation session is unavailable.", "Start the board stack with npm run board:demo.");
 }
