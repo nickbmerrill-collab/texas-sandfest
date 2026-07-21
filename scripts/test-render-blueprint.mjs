@@ -37,6 +37,7 @@ const adminEnv = envMap(admin);
 const apiEnv = envMap(api);
 const workerEnv = envMap(worker);
 const productionRepo = "https://github.com/nickbmerrill-collab/texas-sandfest";
+const productionRegion = "ohio";
 
 const requiredCapabilities = [
   "camera_ingest",
@@ -110,6 +111,8 @@ check("admin is an isolated static service", admin?.type === "web" && admin?.run
 check("admin publishes only after checks pass", admin?.branch === "main" && admin?.autoDeployTrigger === "checksPass" && admin?.autoDeploy === undefined);
 check("admin owns the canonical operations domain", admin?.domains?.includes("sandfest-admin.heyelab.com"));
 check("API is a checks-gated Docker service", api?.type === "web" && api?.runtime === "docker" && api?.branch === "main" && api?.autoDeployTrigger === "checksPass");
+check("dynamic services share the production region", [api, worker, rateLimit].every(service => service?.region === productionRegion));
+check("Postgres shares the production region", database?.region === productionRegion);
 check("API health probe verifies the process and data plane", api?.healthCheckPath === "/health");
 check("API owns a dedicated SandFest hostname", api?.domains?.includes("sandfest-api.heyelab.com"));
 check("API uses the dedicated production origin without a shared path prefix", apiEnv.get("SANDFEST_ENV")?.value === "production" && !apiEnv.has("SANDFEST_API_PREFIX"));
