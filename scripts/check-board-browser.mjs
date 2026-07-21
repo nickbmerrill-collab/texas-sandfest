@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { chromium } from "@playwright/test";
+import { chromium, firefox, webkit } from "@playwright/test";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
@@ -22,6 +22,9 @@ const configuredSessionWaitMs = Number(process.env.SANDFEST_BOARD_BROWSER_SESSIO
 const sessionWaitMs = Number.isFinite(configuredSessionWaitMs)
   ? Math.max(0, Math.min(120_000, configuredSessionWaitMs))
   : 30_000;
+const browserEngine = String(process.env.SANDFEST_BOARD_BROWSER || "chromium").trim().toLowerCase();
+const browserType = { chromium, firefox, webkit }[browserEngine];
+const browserLabel = { chromium: "Chromium", firefox: "Firefox", webkit: "WebKit" }[browserEngine] || browserEngine;
 const checks = [];
 const observations = {};
 let browser = null;
@@ -270,7 +273,8 @@ await inspect(
 
 if (visitorUrl && operationsUrl) {
   try {
-    browser = await chromium.launch({ headless: true });
+    if (!browserType) throw new Error(`Unsupported browser engine: ${browserEngine || "empty"}.`);
+    browser = await browserType.launch({ headless: true });
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, colorScheme: "light" });
     const unexpectedWrites = [];
     await context.route("**/*", async route => {
@@ -874,7 +878,7 @@ if (visitorUrl && operationsUrl) {
       ["browser_health", "Browser render health"]
     ];
     for (const [id, label] of pending) {
-      if (!checks.some(item => item.id === id)) record(id, label, false, `Browser rehearsal could not run: ${error.message}`, "Install Chromium with npx playwright install chromium and retry.");
+      if (!checks.some(item => item.id === id)) record(id, label, false, `Browser rehearsal could not run: ${error.message}`, `Install ${browserLabel} with npx playwright install ${browserEngine} and retry.`);
     }
   } finally {
     await browser?.close();
@@ -899,6 +903,7 @@ if (visitorUrl && operationsUrl) {
 const report = {
   ok: checks.every(item => item.ok),
   checkedAt: new Date().toISOString(),
+  browserEngine,
   passed: checks.filter(item => item.ok).length,
   total: checks.length,
   links: { visitor: visitorUrl, operations: operationsUrl },
@@ -909,7 +914,7 @@ const report = {
 if (jsonOutput) {
   console.log(JSON.stringify(report, null, 2));
 } else {
-  console.log(`Board browser rehearsal: ${report.passed}/${report.total} checks passed.`);
+  console.log(`Board ${browserLabel} browser rehearsal: ${report.passed}/${report.total} checks passed.`);
   for (const item of report.checks) {
     console.log(`${item.ok ? "[PASS]" : "[FAIL]"} ${item.label}: ${item.detail}`);
     if (!item.ok && item.action) console.log(`       ${item.action}`);

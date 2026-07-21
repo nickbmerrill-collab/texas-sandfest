@@ -83,6 +83,30 @@ jobs:
       - name: Production dependency audit
         run: npm audit --audit-level=high
 
+  browser-webkit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci
+      - name: Install WebKit acceptance runtime
+        run: npx playwright install --with-deps webkit
+      - name: Safari-compatible board browser acceptance
+        run: npm run test:browser:webkit:ci
+      - name: Upload WebKit failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: board-browser-webkit-failure
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
   ios-parse:
     runs-on: macos-latest
     steps:
