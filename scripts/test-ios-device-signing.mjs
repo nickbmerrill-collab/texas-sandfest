@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -18,7 +18,9 @@ const env = { ...process.env, DEVELOPER_DIR: developerDir };
 const project = "ios/TexasSandFest.xcodeproj";
 const scheme = "TexasSandFest";
 const bundleIdentifier = "com.portalcodex.texassandfest";
+const installOnDevice = process.argv.includes("--install");
 const derivedDataPath = path.join(tmpdir(), `texas-sandfest-device-${process.pid}`);
+const deviceListPath = path.join(tmpdir(), `texas-sandfest-devices-${process.pid}.json`);
 const appPath = path.join(derivedDataPath, "Build/Products/Release-iphoneos/TexasSandFest.app");
 const profilePath = path.join(appPath, "embedded.mobileprovision");
 
@@ -52,12 +54,39 @@ function plistValue(plist, keyPath) {
   return result.stdout.trim();
 }
 
+function discoverInstallDevice() {
+  run("xcrun", ["devicectl", "list", "devices", "--json-output", deviceListPath], "Discover paired iOS hardware", { capture: true });
+  const devices = JSON.parse(readFileSync(deviceListPath, "utf8")).result?.devices || [];
+  const requestedIdentifier = String(process.env.SANDFEST_IOS_DEVICE_ID || "").trim();
+  const eligible = devices
+    .filter(device => device?.hardwareProperties?.platform === "iOS"
+      && device?.hardwareProperties?.reality === "physical"
+      && device?.hardwareProperties?.udid
+      && device?.connectionProperties?.pairingState === "paired"
+      && device?.connectionProperties?.transportType
+      && device?.deviceProperties?.developerModeStatus === "enabled")
+    .sort((left, right) => Date.parse(right.connectionProperties?.lastConnectionDate || 0) - Date.parse(left.connectionProperties?.lastConnectionDate || 0));
+  const device = requestedIdentifier
+    ? eligible.find(item => item.identifier === requestedIdentifier || item.hardwareProperties.udid === requestedIdentifier)
+    : eligible[0];
+  if (!device) {
+    throw new Error(requestedIdentifier
+      ? "SANDFEST_IOS_DEVICE_ID does not identify an available paired iOS device with Developer Mode enabled."
+      : "No available paired iOS device with Developer Mode enabled was found.");
+  }
+  return device;
+}
+
 try {
+  const device = installOnDevice ? discoverInstallDevice() : null;
+  const destination = device
+    ? `platform=iOS,id=${device.hardwareProperties.udid}`
+    : "generic/platform=iOS";
   const settings = run("xcodebuild", [
     "-project", project,
     "-scheme", scheme,
     "-configuration", "Release",
-    "-destination", "generic/platform=iOS",
+    "-destination", destination,
     "-showBuildSettings"
   ], "Resolve iOS release signing settings", { capture: true });
   const team = settings.match(/^\s*DEVELOPMENT_TEAM = ([A-Z0-9]{10})\s*$/m)?.[1];
@@ -68,9 +97,10 @@ try {
     "-project", project,
     "-scheme", scheme,
     "-configuration", "Release",
-    "-destination", "generic/platform=iOS",
+    "-destination", destination,
     "-derivedDataPath", derivedDataPath,
     "-allowProvisioningUpdates",
+    ...(device ? ["-allowProvisioningDeviceRegistration"] : []),
     "SWIFT_TREAT_WARNINGS_AS_ERRORS=YES",
     "build"
   ], `Signed Release device build (${team})`, { capture: true });
@@ -98,10 +128,17 @@ try {
   }
 
   console.log(`\nSigned identity: ${applicationIdentifier}; profile expires ${expiration}`);
+  if (device) {
+    const deviceName = device.hardwareProperties.marketingName || device.deviceProperties.name || "paired iOS device";
+    run("xcrun", ["devicectl", "device", "install", "app", "--device", device.identifier, appPath], `Install on ${deviceName}`);
+    run("xcrun", ["devicectl", "device", "process", "launch", "--device", device.identifier, "--terminate-existing", bundleIdentifier], `Launch on ${deviceName}`);
+    console.log(`Hardware acceptance: ${deviceName} installed and launched ${bundleIdentifier}.`);
+  }
   console.log("Xcode device readiness: signed Release build, signature, and provisioning identity passed.");
 } catch (error) {
   console.error(`\n${error.message}`);
   process.exitCode = 1;
 } finally {
   rmSync(derivedDataPath, { recursive: true, force: true });
+  rmSync(deviceListPath, { force: true });
 }

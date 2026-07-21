@@ -40,6 +40,7 @@
     "test:ios-event": "node scripts/test-ios-event-alignment.mjs",
     "test:ios-xcode": "node scripts/test-ios-xcode.mjs",
     "test:ios-device": "node scripts/test-ios-device-signing.mjs",
+    "test:ios-device-install": "node scripts/test-ios-device-signing.mjs --install",
     "test:accessibility": "playwright test tests/board-browser.spec.mjs --grep 'WCAG A and AA'",
     "test:live-feeds": "node scripts/test-live-feeds.mjs",
     "test:outreach-discovery:live": "SANDFEST_ENV=production node scripts/test-live-outreach-discovery.mjs",
