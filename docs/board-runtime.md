@@ -253,7 +253,7 @@ automatically and becomes stale when the vendor confirms, proving the follow-up
 lifecycle without sending an external message.
 The same gate carries one new Tarpon sponsor through a private logo upload,
 profile and asset approval, benefit proof publication, sponsor sign-off, staff
-completion, and the public sponsor showcase. Its $5,000 invoice, payment,
+completion, and the featured public sponsor showcase ahead of package selection. Its $5,000 invoice, payment,
 reversal, and reopened key date stay attached to that record, so branding,
 fulfillment, and finance are verified as one lifecycle instead of separate seed
 examples.

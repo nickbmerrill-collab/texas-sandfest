@@ -535,9 +535,16 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   expect(sponsorSubmitBox?.height).toBeLessThanOrEqual(52);
   expect(vendorSubmitBox?.height).toBe(sponsorSubmitBox?.height);
   const featuredSponsor = page.locator("#public-sponsor-showcase .public-sponsor-card").filter({ hasText: "Gulf Shore Credit Union" });
+  const featuredSponsorStage = page.locator("#public-sponsor-featured");
+  await expect(featuredSponsorStage).toBeVisible();
+  await expect(featuredSponsorStage.locator("h3")).toHaveText("Backing the beach");
+  await expect(page.locator("#public-sponsor-showcase")).toHaveAttribute("data-count", "1");
+  expect(await featuredSponsorStage.evaluate((stage, packages) => Boolean(stage.compareDocumentPosition(packages) & Node.DOCUMENT_POSITION_FOLLOWING), await page.locator("#public-sponsor-tiers").elementHandle())).toBe(true);
   await expect(featuredSponsor).toHaveCount(1);
   await expect(featuredSponsor).toContainText("Marlin partner");
   await expect(featuredSponsor).toContainText("Rooted on the Texas coast");
+  await expect(featuredSponsor).toContainText("Visit partner");
+  await expect(featuredSponsor).toHaveAttribute("href", "https://example.com/gulf-shore");
   const featuredSponsorLogo = featuredSponsor.locator("img");
   await expect(featuredSponsorLogo).toHaveAttribute("src", /\/api\/public\/sponsor-showcase\/assets\/demo_brand_asset_gulf_shore_primary$/);
   await expect.poll(() => featuredSponsorLogo.evaluate(image => image.complete && image.naturalWidth > 0)).toBe(true);
@@ -2563,16 +2570,33 @@ test("approved sponsor branding stays readable with a pale brand palette", async
     secondaryColor: "#FFFDEB",
     logo: null
   };
+  const secondSponsor = {
+    ...sponsor,
+    id: `${sponsor.id}-community-bank`,
+    displayName: "Coastal Community Bank",
+    tagline: "Healthier coast, stronger community"
+  };
   await page.route(`${apiBase}/api/public/sponsors`, route => route.fulfill({
     status: 200,
     contentType: "application/json",
-    body: JSON.stringify({ ...payload, sponsors: [sponsor] })
+    body: JSON.stringify({ ...payload, sponsors: [sponsor, secondSponsor] })
   }));
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#sponsors`);
+  const featured = page.locator("#public-sponsor-featured");
+  await expect(featured).toBeVisible();
+  await expect(featured.locator("h3")).toHaveText("Backing the beach");
+  await expect(featured).toBeInViewport({ ratio: 0.5 });
+  const showcase = page.locator("#public-sponsor-showcase");
+  await expect(showcase).toHaveAttribute("data-count", "2");
+  await expect(showcase.locator(".public-sponsor-card")).toHaveCount(2);
+  expect(await showcase.evaluate(element => getComputedStyle(element).gridTemplateColumns.split(" ").length)).toBe(1);
+  expect(await featured.evaluate((stage, packages) => Boolean(stage.compareDocumentPosition(packages) & Node.DOCUMENT_POSITION_FOLLOWING), await page.locator("#public-sponsor-tiers").elementHandle())).toBe(true);
   const card = page.locator("#public-sponsor-showcase .public-sponsor-card").filter({ hasText: sponsor.displayName });
   await expect(card).toHaveCount(1);
+  await expect(card).toBeInViewport({ ratio: 0.5 });
+  await expect(card).toContainText("Visit partner");
   const colors = await card.evaluate(element => {
     const channels = value => String(value).match(/\d+(?:\.\d+)?/g).slice(0, 3).map(channel => Number(channel) / 255)
       .map(channel => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
