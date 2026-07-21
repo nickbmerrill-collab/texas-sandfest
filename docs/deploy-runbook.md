@@ -75,8 +75,9 @@ https://nickbmerrill-collab.github.io/texas-sandfest/
 Pull requests also receive a Vercel preview of the isolated public artifact.
 `vercel.json` owns that preview build so stale dashboard framework settings
 cannot make this Vite repository run a Next.js build. A preview is review
-evidence only: it does not replace the gated Pages release or prove that the
-production API and provider capabilities are live.
+evidence only: without a Turnstile site key it visibly disables sponsor intake,
+vendor intake, and private-access email. It does not replace the gated Pages
+release or prove that the production API and provider capabilities are live.
 
 That is the expected demo URL after a successful workflow and Pages enablement. Verify it directly before sharing it. To swap in `sandfest.heyelab.com`:
 
