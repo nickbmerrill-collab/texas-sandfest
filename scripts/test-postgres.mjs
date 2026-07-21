@@ -1851,21 +1851,14 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
     description: "Synthetic Postgres marketplace offering for retail, artisan, and service vendors.",
     inclusions: ["Marketplace booth footprint", "Vendor credentials", "Published booth listing"]
   }, { auth: true });
-  const reopenedMarketplacePublication = await request(base, "POST", "/api/admin/partner-catalog-publication", {
-    catalog: "vendor",
-    publish: true,
-    sourceUrl: "https://www.texassandfest.org/vendors",
-    sourceCheckedAt: new Date().toISOString()
-  }, { auth: true });
   const postgresVendorOpeningState = await request(base, "GET", "/api/admin/partners", undefined, { auth: true });
   const persistedPostgresVendorInterest = postgresVendorOpeningState.data.applications?.find(item => item.id === postgresVendorInterest.data.application?.id);
-  check("Postgres vendor interest survives a catalog opening", closedMarketplaceOffering.status === 200
+  check("Postgres vendor interest survives a pending catalog opening", closedMarketplaceOffering.status === 200
     && closedMarketplacePublication.status === 200
     && postgresVendorInterest.status === 201
     && postgresVendorInterest.data.application?.intakeMode === "interest"
     && reopenedMarketplaceOffering.status === 200
-    && reopenedMarketplacePublication.status === 200
-    && reopenedMarketplacePublication.data.readiness?.ready === true
+    && reopenedMarketplaceOffering.data.publicationReadiness?.ready === false
     && reopenedMarketplaceOffering.data.vendorOffering?.intakeMode === "application"
     && reopenedMarketplaceOffering.data.vendorOffering?.amount === 125000
     && persistedPostgresVendorInterest?.intakeMode === "interest"
@@ -1876,17 +1869,37 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
     ...commonEnv,
     SANDFEST_WORKER_ONCE: "true",
     SANDFEST_WORKER_BATCH: "50"
-  }, "Postgres worker");
+  }, "Postgres worker with pending vendor catalog");
+  const pendingCatalogWorkerStatus = await readPlatformDoc(ROOT, "workerStatus", null);
+  const partnerDocWhileVendorCatalogPending = await readPlatformDoc(ROOT, "partnerOps", null);
+  const pendingVendorOpeningDrafts = partnerDocWhileVendorCatalogPending?.followups?.filter(item => item.applicationId === postgresVendorInterest.data.application?.id && item.kind === "vendor_applications_open") || [];
+  check("pending vendor catalog blocks opening automation", pendingCatalogWorkerStatus?.state === "stopped"
+    && pendingCatalogWorkerStatus?.lastBatchSize === 18
+    && pendingCatalogWorkerStatus?.lastGeneratedVendorOpeningDrafts === 0
+    && pendingVendorOpeningDrafts.length === 0);
+
+  const reopenedMarketplacePublication = await request(base, "POST", "/api/admin/partner-catalog-publication", {
+    catalog: "vendor",
+    publish: true,
+    sourceUrl: "https://www.texassandfest.org/vendors",
+    sourceCheckedAt: new Date().toISOString()
+  }, { auth: true });
+  check("reviewed vendor catalog can be published", reopenedMarketplacePublication.status === 200 && reopenedMarketplacePublication.data.readiness?.ready === true);
+  await runChild(["scripts/worker.mjs"], {
+    ...commonEnv,
+    SANDFEST_WORKER_ONCE: "true",
+    SANDFEST_WORKER_BATCH: "50"
+  }, "Postgres worker with published vendor catalog");
   const jobs = await listJobs(ROOT, { limit: 100 });
   check("worker completed intake, extraction, recovery, and dispatch jobs", jobs.length === 18 && jobs.every(job => job.status === "done"), `${jobs.filter(job => job.status === "done").length}/${jobs.length} done`);
   const workerStatus = await readPlatformDoc(ROOT, "workerStatus", null);
-  check("worker heartbeat persisted", workerStatus?.state === "stopped" && workerStatus?.lastBatchSize === 18);
+  check("worker heartbeat persists vendor opening automation", workerStatus?.state === "stopped" && workerStatus?.lastGeneratedVendorOpeningDrafts === 1);
   const postgresDocumentsAfterWorker = await request(base, "GET", "/api/admin/documents", undefined, { auth: true });
   const extractedPostgresBoardBriefing = postgresDocumentsAfterWorker.data.documents?.find(item => item.id === postgresBoardBriefingUpload.data.document?.id);
   check("Postgres worker persists extracted board briefing", extractedPostgresBoardBriefing?.extractionStatus === "ready" && extractedPostgresBoardBriefing?.textPreview?.includes("TEXAS SANDFEST") && extractedPostgresBoardBriefing?.extractedCharacterCount > 5_000 && extractedPostgresBoardBriefing?.extractedChunkCount > 0 && !JSON.stringify(extractedPostgresBoardBriefing).includes("extractionChunks"));
   const partnerDocAfterWorker = await readPlatformDoc(ROOT, "partnerOps", null);
   const repairedPostgresDocumentTasks = partnerDocAfterWorker?.tasks?.filter(task => task.relatedEntityType === "incoming_document" && task.relatedEntityId === postgresDocument.id) || [];
-  check("worker repairs missing document review routing", workerStatus?.lastReconciledDocumentReviewTasks === 1 && repairedPostgresDocumentTasks.length === 1 && repairedPostgresDocumentTasks[0]?.status === "in_progress" && repairedPostgresDocumentTasks[0]?.assigneeId === "operations");
+  check("worker repairs missing document review routing", pendingCatalogWorkerStatus?.lastReconciledDocumentReviewTasks === 1 && repairedPostgresDocumentTasks.length === 1 && repairedPostgresDocumentTasks[0]?.status === "in_progress" && repairedPostgresDocumentTasks[0]?.assigneeId === "operations");
   const sponsorAcknowledgment = partnerDocAfterWorker?.followups?.find(item => item.applicationId === sponsorApplication.id && item.kind === "application_received");
   const postgresPaymentAdjustment = partnerDocAfterWorker?.followups?.find(item => item.paymentId === postgresPayment.data.payment?.id && item.kind === "payment_adjustment");
   const deliveredPortalRecovery = partnerDocAfterWorker?.followups?.find(item => item.applicationId === sponsorApplication.id && item.kind === "portal_access_recovery");
