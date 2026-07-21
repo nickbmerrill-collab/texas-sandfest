@@ -177,6 +177,10 @@ async function responsiveLayoutObservation(page, { surface, url, width, height }
     const workspaceLinks = [...document.querySelectorAll(".admin-workspace-nav a")].filter(visible);
     const readinessFilters = [...document.querySelectorAll(".admin-readiness-filter button")].filter(visible);
     const sourceLinks = [...document.querySelectorAll(".admin-prospect-source a")].filter(visible);
+    const hero = document.querySelector(".hero");
+    const nextSection = hero?.nextElementSibling;
+    const nextHeadingBounds = nextSection?.querySelector(".lb-header")?.getBoundingClientRect();
+    const nextHeadingTop = nextHeadingBounds ? nextHeadingBounds.top + window.scrollY : null;
     return {
       surface,
       width,
@@ -197,6 +201,12 @@ async function responsiveLayoutObservation(page, { surface, url, width, height }
       sourceLinks: {
         count: sourceLinks.length,
         targetIssues: sourceLinks.map(dimensions).filter(item => item.width < 24 || item.height < 24)
+      },
+      nextSectionHint: {
+        id: nextSection?.id || null,
+        headingVisiblePixels: nextHeadingBounds && nextHeadingTop != null
+          ? Math.max(0, Math.min(window.innerHeight, nextHeadingTop + nextHeadingBounds.height) - Math.max(0, nextHeadingTop))
+          : 0
       }
     };
   }, { surface, width, height });
@@ -336,6 +346,19 @@ if (visitorUrl && operationsUrl) {
         playbackCameras: [...document.querySelectorAll("#island-camera-grid article small")]
           .filter(item => item.textContent?.includes("playback")).length,
         conditionGridText: document.querySelector("#island-camera-grid")?.textContent?.replace(/\s+/g, " ").trim(),
+        nextSectionHint: (() => {
+          const hero = document.querySelector(".hero");
+          const nextSection = hero?.nextElementSibling;
+          const nextHeading = nextSection?.querySelector(".lb-header");
+          const headingBounds = nextHeading?.getBoundingClientRect();
+          const headingTop = headingBounds ? headingBounds.top + window.scrollY : null;
+          return {
+            id: nextSection?.id || null,
+            headingVisiblePixels: headingBounds && headingTop != null
+              ? Math.max(0, Math.min(window.innerHeight, headingTop + headingBounds.height) - Math.max(0, headingTop))
+              : 0
+          };
+        })(),
         overflowPixels: Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth)
       }));
     } catch (error) {
@@ -358,10 +381,12 @@ if (visitorUrl && operationsUrl) {
         || item.operationsSurface !== operationsUrl
         || item.operationsSurfaceTarget !== ""
         || item.operationsSurfaceTag !== "A"
+        || item.nextSectionHint?.id !== "live-beach"
+        || item.nextSectionHint?.headingVisiblePixels < 24
       ) {
         throw new Error(observations.visitorError || "The visitor shell did not reach board-demo mode.");
       }
-      return "Visitor title, festival heading, visible Demo state, same-tab Operations switch, new-tab operator handoff, and an operations-free visitor navigation rendered.";
+      return `Visitor title, festival heading, visible Demo state, ${Math.round(item.nextSectionHint.headingVisiblePixels)}px Live Beach cue, same-tab Operations switch, new-tab operator handoff, and an operations-free visitor navigation rendered.`;
     });
     await inspect("public_intake", "Vendor and sponsor intake", "Inspect the public catalog API and signup form controls.", async () => {
       const item = observations.visitor;
@@ -753,6 +778,12 @@ if (visitorUrl && operationsUrl) {
             width: 320,
             height: 740
           }),
+          visitor1024: await responsiveLayoutObservation(responsivePage, {
+            surface: "visitor",
+            url: visitorUrl,
+            width: 1024,
+            height: 768
+          }),
           operations320: await responsiveLayoutObservation(responsivePage, {
             surface: "operations",
             url: operationsUrl,
@@ -777,7 +808,7 @@ if (visitorUrl && operationsUrl) {
       const snapshots = observations.responsive;
       if (!snapshots) throw new Error(observations.responsiveError || "Responsive presentation checks did not run.");
       const expectedWorkspaceLabels = ["Overview", "Documents", "Partners", "Accounting", "Staffing", "Island conditions", "Systems"];
-      const required = [snapshots.visitor320, snapshots.operations320, snapshots.operations768];
+      const required = [snapshots.visitor320, snapshots.visitor1024, snapshots.operations320, snapshots.operations768];
       const issue = required.find(item => (
         !item
         || item.controlCount < 1
@@ -787,6 +818,12 @@ if (visitorUrl && operationsUrl) {
         || item.sourceLinks.targetIssues.length > 0
       ));
       if (issue) throw new Error(`Responsive target or overflow failure: ${JSON.stringify(issue)}`);
+      if (
+        snapshots.visitor320.nextSectionHint.id !== "live-beach"
+        || snapshots.visitor320.nextSectionHint.headingVisiblePixels < 24
+        || snapshots.visitor1024.nextSectionHint.id !== "live-beach"
+        || snapshots.visitor1024.nextSectionHint.headingVisiblePixels < 24
+      ) throw new Error(`A Visitor hero hides the Live Beach cue: ${JSON.stringify({ mobile: snapshots.visitor320.nextSectionHint, tablet: snapshots.visitor1024.nextSectionHint })}`);
       for (const item of [snapshots.operations320, snapshots.operations768]) {
         if (
           item.workspaceNavigation.labels.join("|") !== expectedWorkspaceLabels.join("|")
@@ -796,7 +833,7 @@ if (visitorUrl && operationsUrl) {
           || item.readinessFilters.clippedLabels.length > 0
         ) throw new Error(`Operations navigation or readiness labels are clipped: ${JSON.stringify(item)}`);
       }
-      return `The active Visitor fits at 320x740 and Operations fits at 320x740 and 768x844 with ${required.reduce((total, item) => total + item.controlCount, 0)} visible controls at least 24px, unclipped workspace/readiness labels, and no horizontal overflow.`;
+      return `The active Visitor fits at 320x740 and 1024x768 with ${Math.round(snapshots.visitor320.nextSectionHint.headingVisiblePixels)}px and ${Math.round(snapshots.visitor1024.nextSectionHint.headingVisiblePixels)}px Live Beach cues, and Operations fits at 320x740 and 768x844 with ${required.reduce((total, item) => total + item.controlCount, 0)} visible controls at least 24px, unclipped workspace/readiness labels, and no horizontal overflow.`;
     });
 
     await inspect("browser_health", "Browser render health", "Inspect browser errors and page-width layout on both presentation surfaces.", async () => {

@@ -373,10 +373,15 @@ try {
   ) {
     throw new Error(`Board browser rehearsal lacks complete command navigation evidence: ${JSON.stringify(commandNavigation)}`);
   }
+  const visitorHint = eagerBrowserResult.report.observations?.visitor?.nextSectionHint;
+  if (visitorHint?.id !== "live-beach" || visitorHint.headingVisiblePixels < 24) {
+    throw new Error(`Board browser rehearsal lacks a first-viewport Live Beach cue: ${JSON.stringify(visitorHint)}`);
+  }
   const responsive = eagerBrowserResult.report.observations?.responsive;
-  const responsiveSnapshots = [responsive?.visitor320, responsive?.operations320, responsive?.operations768];
+  const responsiveSnapshots = [responsive?.visitor320, responsive?.visitor1024, responsive?.operations320, responsive?.operations768];
   if (
     responsive?.visitor320?.width !== 320
+    || responsive?.visitor1024?.width !== 1024
     || responsive?.operations320?.width !== 320
     || responsive?.operations768?.width !== 768
     || responsiveSnapshots.some(item => (
@@ -385,6 +390,10 @@ try {
       || item.controlTargetIssues?.length !== 0
       || item.choiceTargetIssues?.length !== 0
     ))
+    || responsive?.visitor320?.nextSectionHint?.id !== "live-beach"
+    || responsive?.visitor320?.nextSectionHint?.headingVisiblePixels < 24
+    || responsive?.visitor1024?.nextSectionHint?.id !== "live-beach"
+    || responsive?.visitor1024?.nextSectionHint?.headingVisiblePixels < 24
   ) {
     throw new Error(`Board browser rehearsal lacks complete phone/tablet evidence: ${JSON.stringify(responsive)}`);
   }
