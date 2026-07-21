@@ -27,7 +27,11 @@ capability, current public data, checkout-ready tickets, published sponsor and
 vendor catalogs, live Island Conditions, and CORS for the Pages and admin
 origins. A red `/ready`, unavailable provider, unpublished catalog, stale live
 condition, or wrong origin fails the workflow with no Pages artifact. Only the
-gated production build and deploy jobs can publish after that proof passes.
+gated production build and deploy jobs can publish after that proof passes. The
+deploy job repeats the same production API proof after any GitHub environment
+approval and immediately before `deploy-pages`. If production regresses while
+the artifact is building or waiting for approval, the release stops without
+changing the currently published site.
 
 Repository configuration, workflow success, the GitHub Pages URL, custom DNS, and customer-visible rendering must each be verified directly before this phase is marked live. A local build or committed workflow is not deploy proof.
 
@@ -72,7 +76,9 @@ This static meta policy does not replace response headers. In particular, browse
    Agreement is accepted. The release remains deferred while either variable is
    missing.
 
-The next successful `CI` run for a direct `main` push publishes to:
+The next successful `CI` run for a direct `main` push follows this release
+sequence: pre-build API proof, visitor build and artifact upload, environment
+approval, final API recheck, then publication to:
 
 ```
 https://nickbmerrill-collab.github.io/texas-sandfest/
