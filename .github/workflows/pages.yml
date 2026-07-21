@@ -51,6 +51,13 @@ jobs:
         env:
           SANDFEST_APPLE_APP_ID_PREFIX: ${{ vars.SANDFEST_APPLE_APP_ID_PREFIX }}
         run: test -n "$SANDFEST_APPLE_APP_ID_PREFIX" || (echo "::error::Set repository variable SANDFEST_APPLE_APP_ID_PREFIX to the signed app's 10-character application identifier prefix." && exit 1)
+      - name: Prove production API is launch-ready
+        env:
+          SANDFEST_APPLE_APP_ID_PREFIX: ${{ vars.SANDFEST_APPLE_APP_ID_PREFIX }}
+          SANDFEST_LIVE_PUBLIC_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+          SANDFEST_LIVE_API_URL: https://sandfest-api.heyelab.com/
+          SANDFEST_LIVE_ADMIN_URL: https://sandfest-admin.heyelab.com/
+        run: npm run deployment:verify:api
       - name: Build visitor-only static site
         env:
           # Pages publishes at https://<owner>.github.io/<repo>/

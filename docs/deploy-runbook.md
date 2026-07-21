@@ -9,7 +9,7 @@ End-state hostnames (from `heyelab-backend-deployment.md`):
 | Admin console | `https://sandfest-admin.heyelab.com` |
 | Identity provider | `https://auth.heyelab.com` |
 
-This runbook gets you to those URLs in three phases. Public web first (zero risk, free), then API behind a one-click Render Blueprint, then DNS cutover.
+This runbook prepares the public release gate first, provisions the API behind a Render Blueprint, publishes the visitor artifact only after the API passes launch acceptance, and then performs DNS cutover.
 
 ## Phase 1 — Public web on GitHub Pages (enablement pending)
 
@@ -20,8 +20,14 @@ Apple Application Identifier Prefix are configured, that workflow records a
 successful deferred-release notice and performs no checkout, build, artifact
 upload, or deployment. This keeps the intentional provider and Apple-account
 deferrals visible without turning every otherwise-green `main` run red. Once
-both variables exist, only the gated production build and deploy jobs can
-publish.
+both variables exist, the build job runs `npm run deployment:verify:api`
+against the production API before compiling or uploading anything. That gate
+requires production identity, durable storage and queues, every required
+capability, current public data, checkout-ready tickets, published sponsor and
+vendor catalogs, live Island Conditions, and CORS for the Pages and admin
+origins. A red `/ready`, unavailable provider, unpublished catalog, stale live
+condition, or wrong origin fails the workflow with no Pages artifact. Only the
+gated production build and deploy jobs can publish after that proof passes.
 
 Repository configuration, workflow success, the GitHub Pages URL, custom DNS, and customer-visible rendering must each be verified directly before this phase is marked live. A local build or committed workflow is not deploy proof.
 
@@ -287,7 +293,7 @@ the last valid cache or bundled seed available and marks the app offline.
 - [ ] Enable GitHub Pages → Source: GitHub Actions
 - [ ] Accept the current Apple Developer Program License Agreement; confirm the app's real Application Identifier Prefix and create a valid distribution certificate/profile
 - [ ] Add `SANDFEST_TURNSTILE_SITE_KEY` and `SANDFEST_APPLE_APP_ID_PREFIX` repository variables; confirm Pages remains deferred while either is missing
-- [ ] Push `main` → full CI goes green → Pages workflow goes green → demo URL live
+- [ ] After the production API gate is green, push `main` → full CI goes green → API preflight passes → Pages workflow uploads and deploys the exact visitor artifact
 - [ ] `npm run test:render-blueprint` and authenticated `render blueprints validate render.yaml` both pass
 - [ ] Render Key Value and Postgres accept private-network connections only
 - [ ] Put the canonical public hostname behind security response headers; verify CSP, `frame-ancestors`, HSTS, `nosniff`, referrer, and permissions policies directly

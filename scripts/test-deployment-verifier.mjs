@@ -5,6 +5,7 @@ import {
   deploymentVerificationConfig,
   securityHeaderFailures,
   serviceWorkerCacheVersion,
+  verifyProductionApi,
   verifyLiveDeployment
 } from "../lib/deployment-verifier.mjs";
 import { sandfestAppleAppSiteAssociation } from "../lib/public-deep-links.mjs";
@@ -131,6 +132,27 @@ const fetchImpl = async (url, options = {}) => {
 console.log("\n=== Deployment verifier tests ===\n");
 const successful = await verifyLiveDeployment({ config, artifacts, fetchImpl });
 check("complete production surface passes", successful.ok && successful.summary.failed === 0);
+const apiOnly = await verifyProductionApi({ config, fetchImpl });
+check("API-only release gate reuses the complete production contract", apiOnly.ok
+  && apiOnly.checks.length > 10
+  && apiOnly.checks.every(item => item.surface === "api"));
+
+const unavailableReadyFetch = async (url, options = {}) => {
+  if (String(url) === new URL("ready", config.apiUrl).toString()) {
+    return new Response(JSON.stringify({
+      ok: false,
+      deployment: { production: true, ok: false, errors: 1, requiredCapabilities: config.requiredCapabilities },
+      checks: { storage: "postgres", worker: true, queue: true, deployment: false }
+    }), {
+      status: 503,
+      headers: { "content-type": "application/json", ...securityHeaders }
+    });
+  }
+  return fetchImpl(url, options);
+};
+const unavailableApi = await verifyProductionApi({ config, fetchImpl: unavailableReadyFetch });
+check("API-only release gate blocks a red readiness endpoint", !unavailableApi.ok
+  && unavailableApi.checks.some(item => item.id === "api.readiness" && !item.ok));
 
 const unsafeSponsorFetch = async (url, options = {}) => {
   if (String(url) === new URL("api/public/sponsors", config.apiUrl).toString()) {
