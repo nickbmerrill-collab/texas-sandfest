@@ -226,9 +226,16 @@ Checkout attempts and webhook events are stored locally under `data/processed/or
 
 ```bash
 npm run test:ios-xcode
+npm run test:ios-device
 ```
 
 The Xcode gate selects an available iPhone simulator, runs the native XCTest target, and compiles an optimized simulator build with Swift warnings treated as errors. It uses `/Applications/Xcode.app/Contents/Developer` when the shell's global developer selector still points at standalone Command Line Tools. The committed project can be regenerated with `cd ios && xcodegen generate` when XcodeGen is installed.
+
+The device-signing gate is a local release check. It uses the committed Apple
+development team with Xcode automatic signing, allows Xcode to refresh the
+development certificate and profile from the signed-in account, builds the
+Release configuration for iOS hardware, and verifies the resulting app
+signature. It does not upload an archive or submit anything to TestFlight.
 
 The initial native SwiftUI scaffold lives under `ios/TexasSandFest/`. It now has a Customer/Admin mode switch. Customer mode covers Today, Schedule, Beach, Sculptors, Ask Sandy, and Tickets. Admin mode covers Command, Incidents, Partners, Finance, and Setup.
 

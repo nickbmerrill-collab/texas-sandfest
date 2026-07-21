@@ -12,6 +12,11 @@ open TexasSandFest.xcodeproj
 
 From the repository root, `npm run test:ios-xcode` selects an available iPhone simulator, runs the XCTest suite, and verifies an optimized simulator build with Swift warnings treated as errors. The committed project includes the test target, so XcodeGen is only needed after changing `project.yml`.
 
+`npm run test:ios-device` performs the separate local signing gate. Xcode uses
+the committed development team and the signed-in Apple account to refresh
+automatic provisioning, builds a Release app for iOS hardware, and verifies
+the resulting signature. The command does not upload or submit the app.
+
 ## Current screens
 
 - Customer mode

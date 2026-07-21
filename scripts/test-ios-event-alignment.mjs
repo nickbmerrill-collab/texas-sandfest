@@ -23,6 +23,7 @@ const canonical = JSON.parse(await read("data/processed/app-bootstrap.json"));
 const iosSeed = JSON.parse(await read("ios/TexasSandFest/Resources/sandfest-seed.json"));
 const entitlements = await read("ios/TexasSandFest/TexasSandFest.entitlements");
 const project = parseYaml(await read("ios/project.yml"));
+const xcodeProject = await read("ios/TexasSandFest.xcodeproj/project.pbxproj");
 
 assert.deepEqual(
   iosSeed,
@@ -72,6 +73,13 @@ assert.equal(entitlements.includes(`<string>${SANDFEST_ASSOCIATED_DOMAIN_ENTITLE
 assert.deepEqual(
   project.targets?.TexasSandFest?.entitlements?.properties?.["com.apple.developer.associated-domains"],
   [SANDFEST_ASSOCIATED_DOMAIN_ENTITLEMENT]
+);
+const developmentTeam = String(project.settings?.DEVELOPMENT_TEAM || "").trim();
+assert.match(developmentTeam, /^[A-Z0-9]{10}$/, "XcodeGen must declare a valid Apple development team.");
+assert.equal(
+  xcodeProject.includes(`DEVELOPMENT_TEAM = ${developmentTeam};`),
+  true,
+  "The committed Xcode project must use the XcodeGen development team."
 );
 
 assert.deepEqual(canonicalPublicWebRoute("/tickets"), {
