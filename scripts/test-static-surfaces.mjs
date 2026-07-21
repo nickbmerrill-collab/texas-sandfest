@@ -83,6 +83,9 @@ const mediaDerivatives = JSON.parse(await readFile(path.join(publicDir, "assets"
 const publicMediaManifest = JSON.parse(await readFile(path.join(publicDir, "assets", "sandfest-media", "media-manifest.json"), "utf8"));
 const robots = await readFile(path.join(publicDir, "robots.txt"), "utf8");
 const publicWorker = await readFile(path.join(publicDir, "sw.js"), "utf8");
+const vercelGlobalHeaders = Object.fromEntries((vercelConfig.headers || [])
+  .find(rule => rule.source === "/(.*)")?.headers
+  ?.map(header => [header.key.toLowerCase(), header.value]) || []);
 const [publicScripts, publicInitialScripts, publicOptionalScripts, publicStyles, publicPreferredFonts, publicOfflineFonts, adminScripts, adminInitialScripts, adminOptionalScripts, adminStyles] = await Promise.all([
   assetSizeSummary(publicDir, publicScriptFiles),
   assetSizeSummary(publicDir, publicInitialScriptFiles),
@@ -112,8 +115,15 @@ const fictionalPublicContentMarkers = [
 assert(!(await exists(path.join(publicDir, "admin.html"))), "Public artifact must not contain admin.html.");
 assert(!(await exists(path.join(adminDir, "admin.html"))), "Admin artifact must promote admin.html to the root entry.");
 assert(vercelConfig.framework === "vite", "Vercel PR previews must use the Vite framework preset.");
-assert(vercelConfig.buildCommand === "node scripts/verify-vercel-project.mjs && SANDFEST_DEPLOYMENT_ENV=$VERCEL_ENV npm run build:public", "Vercel builds must verify project isolation, inherit the deployment environment, and build only the public surface.");
+assert(vercelConfig.buildCommand === "node scripts/verify-vercel-project.mjs && node scripts/verify-vercel-release.mjs && SANDFEST_DEPLOYMENT_ENV=$VERCEL_ENV npm run build:public", "Vercel must verify project isolation and the canonical production release before building only the public surface.");
 assert(vercelConfig.outputDirectory === "dist-public", "Vercel PR previews must publish only the isolated public artifact.");
+assert(vercelGlobalHeaders["content-security-policy"]?.includes("frame-ancestors 'none'")
+  && vercelGlobalHeaders["content-security-policy"]?.includes("https://challenges.cloudflare.com")
+  && vercelGlobalHeaders["permissions-policy"] === "camera=(), microphone=(), geolocation=()"
+  && vercelGlobalHeaders["referrer-policy"] === "no-referrer"
+  && vercelGlobalHeaders["strict-transport-security"] === "max-age=63072000"
+  && vercelGlobalHeaders["x-content-type-options"] === "nosniff"
+  && vercelGlobalHeaders["x-frame-options"] === "DENY", "Vercel must enforce the canonical visitor security policy with response headers.");
 const ciTriggers = ciWorkflow.on || {};
 const ciPlatformSteps = ciWorkflow.jobs?.platform?.steps || [];
 const manualVerificationNotice = ciPlatformSteps.find(step => step.name === "Record manual verification scope");
@@ -179,6 +189,14 @@ const csp = Object.fromEntries(cspMatch[1].split(";").map(directive => directive
   const [name, ...values] = directive.split(/\s+/);
   return [name, values];
 }));
+const vercelCsp = Object.fromEntries(vercelGlobalHeaders["content-security-policy"].split(";").map(directive => directive.trim()).filter(Boolean).map(directive => {
+  const [name, ...values] = directive.split(/\s+/);
+  return [name, values];
+}));
+assert(vercelCsp["frame-ancestors"]?.join(" ") === "'none'", "Vercel CSP must prevent the canonical visitor from being framed.");
+for (const [name, values] of Object.entries(csp)) {
+  assert(vercelCsp[name]?.join(" ") === values.join(" "), `Vercel CSP must mirror the public artifact's ${name} directive.`);
+}
 assert(csp["default-src"]?.join(" ") === "'self'", "Public CSP default-src must be self-only.");
 assert(csp["script-src"]?.join(" ") === "'self' https://challenges.cloudflare.com", "Public CSP scripts must be limited to the app and Turnstile.");
 assert(!csp["script-src"].includes("'unsafe-inline'") && !csp["script-src"].includes("'unsafe-eval'"), "Public CSP must not permit inline or evaluated scripts.");

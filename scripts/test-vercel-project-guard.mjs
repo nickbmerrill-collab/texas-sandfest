@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { verifyVercelRelease } from "./verify-vercel-release.mjs";
 
 const script = fileURLToPath(new URL("./verify-vercel-project.mjs", import.meta.url));
 const baseEnv = { ...process.env };
@@ -43,4 +44,49 @@ const wrongRepository = run({
 assert.equal(wrongRepository.status, 1);
 assert.match(wrongRepository.stderr, /not the Texas SandFest repository/);
 
-console.log("Vercel project guard: 4 passed, 0 failed.");
+const outsideRelease = await verifyVercelRelease({ env: {} });
+assert.equal(outsideRelease.ok, true);
+assert.equal(outsideRelease.skipped, true);
+
+const previewRelease = await verifyVercelRelease({
+  env: { VERCEL: "1", VERCEL_ENV: "preview" }
+});
+assert.equal(previewRelease.ok, true);
+assert.equal(previewRelease.skipped, true);
+
+const missingProductionConfig = await verifyVercelRelease({
+  env: { VERCEL: "1", VERCEL_ENV: "production" }
+});
+assert.equal(missingProductionConfig.ok, false);
+assert.match(missingProductionConfig.failures.join(" "), /VITE_SANDFEST_TURNSTILE_SITE_KEY/);
+assert.match(missingProductionConfig.failures.join(" "), /SANDFEST_APPLE_APP_ID_PREFIX/);
+
+const testKeyProduction = await verifyVercelRelease({
+  env: {
+    VERCEL: "1",
+    VERCEL_ENV: "production",
+    VITE_SANDFEST_TURNSTILE_SITE_KEY: "1x00000000000000000000AA",
+    SANDFEST_APPLE_APP_ID_PREFIX: "ABCDE12345"
+  }
+});
+assert.equal(testKeyProduction.ok, false);
+assert.match(testKeyProduction.failures.join(" "), /reject Cloudflare Turnstile test site keys/);
+
+let productionRequests = 0;
+const unavailableProduction = await verifyVercelRelease({
+  env: {
+    VERCEL: "1",
+    VERCEL_ENV: "production",
+    VITE_SANDFEST_TURNSTILE_SITE_KEY: "production_site_key_0123456789",
+    SANDFEST_APPLE_APP_ID_PREFIX: "ABCDE12345"
+  },
+  fetchImpl: async () => {
+    productionRequests += 1;
+    throw new Error("production unavailable");
+  }
+});
+assert.equal(unavailableProduction.ok, false);
+assert.equal(productionRequests, 10);
+assert.match(unavailableProduction.failures.join(" "), /Production API contract failed/);
+
+console.log("Vercel project and release guard: 9 passed, 0 failed.");
