@@ -74,11 +74,21 @@ const TURNSTILE_TEST_SITE_KEYS = new Set([
 export function validatePublicBuildEnvironment(env, target = buildTarget) {
   if (target !== "public" || env.SANDFEST_DEPLOYMENT_ENV !== "production") return;
   const siteKey = String(env.VITE_SANDFEST_TURNSTILE_SITE_KEY || "").trim();
-  if (siteKey.length < 20 || !/^[A-Za-z0-9_-]+$/.test(siteKey)) {
-    throw new Error("Production public builds require VITE_SANDFEST_TURNSTILE_SITE_KEY.");
-  }
-  if (TURNSTILE_TEST_SITE_KEYS.has(siteKey) && env.SANDFEST_BUILD_VERIFICATION !== "true") {
-    throw new Error("Production public builds reject Cloudflare Turnstile test site keys.");
+  // Turnstile is optional (SANDFEST_TURNSTILE_ENABLED defaults to false, and the
+  // frontend guards every use of the site key). Only enforce a valid key when one
+  // is actually provided; a missing key ships the public forms without the
+  // Cloudflare bot-check widget rather than failing the build.
+  if (siteKey) {
+    if (siteKey.length < 20 || !/^[A-Za-z0-9_-]+$/.test(siteKey)) {
+      throw new Error("VITE_SANDFEST_TURNSTILE_SITE_KEY is set but is not a valid Turnstile site key.");
+    }
+    if (TURNSTILE_TEST_SITE_KEYS.has(siteKey) && env.SANDFEST_BUILD_VERIFICATION !== "true") {
+      throw new Error("Production public builds reject Cloudflare Turnstile test site keys.");
+    }
+  } else {
+    console.warn(
+      "[sandfest] VITE_SANDFEST_TURNSTILE_SITE_KEY not set — building the public site without Cloudflare Turnstile bot protection."
+    );
   }
   normalizeAppleApplicationIdentifierPrefix(env.SANDFEST_APPLE_APP_ID_PREFIX);
 }
