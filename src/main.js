@@ -18,9 +18,7 @@ import {
   partnerPortalSafeHash,
   shouldForgetPartnerPortalAccess
 } from "../lib/partner-portal-session.mjs";
-import { publicVendorOffering } from "../lib/vendor-offerings.mjs";
 import { partnerContactNotice } from "../lib/partner-consent.mjs";
-import { publicSponsorPackage } from "../lib/sponsor-packages.mjs";
 import { publicIslandConditionsRefreshDelay } from "../lib/island-conditions.mjs";
 import { DEFAULT_EVENT_ID } from "../lib/event-context.mjs";
 import { publicSculptorRosterPublication } from "../lib/public-roster.mjs";
@@ -5614,7 +5612,7 @@ async function loadPublicSponsorPackages() {
       message: String(data.publication?.message || "The current sponsorship program has not been published yet.")
     };
     publicSponsorPackages = publicSponsorProgram.available && Array.isArray(data.sponsorPackages)
-      ? data.sponsorPackages.map(publicSponsorPackage)
+      ? data.sponsorPackages
       : [];
     renderSponsorPackageChoices();
   } catch {
@@ -5708,7 +5706,7 @@ async function loadPublicVendorOfferings() {
       message: String(data.publication?.message || "The current vendor program has not been published yet.")
     };
     publicVendorOfferings = publicVendorProgram.available && Array.isArray(data.vendorOfferings)
-      ? data.vendorOfferings.map(publicVendorOffering)
+      ? data.vendorOfferings
       : [];
     renderVendorOfferingChoices();
   } catch {
