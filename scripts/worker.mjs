@@ -1094,6 +1094,7 @@ async function tick() {
     jobs: jobs.length,
     generatedDrafts,
     generatedPaymentDrafts,
+    generatedVendorOpeningDrafts,
     generatedTaskDrafts,
     reconciledDocumentReviewTasks,
     generatedMilestoneDrafts,
@@ -1121,6 +1122,7 @@ if (ONCE) {
       lastBatchSize: result.jobs,
       lastGeneratedDrafts: result.generatedDrafts,
       lastGeneratedPaymentDrafts: result.generatedPaymentDrafts,
+      lastGeneratedVendorOpeningDrafts: result.generatedVendorOpeningDrafts,
       lastGeneratedTaskDrafts: result.generatedTaskDrafts,
       lastReconciledDocumentReviewTasks: result.reconciledDocumentReviewTasks,
       lastGeneratedOutreachDrafts: result.generatedOutreachDrafts,
@@ -1145,7 +1147,7 @@ process.on("SIGTERM", () => { stopped = true; });
 while (!stopped) {
   try {
     const processed = await tick();
-    await writeHeartbeat("running", { lastBatchSize: processed.jobs, lastGeneratedDrafts: processed.generatedDrafts, lastGeneratedPaymentDrafts: processed.generatedPaymentDrafts, lastGeneratedTaskDrafts: processed.generatedTaskDrafts, lastReconciledDocumentReviewTasks: processed.reconciledDocumentReviewTasks, lastGeneratedOutreachDrafts: processed.generatedOutreachDrafts });
+    await writeHeartbeat("running", { lastBatchSize: processed.jobs, lastGeneratedDrafts: processed.generatedDrafts, lastGeneratedPaymentDrafts: processed.generatedPaymentDrafts, lastGeneratedVendorOpeningDrafts: processed.generatedVendorOpeningDrafts, lastGeneratedTaskDrafts: processed.generatedTaskDrafts, lastReconciledDocumentReviewTasks: processed.reconciledDocumentReviewTasks, lastGeneratedOutreachDrafts: processed.generatedOutreachDrafts });
   } catch (error) {
     if (error?.code === RUNTIME_OWNERSHIP_ERROR_CODE) {
       ownershipRevoked = true;
