@@ -89,7 +89,10 @@ signals and their mouse/keyboard workspace navigation, budget, payment, and key-
 volunteer, and team assignments, sponsor/vendor fulfillment, geofenced
 outreach with an invitation-ready prospect, private document extraction,
 deferred live-accounting label, browser
-errors, and desktop overflow without submitting a form or changing demo data.
+errors, desktop overflow, and the exact active Visitor and Operations layouts at
+320px and 768px without submitting a form or changing demo data. The responsive
+gate rejects horizontal overflow, clipped Operations navigation or readiness
+labels, and any visible control or choice target below 24px.
 
 Use the reset icon in the Operations header when you want to discard
 demonstration changes and restore the synthetic starting state. After

@@ -4502,8 +4502,11 @@ time {
 }
 
 .lb-foot a {
+  align-items: center;
   color: var(--lb-navy);
+  display: inline-flex;
   font-weight: 600;
+  min-height: 24px;
   text-decoration: none;
   border-bottom: 1px solid currentColor;
 }
@@ -5419,7 +5422,7 @@ body.mode-ops header nav a[data-audience="public"] {
   gap: 8px 14px;
   margin: -10px 0 0;
 }
-.partner-program-note a { color: var(--deep); font-weight: 800; }
+.partner-program-note a { align-items: center; color: var(--deep); display: inline-flex; font-weight: 800; min-height: 24px; }
 .partner-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 .partner-form {
   align-content: start;
@@ -5498,7 +5501,7 @@ body.mode-ops header nav a[data-audience="public"] {
   border-left: 4px solid var(--sun);
   padding: 10px 12px;
 }
-.partner-availability-note a { color: var(--deep); font-weight: 800; }
+.partner-availability-note a { align-items: center; color: var(--deep); display: inline-flex; font-weight: 800; min-height: 24px; }
 .partner-data-use-note { border-top: 1px solid var(--line); padding-top: 12px; }
 .sponsor-invitation {
   background: #fff3ed;

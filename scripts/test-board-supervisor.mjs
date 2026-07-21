@@ -135,7 +135,7 @@ async function browserRehearsal(sessionFile, environment = {}) {
   } catch {
     throw new Error(`Board browser rehearsal returned invalid JSON:\n${result.stderr}\n${result.stdout}`);
   }
-  if (result.code !== 0 || !report.ok || report.passed !== 12 || report.total !== 12) {
+  if (result.code !== 0 || !report.ok || report.passed !== 13 || report.total !== 13) {
     throw new Error(`Board browser rehearsal failed ${report.passed}/${report.total}:\n${JSON.stringify(report, null, 2)}`);
   }
   return report;
@@ -372,6 +372,21 @@ try {
     || commandNavigation.maxElapsedMs > 2_000
   ) {
     throw new Error(`Board browser rehearsal lacks complete command navigation evidence: ${JSON.stringify(commandNavigation)}`);
+  }
+  const responsive = eagerBrowserResult.report.observations?.responsive;
+  const responsiveSnapshots = [responsive?.visitor320, responsive?.operations320, responsive?.operations768];
+  if (
+    responsive?.visitor320?.width !== 320
+    || responsive?.operations320?.width !== 320
+    || responsive?.operations768?.width !== 768
+    || responsiveSnapshots.some(item => (
+      !item
+      || item.overflowPixels !== 0
+      || item.controlTargetIssues?.length !== 0
+      || item.choiceTargetIssues?.length !== 0
+    ))
+  ) {
+    throw new Error(`Board browser rehearsal lacks complete phone/tablet evidence: ${JSON.stringify(responsive)}`);
   }
   console.log(`  ok board:rehearse waits through startup and renders the active visitor and operations session ${eagerBrowserResult.report.passed}/${eagerBrowserResult.report.total}`);
   const staleSourceSessionFile = path.join(temporary, "stale-source-session.json");
