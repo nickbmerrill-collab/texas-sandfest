@@ -28,6 +28,10 @@ refresh all default to disabled. Their credentials and camera approval evidence
 are deliberately absent from `render.yaml`, so Blueprint creation does not ask
 an operator to invent or transmit values for capabilities that are not ready.
 
+The dynamic services and data plane are co-located in Render's `ohio` region.
+Treat that as an initial provisioning decision: changing regions later requires
+replacement resources and a controlled data migration.
+
 With those integrations disabled, vendor and sponsor submissions still create
 reviewable applications, tasks, milestones, finance records, brand workspaces,
 and message drafts. Payments can be recorded and reconciled manually, while

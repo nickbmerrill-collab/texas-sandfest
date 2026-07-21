@@ -134,6 +134,12 @@ as an intentional hosting migration:
 - A paid `basic-1gb` `sandfest-db` Postgres database wired into `SANDFEST_DATABASE_URL`, with a 15 GB autoscaling disk and managed point-in-time recovery
 - All the production env vars from the deployment doc (JWKS, CORS, rate limits, public/admin base URLs)
 
+The API, worker, Key Value limiter, and Postgres database are pinned to Render's
+`ohio` region so private-network traffic and durable state stay co-located. Render
+does not support changing a service or database region in place after creation;
+confirm that `ohio` is still the approved production region in the Blueprint
+review before accepting the initial recurring cost.
+
 The API also reconciles every failing launch gate into the governed work board at startup and every 15 minutes. The Blueprint pins `SANDFEST_DEPLOYMENT_TASK_SYNC_INTERVAL_MS=900000`; production readiness remains red until startup reconciliation succeeds and becomes red after an automatic failure. Disabling it is a readiness failure, not a way to waive unresolved launch work.
 
 API, admin, and worker deploys follow `main` only after repository checks pass. The API owns provider configuration; the worker receives the exact QuickBooks, Brevo, Twilio, and portal-capability values through Render service references instead of duplicate dashboard entries. Run `npm run test:container-contract` and `npm run test:render-blueprint` before every container or Blueprint change. The container contract requires a frozen production-only dependency install, follows both API and worker import graphs, verifies every runtime package is declared in `dependencies`, enforces a non-root runtime stage, and rejects sensitive build-context paths. With the official Render CLI authenticated to the target workspace, also run `render blueprints validate render.yaml` before applying it. A passing static contract does not replace the first real Render image build and service smoke test.

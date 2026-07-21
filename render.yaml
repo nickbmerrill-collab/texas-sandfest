@@ -3,7 +3,7 @@
 # https://render.com/deploy?repo=https://github.com/nickbmerrill-collab/texas-sandfest
 #
 # Stands up:
-#   - Web service: sandfest-api (node, /ready probe, dedicated custom domain)
+#   - Web service: sandfest-api (Node, /health probe, separate /ready launch gate)
 #   - Static site: sandfest-admin (isolated ops bundle, custom domain sandfest-admin.heyelab.com)
 #   - Background worker: sandfest-worker (durable message, SMS, and sync jobs)
 #   - Postgres: sandfest-db (paid, PITR-capable production data plane)
@@ -74,6 +74,7 @@ services:
     repo: https://github.com/nickbmerrill-collab/texas-sandfest
     branch: main
     plan: starter
+    region: ohio
     healthCheckPath: /health
     autoDeployTrigger: checksPass
     domains:
@@ -260,6 +261,7 @@ services:
     repo: https://github.com/nickbmerrill-collab/texas-sandfest
     branch: main
     plan: starter
+    region: ohio
     autoDeployTrigger: checksPass
     dockerCommand: node scripts/worker.mjs
     maxShutdownDelaySeconds: 60
@@ -379,6 +381,7 @@ services:
   - type: keyvalue
     name: sandfest-rate-limit
     plan: starter
+    region: ohio
     ipAllowList: []
     maxmemoryPolicy: noeviction
     persistenceMode: off
@@ -386,6 +389,7 @@ services:
 databases:
   - name: sandfest-db
     plan: basic-1gb
+    region: ohio
     diskSizeGB: 15
     storageAutoscalingEnabled: true
     postgresMajorVersion: "16"
