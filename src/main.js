@@ -37,6 +37,7 @@ import {
   PUBLIC_GALLERY_MEDIA,
   selectPublicMediaAssets
 } from "../lib/public-media-selection.mjs";
+import { publicPartnerIntakeReadiness } from "../lib/public-partner-intake.mjs";
 
 const ADMIN_UI_ENABLED = import.meta.env.DEV || import.meta.env.VITE_SANDFEST_SURFACE === "admin";
 const adminOperationsUi = ADMIN_UI_ENABLED
@@ -99,6 +100,10 @@ const ADMIN_AUTH_MODE = ADMIN_ENTRY
   : "token";
 const CONFIGURED_ADMIN_API_BASE = String(import.meta.env.VITE_SANDFEST_API_BASE_URL || "").replace(/\/+$/, "");
 const TURNSTILE_SITE_KEY = ADMIN_ENTRY ? "" : String(import.meta.env.VITE_SANDFEST_TURNSTILE_SITE_KEY || "").trim();
+const PUBLIC_PARTNER_INTAKE = publicPartnerIntakeReadiness({
+  production: import.meta.env.PROD && !ADMIN_ENTRY,
+  turnstileSiteKey: TURNSTILE_SITE_KEY
+});
 const canonicalPublicRoute = ADMIN_ENTRY
   ? null
   : canonicalPublicWebRoute(window.location.pathname, { basePath: siteBase, search: window.location.search });
@@ -2079,11 +2084,12 @@ app.innerHTML = `
       </div>
       <p class="partner-program-note"><a href="https://www.texassandfest.org/sponsorship" target="_blank" rel="noopener noreferrer">View the current sponsorship program</a><span>Package availability and final fulfillment details are confirmed during review.</span></p>
       <div class="partner-form-grid">
-        <form id="sponsor-inquiry-form" class="partner-form" data-turnstile-action="sponsor_inquiry">
+        <form id="sponsor-inquiry-form" class="partner-form" data-turnstile-action="sponsor_inquiry" data-public-intake-state="${PUBLIC_PARTNER_INTAKE.ready ? "ready" : "unavailable"}">
           <div class="partner-form-heading">
             <div class="partner-form-title"><span>Sponsorship</span><h3>Start a partnership</h3></div>
             ${import.meta.env.DEV && BOARD_DEMO_ACCESS.enabled ? '<button class="button secondary partner-demo-preset" type="button" data-board-partner-preset="sponsor">Use demo sponsor</button>' : ""}
           </div>
+          ${PUBLIC_PARTNER_INTAKE.ready ? "" : '<p class="partner-availability-note" data-public-intake-unavailable>Online sponsorship inquiries are unavailable in this preview. View the <a href="https://www.texassandfest.org/sponsorship" target="_blank" rel="noopener noreferrer">current sponsorship program</a>.</p>'}
           <div id="sponsor-invitation" class="sponsor-invitation" hidden><strong>SandFest invitation</strong><span id="sponsor-invitation-copy"></span></div>
           <div class="partner-fields">
             <label>Business or organization<input name="organizationName" required maxlength="160" autocomplete="organization" /></label>
@@ -2098,14 +2104,15 @@ app.innerHTML = `
           <p class="partner-data-use-note">${escapeHtml(sponsorContactNotice.disclosure)}</p>
           <label class="partner-consent"><input name="consentToContact" type="checkbox" required /><span>${escapeHtml(sponsorContactNotice.checkboxLabel)}</span></label>
           <div class="partner-verification" data-turnstile-verification hidden><div data-turnstile-widget></div></div>
-          <button class="button primary" type="submit">Submit sponsorship inquiry</button>
+          <button class="button primary" type="submit" ${PUBLIC_PARTNER_INTAKE.ready ? "" : "disabled"}>${PUBLIC_PARTNER_INTAKE.ready ? "Submit sponsorship inquiry" : "Online sponsorship inquiry unavailable"}</button>
           <p class="partner-form-status" aria-live="polite"></p>
         </form>
-        <form id="vendor-application-form" class="partner-form" data-turnstile-action="vendor_application">
+        <form id="vendor-application-form" class="partner-form" data-turnstile-action="vendor_application" data-public-intake-state="${PUBLIC_PARTNER_INTAKE.ready ? "ready" : "unavailable"}">
           <div class="partner-form-heading">
             <div class="partner-form-title"><span id="vendor-intake-label">Vendor interest</span><h3 id="vendor-intake-heading">Join the vendor interest list</h3></div>
             ${import.meta.env.DEV && BOARD_DEMO_ACCESS.enabled ? '<button class="button secondary partner-demo-preset" type="button" data-board-partner-preset="vendor">Use demo vendor</button>' : ""}
           </div>
+          ${PUBLIC_PARTNER_INTAKE.ready ? "" : '<p class="partner-availability-note" data-public-intake-unavailable>Online vendor interest is unavailable in this preview. View the <a href="https://www.texassandfest.org/vendors" target="_blank" rel="noopener noreferrer">current vendor program</a>.</p>'}
           <div class="partner-fields">
             <label>Business name<input name="organizationName" required maxlength="160" autocomplete="organization" /></label>
             <label>Contact name<input name="contactName" required maxlength="120" autocomplete="name" /></label>
@@ -2123,7 +2130,7 @@ app.innerHTML = `
           <p id="vendor-data-use-note" class="partner-data-use-note">${escapeHtml(vendorInterestContactNotice.disclosure)}</p>
           <label class="partner-consent"><input name="consentToContact" type="checkbox" required /><span id="vendor-consent-label">${escapeHtml(vendorInterestContactNotice.checkboxLabel)}</span></label>
           <div class="partner-verification" data-turnstile-verification hidden><div data-turnstile-widget></div></div>
-          <button id="vendor-intake-submit" class="button primary" type="submit">Submit vendor interest</button>
+          <button id="vendor-intake-submit" class="button primary" type="submit" ${PUBLIC_PARTNER_INTAKE.ready ? "" : "disabled"}>${PUBLIC_PARTNER_INTAKE.ready ? "Submit vendor interest" : "Online vendor interest unavailable"}</button>
           <p class="partner-form-status" aria-live="polite"></p>
         </form>
       </div>
@@ -2141,15 +2148,16 @@ app.innerHTML = `
           </div>
           <p class="partner-form-status" aria-live="polite"></p>
         </form>
-        <form id="partner-portal-recovery-form" class="partner-recovery-form" data-turnstile-action="partner_access_recovery">
+        <form id="partner-portal-recovery-form" class="partner-recovery-form" data-turnstile-action="partner_access_recovery" data-public-intake-state="${PUBLIC_PARTNER_INTAKE.ready ? "ready" : "unavailable"}">
           <div class="partner-form-title"><span>Lost your link?</span><h3>Email private access</h3></div>
           <p>Enter the application reference and contact email used to apply. For privacy, every request receives the same confirmation.</p>
+          ${PUBLIC_PARTNER_INTAKE.ready ? "" : '<p class="partner-availability-note" data-public-intake-unavailable>Private-access email is unavailable in this preview. Contact the SandFest team for help with an existing application.</p>'}
           <div class="partner-status-fields">
             <label>Application reference<input name="reference" required maxlength="80" autocomplete="off" placeholder="TSF-V-000000" /></label>
             <label>Contact email<input name="contactEmail" required type="email" maxlength="254" autocomplete="email" placeholder="name@business.com" /></label>
           </div>
           <div class="partner-verification" data-turnstile-verification hidden><div data-turnstile-widget></div></div>
-          <button class="button secondary" type="submit">Email private access link</button>
+          <button class="button secondary" type="submit" ${PUBLIC_PARTNER_INTAKE.ready ? "" : "disabled"}>${PUBLIC_PARTNER_INTAKE.ready ? "Email private access link" : "Private-access email unavailable"}</button>
           <p class="partner-form-status" aria-live="polite"></p>
         </form>
         <div id="partner-status-result" class="partner-status-result" aria-live="polite" tabindex="-1">
@@ -5246,6 +5254,10 @@ async function loadPartnerPortalStatus(access, options = {}) {
 async function submitPartnerForm(form, endpoint) {
   const button = form.querySelector('button[type="submit"]');
   const status = form.querySelector(".partner-form-status");
+  if (!PUBLIC_PARTNER_INTAKE.ready) {
+    setFormStatus(status, PUBLIC_PARTNER_INTAKE.message, "error");
+    return;
+  }
   if (TURNSTILE_SITE_KEY && !partnerBotProtection.enabled) await initPartnerBotProtection();
   if (TURNSTILE_SITE_KEY && !partnerBotProtection.tokenFor(form)) {
     setFormStatus(status, "Complete the security check and try again.", "error");
@@ -5311,6 +5323,10 @@ async function submitPartnerForm(form, endpoint) {
 async function submitPartnerPortalRecovery(form) {
   const button = form.querySelector('button[type="submit"]');
   const status = form.querySelector(".partner-form-status");
+  if (!PUBLIC_PARTNER_INTAKE.ready) {
+    setFormStatus(status, PUBLIC_PARTNER_INTAKE.message, "error");
+    return;
+  }
   if (TURNSTILE_SITE_KEY && !partnerBotProtection.enabled) await initPartnerBotProtection();
   if (TURNSTILE_SITE_KEY && !partnerBotProtection.tokenFor(form)) {
     setFormStatus(status, "Complete the security check and try again.", "error");
@@ -5520,7 +5536,12 @@ function renderVendorIntakeMode(offering) {
   }
   if (disclosure) disclosure.textContent = notice.disclosure;
   if (consent) consent.textContent = notice.checkboxLabel;
-  if (submit) submit.textContent = isInterest ? "Submit vendor interest" : "Submit vendor application";
+  if (submit) {
+    submit.textContent = PUBLIC_PARTNER_INTAKE.ready
+      ? isInterest ? "Submit vendor interest" : "Submit vendor application"
+      : isInterest ? "Online vendor interest unavailable" : "Online vendor application unavailable";
+    submit.disabled = !PUBLIC_PARTNER_INTAKE.ready;
+  }
   if (cta) cta.textContent = isInterest ? "Join vendor interest list" : "Apply as a vendor";
 }
 

@@ -74,10 +74,9 @@ const TURNSTILE_TEST_SITE_KEYS = new Set([
 export function validatePublicBuildEnvironment(env, target = buildTarget) {
   if (target !== "public" || env.SANDFEST_DEPLOYMENT_ENV !== "production") return;
   const siteKey = String(env.VITE_SANDFEST_TURNSTILE_SITE_KEY || "").trim();
-  // Turnstile is optional (SANDFEST_TURNSTILE_ENABLED defaults to false, and the
-  // frontend guards every use of the site key). Only enforce a valid key when one
-  // is actually provided; a missing key ships the public forms without the
-  // Cloudflare bot-check widget rather than failing the build.
+  // A web-only preview may omit Turnstile, but the visitor bundle disables every
+  // protected intake action in that state. The production release workflow still
+  // requires the real site key before it can publish.
   if (siteKey) {
     if (siteKey.length < 20 || !/^[A-Za-z0-9_-]+$/.test(siteKey)) {
       throw new Error("VITE_SANDFEST_TURNSTILE_SITE_KEY is set but is not a valid Turnstile site key.");
@@ -87,7 +86,7 @@ export function validatePublicBuildEnvironment(env, target = buildTarget) {
     }
   } else {
     console.warn(
-      "[sandfest] VITE_SANDFEST_TURNSTILE_SITE_KEY not set — building the public site without Cloudflare Turnstile bot protection."
+      "[sandfest] VITE_SANDFEST_TURNSTILE_SITE_KEY not set - protected public intake will be disabled in this build."
     );
   }
   // The Apple application identifier prefix only powers iOS universal links,

@@ -21,6 +21,7 @@ import {
   evaluateBoardDemoReadiness
 } from "../lib/board-demo-readiness.mjs";
 import { boardDemoAccessPlugin } from "../vite.config.js";
+import { publicPartnerIntakeReadiness } from "../lib/public-partner-intake.mjs";
 import { buildRevenueLedgerView, partnerRevenueEntries, summarizeLedger, ticketRevenueEntries } from "../lib/revenue.mjs";
 import {
   createBudgetLine,
@@ -1323,14 +1324,21 @@ console.log("\n=== Pure library suite ===\n");
     SANDFEST_APPLE_APP_ID_PREFIX: "ABCDE12345",
     VITE_SANDFEST_TURNSTILE_SITE_KEY: "1x00000000000000000000AA"
   }, "public");
+  const localPublicIntake = publicPartnerIntakeReadiness({ production: false });
+  const unprotectedProductionIntake = publicPartnerIntakeReadiness({ production: true });
+  const protectedProductionIntake = publicPartnerIntakeReadiness({
+    production: true,
+    turnstileSiteKey: "production-site-key-0001"
+  });
 
   ok("Turnstile is optional locally and mandatory in production", !disabled.enabled && disabled.ready && missing.enabled && !missing.ready);
   ok("Turnstile production config pins official verification and public hostname", config.ready && config.siteverifyUrl === TURNSTILE_SITEVERIFY_URL && config.expectedHostname === "www.texassandfest.org" && !unsafeEndpoint.ready);
   ok("Turnstile validates token, hostname, action, IP, and retry identity", verified.ok && verificationRequest.url === TURNSTILE_SITEVERIFY_URL && verificationRequest.body.secret === productionEnv.SANDFEST_TURNSTILE_SECRET_KEY && verificationRequest.body.remoteip === "203.0.113.8" && /^[0-9a-f-]{36}$/.test(verificationRequest.body.idempotency_key));
   ok("Turnstile rejects wrong-action and expired challenges", !wrongAction.ok && wrongAction.errorCodes.includes("action-mismatch") && !failedChallenge.ok && failedChallenge.errorCodes.includes("timeout-or-duplicate"));
   ok("Turnstile fails closed when Siteverify is unavailable", !unavailable.ok && unavailable.unavailable === true);
-  ok("production public build requires a real Turnstile site key", missingPublicKeyRejected && testPublicKeyRejected);
-  ok("production public build requires the signed Apple application identifier prefix", missingApplePrefixRejected && malformedApplePrefixRejected);
+  ok("production web-only build allows a missing Turnstile key but rejects configured test keys", !missingPublicKeyRejected && testPublicKeyRejected);
+  ok("production web-only build allows no Apple prefix and validates a configured prefix", !missingApplePrefixRejected && malformedApplePrefixRejected);
+  ok("public partner intake remains available locally and fails closed in an unprotected production bundle", localPublicIntake.ready && !localPublicIntake.protectedByTurnstile && !unprotectedProductionIntake.ready && !unprotectedProductionIntake.protectedByTurnstile && protectedProductionIntake.ready && protectedProductionIntake.protectedByTurnstile);
 }
 
 // Public sculptor roster publication authority
