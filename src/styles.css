@@ -2618,6 +2618,19 @@ time {
   margin-bottom: 12px;
 }
 
+.admin-catalog-publication {
+  border: 1px solid rgba(25, 107, 112, 0.42);
+  margin-bottom: 12px;
+}
+
+.admin-catalog-publication [data-catalog-publication-state][data-state="ready"] {
+  color: #25643b;
+}
+
+.admin-catalog-publication [data-catalog-publication-state][data-state="pending"] {
+  color: #a0442b;
+}
+
 .admin-vendor-categories {
   border: 0;
   display: flex;
@@ -5504,6 +5517,18 @@ body.mode-ops header nav a[data-audience="public"] {
   text-transform: uppercase;
 }
 .partner-tier.is-selected small { color: var(--deep); }
+.partner-program-pending {
+  background: var(--white);
+  border: 1px dashed rgba(18, 51, 58, 0.35);
+  border-radius: 8px;
+  display: grid;
+  gap: 7px;
+  grid-column: 1 / -1;
+  min-height: 116px;
+  padding: 22px;
+}
+.partner-program-pending strong { color: var(--deep); font-size: 18px; }
+.partner-program-pending span { color: var(--muted); line-height: 1.55; }
 .partner-program-note {
   align-items: center;
   color: var(--muted);

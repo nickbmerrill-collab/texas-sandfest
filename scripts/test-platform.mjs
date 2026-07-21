@@ -259,6 +259,14 @@ import {
   updateSponsorPackageConfig
 } from "../lib/sponsor-packages.mjs";
 import {
+  holdPartnerCatalog,
+  partnerCatalogDigest,
+  partnerCatalogPublicationReadiness,
+  publishPartnerCatalog,
+  publicPartnerCatalogPublication,
+  refreshPartnerCatalogPublication
+} from "../lib/partner-catalog-publication.mjs";
+import {
   BOARD_DEMO_VENDOR_OFFERINGS,
   createVendorOfferingConfig,
   DEFAULT_VENDOR_OFFERINGS,
@@ -3775,11 +3783,82 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   const defaultSponsorAmounts = Object.fromEntries(DEFAULT_SPONSOR_PACKAGES.map(item => [item.id, item.amount]));
   ok("sponsor package catalog authority", defaultSponsorCatalog.ready && defaultSponsorCatalog.activePackages.length === 2 && resolvedSponsorPackage.ok && resolvedSponsorPackage.sponsorPackage.amount === 500000);
   ok("current sponsorship program is complete and price-anchored", DEFAULT_SPONSOR_PACKAGES.length === 11 && defaultSponsorAmounts.flounder === 125000 && defaultSponsorAmounts.marlin === 1500000 && defaultSponsorAmounts.whale === 5000000 && defaultSponsorAmounts["the-kraken"] === 25000000);
-  ok("checked-in sponsor config matches the public fallback catalog", JSON.stringify(checkedInAdminConfig.sponsorPackages) === JSON.stringify(DEFAULT_SPONSOR_PACKAGES));
+  ok("checked-in sponsor config matches the managed catalog", JSON.stringify(checkedInAdminConfig.sponsorPackages) === JSON.stringify(DEFAULT_SPONSOR_PACKAGES));
   ok("sponsor package catalog rejects unsafe pricing and fulfillment", !invalidSponsorAmount.ok && invalidSponsorAmount.error.includes("amount") && !invalidSponsorBenefits.ok && invalidSponsorBenefits.error.includes("benefit") && !invalidSponsorStripe.ok && invalidSponsorStripe.error.includes("Stripe Price ID"));
   ok("sponsor package catalog keeps one public tier active", !lastSponsorTierDisabled.ok && lastSponsorTierDisabled.error.includes("At least one active"));
   ok("sponsor package creation validates and rejects duplicate IDs", createdSponsorPackage.ok && createdSponsorPackage.sponsorPackage.publicLabel === "$7,500 sponsorship" && !duplicateSponsorPackage.ok && duplicateSponsorPackage.conflict === true);
   ok("public sponsor package hides accounting mappings", updatedSponsorPackage.ok && publicSponsorTier.amount === 550000 && !Object.hasOwn(publicSponsorTier, "quickBooksItemId") && !Object.hasOwn(publicSponsorTier, "stripePriceId"));
+  const sponsorPublicItems = DEFAULT_SPONSOR_PACKAGES.map(publicSponsorPackage);
+  const pendingSponsorPublication = partnerCatalogPublicationReadiness({
+    kind: "sponsor",
+    eventId: DEFAULT_EVENT_ID,
+    items: sponsorPublicItems,
+    catalogReady: true,
+    publication: checkedInAdminConfig.sponsorPackagePublication
+  }, { now: "2026-07-21T12:00:00.000Z" });
+  const publishedSponsorCatalog = publishPartnerCatalog({
+    kind: "sponsor",
+    eventId: DEFAULT_EVENT_ID,
+    items: sponsorPublicItems,
+    catalogReady: true,
+    publication: checkedInAdminConfig.sponsorPackagePublication
+  }, {
+    sourceUrl: "https://www.texassandfest.org/sponsorship",
+    sourceCheckedAt: "2026-07-21T11:00:00.000Z"
+  }, {
+    eventId: DEFAULT_EVENT_ID,
+    actorId: "sponsor_admin_test",
+    now: "2026-07-21T12:00:00.000Z"
+  });
+  const publishedSponsorReadiness = partnerCatalogPublicationReadiness({
+    kind: "sponsor",
+    eventId: DEFAULT_EVENT_ID,
+    items: sponsorPublicItems,
+    catalogReady: true,
+    publication: publishedSponsorCatalog.publication
+  }, { now: "2026-07-21T12:00:00.000Z" });
+  const publicSponsorChange = sponsorPublicItems.map(item => item.id === "flounder" ? { ...item, publicLabel: "$1,500 sponsorship" } : item);
+  const changedSponsorPublication = refreshPartnerCatalogPublication({
+    kind: "sponsor",
+    eventId: DEFAULT_EVENT_ID,
+    items: publicSponsorChange,
+    publication: publishedSponsorCatalog.publication
+  }, { eventId: DEFAULT_EVENT_ID, now: "2026-07-21T12:05:00.000Z" });
+  const privateSponsorChange = updateSponsorPackageConfig({
+    sponsorPackages: DEFAULT_SPONSOR_PACKAGES,
+    sponsorPackagePublication: publishedSponsorCatalog.publication
+  }, "flounder", { quickBooksItemId: "QBO-PRIVATE-1" });
+  const privateSponsorItems = privateSponsorChange.catalog.activePackages.map(publicSponsorPackage);
+  const privateSponsorPublication = refreshPartnerCatalogPublication({
+    kind: "sponsor",
+    eventId: DEFAULT_EVENT_ID,
+    items: privateSponsorItems,
+    publication: publishedSponsorCatalog.publication
+  }, { eventId: DEFAULT_EVENT_ID, now: "2026-07-21T12:05:00.000Z" });
+  const heldSponsorCatalog = holdPartnerCatalog({ kind: "sponsor", eventId: DEFAULT_EVENT_ID, publication: publishedSponsorCatalog.publication }, {
+    eventId: DEFAULT_EVENT_ID,
+    actorId: "sponsor_admin_test",
+    reason: "Waiting for final board-approved benefits.",
+    now: "2026-07-21T12:10:00.000Z"
+  });
+  const boardSponsorPublication = refreshPartnerCatalogPublication({
+    kind: "sponsor",
+    eventId: DEFAULT_EVENT_ID,
+    items: sponsorPublicItems,
+    publication: {}
+  }, { eventId: DEFAULT_EVENT_ID, boardDemo: true, now: "2026-07-21T12:00:00.000Z" });
+  const boardSponsorReadiness = partnerCatalogPublicationReadiness({
+    kind: "sponsor",
+    eventId: DEFAULT_EVENT_ID,
+    items: sponsorPublicItems,
+    catalogReady: true,
+    publication: boardSponsorPublication
+  }, { allowBoardDemo: true, now: "2026-07-21T12:00:00.000Z" });
+  ok("partner catalogs fail closed until source-reviewed publication", !pendingSponsorPublication.ready && pendingSponsorPublication.missing.includes("published") && publicPartnerCatalogPublication(pendingSponsorPublication, "sponsor").available === false);
+  ok("partner catalog publication binds current event source and exact public digest", publishedSponsorCatalog.ok && publishedSponsorReadiness.ready && publishedSponsorCatalog.publication.catalogDigest === partnerCatalogDigest("sponsor", sponsorPublicItems));
+  ok("public catalog edits require republishing while private mappings preserve publication", changedSponsorPublication.status === "pending" && privateSponsorChange.ok && privateSponsorPublication.status === "published");
+  ok("partner catalog holds hide internal reasons from the public projection", heldSponsorCatalog.ok && heldSponsorCatalog.publication.status === "pending" && !JSON.stringify(publicPartnerCatalogPublication({ ready: false, publication: heldSponsorCatalog.publication }, "sponsor")).includes("board-approved"));
+  ok("synthetic partner catalogs require explicit board-demo readiness", boardSponsorReadiness.ready && !partnerCatalogPublicationReadiness({ kind: "sponsor", eventId: DEFAULT_EVENT_ID, items: sponsorPublicItems, catalogReady: true, publication: boardSponsorPublication }, { allowBoardDemo: false }).ready);
   const defaultVendorCatalog = vendorOfferingCatalog({ vendorOfferings: DEFAULT_VENDOR_OFFERINGS });
   const artisanOffering = resolveVendorOffering({ vendorOfferings: DEFAULT_VENDOR_OFFERINGS }, "marketplace-booth", "artisan");
   const categoryMismatch = resolveVendorOffering({ vendorOfferings: DEFAULT_VENDOR_OFFERINGS }, "food-beverage-booth", "artisan");
@@ -5975,6 +6054,35 @@ if (!API_BASE) {
   const isolatedAdminConfigPath = path.join(isolatedRuntimeRoot, "data", "config", "admin-config.json");
   const isolatedAdminConfig = JSON.parse(await readFile(isolatedAdminConfigPath, "utf8"));
   isolatedAdminConfig.vendorOfferings = structuredClone(BOARD_DEMO_VENDOR_OFFERINGS);
+  const partnerCatalogFixtureAt = new Date().toISOString();
+  const isolatedSponsorItems = sponsorPackageCatalog(isolatedAdminConfig).activePackages.map(publicSponsorPackage);
+  const isolatedVendorItems = vendorOfferingCatalog(isolatedAdminConfig).activeOfferings.map(publicVendorOffering);
+  isolatedAdminConfig.sponsorPackagePublication = {
+    status: "published",
+    eventId: DEFAULT_EVENT_ID,
+    catalogDigest: partnerCatalogDigest("sponsor", isolatedSponsorItems),
+    sourceUrl: "https://www.texassandfest.org/sponsorship",
+    sourceCheckedAt: partnerCatalogFixtureAt,
+    publishedAt: partnerCatalogFixtureAt,
+    publishedBy: "platform-api-fixture",
+    heldAt: null,
+    heldBy: null,
+    holdReason: null,
+    lastUpdated: partnerCatalogFixtureAt
+  };
+  isolatedAdminConfig.vendorOfferingPublication = {
+    status: "published",
+    eventId: DEFAULT_EVENT_ID,
+    catalogDigest: partnerCatalogDigest("vendor", isolatedVendorItems),
+    sourceUrl: "https://www.texassandfest.org/vendors",
+    sourceCheckedAt: partnerCatalogFixtureAt,
+    publishedAt: partnerCatalogFixtureAt,
+    publishedBy: "platform-api-fixture",
+    heldAt: null,
+    heldBy: null,
+    holdReason: null,
+    lastUpdated: partnerCatalogFixtureAt
+  };
   await writeFile(isolatedAdminConfigPath, `${JSON.stringify(isolatedAdminConfig, null, 2)}\n`);
   const isolatedPartnerPath = path.join(isolatedRuntimeRoot, "data", "processed", "partner-operations.json");
   const isolatedSmsPath = path.join(isolatedRuntimeRoot, "data", "processed", "sms-operations.json");
@@ -6228,7 +6336,7 @@ try {
     && deploymentGroups.reduce((total, group) => total + group.total, 0) === deploymentChecks.length
     && deploymentGroups.every(group => group.group && group.passing + group.warnings + group.errors === group.total));
   ok("deployment exposes configured outreach discovery gate", deployment.data.deployment?.checks?.outreachDiscovery?.ok === true && deployment.data.deployment?.checks?.outreachDiscovery?.message.includes("fixture"));
-  ok("deployment exposes sponsor package integrity gate", deployment.data.deployment?.checks?.sponsorPackages?.ok === true && deployment.data.deployment?.checks?.sponsorPackages?.message.includes("active sponsor packages"));
+  ok("deployment exposes sponsor package integrity gate", deployment.data.deployment?.checks?.sponsorPackages?.ok === true && deployment.data.deployment?.checks?.sponsorPackages?.message.includes("source-reviewed and published"));
   ok("admin queue health summary", queueStatus.status === 200 && queueStatus.data.summary?.operational === true && Array.isArray(queueStatus.data.jobs));
   if (child) {
     const previousQueueDir = process.env.SANDFEST_JOB_QUEUE_DIR;
@@ -7502,7 +7610,7 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
 
   const publicSponsorCatalogApi = await hit("GET", "/api/public/sponsors");
   const publicTarponPackage = publicSponsorCatalogApi.data.sponsorPackages?.find(item => item.id === "tarpon");
-  ok("GET public sponsor packages", publicSponsorCatalogApi.status === 200 && publicTarponPackage?.amount === 500000 && publicTarponPackage?.benefits?.includes("8 VIP wristbands") && !Object.hasOwn(publicTarponPackage || {}, "quickBooksItemId") && !Object.hasOwn(publicTarponPackage || {}, "stripePriceId"));
+  ok("GET public sponsor packages", publicSponsorCatalogApi.status === 200 && publicSponsorCatalogApi.data.publication?.available === true && publicTarponPackage?.amount === 500000 && publicTarponPackage?.benefits?.includes("8 VIP wristbands") && !Object.hasOwn(publicTarponPackage || {}, "quickBooksItemId") && !Object.hasOwn(publicTarponPackage || {}, "stripePriceId"));
   if (child) {
     const sponsorPackageCreateBody = {
       id: "community-champion",
@@ -7516,18 +7624,27 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
       hit("POST", "/api/admin/sponsor-packages", sponsorPackageCreateBody, true),
       hit("POST", "/api/admin/sponsor-packages", sponsorPackageCreateBody, true)
     ]);
+    const publicSponsorCatalogAfterCreate = await hit("GET", "/api/public/sponsors");
     const invalidSponsorAmountPatch = await hit("PATCH", "/api/admin/sponsor-packages/tarpon", { amount: 0 }, true);
     const invalidSponsorBenefitPatch = await hit("PATCH", "/api/admin/sponsor-packages/tarpon", { benefits: [] }, true);
+    const sponsorCatalogPublish = await hit("POST", "/api/admin/partner-catalog-publication", {
+      catalog: "sponsor",
+      publish: true,
+      sourceUrl: "https://www.texassandfest.org/sponsorship",
+      sourceCheckedAt: new Date().toISOString()
+    }, true);
+    const publicSponsorCatalogAfterPublish = await hit("GET", "/api/public/sponsors");
+    const publicCommunityChampion = publicSponsorCatalogAfterPublish.data.sponsorPackages?.find(item => item.id === "community-champion");
     const sponsorPackagePatch = await hit("PATCH", "/api/admin/sponsor-packages/tarpon", {
       quickBooksItemId: "api-sponsor-tarpon-item",
       stripePriceId: "price_api_sponsor_tarpon"
     }, true);
     const publicSponsorCatalogAfterPatch = await hit("GET", "/api/public/sponsors");
     const publicTarponAfterPatch = publicSponsorCatalogAfterPatch.data.sponsorPackages?.find(item => item.id === "tarpon");
-    const publicCommunityChampion = publicSponsorCatalogAfterPatch.data.sponsorPackages?.find(item => item.id === "community-champion");
-    ok("admin sponsor package creation is atomic", concurrentSponsorCreates.map(item => item.status).sort((a, b) => a - b).join(",") === "201,409" && publicCommunityChampion?.amount === 750000);
+    ok("admin sponsor package creation is atomic and returns public catalog to review", concurrentSponsorCreates.map(item => item.status).sort((a, b) => a - b).join(",") === "201,409" && publicSponsorCatalogAfterCreate.data.publication?.available === false && publicSponsorCatalogAfterCreate.data.sponsorPackages?.length === 0);
+    ok("admin sponsor catalog publish exposes the exact reviewed catalog", sponsorCatalogPublish.status === 200 && sponsorCatalogPublish.data.readiness?.ready === true && publicCommunityChampion?.amount === 750000);
     ok("admin sponsor package validation", invalidSponsorAmountPatch.status === 400 && invalidSponsorAmountPatch.data.error?.includes("amount") && invalidSponsorBenefitPatch.status === 400 && invalidSponsorBenefitPatch.data.error?.includes("benefit") && publicTarponAfterPatch?.amount === 500000);
-    ok("admin sponsor package accounting mapping stays private", sponsorPackagePatch.status === 200 && sponsorPackagePatch.data.readiness?.ready === true && sponsorPackagePatch.data.sponsorPackage?.quickBooksItemId === "api-sponsor-tarpon-item" && !Object.hasOwn(publicTarponAfterPatch || {}, "quickBooksItemId") && !Object.hasOwn(publicTarponAfterPatch || {}, "stripePriceId") && !Object.hasOwn(publicCommunityChampion || {}, "quickBooksItemId") && !Object.hasOwn(publicCommunityChampion || {}, "stripePriceId"));
+    ok("admin sponsor package accounting mapping stays private and published", sponsorPackagePatch.status === 200 && sponsorPackagePatch.data.readiness?.ready === true && sponsorPackagePatch.data.publicationReadiness?.ready === true && sponsorPackagePatch.data.sponsorPackage?.quickBooksItemId === "api-sponsor-tarpon-item" && publicSponsorCatalogAfterPatch.data.publication?.available === true && !Object.hasOwn(publicTarponAfterPatch || {}, "quickBooksItemId") && !Object.hasOwn(publicTarponAfterPatch || {}, "stripePriceId") && !Object.hasOwn(publicCommunityChampion || {}, "quickBooksItemId") && !Object.hasOwn(publicCommunityChampion || {}, "stripePriceId"));
   }
   const publicVendorCatalogApi = await hit("GET", "/api/public/vendors");
   const publicMarketplaceOffering = publicVendorCatalogApi.data.vendorOfferings?.find(item => item.id === "marketplace-booth");
@@ -7547,18 +7664,50 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
       hit("POST", "/api/admin/vendor-offerings", vendorOfferingCreateBody, true),
       hit("POST", "/api/admin/vendor-offerings", vendorOfferingCreateBody, true)
     ]);
+    const publicVendorCatalogAfterCreate = await hit("GET", "/api/public/vendors");
     const invalidVendorOfferingCreate = await hit("POST", "/api/admin/vendor-offerings", {
       ...vendorOfferingCreateBody,
       id: "invalid-vendor-fee",
       amount: 100.5
     }, true);
     const invalidVendorOfferingPatch = await hit("PATCH", "/api/admin/vendor-offerings/marketplace-booth", { categories: [] }, true);
+    const vendorCatalogPublish = await hit("POST", "/api/admin/partner-catalog-publication", {
+      catalog: "vendor",
+      publish: true,
+      sourceUrl: "https://www.texassandfest.org/vendors",
+      sourceCheckedAt: new Date().toISOString()
+    }, true);
+    const publicVendorCatalogAfterPublish = await hit("GET", "/api/public/vendors");
+    const publicPremiumMarketplace = publicVendorCatalogAfterPublish.data.vendorOfferings?.find(item => item.id === "premium-marketplace-booth");
     const vendorOfferingPatch = await hit("PATCH", "/api/admin/vendor-offerings/marketplace-booth", { quickBooksItemId: "api-vendor-marketplace-item" }, true);
     const publicVendorCatalogAfterPatch = await hit("GET", "/api/public/vendors");
-    const publicPremiumMarketplace = publicVendorCatalogAfterPatch.data.vendorOfferings?.find(item => item.id === "premium-marketplace-booth");
-    ok("admin vendor offering creation is atomic", concurrentVendorOfferingCreates.map(item => item.status).sort((a, b) => a - b).join(",") === "201,409" && invalidVendorOfferingCreate.status === 400 && publicPremiumMarketplace?.amount === 250000);
+    ok("admin vendor offering creation is atomic and returns public catalog to review", concurrentVendorOfferingCreates.map(item => item.status).sort((a, b) => a - b).join(",") === "201,409" && invalidVendorOfferingCreate.status === 400 && publicVendorCatalogAfterCreate.data.publication?.available === false && publicVendorCatalogAfterCreate.data.vendorOfferings?.length === 0);
+    ok("admin vendor catalog publish exposes the exact reviewed catalog", vendorCatalogPublish.status === 200 && vendorCatalogPublish.data.readiness?.ready === true && publicPremiumMarketplace?.amount === 250000);
     ok("admin vendor offering validation", invalidVendorOfferingPatch.status === 400 && invalidVendorOfferingPatch.data.error?.includes("category"));
-    ok("admin vendor offering accounting mapping stays private", vendorOfferingPatch.status === 200 && vendorOfferingPatch.data.vendorOffering?.quickBooksItemId === "api-vendor-marketplace-item" && !Object.hasOwn(publicVendorCatalogAfterPatch.data.vendorOfferings?.find(item => item.id === "marketplace-booth") || {}, "quickBooksItemId") && !Object.hasOwn(publicPremiumMarketplace || {}, "quickBooksItemId") && !Object.hasOwn(publicPremiumMarketplace || {}, "stripePriceId"));
+    ok("admin vendor offering accounting mapping stays private and published", vendorOfferingPatch.status === 200 && vendorOfferingPatch.data.publicationReadiness?.ready === true && vendorOfferingPatch.data.vendorOffering?.quickBooksItemId === "api-vendor-marketplace-item" && publicVendorCatalogAfterPatch.data.publication?.available === true && !Object.hasOwn(publicVendorCatalogAfterPatch.data.vendorOfferings?.find(item => item.id === "marketplace-booth") || {}, "quickBooksItemId") && !Object.hasOwn(publicPremiumMarketplace || {}, "quickBooksItemId") && !Object.hasOwn(publicPremiumMarketplace || {}, "stripePriceId"));
+    const vendorCatalogHold = await hit("POST", "/api/admin/partner-catalog-publication", {
+      catalog: "vendor",
+      publish: false,
+      reason: "Waiting for the approved application opening date."
+    }, true);
+    const publicVendorCatalogOnHold = await hit("GET", "/api/public/vendors");
+    const heldVendorIntake = await hit("POST", "/api/public/vendor-applications", {
+      organizationName: "Held Catalog Test",
+      contactName: "Hold Test",
+      contactEmail: "hold-test@example.com",
+      category: "artisan",
+      vendorOfferingId: "marketplace-booth",
+      consentToContact: true,
+      botToken: "valid-held-vendor-token"
+    }, false, { "idempotency-key": "platform-api-held-vendor-0001" });
+    const vendorCatalogRepublish = await hit("POST", "/api/admin/partner-catalog-publication", {
+      catalog: "vendor",
+      publish: true,
+      sourceUrl: "https://www.texassandfest.org/vendors",
+      sourceCheckedAt: new Date().toISOString()
+    }, true);
+    ok("held vendor catalog disappears from public intake", vendorCatalogHold.status === 200 && publicVendorCatalogOnHold.data.publication?.available === false && publicVendorCatalogOnHold.data.vendorOfferings?.length === 0 && heldVendorIntake.status === 409 && heldVendorIntake.data.error?.includes("not been published"));
+    ok("held vendor catalog can be source-reviewed and republished", vendorCatalogRepublish.status === 200 && vendorCatalogRepublish.data.readiness?.ready === true);
   }
   const apiIntakeBody = {
     organizationName: "Platform API Portal Test",
@@ -8283,6 +8432,12 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
     description: "Register interest in a future Texas SandFest service-vendor opportunity.",
     inclusions: ["Application-opening notice", "Operations review"]
   }, true);
+  const apiInterestCatalogPublish = await hit("POST", "/api/admin/partner-catalog-publication", {
+    catalog: "vendor",
+    publish: true,
+    sourceUrl: "https://www.texassandfest.org/vendors",
+    sourceCheckedAt: new Date().toISOString()
+  }, true);
   const apiInterestIntake = await hit("POST", "/api/public/vendor-applications", {
     organizationName: "API Vendor Interest Test",
     contactName: "Interest Contact",
@@ -8316,7 +8471,7 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
     portalStatus: apiInterestStatus.status,
     portalPaymentStatus: apiInterestStatus.data.application?.finance?.paymentStatus
   });
-  ok("public vendor interest derives mode and versioned consent server-side", apiInterestOffering.status === 201 && apiInterestIntake.status === 201 && apiInterestIntake.data.application?.intakeMode === "interest" && storedApiInterest?.expectedAmountCents === 0 && storedApiInterest?.consentNoticeVersion === apiInterestNotice.version && storedApiInterest?.consentCapturedAt && storedApiInterest?.consentNoticeVersion !== "forged-client-version", apiInterestDetail);
+  ok("public vendor interest derives mode and versioned consent server-side", apiInterestOffering.status === 201 && apiInterestCatalogPublish.status === 200 && apiInterestIntake.status === 201 && apiInterestIntake.data.application?.intakeMode === "interest" && storedApiInterest?.expectedAmountCents === 0 && storedApiInterest?.consentNoticeVersion === apiInterestNotice.version && storedApiInterest?.consentCapturedAt && storedApiInterest?.consentNoticeVersion !== "forged-client-version", apiInterestDetail);
   ok("public vendor interest creates review work without onboarding obligations", apiInterestMilestones.length === 1 && apiInterestMilestones[0]?.kind === "interest_review" && apiInterestWorkspace.data.tasks?.filter(item => item.relatedEntityId === storedApiInterest?.id).length === 1 && !apiInterestWorkspace.data.vendorProfiles?.some(item => item.applicationId === storedApiInterest?.id) && !apiInterestWorkspace.data.vendorRequirements?.some(item => item.applicationId === storedApiInterest?.id) && !apiInterestWorkspace.data.vendorAssignments?.some(item => item.applicationId === storedApiInterest?.id), apiInterestDetail);
   ok("public vendor interest portal is non-financial", apiInterestStatus.status === 200 && apiInterestStatus.data.application?.intakeMode === "interest" && apiInterestStatus.data.application?.finance?.paymentStatus === "not_applicable" && apiInterestStatus.data.application?.vendorOnboarding === null && apiInterestWorkspace.data.vendorReadiness?.totals?.interests >= 1, apiInterestDetail);
   ok("vendor interest finance endpoints fail closed", apiInterestReprice.status === 400 && apiInterestInvoice.status === 400 && apiInterestPayment.status === 400 && [apiInterestReprice, apiInterestInvoice, apiInterestPayment].every(item => item.data.error?.includes("Vendor interest")), apiInterestDetail);
@@ -8420,6 +8575,7 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
   ok("Twilio webhook audit is aggregate-only", smsAuditApi.some(item => item.record?.action === "sms.delivery.webhook") && smsAuditApi.some(item => item.record?.action === "sms.preference.webhook") && !JSON.stringify(smsAuditApi).includes("+13615550188") && !JSON.stringify(smsAuditApi).includes("platform-twilio-auth-secret"));
   ok("event guide publish is audited", auditApi.data.audit?.some(item => item.record?.action === "content.event-guide.publish"));
   ok("event schedule publish and hold are audited", auditApi.data.audit?.some(item => item.record?.action === "content.event-schedule.publish") && auditApi.data.audit?.some(item => item.record?.action === "content.event-schedule.hold"));
+  ok("partner catalog publish and hold actions are audited", auditApi.data.audit?.some(item => item.record?.action === "sponsor-package.catalog.publish") && auditApi.data.audit?.some(item => item.record?.action === "vendor-offering.catalog.publish") && auditApi.data.audit?.some(item => item.record?.action === "vendor-offering.catalog.hold"));
   ok("launch task synchronization is aggregate audited", auditApi.data.audit?.some(item => item.record?.action === "deployment.tasks.sync" && item.record?.after?.active === failingDeploymentChecks.length));
   ok("automatic launch task audit identifies the system actor", auditApi.data.audit?.some(item => item.record?.action === "deployment.tasks.sync" && item.record?.actor?.type === "system" && item.record?.actor?.id === "deployment-readiness" && item.record?.metadata?.automated === true && item.record?.after?.created === failingDeploymentChecks.length));
   const documentAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("document."));

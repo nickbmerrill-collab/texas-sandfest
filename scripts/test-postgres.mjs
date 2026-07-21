@@ -12,7 +12,9 @@ import pg from "pg";
 import twilio from "twilio";
 import { emptyBudgetControl } from "../lib/budget-control.mjs";
 import { REQUIRED_TICKET_POLICY_NOTICES } from "../lib/ticket-policy-schema.mjs";
-import { BOARD_DEMO_VENDOR_OFFERINGS } from "../lib/vendor-offerings.mjs";
+import { partnerCatalogDigest } from "../lib/partner-catalog-publication.mjs";
+import { publicSponsorPackage, sponsorPackageCatalog } from "../lib/sponsor-packages.mjs";
+import { BOARD_DEMO_VENDOR_OFFERINGS, publicVendorOffering, vendorOfferingCatalog } from "../lib/vendor-offerings.mjs";
 import { issueTaskPortalToken, taskPortalConfig } from "../lib/task-portal.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -411,6 +413,35 @@ async function main() {
   const pool = await getPool();
   const postgresAdminConfig = JSON.parse(await readFile(path.join(ROOT, "data", "config", "admin-config.json"), "utf8"));
   postgresAdminConfig.vendorOfferings = structuredClone(BOARD_DEMO_VENDOR_OFFERINGS);
+  const postgresCatalogFixtureAt = new Date().toISOString();
+  const postgresSponsorItems = sponsorPackageCatalog(postgresAdminConfig).activePackages.map(publicSponsorPackage);
+  const postgresVendorItems = vendorOfferingCatalog(postgresAdminConfig).activeOfferings.map(publicVendorOffering);
+  postgresAdminConfig.sponsorPackagePublication = {
+    status: "published",
+    eventId: EVENT_ID,
+    catalogDigest: partnerCatalogDigest("sponsor", postgresSponsorItems),
+    sourceUrl: "https://www.texassandfest.org/sponsorship",
+    sourceCheckedAt: postgresCatalogFixtureAt,
+    publishedAt: postgresCatalogFixtureAt,
+    publishedBy: "postgres-test-fixture",
+    heldAt: null,
+    heldBy: null,
+    holdReason: null,
+    lastUpdated: postgresCatalogFixtureAt
+  };
+  postgresAdminConfig.vendorOfferingPublication = {
+    status: "published",
+    eventId: EVENT_ID,
+    catalogDigest: partnerCatalogDigest("vendor", postgresVendorItems),
+    sourceUrl: "https://www.texassandfest.org/vendors",
+    sourceCheckedAt: postgresCatalogFixtureAt,
+    publishedAt: postgresCatalogFixtureAt,
+    publishedBy: "postgres-test-fixture",
+    heldAt: null,
+    heldBy: null,
+    holdReason: null,
+    lastUpdated: postgresCatalogFixtureAt
+  };
   await pool.query(
     `INSERT INTO config_documents (key, data, updated_at)
      VALUES ($1, $2::jsonb, now())
@@ -676,8 +707,15 @@ async function main() {
     request(base, "POST", "/api/admin/sponsor-packages", postgresSponsorCreateBody, { auth: true }),
     request(base, "POST", "/api/admin/sponsor-packages", postgresSponsorCreateBody, { auth: true })
   ]);
+  const postgresSponsorCatalogPending = await request(base, "GET", "/api/public/sponsors");
   const postgresInvalidSponsorPatch = await request(base, "PATCH", "/api/admin/sponsor-packages/tarpon", {
     benefits: []
+  }, { auth: true });
+  const postgresSponsorCatalogPublish = await request(base, "POST", "/api/admin/partner-catalog-publication", {
+    catalog: "sponsor",
+    publish: true,
+    sourceUrl: "https://www.texassandfest.org/sponsorship",
+    sourceCheckedAt: new Date().toISOString()
   }, { auth: true });
   const postgresSponsorPackagePatch = await request(base, "PATCH", "/api/admin/sponsor-packages/tarpon", {
     quickBooksItemId: "postgres-sponsor-tarpon-item",
@@ -686,9 +724,9 @@ async function main() {
   const postgresPublicSponsorCatalog = await request(base, "GET", "/api/public/sponsors");
   const postgresPublicTarpon = postgresPublicSponsorCatalog.data.sponsorPackages?.find(item => item.id === "tarpon");
   const postgresPublicCommunityChampion = postgresPublicSponsorCatalog.data.sponsorPackages?.find(item => item.id === "postgres-community-champion");
-  check("sponsor package catalog reads from Postgres", postgresSponsorCatalog.status === 200 && postgresSponsorCatalog.data.sponsorPackages?.find(item => item.id === "tarpon")?.amount === 500000);
-  check("concurrent sponsor package creation is atomic in Postgres", postgresSponsorCreates.map(item => item.status).sort((a, b) => a - b).join(",") === "201,409" && postgresPublicCommunityChampion?.amount === 750000);
-  check("sponsor package config validates and keeps accounting private", postgresInvalidSponsorPatch.status === 400 && postgresSponsorPackagePatch.status === 200 && postgresSponsorPackagePatch.data.sponsorPackage?.quickBooksItemId === "postgres-sponsor-tarpon-item" && postgresPublicTarpon?.amount === 500000 && !Object.hasOwn(postgresPublicTarpon || {}, "quickBooksItemId") && !Object.hasOwn(postgresPublicTarpon || {}, "stripePriceId") && !Object.hasOwn(postgresPublicCommunityChampion || {}, "quickBooksItemId") && !Object.hasOwn(postgresPublicCommunityChampion || {}, "stripePriceId"));
+  check("sponsor package catalog reads from Postgres", postgresSponsorCatalog.status === 200 && postgresSponsorCatalog.data.publication?.available === true && postgresSponsorCatalog.data.sponsorPackages?.find(item => item.id === "tarpon")?.amount === 500000);
+  check("concurrent sponsor package creation is atomic in Postgres", postgresSponsorCreates.map(item => item.status).sort((a, b) => a - b).join(",") === "201,409" && postgresSponsorCatalogPending.data.publication?.available === false && postgresSponsorCatalogPending.data.sponsorPackages?.length === 0 && postgresSponsorCatalogPublish.status === 200 && postgresPublicCommunityChampion?.amount === 750000);
+  check("sponsor package config validates and keeps accounting private", postgresInvalidSponsorPatch.status === 400 && postgresSponsorPackagePatch.status === 200 && postgresSponsorPackagePatch.data.publicationReadiness?.ready === true && postgresSponsorPackagePatch.data.sponsorPackage?.quickBooksItemId === "postgres-sponsor-tarpon-item" && postgresPublicTarpon?.amount === 500000 && !Object.hasOwn(postgresPublicTarpon || {}, "quickBooksItemId") && !Object.hasOwn(postgresPublicTarpon || {}, "stripePriceId") && !Object.hasOwn(postgresPublicCommunityChampion || {}, "quickBooksItemId") && !Object.hasOwn(postgresPublicCommunityChampion || {}, "stripePriceId"));
 
   const postgresVendorCatalog = await request(base, "GET", "/api/public/vendors");
   const postgresVendorOfferingCreateBody = {
@@ -705,14 +743,21 @@ async function main() {
     request(base, "POST", "/api/admin/vendor-offerings", postgresVendorOfferingCreateBody, { auth: true }),
     request(base, "POST", "/api/admin/vendor-offerings", postgresVendorOfferingCreateBody, { auth: true })
   ]);
+  const postgresVendorCatalogPending = await request(base, "GET", "/api/public/vendors");
+  const postgresVendorCatalogPublish = await request(base, "POST", "/api/admin/partner-catalog-publication", {
+    catalog: "vendor",
+    publish: true,
+    sourceUrl: "https://www.texassandfest.org/vendors",
+    sourceCheckedAt: new Date().toISOString()
+  }, { auth: true });
   const postgresVendorOfferingPatch = await request(base, "PATCH", "/api/admin/vendor-offerings/marketplace-booth", {
     quickBooksItemId: "postgres-vendor-marketplace-item"
   }, { auth: true });
   const postgresPublicVendorCatalog = await request(base, "GET", "/api/public/vendors");
   const postgresPublicPremiumMarketplace = postgresPublicVendorCatalog.data.vendorOfferings?.find(item => item.id === "postgres-premium-marketplace");
-  check("vendor offering catalog reads from Postgres", postgresVendorCatalog.status === 200 && postgresVendorCatalog.data.vendorOfferings?.find(item => item.id === "marketplace-booth")?.amount === 125000);
-  check("concurrent vendor offering creation is atomic in Postgres", postgresVendorOfferingCreates.map(item => item.status).sort((a, b) => a - b).join(",") === "201,409" && postgresPublicPremiumMarketplace?.amount === 250000);
-  check("vendor offering config persists without exposing accounting IDs", postgresVendorOfferingPatch.status === 200 && postgresVendorOfferingPatch.data.vendorOffering?.quickBooksItemId === "postgres-vendor-marketplace-item" && !Object.hasOwn(postgresPublicVendorCatalog.data.vendorOfferings?.find(item => item.id === "marketplace-booth") || {}, "quickBooksItemId") && !Object.hasOwn(postgresPublicPremiumMarketplace || {}, "quickBooksItemId") && !Object.hasOwn(postgresPublicPremiumMarketplace || {}, "stripePriceId"));
+  check("vendor offering catalog reads from Postgres", postgresVendorCatalog.status === 200 && postgresVendorCatalog.data.publication?.available === true && postgresVendorCatalog.data.vendorOfferings?.find(item => item.id === "marketplace-booth")?.amount === 125000);
+  check("concurrent vendor offering creation is atomic in Postgres", postgresVendorOfferingCreates.map(item => item.status).sort((a, b) => a - b).join(",") === "201,409" && postgresVendorCatalogPending.data.publication?.available === false && postgresVendorCatalogPending.data.vendorOfferings?.length === 0 && postgresVendorCatalogPublish.status === 200 && postgresPublicPremiumMarketplace?.amount === 250000);
+  check("vendor offering config persists without exposing accounting IDs", postgresVendorOfferingPatch.status === 200 && postgresVendorOfferingPatch.data.publicationReadiness?.ready === true && postgresVendorOfferingPatch.data.vendorOffering?.quickBooksItemId === "postgres-vendor-marketplace-item" && !Object.hasOwn(postgresPublicVendorCatalog.data.vendorOfferings?.find(item => item.id === "marketplace-booth") || {}, "quickBooksItemId") && !Object.hasOwn(postgresPublicPremiumMarketplace || {}, "quickBooksItemId") && !Object.hasOwn(postgresPublicPremiumMarketplace || {}, "stripePriceId"));
 
   const postgresStaffContents = JSON.stringify({
     eventId: EVENT_ID,
@@ -1784,6 +1829,12 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
     description: "Join the interest list for future retail, artisan, and service vendor applications.",
     inclusions: ["Application opening notice", "Program updates", "Staff review when applications open"]
   }, { auth: true });
+  const closedMarketplacePublication = await request(base, "POST", "/api/admin/partner-catalog-publication", {
+    catalog: "vendor",
+    publish: true,
+    sourceUrl: "https://www.texassandfest.org/vendors",
+    sourceCheckedAt: new Date().toISOString()
+  }, { auth: true });
   const postgresVendorInterest = await request(base, "POST", "/api/public/vendor-applications", {
     organizationName: "Postgres Vendor Interest",
     contactName: "Morgan Rivera",
@@ -1800,12 +1851,21 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
     description: "Synthetic Postgres marketplace offering for retail, artisan, and service vendors.",
     inclusions: ["Marketplace booth footprint", "Vendor credentials", "Published booth listing"]
   }, { auth: true });
+  const reopenedMarketplacePublication = await request(base, "POST", "/api/admin/partner-catalog-publication", {
+    catalog: "vendor",
+    publish: true,
+    sourceUrl: "https://www.texassandfest.org/vendors",
+    sourceCheckedAt: new Date().toISOString()
+  }, { auth: true });
   const postgresVendorOpeningState = await request(base, "GET", "/api/admin/partners", undefined, { auth: true });
   const persistedPostgresVendorInterest = postgresVendorOpeningState.data.applications?.find(item => item.id === postgresVendorInterest.data.application?.id);
   check("Postgres vendor interest survives a catalog opening", closedMarketplaceOffering.status === 200
+    && closedMarketplacePublication.status === 200
     && postgresVendorInterest.status === 201
     && postgresVendorInterest.data.application?.intakeMode === "interest"
     && reopenedMarketplaceOffering.status === 200
+    && reopenedMarketplacePublication.status === 200
+    && reopenedMarketplacePublication.data.readiness?.ready === true
     && reopenedMarketplaceOffering.data.vendorOffering?.intakeMode === "application"
     && reopenedMarketplaceOffering.data.vendorOffering?.amount === 125000
     && persistedPostgresVendorInterest?.intakeMode === "interest"

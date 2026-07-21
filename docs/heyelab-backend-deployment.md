@@ -64,7 +64,8 @@ Routes:
 | `GET` | `/api/public/alert` | Public | Short-TTL active public alert payload |
 | `GET` | `/api/public/bootstrap` | Public | Shared app bootstrap payload |
 | `GET` | `/api/public/tickets` | Public | Current ticket catalog |
-| `GET` | `/api/public/sponsors` | Public | Active sponsor packages |
+| `GET` | `/api/public/sponsors` | Public | Publication state, exact reviewed sponsor packages, and approved sponsor showcase |
+| `GET` | `/api/public/vendors` | Public | Publication state and exact reviewed vendor offerings |
 | `POST` | `/api/public/concierge` | Public, rate-limited | Source-cited Ask Sandy answer over governed public data; question text is not persisted |
 | `POST` | `/api/public/vendor-applications` | Public + optional `Idempotency-Key` | Create one vendor workflow and replay it safely on network retry |
 | `POST` | `/api/public/sponsor-inquiries` | Public + optional `Idempotency-Key` | Create one sponsor workflow using a server-authoritative active tier |
@@ -88,6 +89,7 @@ Routes:
 | `PATCH` | `/api/admin/fulfillment/:id` | Bearer token | Update fulfillment status |
 | `PATCH` | `/api/admin/tickets/:id` | Bearer token | Update ticket pricing, Stripe IDs, review gates, and limits |
 | `PATCH` | `/api/admin/sponsor-packages/:id` | Bearer token | Update sponsor pricing, benefits, Stripe IDs, and QuickBooks mapping |
+| `POST` | `/api/admin/partner-catalog-publication` | `sponsor:write` or `finance:write` | Publish or hold the exact current sponsor/vendor catalog with official source proof |
 | `GET` | `/api/admin/partners` | Bearer token | Applications, invoices, payments, dates, follow-ups, tasks, vendor readiness, and provider readiness |
 | `GET` | `/api/admin/integrations/quickbooks` | `partners:read` | Secret-free accounting connection and sync readiness |
 | `POST` | `/api/admin/integrations/quickbooks/authorize` | `finance:write` | Create a one-time Intuit authorization request |
@@ -335,6 +337,8 @@ Production staff routing is fail-closed. The directory and every staff row must 
 ## Partner Intake Bot Safety
 
 Public vendor and sponsor intake is protected by Cloudflare Turnstile in production. The visitor bundle renders separate `vendor_application` and `sponsor_inquiry` widgets. The API sends each token to Cloudflare Siteverify and accepts it only when verification succeeds and both the returned action and hostname match the configured allowlist. The secret is never present in the browser; `VITE_SANDFEST_TURNSTILE_SITE_KEY` is the public widget identifier only.
+
+Sponsor and vendor catalogs are separately publication-gated. Staff publish each program against `SANDFEST_EVENT_ID`, an official HTTPS source, a source-review timestamp no older than `SANDFEST_PARTNER_CATALOG_SOURCE_MAX_AGE_DAYS` (default 180), and a digest of the exact public pricing, benefits, categories, fees, descriptions, and inclusions. Editing any public field automatically returns the program to pending; changing only a private Stripe or QuickBooks mapping preserves publication. Held, stale, event-mismatched, invalid, or digest-mismatched catalogs return an empty public collection, are excluded from Ask Sandy and sponsor invitations, and reject intake before Turnstile verification. The production visitor artifact contains no static sponsor-price or vendor-fee fallback. Publish and hold actions capture a config snapshot and an audit record. The local board runtime uses a distinct `board_demo` publication bound to its synthetic catalog and can never satisfy ordinary production readiness.
 
 Public event dates, hours, location, and contact facts are published through the authenticated Event guide editor. Every publish records the staff actor, official HTTPS source, source-check timestamp, snapshot, and audit event. `SANDFEST_EVENT_GUIDE_SOURCE_MAX_AGE_DAYS` defaults to 90; production `/ready` fails closed when the guide is unpublished, past, invalid, or sourced from an older review.
 
