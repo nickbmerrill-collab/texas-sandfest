@@ -24,6 +24,7 @@ const iosSeed = JSON.parse(await read("ios/TexasSandFest/Resources/sandfest-seed
 const entitlements = await read("ios/TexasSandFest/TexasSandFest.entitlements");
 const project = parseYaml(await read("ios/project.yml"));
 const xcodeProject = await read("ios/TexasSandFest.xcodeproj/project.pbxproj");
+const appDataStore = await read("ios/TexasSandFest/AppDataStore.swift");
 
 assert.deepEqual(
   iosSeed,
@@ -34,6 +35,9 @@ assert.deepEqual(
 assert.match(canonical.guide.startDate, /^\d{4}-\d{2}-\d{2}$/);
 assert.match(canonical.guide.endDate, /^\d{4}-\d{2}-\d{2}$/);
 assert.ok(canonical.guide.timeZone, "The canonical guide must publish an event time zone.");
+assert.deepEqual(canonical.schedule, [], "The canonical seed must not expose detailed 2027 programming before publication.");
+assert.equal(appDataStore.includes("loaded.schedule.count < 10"), false, "The iOS app must not fill a governed public schedule with sample programming.");
+assert.match(appDataStore, /runtime\?\.mode == "board_demo"/, "Sample iOS programming must require explicit board runtime metadata.");
 
 const timeline = await read("ios/TexasSandFest/LiveTimeline.swift");
 const schedule = await read("ios/TexasSandFest/ScheduleView.swift");

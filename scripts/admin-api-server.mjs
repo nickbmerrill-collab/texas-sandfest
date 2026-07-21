@@ -35,6 +35,11 @@ import { createRateLimiter } from "../lib/rate-limit.mjs";
 import { normalizeRequestId, redactAuditValue, safeErrorResponse } from "../lib/security.mjs";
 import { turnstileConfig, verifyTurnstileToken } from "../lib/turnstile.mjs";
 import { eventGuideReadiness, publicEventGuide, publishEventGuide } from "../lib/event-guide.mjs";
+import {
+  eventScheduleReadiness,
+  holdEventSchedule,
+  publishEventSchedule
+} from "../lib/event-schedule.mjs";
 import { eventContextConfig, eventContextReadiness } from "../lib/event-context.mjs";
 import { recoveryReadiness } from "../lib/recovery-readiness.mjs";
 import { enqueueJob, getQueueHealth, listJobs, markTerminalJobHandled } from "../lib/job-queue.mjs";
@@ -783,6 +788,7 @@ const DEPLOYMENT_CHECK_PRESENTATION = Object.freeze({
   publicApiBase: ["Public API address", "Access"],
   adminBase: ["Admin app address", "Access"],
   eventGuide: ["Published event guide", "Program data"],
+  eventSchedule: ["Published daily schedule", "Program data"],
   currentEvent: ["Current event context", "Program data"],
   staffDirectory: ["Staff directory and routing", "Program data"],
   sponsorPackages: ["Sponsor package catalog", "Program data"],
@@ -1776,6 +1782,14 @@ async function deploymentProfile(options = {}) {
   const guideReadiness = eventGuideReadiness(eventBootstrap.guide, {
     maxSourceAgeDays: EVENT_GUIDE_SOURCE_MAX_AGE_DAYS
   });
+  const scheduleReadiness = eventScheduleReadiness({
+    eventId: CURRENT_EVENT_ID,
+    schedule: eventBootstrap.schedule,
+    publication: eventBootstrap.schedulePublication
+  }, {
+    maxSourceAgeDays: EVENT_GUIDE_SOURCE_MAX_AGE_DAYS,
+    allowBoardDemo: BOARD_DEMO_RUNTIME
+  });
   const currentEventReadiness = eventContextReadiness({
     config: EVENT_CONTEXT,
     guide: eventBootstrap.guide,
@@ -1884,6 +1898,11 @@ async function deploymentProfile(options = {}) {
       guideReadiness.ready,
       guideReadiness.reason,
       production ? "error" : "warning"
+    ),
+    eventSchedule: checkStatus(
+      scheduleReadiness.ready,
+      scheduleReadiness.reason,
+      "warning"
     ),
     currentEvent: checkStatus(
       currentEventReadiness.ready,
@@ -4223,6 +4242,72 @@ async function handleAdminEventGuidePublish(request, response) {
   });
 }
 
+async function handleAdminEventSchedulePublish(request, response) {
+  const session = await requirePermission(request, response, "content:write");
+  if (!session) return;
+  const body = await readBody(request);
+  if (typeof body.publish !== "boolean") {
+    sendJson(request, response, 400, { error: "Confirm whether the daily schedule should be published or held." });
+    return;
+  }
+  const bootstrap = await storage.config.read("app-bootstrap");
+  const before = {
+    schedule: bootstrap.schedule ?? [],
+    publication: bootstrap.schedulePublication ?? {}
+  };
+  const now = new Date().toISOString();
+  const result = body.publish
+    ? publishEventSchedule(before, {
+        schedule: body.schedule,
+        sourceUrl: body.sourceUrl,
+        sourceCheckedAt: body.sourceCheckedAt
+      }, {
+        actorId: session.actorId,
+        eventId: CURRENT_EVENT_ID,
+        now
+      })
+    : holdEventSchedule(before, {
+        actorId: session.actorId,
+        eventId: CURRENT_EVENT_ID,
+        reason: body.reason,
+        now
+      });
+  if (!result.ok) {
+    sendJson(request, response, 400, { error: result.error, errors: result.errors ?? [result.error] });
+    return;
+  }
+  const updated = {
+    ...bootstrap,
+    schedule: result.schedule,
+    schedulePublication: result.publication
+  };
+  await writeConfigSnapshot(request, { type: "appBootstrap", id: "app-bootstrap" }, bootstrap, "Before public daily schedule change");
+  await storage.config.write("app-bootstrap", updated);
+  const after = { schedule: result.schedule, publication: result.publication };
+  await writeAuditRecord(
+    request,
+    body.publish ? "content.event-schedule.publish" : "content.event-schedule.hold",
+    { type: "eventSchedule", id: CURRENT_EVENT_ID },
+    before,
+    after,
+    body.publish
+      ? { sourceUrl: result.publication.sourceUrl, sourceCheckedAt: result.publication.sourceCheckedAt, itemCount: result.schedule.length }
+      : { reason: result.publication.holdReason }
+  );
+  sendJson(request, response, 200, {
+    schedule: result.schedule,
+    publication: result.publication,
+    readiness: eventScheduleReadiness({
+      eventId: CURRENT_EVENT_ID,
+      schedule: result.schedule,
+      publication: result.publication
+    }, {
+      maxSourceAgeDays: EVENT_GUIDE_SOURCE_MAX_AGE_DAYS,
+      allowBoardDemo: BOARD_DEMO_RUNTIME
+    })
+  });
+}
+
 async function handleRequest(request, response) {
   request.requestId = normalizeRequestId(request.headers["x-request-id"]);
   if (request.method === "OPTIONS") {
@@ -5752,7 +5837,15 @@ async function handleRequest(request, response) {
           return { ready: readiness.ready, errors: readiness.errors, digest: readiness.digest };
         })(),
         bootstrap,
-        eventGuideReadiness: eventGuideReadiness(bootstrap.guide, { maxSourceAgeDays: EVENT_GUIDE_SOURCE_MAX_AGE_DAYS })
+        eventGuideReadiness: eventGuideReadiness(bootstrap.guide, { maxSourceAgeDays: EVENT_GUIDE_SOURCE_MAX_AGE_DAYS }),
+        eventScheduleReadiness: eventScheduleReadiness({
+          eventId: CURRENT_EVENT_ID,
+          schedule: bootstrap.schedule,
+          publication: bootstrap.schedulePublication
+        }, {
+          maxSourceAgeDays: EVENT_GUIDE_SOURCE_MAX_AGE_DAYS,
+          allowBoardDemo: BOARD_DEMO_RUNTIME
+        })
       });
       return;
     }
@@ -8906,6 +8999,11 @@ async function handleRequest(request, response) {
 
     if (method === "POST" && pathname === "/api/admin/event-guide/publish") {
       await handleAdminEventGuidePublish(request, response);
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/admin/event-schedule/publish") {
+      await handleAdminEventSchedulePublish(request, response);
       return;
     }
 

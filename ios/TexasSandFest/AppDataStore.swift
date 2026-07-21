@@ -174,18 +174,28 @@ final class AppDataStore: ObservableObject {
             do {
                 loaded = try loadSeedPayload()
             } catch {
-                return (fallback, "Fallback sample")
+                return (
+                    SandFestPayload(
+                        guide: fallback.guide,
+                        alert: fallback.alert,
+                        schedule: [],
+                        zones: fallback.zones,
+                        ticketOptions: fallback.ticketOptions,
+                        sponsors: [],
+                        vendors: [],
+                        coverage: [],
+                        financeSignals: [],
+                        myTickets: []
+                    ),
+                    "Fallback guide"
+                )
             }
         }
 
-        // The governed bootstrap is intentionally sparse until the final public
-        // lineup is approved. Keep the richer local schedule for the offline and
-        // explicitly labeled board experience only.
-        let needsRichSchedule = loaded.schedule.count < 10
         let merged = SandFestPayload(
             guide: loaded.guide,
             alert: loaded.alert,
-            schedule: needsRichSchedule ? SampleData.schedule : loaded.schedule,
+            schedule: loaded.schedule,
             zones: loaded.zones,
             ticketOptions: loaded.ticketOptions,
             sponsors: loaded.sponsors,
@@ -194,7 +204,7 @@ final class AppDataStore: ObservableObject {
             financeSignals: loaded.financeSignals,
             myTickets: loaded.myTickets ?? SampleData.myTickets
         )
-        return (merged, needsRichSchedule ? "Bundled seed (sample schedule overlay)" : "Bundled seed")
+        return (merged, "Bundled seed")
     }
 
     private static func validate(_ publicPayload: PublicSandFestPayload, expectedEventID: String) throws {
@@ -206,8 +216,7 @@ final class AppDataStore: ObservableObject {
               !publicPayload.guide.location.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw AppDataError.invalidBootstrap
         }
-        guard !publicPayload.schedule.isEmpty,
-              Set(publicPayload.schedule.map(\.id)).count == publicPayload.schedule.count,
+        guard Set(publicPayload.schedule.map(\.id)).count == publicPayload.schedule.count,
               publicPayload.schedule.allSatisfy({ !$0.id.isEmpty && !$0.title.isEmpty }) else {
             throw AppDataError.invalidBootstrap
         }
@@ -255,7 +264,7 @@ final class AppDataStore: ObservableObject {
     private static func merge(_ publicPayload: PublicSandFestPayload, into bundled: SandFestPayload) -> SandFestPayload {
         let boardDemo = publicPayload.runtime?.mode == "board_demo"
         let schedule = boardDemo
-            ? mergeBoardSchedule(publicPayload.schedule, fallback: bundled.schedule)
+            ? mergeBoardSchedule(publicPayload.schedule, fallback: SampleData.schedule)
             : publicPayload.schedule
         let zonesByID = Dictionary(uniqueKeysWithValues: bundled.zones.map { ($0.id, $0) })
         let zones = publicPayload.zones.map { publicZone in

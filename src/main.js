@@ -154,6 +154,9 @@ const sculptorDataPromise = localBoardContentEnabled
 const liveBeachDemoPromise = localBoardContentEnabled
   ? import("./board-demo/live-beach-demo.json").then(module => module.default)
   : Promise.resolve(null);
+const scheduleDemoPromise = localBoardContentEnabled
+  ? import("./board-demo/schedule-demo.json").then(module => module.default)
+  : Promise.resolve(null);
 const crawlSummaryPromise = Promise.resolve(null);
 const incomingInventoryPromise = Promise.resolve(null);
 
@@ -165,7 +168,8 @@ const [
   ticketCatalog,
   sculptorData,
   appBootstrap,
-  liveBeachDemo
+  liveBeachDemo,
+  scheduleDemo
 ] = await Promise.all([
   loadPublicJson("assets/sandfest-media/media-manifest.json"),
   loadPublicJson("assets/sandfest-media/media-derivatives.json"),
@@ -174,7 +178,8 @@ const [
   loadPublicJson("data/ticket-products.json"),
   sculptorDataPromise,
   loadPublicJson("data/app-bootstrap.json"),
-  liveBeachDemoPromise
+  liveBeachDemoPromise,
+  scheduleDemoPromise
 ]);
 let runtimeDataMode = null;
 
@@ -312,7 +317,8 @@ const quickStats = [
   ["1", "island celebration"]
 ];
 
-const schedule = appBootstrap?.schedule ?? [];
+const OFFICIAL_DAILY_SCHEDULE_URL = "https://www.texassandfest.org/daily-schedule";
+const schedule = scheduleDemo ?? appBootstrap?.schedule ?? [];
 
 const scheduleCards = linked => schedule.length ? schedule.map(item => `
   <article${linked ? ` id="schedule-${escapeAttr(item.id)}"` : ""}>
@@ -320,7 +326,11 @@ const scheduleCards = linked => schedule.length ? schedule.map(item => `
     <strong>${escapeHtml(item.title)}</strong>
     <span>${escapeHtml(item.zone)}</span>
   </article>
-`).join("") : "<article><strong>Schedule unavailable</strong></article>";
+`).join("") : `<article class="schedule-publication-pending">
+  <strong>2027 daily schedule coming soon</strong>
+  <span>Festival dates and hours are confirmed. Detailed programming will appear after Texas SandFest publishes the current daily schedule.</span>
+  <a href="${OFFICIAL_DAILY_SCHEDULE_URL}" target="_blank" rel="noopener noreferrer">Check the official daily schedule</a>
+</article>`;
 
 const zones = [
   { name: "North Gate", detail: "Ticket scan, ADA routing, wristband support", load: 82 },
@@ -1209,6 +1219,7 @@ app.innerHTML = `
           </div>
         </form>
       </div>
+      ${adminOperationsUi?.eventScheduleEditorMarkup() ?? ""}
       <div class="admin-document-panel" id="admin-documents">
         <div class="editor-heading admin-document-heading">
           <div>
@@ -3645,6 +3656,7 @@ function renderAdminEditors() {
   document.querySelector("#admin-vendor-offering-editor").innerHTML = vendorOfferings.map(vendorOfferingAdminCard).join("");
   renderAdminTicketPolicy();
   renderAdminEventGuide(adminConfigState?.bootstrap, adminConfigState?.eventGuideReadiness);
+  adminOperationsUi?.renderEventSchedule(adminConfigState?.bootstrap, adminConfigState?.eventScheduleReadiness, isoToLocalDateTime);
   if (adminSessionState) renderAdminSession(adminSessionState);
   bindAdminSaveButtons();
 }
@@ -9247,6 +9259,17 @@ document.querySelector("#admin-event-guide-form")?.addEventListener("submit", as
   } finally {
     button.disabled = !adminCan("content:write");
   }
+});
+
+adminOperationsUi?.bindEventScheduleEditor({
+  adminFetch,
+  localDateTimeToIso,
+  refresh: async () => {
+    adminConfigState = await adminFetch("/api/admin/config");
+    renderAdminEditors();
+    await loadAdminDeployment();
+  },
+  setAdminStatus
 });
 
 if (ADMIN_AUTH_MODE === "oidc") {

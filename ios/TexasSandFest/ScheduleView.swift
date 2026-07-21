@@ -6,8 +6,8 @@ import SwiftUI
 //   - Star to favorite + tap to schedule a 15-min-before local reminder
 //   - Stage chips, set duration bars, category color coding
 //
-// When the real CSV/sheet schedule lands we replace the SampleData.schedule
-// payload — the view doesn't need to change.
+// Public builds render only source-reviewed schedule items. The synthetic
+// SampleData schedule is merged only for an explicitly labeled board runtime.
 
 enum ScheduleMode: String, CaseIterable, Identifiable {
     case time
@@ -62,46 +62,50 @@ struct ScheduleView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                modeSwitcher
-                if mode == .time {
-                    if !liveSummary.nowPlaying.isEmpty || !liveSummary.upNext.isEmpty {
-                        NowPlayingBanner(summary: liveSummary)
-                            .padding(.horizontal, 16)
-                            .padding(.bottom, 8)
-                    }
-                    dayPicker
-                    myToggleRow
-                    Divider().opacity(0.4)
-                    ScrollViewReader { proxy in
-                        ScrollView {
-                            LazyVStack(alignment: .leading, spacing: 12) {
-                                if visibleItems.isEmpty {
-                                    emptyState
-                                } else {
-                                    ForEach(visibleItems) { item in
-                                        ScheduleRow(
-                                            item: item,
-                                            isStarred: favorites.isStarred(item.id),
-                                            isLive: liveSummary.nowPlaying.contains { $0.id == item.id },
-                                            isTargeted: highlightedItemID == item.id,
-                                            onStar: { handleStar(item) }
-                                        )
-                                        .id(item.id)
+                if dataStore.payload.schedule.isEmpty {
+                    schedulePublicationPending
+                } else {
+                    modeSwitcher
+                    if mode == .time {
+                        if !liveSummary.nowPlaying.isEmpty || !liveSummary.upNext.isEmpty {
+                            NowPlayingBanner(summary: liveSummary)
+                                .padding(.horizontal, 16)
+                                .padding(.bottom, 8)
+                        }
+                        dayPicker
+                        myToggleRow
+                        Divider().opacity(0.4)
+                        ScrollViewReader { proxy in
+                            ScrollView {
+                                LazyVStack(alignment: .leading, spacing: 12) {
+                                    if visibleItems.isEmpty {
+                                        emptyState
+                                    } else {
+                                        ForEach(visibleItems) { item in
+                                            ScheduleRow(
+                                                item: item,
+                                                isStarred: favorites.isStarred(item.id),
+                                                isLive: liveSummary.nowPlaying.contains { $0.id == item.id },
+                                                isTargeted: highlightedItemID == item.id,
+                                                onStar: { handleStar(item) }
+                                            )
+                                            .id(item.id)
+                                        }
                                     }
                                 }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 16)
                             }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 16)
+                            .onAppear {
+                                scrollToTarget(using: proxy)
+                            }
+                            .onChange(of: selectedDay) { _, _ in
+                                scrollToTarget(using: proxy)
+                            }
                         }
-                        .onAppear {
-                            scrollToTarget(using: proxy)
-                        }
-                        .onChange(of: selectedDay) { _, _ in
-                            scrollToTarget(using: proxy)
-                        }
+                    } else {
+                        LineupView()
                     }
-                } else {
-                    LineupView()
                 }
             }
             .background(Color.lbCream.ignoresSafeArea())
@@ -152,6 +156,26 @@ struct ScheduleView: View {
     }
 
     // MARK: Sections
+
+    private var schedulePublicationPending: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "calendar.badge.clock")
+                .font(.system(size: 42))
+                .foregroundStyle(Color.lbCoral2)
+            Text("2027 daily schedule coming soon")
+                .font(.title3.weight(.bold))
+                .foregroundStyle(Color.lbNavy)
+            Text("Festival dates and hours are confirmed. Detailed programming will appear after Texas SandFest publishes the current daily schedule.")
+                .font(.subheadline)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(Color.lbNavy.opacity(0.68))
+            Link("Check the official daily schedule", destination: URL(string: "https://www.texassandfest.org/daily-schedule")!)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(Color.sandFestGulf)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(32)
+    }
 
     private var dayPicker: some View {
         HStack(spacing: 8) {

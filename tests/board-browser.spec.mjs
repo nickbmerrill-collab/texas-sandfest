@@ -788,6 +788,18 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await expect(page.locator('#admin-ticket-policy-form [name="version"]')).toHaveValue("board-demo-2027-v1");
   await expect(page.locator("#admin-ticket-policy-readiness")).toContainText("approved for checkout");
   await expect(page.locator("#admin-ticket-policy-notices textarea")).toHaveCount(4);
+  const scheduleRows = page.locator("#admin-event-schedule-rows .admin-event-schedule-row");
+  await expect(page.locator("#admin-event-schedule-readiness")).toContainText("3 synthetic schedule items are isolated to the board demonstration.");
+  await expect(scheduleRows).toHaveCount(3);
+  await expect(scheduleRows.first().locator('[name="title"]')).toHaveValue("Beach gates open");
+  await page.locator("#admin-add-event-schedule-item").click();
+  await expect(scheduleRows).toHaveCount(4);
+  const draftScheduleRow = scheduleRows.last();
+  await expect(draftScheduleRow.locator('[name="day"]')).toHaveValue("Friday");
+  await expect(draftScheduleRow.locator('[name="category"]')).toHaveValue("Program");
+  await draftScheduleRow.locator('[name="title"]').fill("Browser schedule draft");
+  await draftScheduleRow.locator("[data-remove-event-schedule-item]").click();
+  await expect(scheduleRows).toHaveCount(3);
   const activationBoundary = page.locator("#admin-board-stage-summary");
   await expect(activationBoundary.locator('[data-board-stage="presentation-ready"]')).toContainText("Real workflows with synthetic providers");
   await expect(activationBoundary.locator('[data-board-stage="post-presentation"]')).toContainText("Stripe, QuickBooks, Brevo, Twilio, NWS, TxDOT, eight webcam edge agents, OIDC, Turnstile, DNS, and managed recovery");

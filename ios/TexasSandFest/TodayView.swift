@@ -71,15 +71,21 @@ struct TodayView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Next Up")
                     .font(.headline)
-                ForEach(dataStore.payload.schedule.prefix(3)) { item in
-                    HStack(alignment: .top) {
-                        Text(item.time)
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(Color.sandFestCoral)
-                            .frame(width: 72, alignment: .leading)
-                        VStack(alignment: .leading) {
-                            Text(item.title).font(.subheadline.weight(.semibold))
-                            Text(item.zone).font(.caption).foregroundStyle(.secondary)
+                if dataStore.payload.schedule.isEmpty {
+                    Text("The detailed 2027 daily schedule has not been published yet.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(dataStore.payload.schedule.prefix(3)) { item in
+                        HStack(alignment: .top) {
+                            Text(item.time)
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(Color.sandFestCoral)
+                                .frame(width: 72, alignment: .leading)
+                            VStack(alignment: .leading) {
+                                Text(item.title).font(.subheadline.weight(.semibold))
+                                Text(item.zone).font(.caption).foregroundStyle(.secondary)
+                            }
                         }
                     }
                 }
