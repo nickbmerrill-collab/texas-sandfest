@@ -79,5 +79,20 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci
+      - name: Re-prove production API immediately before deploy
+        env:
+          SANDFEST_APPLE_APP_ID_PREFIX: ${{ vars.SANDFEST_APPLE_APP_ID_PREFIX }}
+          SANDFEST_LIVE_PUBLIC_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+          SANDFEST_LIVE_API_URL: https://sandfest-api.heyelab.com/
+          SANDFEST_LIVE_ADMIN_URL: https://sandfest-admin.heyelab.com/
+        run: npm run deployment:verify:api
       - id: deployment
         uses: actions/deploy-pages@v4

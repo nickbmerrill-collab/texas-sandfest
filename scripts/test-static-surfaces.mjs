@@ -126,10 +126,15 @@ const pagesDeferredIf = String(pagesWorkflow.jobs?.deferred?.if || "");
 const pagesBuildIf = String(pagesWorkflow.jobs?.build?.if || "");
 const pagesDeferredSteps = pagesWorkflow.jobs?.deferred?.steps || [];
 const pagesBuildSteps = pagesWorkflow.jobs?.build?.steps || [];
+const pagesDeploySteps = pagesWorkflow.jobs?.deploy?.steps || [];
 const pagesApiGate = pagesBuildSteps.find(step => step.name === "Prove production API is launch-ready");
 const pagesApiGateIndex = pagesBuildSteps.indexOf(pagesApiGate);
 const pagesPublicBuildIndex = pagesBuildSteps.findIndex(step => step.name === "Build visitor-only static site");
 const pagesUploadIndex = pagesBuildSteps.findIndex(step => step.uses === "actions/upload-pages-artifact@v3");
+const pagesDeployCheckout = pagesDeploySteps.find(step => step.uses === "actions/checkout@v5");
+const pagesDeployApiGate = pagesDeploySteps.find(step => step.name === "Re-prove production API immediately before deploy");
+const pagesDeployApiGateIndex = pagesDeploySteps.indexOf(pagesDeployApiGate);
+const pagesDeployActionIndex = pagesDeploySteps.findIndex(step => step.uses === "actions/deploy-pages@v4");
 const verificationAppleApplicationIdentifier = sandfestAppleApplicationIdentifier("ABCDE12345");
 assert(pagesDeferredIf.includes("github.event.workflow_run.conclusion == 'success'")
   && pagesDeferredIf.includes("github.event.workflow_run.event == 'push'")
@@ -150,6 +155,15 @@ assert(pagesApiGate?.run === "npm run deployment:verify:api"
   && pagesApiGateIndex < pagesPublicBuildIndex
   && pagesApiGateIndex < pagesUploadIndex, "Pages must prove the production API, public contracts, and release-origin CORS before uploading an artifact.");
 assert(pagesWorkflow.jobs?.deploy?.needs === "build", "The Pages deployment must depend only on the gated production build.");
+assert(pagesDeployCheckout?.with?.ref === "${{ github.event.workflow_run.head_sha }}"
+  && pagesDeployApiGate?.run === "npm run deployment:verify:api"
+  && pagesDeployApiGate?.env?.SANDFEST_APPLE_APP_ID_PREFIX === "${{ vars.SANDFEST_APPLE_APP_ID_PREFIX }}"
+  && pagesDeployApiGate?.env?.SANDFEST_LIVE_PUBLIC_URL?.includes("github.repository_owner")
+  && pagesDeployApiGate?.env?.SANDFEST_LIVE_API_URL === "https://sandfest-api.heyelab.com/"
+  && pagesDeployApiGate?.env?.SANDFEST_LIVE_ADMIN_URL === "https://sandfest-admin.heyelab.com/"
+  && pagesDeployApiGateIndex > 0
+  && pagesDeployApiGateIndex < pagesDeployActionIndex
+  && pagesDeploySteps[pagesDeployActionIndex]?.id === "deployment", "Pages must re-prove the exact production API contract after environment approval and immediately before publication.");
 assert(publicHtml.includes("Texas SandFest | Port Aransas"), "Public artifact does not contain the visitor entry.");
 assert(publicFallbackHtml === publicHtml, "Public canonical-path fallback must boot the exact visitor artifact.");
 assert(
