@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-07-18T16:42:45.000Z",
+  "lastUpdated": "2026-07-21T00:00:00.000Z",
   "deployment": {
     "ownerSite": "Heyelab",
     "apiSubdomain": "sandfest-api.heyelab.com",
@@ -313,6 +313,32 @@
       ]
     }
   ],
+  "sponsorPackagePublication": {
+    "status": "pending",
+    "eventId": "texas-sandfest-2027",
+    "catalogDigest": null,
+    "sourceUrl": null,
+    "sourceCheckedAt": null,
+    "publishedAt": null,
+    "publishedBy": null,
+    "heldAt": "2026-07-21T00:00:00.000Z",
+    "heldBy": "production-readiness",
+    "holdReason": "Awaiting the approved 2027 sponsorship packet and source review.",
+    "lastUpdated": "2026-07-21T00:00:00.000Z"
+  },
+  "vendorOfferingPublication": {
+    "status": "pending",
+    "eventId": "texas-sandfest-2027",
+    "catalogDigest": null,
+    "sourceUrl": null,
+    "sourceCheckedAt": null,
+    "publishedAt": null,
+    "publishedBy": null,
+    "heldAt": "2026-07-21T00:00:00.000Z",
+    "heldBy": "production-readiness",
+    "holdReason": "Awaiting the approved 2027 vendor application program and source review.",
+    "lastUpdated": "2026-07-21T00:00:00.000Z"
+  },
   "adminModules": [
     {
       "id": "ticket-pricing",

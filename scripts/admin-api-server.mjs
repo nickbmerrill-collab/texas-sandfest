@@ -269,6 +269,13 @@ import {
   updateVendorOfferingConfig,
   vendorOfferingCatalog
 } from "../lib/vendor-offerings.mjs";
+import {
+  holdPartnerCatalog,
+  partnerCatalogPublicationReadiness,
+  publicPartnerCatalogPublication,
+  publishPartnerCatalog,
+  refreshPartnerCatalogPublication
+} from "../lib/partner-catalog-publication.mjs";
 import { partnerContactNotice } from "../lib/partner-consent.mjs";
 import {
   deletePartnerAssetUpload,
@@ -523,6 +530,7 @@ const SMS_MAX_RECIPIENTS = Number.isFinite(configuredSmsMaxRecipients)
   ? Math.min(5000, Math.max(1, Math.round(configuredSmsMaxRecipients)))
   : 500;
 const EVENT_GUIDE_SOURCE_MAX_AGE_DAYS = Math.max(1, Number(process.env.SANDFEST_EVENT_GUIDE_SOURCE_MAX_AGE_DAYS || 90));
+const PARTNER_CATALOG_SOURCE_MAX_AGE_DAYS = Math.max(1, Number(process.env.SANDFEST_PARTNER_CATALOG_SOURCE_MAX_AGE_DAYS || 180));
 const OPERATIONAL_EVENT_DOCUMENT_KEYS = [
   "fleet",
   "budgetControl",
@@ -638,6 +646,61 @@ const patchableVendorOfferingFields = new Set([
   "quickBooksItemId"
 ]);
 const creatableVendorOfferingFields = new Set(["id", ...patchableVendorOfferingFields]);
+
+function partnerCatalogState(config, catalogKind) {
+  if (catalogKind === "sponsor") {
+    const catalog = sponsorPackageCatalog(config);
+    const items = catalog.activePackages.map(publicSponsorPackage);
+    return {
+      kind: catalogKind,
+      catalog,
+      items,
+      publicationKey: "sponsorPackagePublication",
+      readiness: partnerCatalogPublicationReadiness({
+        kind: catalogKind,
+        eventId: CURRENT_EVENT_ID,
+        items,
+        catalogReady: catalog.ready,
+        publication: config.sponsorPackagePublication
+      }, {
+        maxSourceAgeDays: PARTNER_CATALOG_SOURCE_MAX_AGE_DAYS,
+        allowBoardDemo: BOARD_DEMO_RUNTIME
+      })
+    };
+  }
+  const catalog = vendorOfferingCatalog(config);
+  const items = catalog.activeOfferings.map(publicVendorOffering);
+  return {
+    kind: "vendor",
+    catalog,
+    items,
+    publicationKey: "vendorOfferingPublication",
+    readiness: partnerCatalogPublicationReadiness({
+      kind: "vendor",
+      eventId: CURRENT_EVENT_ID,
+      items,
+      catalogReady: catalog.ready,
+      publication: config.vendorOfferingPublication
+    }, {
+      maxSourceAgeDays: PARTNER_CATALOG_SOURCE_MAX_AGE_DAYS,
+      allowBoardDemo: BOARD_DEMO_RUNTIME
+    })
+  };
+}
+
+function refreshedPartnerCatalogPublication(config, catalogKind, now = new Date().toISOString()) {
+  const state = partnerCatalogState(config, catalogKind);
+  return refreshPartnerCatalogPublication({
+    kind: catalogKind,
+    eventId: CURRENT_EVENT_ID,
+    items: state.items,
+    publication: config[state.publicationKey]
+  }, {
+    eventId: CURRENT_EVENT_ID,
+    boardDemo: BOARD_DEMO_RUNTIME,
+    now
+  });
+}
 
 const fulfillmentStatuses = new Set([
   "queued",
@@ -1804,14 +1867,23 @@ async function deploymentProfile(options = {}) {
     || item.unitAmount < 1);
   const ticketPolicy = ticketCheckoutPolicyReadiness(ticketCatalog, { eventId: CURRENT_EVENT_ID });
   const recovery = recoveryReadiness(process.env);
-  const vendorCatalog = adminConfigResult.error
-    ? {
-        ready: false,
-        activeOfferings: [],
-        missingCategories: [],
-        errors: [`Admin config could not be read: ${adminConfigResult.error.message}`]
-      }
-    : vendorOfferingCatalog(adminConfigResult.value);
+  const unreadableCatalog = kind => ({
+    ready: false,
+    activePackages: [],
+    activeOfferings: [],
+    missingCategories: [],
+    errors: [`Admin config could not be read: ${adminConfigResult.error?.message || "unknown error"}`],
+    source: "unavailable",
+    kind
+  });
+  const sponsorProgram = adminConfigResult.error
+    ? { catalog: unreadableCatalog("sponsor"), items: [], readiness: { ready: false, reason: "The sponsor catalog could not be read." } }
+    : partnerCatalogState(adminConfigResult.value, "sponsor");
+  const vendorProgram = adminConfigResult.error
+    ? { catalog: unreadableCatalog("vendor"), items: [], readiness: { ready: false, reason: "The vendor catalog could not be read." } }
+    : partnerCatalogState(adminConfigResult.value, "vendor");
+  const sponsorCatalog = sponsorProgram.catalog;
+  const vendorCatalog = vendorProgram.catalog;
   const stripeTicketingReady = STRIPE_ENABLED
     && STRIPE_SECRET_KEY.startsWith("sk_")
     && STRIPE_WEBHOOK_SECRET.startsWith("whsec_")
@@ -1821,7 +1893,6 @@ async function deploymentProfile(options = {}) {
     && checkoutProducts.length > 0
     && invalidCheckoutProducts.length === 0
     && ticketPolicy.ready;
-  const sponsorCatalog = sponsorPackageCatalog(adminConfigResult.value || {});
   const checks = {
     environment: checkStatus(["development", "staging", "production"].includes(SANDFEST_ENV), `SANDFEST_ENV=${SANDFEST_ENV}`),
     capabilityPolicy: checkStatus(
@@ -1917,17 +1988,17 @@ async function deploymentProfile(options = {}) {
       production || capabilityPolicy.required.has("staff_directory") ? "error" : "warning"
     ),
     sponsorPackages: checkStatus(
-      sponsorCatalog.ready,
-      sponsorCatalog.ready
-        ? `${sponsorCatalog.activePackages.length} active sponsor packages have trusted pricing and fulfillment benefits.`
-        : sponsorCatalog.errors.join(" "),
+      sponsorCatalog.ready && sponsorProgram.readiness.ready,
+      !sponsorCatalog.ready
+        ? sponsorCatalog.errors.join(" ")
+        : sponsorProgram.readiness.reason,
       production ? "error" : "warning"
     ),
     vendorOfferings: checkStatus(
-      vendorCatalog.ready,
-      vendorCatalog.ready
-        ? `${vendorCatalog.activeOfferings.length} active vendor offerings cover every public vendor type.`
-        : vendorCatalog.errors.join(" "),
+      vendorCatalog.ready && vendorProgram.readiness.ready,
+      !vendorCatalog.ready
+        ? vendorCatalog.errors.join(" ")
+        : vendorProgram.readiness.reason,
       production ? "error" : "warning"
     ),
     adminBase: checkStatus(
@@ -4080,7 +4151,9 @@ async function handleAdminSponsorPatch(request, response, sponsorId) {
   await storage.config.update("admin-config", async config => {
     result = updateSponsorPackageConfig(config, sponsorId, patch);
     if (!result.ok) return undefined;
-    result.config.lastUpdated = new Date().toISOString();
+    const now = new Date().toISOString();
+    result.config.sponsorPackagePublication = refreshedPartnerCatalogPublication(result.config, "sponsor", now);
+    result.config.lastUpdated = now;
     await writeConfigSnapshot(request, { type: "adminConfig", id: "admin-config" }, config, `Before sponsor package update: ${sponsorId}`);
     return result.config;
   });
@@ -4103,6 +4176,7 @@ async function handleAdminSponsorPatch(request, response, sponsorId) {
       ready: result.catalog.ready,
       activePackages: result.catalog.activePackages.length
     },
+    publicationReadiness: partnerCatalogState(result.config, "sponsor").readiness,
     lastUpdated: result.config.lastUpdated
   });
 }
@@ -4114,7 +4188,9 @@ async function handleAdminSponsorCreate(request, response) {
   await storage.config.update("admin-config", async config => {
     result = createSponsorPackageConfig(config, input);
     if (!result.ok) return undefined;
-    result.config.lastUpdated = new Date().toISOString();
+    const now = new Date().toISOString();
+    result.config.sponsorPackagePublication = refreshedPartnerCatalogPublication(result.config, "sponsor", now);
+    result.config.lastUpdated = now;
     await writeConfigSnapshot(request, { type: "adminConfig", id: "admin-config" }, config, `Before sponsor package creation: ${result.sponsorPackage.id}`);
     return result.config;
   });
@@ -4137,6 +4213,7 @@ async function handleAdminSponsorCreate(request, response) {
       ready: result.catalog.ready,
       activePackages: result.catalog.activePackages.length
     },
+    publicationReadiness: partnerCatalogState(result.config, "sponsor").readiness,
     lastUpdated: result.config.lastUpdated
   });
 }
@@ -4148,7 +4225,9 @@ async function handleAdminVendorOfferingPatch(request, response, offeringId) {
   await storage.config.update("admin-config", async config => {
     result = updateVendorOfferingConfig(config, offeringId, patch);
     if (!result.ok) return undefined;
-    result.config.lastUpdated = new Date().toISOString();
+    const now = new Date().toISOString();
+    result.config.vendorOfferingPublication = refreshedPartnerCatalogPublication(result.config, "vendor", now);
+    result.config.lastUpdated = now;
     await writeConfigSnapshot(request, { type: "adminConfig", id: "admin-config" }, config, `Before vendor offering update: ${offeringId}`);
     return result.config;
   });
@@ -4172,6 +4251,7 @@ async function handleAdminVendorOfferingPatch(request, response, offeringId) {
       activeOfferings: result.catalog.activeOfferings.length,
       missingCategories: result.catalog.missingCategories
     },
+    publicationReadiness: partnerCatalogState(result.config, "vendor").readiness,
     lastUpdated: result.config.lastUpdated
   });
 }
@@ -4183,7 +4263,9 @@ async function handleAdminVendorOfferingCreate(request, response) {
   await storage.config.update("admin-config", async config => {
     result = createVendorOfferingConfig(config, input);
     if (!result.ok) return undefined;
-    result.config.lastUpdated = new Date().toISOString();
+    const now = new Date().toISOString();
+    result.config.vendorOfferingPublication = refreshedPartnerCatalogPublication(result.config, "vendor", now);
+    result.config.lastUpdated = now;
     await writeConfigSnapshot(request, { type: "adminConfig", id: "admin-config" }, config, `Before vendor offering creation: ${result.offering.id}`);
     return result.config;
   });
@@ -4207,7 +4289,87 @@ async function handleAdminVendorOfferingCreate(request, response) {
       activeOfferings: result.catalog.activeOfferings.length,
       missingCategories: result.catalog.missingCategories
     },
+    publicationReadiness: partnerCatalogState(result.config, "vendor").readiness,
     lastUpdated: result.config.lastUpdated
+  });
+}
+
+async function handleAdminPartnerCatalogPublication(request, response) {
+  const body = await readBody(request);
+  const catalogKind = String(body.catalog || "").trim().toLowerCase();
+  if (!new Set(["sponsor", "vendor"]).has(catalogKind)) {
+    sendJson(request, response, 400, { error: "Partner catalog must be sponsor or vendor." });
+    return;
+  }
+  const session = await requirePermission(request, response, catalogKind === "sponsor" ? "sponsor:write" : "finance:write");
+  if (!session) return;
+  if (typeof body.publish !== "boolean") {
+    sendJson(request, response, 400, { error: "Confirm whether the partner catalog should be published or held." });
+    return;
+  }
+
+  let result;
+  let before;
+  let state;
+  const now = new Date().toISOString();
+  await storage.config.update("admin-config", async config => {
+    state = partnerCatalogState(config, catalogKind);
+    before = config[state.publicationKey] ?? {};
+    result = body.publish
+      ? publishPartnerCatalog({
+          kind: catalogKind,
+          eventId: CURRENT_EVENT_ID,
+          items: state.items,
+          catalogReady: state.catalog.ready,
+          publication: before
+        }, {
+          sourceUrl: body.sourceUrl,
+          sourceCheckedAt: body.sourceCheckedAt
+        }, {
+          eventId: CURRENT_EVENT_ID,
+          actorId: session.id,
+          now,
+          boardDemo: BOARD_DEMO_RUNTIME
+        })
+      : holdPartnerCatalog({
+          kind: catalogKind,
+          eventId: CURRENT_EVENT_ID,
+          publication: before
+        }, {
+          eventId: CURRENT_EVENT_ID,
+          actorId: session.id,
+          reason: body.reason,
+          now
+        });
+    if (!result.ok) return undefined;
+    const updated = {
+      ...config,
+      [state.publicationKey]: result.publication,
+      lastUpdated: now
+    };
+    await writeConfigSnapshot(request, { type: "adminConfig", id: "admin-config" }, config, `Before ${catalogKind} catalog publication change`);
+    return updated;
+  });
+  if (!result?.ok) {
+    sendJson(request, response, 400, { error: result?.error || "Partner catalog publication could not be updated.", errors: result?.errors ?? [result?.error] });
+    return;
+  }
+  const updatedConfig = await storage.config.read("admin-config");
+  const updatedState = partnerCatalogState(updatedConfig, catalogKind);
+  await writeAuditRecord(
+    request,
+    `${catalogKind === "sponsor" ? "sponsor-package" : "vendor-offering"}.catalog.${body.publish ? "publish" : "hold"}`,
+    { type: `${catalogKind}Catalog`, id: CURRENT_EVENT_ID },
+    before,
+    result.publication,
+    body.publish
+      ? { sourceUrl: result.publication.sourceUrl, sourceCheckedAt: result.publication.sourceCheckedAt, itemCount: state.items.length }
+      : { reason: result.publication.holdReason }
+  );
+  sendJson(request, response, 200, {
+    publication: result.publication,
+    readiness: updatedState.readiness,
+    lastUpdated: updatedConfig.lastUpdated
   });
 }
 
@@ -4544,8 +4706,8 @@ async function handleRequest(request, response) {
           ? readIslandConditions({ refreshWeather: true, refreshFerry: true })
           : Promise.resolve(null)
       ]);
-      const sponsorCatalog = sponsorPackageCatalog(config);
-      const vendorCatalog = vendorOfferingCatalog(config);
+      const sponsorProgram = partnerCatalogState(config, "sponsor");
+      const vendorProgram = partnerCatalogState(config, "vendor");
       const answer = answerPublicConcierge(question.question, {
         bootstrap: publicAppBootstrap(bootstrapInput, { includeBoardRuntime: BOARD_DEMO_RUNTIME }),
         tickets: publicTicketCatalog(ticketInput, {
@@ -4555,11 +4717,11 @@ async function handleRequest(request, response) {
         }),
         sponsors: {
           lastUpdated: config.lastUpdated || null,
-          sponsorPackages: sponsorCatalog.activePackages.map(publicSponsorPackage)
+          sponsorPackages: sponsorProgram.readiness.ready ? sponsorProgram.items : []
         },
         vendors: {
           lastUpdated: config.lastUpdated || null,
-          vendorOfferings: vendorCatalog.activeOfferings.map(publicVendorOffering)
+          vendorOfferings: vendorProgram.readiness.ready ? vendorProgram.items : []
         },
         islandConditions: conditions ? publicIslandConditions(conditions) : null
       });
@@ -4588,10 +4750,11 @@ async function handleRequest(request, response) {
         storage.config.read("admin-config"),
         readPartnerOperations()
       ]);
-      const catalog = sponsorPackageCatalog(config);
+      const program = partnerCatalogState(config, "sponsor");
       sendJson(request, response, 200, {
         lastUpdated: [config.lastUpdated, partners.lastUpdated].filter(Boolean).sort().at(-1) || null,
-        sponsorPackages: catalog.activePackages.map(publicSponsorPackage),
+        publication: publicPartnerCatalogPublication(program.readiness, "sponsor"),
+        sponsorPackages: program.readiness.ready ? program.items : [],
         sponsors: publicSponsorShowcase(partners)
       }, publicCacheHeaders(120));
       return;
@@ -4620,10 +4783,11 @@ async function handleRequest(request, response) {
 
     if (method === "GET" && pathname === "/api/public/vendors") {
       const config = await storage.config.read("admin-config");
-      const catalog = vendorOfferingCatalog(config);
+      const program = partnerCatalogState(config, "vendor");
       sendJson(request, response, 200, {
         lastUpdated: config.lastUpdated,
-        vendorOfferings: catalog.activeOfferings.map(publicVendorOffering)
+        publication: publicPartnerCatalogPublication(program.readiness, "vendor"),
+        vendorOfferings: program.readiness.ready ? program.items : []
       }, publicCacheHeaders(120));
       return;
     }
@@ -4637,6 +4801,11 @@ async function handleRequest(request, response) {
         return;
       }
       const config = await storage.config.read("admin-config");
+      const sponsorProgram = partnerCatalogState(config, "sponsor");
+      if (!sponsorProgram.readiness.ready) {
+        sendJson(request, response, 409, { error: "The current sponsorship program has not been published yet." });
+        return;
+      }
       const resolvedPackage = resolveSponsorPackage(config, access.invitation.packageId);
       if (!resolvedPackage.ok) {
         sendJson(request, response, 409, { error: "The recommended sponsor package is no longer available. Ask the SandFest team for a new invitation." });
@@ -5596,6 +5765,16 @@ async function handleRequest(request, response) {
       }
       const body = await readBody(request);
       const type = pathname.endsWith("vendor-applications") ? "vendor" : "sponsor";
+      const config = await storage.config.read("admin-config");
+      const program = partnerCatalogState(config, type);
+      if (!program.readiness.ready) {
+        sendJson(request, response, 409, {
+          error: type === "sponsor"
+            ? "The current sponsorship program has not been published yet."
+            : "The current vendor program has not been published yet."
+        });
+        return;
+      }
       const idempotency = partnerIntakeIdempotency(request, type, body);
       if (!idempotency.ok) {
         sendJson(request, response, 400, { error: idempotency.error });
@@ -5615,7 +5794,6 @@ async function handleRequest(request, response) {
       let sponsorPackage = null;
       let vendorOffering = null;
       let sponsorInvitationAccess = null;
-      const config = await storage.config.read("admin-config");
       if (type === "sponsor") {
         if (body.sponsorInvitationToken) {
           const doc = await readPartnerOperations();
@@ -5814,8 +5992,10 @@ async function handleRequest(request, response) {
         storage.config.read("ticket-products"),
         storage.config.read("app-bootstrap")
       ]);
-      const sponsorCatalog = sponsorPackageCatalog(config);
-      const vendorCatalog = vendorOfferingCatalog(config);
+      const sponsorProgram = partnerCatalogState(config, "sponsor");
+      const vendorProgram = partnerCatalogState(config, "vendor");
+      const sponsorCatalog = sponsorProgram.catalog;
+      const vendorCatalog = vendorProgram.catalog;
       sendJson(request, response, 200, {
         config: { ...config, sponsorPackages: sponsorCatalog.packages, vendorOfferings: vendorCatalog.offerings },
         sponsorPackageReadiness: {
@@ -5824,6 +6004,7 @@ async function handleRequest(request, response) {
           activePackages: sponsorCatalog.activePackages.length,
           errors: sponsorCatalog.errors
         },
+        sponsorPackagePublicationReadiness: sponsorProgram.readiness,
         vendorOfferingReadiness: {
           ready: vendorCatalog.ready,
           source: vendorCatalog.source,
@@ -5831,6 +6012,7 @@ async function handleRequest(request, response) {
           missingCategories: vendorCatalog.missingCategories,
           errors: vendorCatalog.errors
         },
+        vendorOfferingPublicationReadiness: vendorProgram.readiness,
         tickets,
         ticketPolicyReadiness: (() => {
           const readiness = ticketCheckoutPolicyReadiness(tickets, { eventId: CURRENT_EVENT_ID });
@@ -7435,6 +7617,11 @@ async function handleRequest(request, response) {
       let sponsorPackage = null;
       if (action === "issue") {
         const config = await storage.config.read("admin-config");
+        const sponsorProgram = partnerCatalogState(config, "sponsor");
+        if (!sponsorProgram.readiness.ready) {
+          sendJson(request, response, 409, { error: "Publish the current sponsorship program before issuing invitations." });
+          return;
+        }
         const resolvedPackage = resolveSponsorPackage(config, body.packageId);
         if (!resolvedPackage.ok) {
           sendJson(request, response, 400, { error: "Choose an active sponsorship package." });
@@ -8988,6 +9175,11 @@ async function handleRequest(request, response) {
 
     if (method === "POST" && pathname === "/api/admin/vendor-offerings") {
       await handleAdminVendorOfferingCreate(request, response);
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/admin/partner-catalog-publication") {
+      await handleAdminPartnerCatalogPublication(request, response);
       return;
     }
 

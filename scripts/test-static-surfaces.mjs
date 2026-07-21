@@ -278,6 +278,9 @@ for (const marker of ["vendor_application", "sponsor_inquiry"]) {
 for (const marker of ["public-sponsor-showcase", "/api/public/sponsor-showcase/assets/"]) {
   assert(publicJavaScript.includes(marker), `Public artifact is missing the approved sponsor showcase marker ${marker}.`);
 }
+assert(!publicJavaScript.includes("$250,000 sponsorship") && !publicJavaScript.includes("225 VIP wristbands"), "Public production JavaScript embeds unpublished sponsorship pricing or benefits.");
+assert(visitorSource.includes("let publicSponsorPackages = [];") && visitorSource.includes("let publicVendorOfferings = [];"), "Public partner catalogs do not start in a fail-closed state.");
+assert(visitorSource.includes("publicSponsorPackages = [];") && visitorSource.includes("publicVendorOfferings = [];") && !visitorSource.includes("Static launch-safe tiers remain available") && !visitorSource.includes("Static launch-safe offerings remain visible"), "Public partner catalog fetch failures retain static fallback terms.");
 for (const marker of ["/api/public/tickets", "idempotency-key", "checkout.stripe.com"]) {
   assert(publicJavaScript.includes(marker), `Public artifact is missing the ticket-commerce marker ${marker}.`);
 }
@@ -381,6 +384,7 @@ assert(visitorSource.includes('id="admin-api-status" class="checkout-status" rol
 assert(adminOperationsSource.includes('class="admin-followup-editor ') && adminOperationsSource.includes('data-save-draft=') && adminOperationsSource.includes('expectedUpdatedAt: button.value'), "Operations cannot revise a message draft before approval.");
 assert(visitorSource.includes('id="admin-deployment-checks" class="admin-deployment-checks" aria-live="polite"'), "Deployment readiness checks are missing their live status region.");
 assert(adminJavaScript.includes("Published program") && adminJavaScript.includes("/api/admin/event-schedule/publish"), "Admin artifact is missing the governed daily schedule publishing workflow.");
+assert(adminJavaScript.includes("Public sponsorship program") && adminJavaScript.includes("Public vendor program") && adminJavaScript.includes("/api/admin/partner-catalog-publication"), "Admin artifact is missing partner catalog publish and hold controls.");
 assert(visitorSource.includes('data-deployment-filter="attention" aria-pressed="true"') && visitorSource.includes('data-deployment-filter="all" aria-pressed="false"'), "Deployment readiness filters are missing pressed-state semantics.");
 assert(visitorSource.includes("const groupSummary = groupSummaries.get(group);") && visitorSource.includes("${passing}/${total} passing"), "Filtered deployment views do not preserve full-group readiness totals.");
 assert(visitorSource.includes('data-board-stage="post-presentation"') && visitorSource.includes("Isolated database and upload recovery verification remains in the release gate."), "Board operations do not distinguish deferred managed recovery from built recovery verification.");

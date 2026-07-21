@@ -18,15 +18,9 @@ import {
   partnerPortalSafeHash,
   shouldForgetPartnerPortalAccess
 } from "../lib/partner-portal-session.mjs";
-import {
-  DEFAULT_VENDOR_OFFERINGS,
-  publicVendorOffering
-} from "../lib/vendor-offerings.mjs";
+import { publicVendorOffering } from "../lib/vendor-offerings.mjs";
 import { partnerContactNotice } from "../lib/partner-consent.mjs";
-import {
-  DEFAULT_SPONSOR_PACKAGES,
-  publicSponsorPackage
-} from "../lib/sponsor-packages.mjs";
+import { publicSponsorPackage } from "../lib/sponsor-packages.mjs";
 import { publicIslandConditionsRefreshDelay } from "../lib/island-conditions.mjs";
 import { DEFAULT_EVENT_ID } from "../lib/event-context.mjs";
 import { publicSculptorRosterPublication } from "../lib/public-roster.mjs";
@@ -277,8 +271,18 @@ let sponsorInvitationLoadVersion = 0;
 let activePartnerPortalAccess = null;
 let activePartnerPortalApplication = null;
 let partnerPortalLoadVersion = 0;
-let publicSponsorPackages = DEFAULT_SPONSOR_PACKAGES.map(publicSponsorPackage);
-let publicVendorOfferings = DEFAULT_VENDOR_OFFERINGS.map(publicVendorOffering);
+let publicSponsorPackages = [];
+let publicVendorOfferings = [];
+let publicSponsorProgram = {
+  available: false,
+  status: "loading",
+  message: "Loading the current sponsorship program."
+};
+let publicVendorProgram = {
+  available: false,
+  status: "loading",
+  message: "Loading the current vendor program."
+};
 const sponsorContactNotice = partnerContactNotice("sponsor");
 const vendorInterestContactNotice = partnerContactNotice("vendor", "interest");
 const taskBoardFilters = { status: "active", assignment: "all", query: "" };
@@ -1811,10 +1815,26 @@ app.innerHTML = `
             <p class="eyebrow">Sponsor packages</p>
             <h2>Tiers, benefits, finance mapping</h2>
           </div>
+          <form id="admin-sponsor-catalog-publication" class="admin-edit-card admin-catalog-publication" data-partner-catalog-publication="sponsor" data-requires-permission="sponsor:write">
+            <div class="admin-edit-title">
+              <strong>Public sponsorship program</strong>
+              <span data-catalog-publication-state>Not loaded</span>
+            </div>
+            <p data-catalog-publication-summary>Load config to review publication readiness.</p>
+            <div class="admin-form-grid">
+              <label><span>Official source</span><input name="sourceUrl" type="url" required value="https://www.texassandfest.org/sponsorship" /></label>
+              <label><span>Source reviewed</span><input name="sourceCheckedAt" type="datetime-local" required /></label>
+            </div>
+            <label><span>Hold reason</span><textarea name="reason" rows="2" maxlength="500" placeholder="Why the public program should remain unavailable"></textarea></label>
+            <div class="admin-edit-actions">
+              <button class="button secondary" type="button" data-hold-partner-catalog>Hold public program</button>
+              <button class="button primary" type="submit">Publish reviewed catalog</button>
+            </div>
+          </form>
           <form id="admin-create-sponsor-package" class="admin-edit-card admin-sponsor-create" data-requires-permission="sponsor:write">
             <div class="admin-edit-title">
               <strong>Add sponsor tier</strong>
-              <span>Published immediately when active</span>
+              <span>Saved as draft until the program is published</span>
             </div>
             <div class="admin-form-grid">
               <label><span>Name</span><input name="name" required maxlength="120" autocomplete="off" placeholder="Community Partner" /></label>
@@ -1826,7 +1846,7 @@ app.innerHTML = `
             </div>
             <label><span>Benefits</span><textarea name="benefits" required rows="4" maxlength="4000" placeholder="One public benefit per line"></textarea></label>
             <div class="admin-check-row">
-              <label class="admin-check"><input name="active" type="checkbox" checked /><span>Publicly active</span></label>
+              <label class="admin-check"><input name="active" type="checkbox" checked /><span>Include when published</span></label>
               <label class="admin-check"><input name="requiresApproval" type="checkbox" checked /><span>Approval required</span></label>
             </div>
             <div class="admin-edit-actions">
@@ -1846,6 +1866,22 @@ app.innerHTML = `
             <p class="eyebrow">Vendor offerings</p>
             <h2>Categories, intake mode, fees, and accounting</h2>
           </div>
+          <form id="admin-vendor-catalog-publication" class="admin-edit-card admin-catalog-publication" data-partner-catalog-publication="vendor" data-requires-permission="finance:write">
+            <div class="admin-edit-title">
+              <strong>Public vendor program</strong>
+              <span data-catalog-publication-state>Not loaded</span>
+            </div>
+            <p data-catalog-publication-summary>Load config to review publication readiness.</p>
+            <div class="admin-form-grid">
+              <label><span>Official source</span><input name="sourceUrl" type="url" required value="https://www.texassandfest.org/vendors" /></label>
+              <label><span>Source reviewed</span><input name="sourceCheckedAt" type="datetime-local" required /></label>
+            </div>
+            <label><span>Hold reason</span><textarea name="reason" rows="2" maxlength="500" placeholder="Why the public program should remain unavailable"></textarea></label>
+            <div class="admin-edit-actions">
+              <button class="button secondary" type="button" data-hold-partner-catalog>Hold public program</button>
+              <button class="button primary" type="submit">Publish reviewed catalog</button>
+            </div>
+          </form>
           <form id="admin-create-vendor-offering" class="admin-edit-card admin-vendor-offering-create" data-requires-permission="finance:write">
             <div class="admin-edit-title">
               <strong>Add vendor offering</strong>
@@ -1871,7 +1907,7 @@ app.innerHTML = `
             <label><span>Public description</span><textarea name="description" required rows="3" maxlength="500" placeholder="Describe the space and eligible vendor use."></textarea></label>
             <label><span>Inclusions</span><textarea name="inclusions" required rows="3" maxlength="4000" placeholder="One inclusion per line"></textarea></label>
             <div class="admin-check-row">
-              <label class="admin-check"><input name="active" type="checkbox" checked /><span>Publicly active</span></label>
+              <label class="admin-check"><input name="active" type="checkbox" checked /><span>Include when published</span></label>
               <label class="admin-check"><input name="requiresApproval" type="checkbox" checked /><span>Approval required</span></label>
             </div>
             <div class="admin-edit-actions">
@@ -2093,14 +2129,14 @@ app.innerHTML = `
       <div class="tier-table partner-tier-table" id="public-sponsor-tiers">
         ${sponsorPackageCards(publicSponsorPackages)}
       </div>
-      <p class="partner-program-note"><a href="https://www.texassandfest.org/sponsorship" target="_blank" rel="noopener noreferrer">View the current sponsorship program</a><span>Package availability and final fulfillment details are confirmed during review.</span></p>
+      <p id="sponsor-program-availability" class="partner-program-note" data-state="loading"><a href="https://www.texassandfest.org/sponsorship" target="_blank" rel="noopener noreferrer">View the official sponsorship page</a><span>Loading the current sponsorship program.</span></p>
       <div class="partner-form-grid">
-        <form id="sponsor-inquiry-form" class="partner-form" data-turnstile-action="sponsor_inquiry" data-public-intake-state="${PUBLIC_PARTNER_INTAKE.ready ? "ready" : "unavailable"}">
+        <form id="sponsor-inquiry-form" class="partner-form" data-turnstile-action="sponsor_inquiry" data-public-intake-state="unavailable">
           <div class="partner-form-heading">
             <div class="partner-form-title"><span>Sponsorship</span><h3>Start a partnership</h3></div>
             ${import.meta.env.DEV && BOARD_DEMO_ACCESS.enabled ? '<button class="button secondary partner-demo-preset" type="button" data-board-partner-preset="sponsor">Use demo sponsor</button>' : ""}
           </div>
-          ${PUBLIC_PARTNER_INTAKE.ready ? "" : '<p class="partner-availability-note" data-public-intake-unavailable>Online sponsorship inquiries are unavailable in this preview. View the <a href="https://www.texassandfest.org/sponsorship" target="_blank" rel="noopener noreferrer">current sponsorship program</a>.</p>'}
+          <p class="partner-availability-note" data-sponsor-program-unavailable>Loading the current sponsorship program. You can also view the <a href="https://www.texassandfest.org/sponsorship" target="_blank" rel="noopener noreferrer">official sponsorship page</a>.</p>
           <div id="sponsor-invitation" class="sponsor-invitation" hidden><strong>SandFest invitation</strong><span id="sponsor-invitation-copy"></span></div>
           <div class="partner-fields">
             <label>Business or organization<input name="organizationName" required maxlength="160" autocomplete="organization" /></label>
@@ -2115,15 +2151,14 @@ app.innerHTML = `
           <p class="partner-data-use-note">${escapeHtml(sponsorContactNotice.disclosure)}</p>
           <label class="partner-consent"><input name="consentToContact" type="checkbox" required /><span>${escapeHtml(sponsorContactNotice.checkboxLabel)}</span></label>
           <div class="partner-verification" data-turnstile-verification hidden><div data-turnstile-widget></div></div>
-          <button class="button primary" type="submit" ${PUBLIC_PARTNER_INTAKE.ready ? "" : "disabled"}>${PUBLIC_PARTNER_INTAKE.ready ? "Submit sponsorship inquiry" : "Online sponsorship inquiry unavailable"}</button>
+          <button class="button primary" type="submit" disabled>Loading sponsorship program</button>
           <p class="partner-form-status" aria-live="polite"></p>
         </form>
-        <form id="vendor-application-form" class="partner-form" data-turnstile-action="vendor_application" data-public-intake-state="${PUBLIC_PARTNER_INTAKE.ready ? "ready" : "unavailable"}">
+        <form id="vendor-application-form" class="partner-form" data-turnstile-action="vendor_application" data-public-intake-state="unavailable">
           <div class="partner-form-heading">
             <div class="partner-form-title"><span id="vendor-intake-label">Vendor interest</span><h3 id="vendor-intake-heading">Join the vendor interest list</h3></div>
             ${import.meta.env.DEV && BOARD_DEMO_ACCESS.enabled ? '<button class="button secondary partner-demo-preset" type="button" data-board-partner-preset="vendor">Use demo vendor</button>' : ""}
           </div>
-          ${PUBLIC_PARTNER_INTAKE.ready ? "" : '<p class="partner-availability-note" data-public-intake-unavailable>Online vendor interest is unavailable in this preview. View the <a href="https://www.texassandfest.org/vendors" target="_blank" rel="noopener noreferrer">current vendor program</a>.</p>'}
           <div class="partner-fields">
             <label>Business name<input name="organizationName" required maxlength="160" autocomplete="organization" /></label>
             <label>Contact name<input name="contactName" required maxlength="120" autocomplete="name" /></label>
@@ -2136,12 +2171,12 @@ app.innerHTML = `
             <label>State<input name="state" maxlength="40" value="TX" autocomplete="address-level1" /></label>
             <label class="partner-field-wide">Products and booth needs<textarea name="description" rows="4" maxlength="2000"></textarea></label>
           </div>
-          <p id="vendor-intake-availability" class="partner-availability-note">Applications closed. Join the interest list or see the <a href="https://www.texassandfest.org/vendors" target="_blank" rel="noopener noreferrer">official vendor page</a>.</p>
+          <p id="vendor-intake-availability" class="partner-availability-note">Loading the current vendor program. You can also view the <a href="https://www.texassandfest.org/vendors" target="_blank" rel="noopener noreferrer">official vendor page</a>.</p>
           <p id="vendor-offering-summary" class="partner-offering-summary" aria-live="polite"></p>
           <p id="vendor-data-use-note" class="partner-data-use-note">${escapeHtml(vendorInterestContactNotice.disclosure)}</p>
           <label class="partner-consent"><input name="consentToContact" type="checkbox" required /><span id="vendor-consent-label">${escapeHtml(vendorInterestContactNotice.checkboxLabel)}</span></label>
           <div class="partner-verification" data-turnstile-verification hidden><div data-turnstile-widget></div></div>
-          <button id="vendor-intake-submit" class="button primary" type="submit" ${PUBLIC_PARTNER_INTAKE.ready ? "" : "disabled"}>${PUBLIC_PARTNER_INTAKE.ready ? "Submit vendor interest" : "Online vendor interest unavailable"}</button>
+          <button id="vendor-intake-submit" class="button primary" type="submit" disabled>Loading vendor program</button>
           <p class="partner-form-status" aria-live="polite"></p>
         </form>
       </div>
@@ -3569,7 +3604,7 @@ function sponsorAdminCard(sponsorPackage) {
       <div class="admin-check-row">
         <label class="admin-check">
           <input name="active" type="checkbox" ${sponsorPackage.active ? "checked" : ""} />
-          <span>Publicly active</span>
+          <span>Include when published</span>
         </label>
         <label class="admin-check">
           <input name="requiresApproval" type="checkbox" ${sponsorPackage.requiresApproval ? "checked" : ""} />
@@ -3632,7 +3667,7 @@ function vendorOfferingAdminCard(offering) {
       <div class="admin-check-row">
         <label class="admin-check">
           <input name="active" type="checkbox" ${offering.active ? "checked" : ""} />
-          <span>Publicly active</span>
+          <span>Include when published</span>
         </label>
         <label class="admin-check">
           <input name="requiresApproval" type="checkbox" ${offering.requiresApproval ? "checked" : ""} />
@@ -3647,6 +3682,29 @@ function vendorOfferingAdminCard(offering) {
   `;
 }
 
+function renderAdminPartnerCatalogPublication(catalog, readiness) {
+  const form = document.querySelector(`[data-partner-catalog-publication="${catalog}"]`);
+  if (!form) return;
+  const publication = readiness?.publication ?? {};
+  const state = form.querySelector("[data-catalog-publication-state]");
+  const summary = form.querySelector("[data-catalog-publication-summary]");
+  if (state) {
+    state.textContent = readiness?.ready
+      ? publication.status === "board_demo" ? "Board demo catalog" : "Published"
+      : publication.holdReason ? "Held" : "Pending review";
+    state.dataset.state = readiness?.ready ? "ready" : "pending";
+  }
+  if (summary) summary.textContent = readiness?.reason || "Publication readiness is unavailable.";
+  if (publication.sourceUrl) form.elements.sourceUrl.value = publication.sourceUrl;
+  form.elements.sourceCheckedAt.value = isoToLocalDateTime(publication.sourceCheckedAt);
+  form.elements.reason.value = publication.holdReason || "";
+}
+
+async function reloadAdminConfigEditors() {
+  adminConfigState = await adminFetch("/api/admin/config");
+  renderAdminEditors();
+}
+
 function renderAdminEditors() {
   const tickets = adminConfigState?.tickets?.products ?? [];
   const sponsors = adminConfigState?.config?.sponsorPackages ?? [];
@@ -3654,6 +3712,8 @@ function renderAdminEditors() {
   document.querySelector("#admin-ticket-editor").innerHTML = tickets.map(ticketAdminCard).join("");
   document.querySelector("#admin-sponsor-editor").innerHTML = sponsors.map(sponsorAdminCard).join("");
   document.querySelector("#admin-vendor-offering-editor").innerHTML = vendorOfferings.map(vendorOfferingAdminCard).join("");
+  renderAdminPartnerCatalogPublication("sponsor", adminConfigState?.sponsorPackagePublicationReadiness);
+  renderAdminPartnerCatalogPublication("vendor", adminConfigState?.vendorOfferingPublicationReadiness);
   renderAdminTicketPolicy();
   renderAdminEventGuide(adminConfigState?.bootstrap, adminConfigState?.eventGuideReadiness);
   adminOperationsUi?.renderEventSchedule(adminConfigState?.bootstrap, adminConfigState?.eventScheduleReadiness, isoToLocalDateTime);
@@ -5266,6 +5326,11 @@ async function loadPartnerPortalStatus(access, options = {}) {
 async function submitPartnerForm(form, endpoint) {
   const button = form.querySelector('button[type="submit"]');
   const status = form.querySelector(".partner-form-status");
+  const program = form.id === "sponsor-inquiry-form" ? publicSponsorProgram : publicVendorProgram;
+  if (!program.available) {
+    setFormStatus(status, program.message, "error");
+    return;
+  }
   if (!PUBLIC_PARTNER_INTAKE.ready) {
     setFormStatus(status, PUBLIC_PARTNER_INTAKE.message, "error");
     return;
@@ -5318,8 +5383,10 @@ async function submitPartnerForm(form, endpoint) {
     partnerBotProtection.reset(form);
   } catch (error) {
     if ([400, 401, 403, 409, 422].includes(error.status)) delete form.dataset.idempotencyKey;
-    const message = error.status === 409
-      ? "These submission details changed after an earlier attempt. Review them and submit once more."
+    const message = error.status === 409 && /not been published/i.test(error.message)
+      ? error.message
+      : error.status === 409
+        ? "These submission details changed after an earlier attempt. Review them and submit once more."
       : error.status === 429
         ? `Too many attempts. Wait${error.retryAfter ? ` ${error.retryAfter} seconds` : " a moment"} and try again; your entries are still here.`
         : !error.status
@@ -5328,7 +5395,7 @@ async function submitPartnerForm(form, endpoint) {
     setFormStatus(status, message, "error");
     partnerBotProtection.reset(form);
   } finally {
-    button.disabled = false;
+    button.disabled = !PUBLIC_PARTNER_INTAKE.ready || !program.available;
   }
 }
 
@@ -5379,7 +5446,9 @@ async function submitPartnerPortalRecovery(form) {
 }
 
 function sponsorPackageOptions(packages = publicSponsorPackages, selectedId = "") {
-  return packages.map((item, index) => `<option value="${escapeAttr(item.id)}" ${(selectedId ? item.id === selectedId : index === 0) ? "selected" : ""}>${escapeHtml(item.name)} - ${escapeHtml(item.publicLabel || adminMoney(item.amount))}</option>`).join("");
+  return packages.length
+    ? packages.map((item, index) => `<option value="${escapeAttr(item.id)}" ${(selectedId ? item.id === selectedId : index === 0) ? "selected" : ""}>${escapeHtml(item.name)} - ${escapeHtml(item.publicLabel || adminMoney(item.amount))}</option>`).join("")
+    : '<option value="">Current packages coming soon</option>';
 }
 
 function sponsorPackageCardSummary(sponsorPackage) {
@@ -5390,6 +5459,12 @@ function sponsorPackageCardSummary(sponsorPackage) {
 }
 
 function sponsorPackageCards(packages = publicSponsorPackages, selectedId = "") {
+  if (!packages.length) {
+    return `<article class="partner-program-pending">
+      <strong>Current sponsorship packages coming soon</strong>
+      <span>${escapeHtml(publicSponsorProgram.message)}</span>
+    </article>`;
+  }
   return packages.map((item, index) => `
     <button type="button" data-package-id="${escapeAttr(item.id)}" class="partner-tier ${(selectedId ? item.id === selectedId : index === 0) ? "is-selected" : ""}" aria-controls="sponsor-inquiry-form" aria-pressed="${(selectedId ? item.id === selectedId : index === 0) ? "true" : "false"}">
       <strong>${escapeHtml(item.name)}</strong>
@@ -5423,11 +5498,30 @@ function renderSponsorPackageChoices(selectedId = "") {
   const form = document.querySelector("#sponsor-inquiry-form");
   if (!form) return;
   const select = form.elements.packageId;
+  const submit = form.querySelector('button[type="submit"]');
+  const availability = document.querySelector("#sponsor-program-availability");
+  const unavailable = form.querySelector("[data-sponsor-program-unavailable]");
   const preferredId = selectedId || select.value;
   const selected = publicSponsorPackages.find(item => item.id === preferredId) || publicSponsorPackages[0];
+  const ready = PUBLIC_PARTNER_INTAKE.ready && publicSponsorProgram.available && Boolean(selected);
   select.innerHTML = sponsorPackageOptions(publicSponsorPackages, selected?.id || "");
   select.disabled = !publicSponsorPackages.length || Boolean(activeSponsorInvitationToken);
   if (tiers) tiers.innerHTML = sponsorPackageCards(publicSponsorPackages, selected?.id || "");
+  form.dataset.publicIntakeState = ready ? "ready" : "unavailable";
+  if (submit) {
+    submit.disabled = !ready;
+    submit.textContent = ready ? "Submit sponsorship inquiry" : "Sponsorship inquiry unavailable";
+  }
+  if (availability) {
+    availability.dataset.state = ready ? "ready" : publicSponsorProgram.status;
+    availability.querySelector("span").textContent = ready
+      ? "Package availability and final fulfillment details are confirmed during review."
+      : publicSponsorProgram.message;
+  }
+  if (unavailable) {
+    unavailable.hidden = ready;
+    unavailable.firstChild.textContent = ready ? "" : `${publicSponsorProgram.message} Use the `;
+  }
   bindSponsorTierButtons();
   renderSponsorPackageSummary();
 }
@@ -5512,13 +5606,25 @@ async function loadPublicSponsorPackages() {
   try {
     const response = await fetchWithTimeout(`${publicApiBase()}/api/public/sponsors`, { cache: "no-store" });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) return;
+    if (!response.ok) throw new Error(data.error || "The sponsorship program could not be loaded.");
     renderPublicSponsorShowcase(data.sponsors);
-    if (!Array.isArray(data.sponsorPackages) || !data.sponsorPackages.length) return;
-    publicSponsorPackages = data.sponsorPackages.map(publicSponsorPackage);
+    publicSponsorProgram = {
+      available: data.publication?.available === true,
+      status: String(data.publication?.status || "pending"),
+      message: String(data.publication?.message || "The current sponsorship program has not been published yet.")
+    };
+    publicSponsorPackages = publicSponsorProgram.available && Array.isArray(data.sponsorPackages)
+      ? data.sponsorPackages.map(publicSponsorPackage)
+      : [];
     renderSponsorPackageChoices();
   } catch {
-    // Static launch-safe tiers remain available when the API is offline.
+    publicSponsorPackages = [];
+    publicSponsorProgram = {
+      available: false,
+      status: "unavailable",
+      message: "We could not confirm the current sponsorship program."
+    };
+    renderSponsorPackageChoices();
   }
 }
 
@@ -5531,6 +5637,7 @@ function vendorOfferingOptionsForCategory(category, selectedId = "") {
 
 function renderVendorIntakeMode(offering) {
   const isInterest = !offering || offering.intakeMode === "interest";
+  const ready = PUBLIC_PARTNER_INTAKE.ready && publicVendorProgram.available && Boolean(offering);
   const notice = partnerContactNotice("vendor", isInterest ? "interest" : "application");
   const label = document.querySelector("#vendor-intake-label");
   const heading = document.querySelector("#vendor-intake-heading");
@@ -5539,22 +5646,24 @@ function renderVendorIntakeMode(offering) {
   const consent = document.querySelector("#vendor-consent-label");
   const submit = document.querySelector("#vendor-intake-submit");
   const cta = document.querySelector("#vendor-intake-cta");
-  if (label) label.textContent = isInterest ? "Vendor interest" : "Vendor application";
-  if (heading) heading.textContent = isInterest ? "Join the vendor interest list" : "Apply for the beach marketplace";
+  if (label) label.textContent = ready ? isInterest ? "Vendor interest" : "Vendor application" : "Vendor program";
+  if (heading) heading.textContent = ready ? isInterest ? "Join the vendor interest list" : "Apply for the beach marketplace" : "Application details coming soon";
   if (availability) {
-    availability.innerHTML = isInterest
-      ? 'Applications closed. Join the interest list for an opening notice or see the <a href="https://www.texassandfest.org/vendors" target="_blank" rel="noopener noreferrer">official vendor page</a>.'
-      : 'Applications open. Fees and placement require approval; see the <a href="https://www.texassandfest.org/vendors" target="_blank" rel="noopener noreferrer">official vendor page</a>.';
+    availability.innerHTML = ready
+      ? isInterest
+        ? 'Applications closed. Join the interest list for an opening notice or see the <a href="https://www.texassandfest.org/vendors" target="_blank" rel="noopener noreferrer">official vendor page</a>.'
+        : 'Applications open. Fees and placement require approval; see the <a href="https://www.texassandfest.org/vendors" target="_blank" rel="noopener noreferrer">official vendor page</a>.'
+      : `${escapeHtml(publicVendorProgram.message)} View the <a href="https://www.texassandfest.org/vendors" target="_blank" rel="noopener noreferrer">official vendor page</a>.`;
   }
   if (disclosure) disclosure.textContent = notice.disclosure;
   if (consent) consent.textContent = notice.checkboxLabel;
   if (submit) {
-    submit.textContent = PUBLIC_PARTNER_INTAKE.ready
+    submit.textContent = ready
       ? isInterest ? "Submit vendor interest" : "Submit vendor application"
       : isInterest ? "Online vendor interest unavailable" : "Online vendor application unavailable";
-    submit.disabled = !PUBLIC_PARTNER_INTAKE.ready;
+    submit.disabled = !ready;
   }
-  if (cta) cta.textContent = isInterest ? "Join vendor interest list" : "Apply as a vendor";
+  if (cta) cta.textContent = ready ? isInterest ? "Join vendor interest list" : "Apply as a vendor" : "Vendor program";
 }
 
 function renderVendorOfferingChoices() {
@@ -5567,11 +5676,12 @@ function renderVendorOfferingChoices() {
   const eligible = publicVendorOfferings.filter(item => item.categories?.includes(category));
   select.disabled = eligible.length === 0;
   const selected = eligible.find(item => item.id === select.value) || eligible[0];
+  form.dataset.publicIntakeState = PUBLIC_PARTNER_INTAKE.ready && publicVendorProgram.available && selected ? "ready" : "unavailable";
   const summary = document.querySelector("#vendor-offering-summary");
   if (summary) {
     summary.textContent = selected
       ? `${selected.publicLabel || adminMoney(selected.amount)}. ${selected.description}${selected.inclusions?.length ? ` Includes ${selected.inclusions.join(", ").toLowerCase()}.` : ""}`
-      : "No offering.";
+      : publicVendorProgram.message;
     summary.dataset.state = selected ? "ready" : "unavailable";
   }
   renderVendorIntakeMode(selected);
@@ -5591,11 +5701,24 @@ async function loadPublicVendorOfferings() {
   try {
     const response = await fetchWithTimeout(`${publicApiBase()}/api/public/vendors`, { cache: "no-store" });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok || !Array.isArray(data.vendorOfferings) || !data.vendorOfferings.length) return;
-    publicVendorOfferings = data.vendorOfferings;
+    if (!response.ok) throw new Error(data.error || "The vendor program could not be loaded.");
+    publicVendorProgram = {
+      available: data.publication?.available === true,
+      status: String(data.publication?.status || "pending"),
+      message: String(data.publication?.message || "The current vendor program has not been published yet.")
+    };
+    publicVendorOfferings = publicVendorProgram.available && Array.isArray(data.vendorOfferings)
+      ? data.vendorOfferings.map(publicVendorOffering)
+      : [];
     renderVendorOfferingChoices();
   } catch {
-    // Static launch-safe offerings remain visible when the API is offline.
+    publicVendorOfferings = [];
+    publicVendorProgram = {
+      available: false,
+      status: "unavailable",
+      message: "We could not confirm the current vendor program."
+    };
+    renderVendorOfferingChoices();
   }
 }
 
@@ -8900,7 +9023,6 @@ function bindAdminSaveButtons() {
       const patch = {
         publicLabel: card.querySelector('[name="publicLabel"]').value,
         amount: centsFromInput(card.querySelector('[name="amount"]').value),
-        intakeMode: card.querySelector('[name="intakeMode"]').value,
         stripePriceId: card.querySelector('[name="stripePriceId"]').value || null,
         quickBooksItemId: card.querySelector('[name="quickBooksItemId"]').value || null,
         benefits: card.querySelector('[name="benefits"]').value.split("\n").map(item => item.trim()).filter(Boolean),
@@ -8914,8 +9036,9 @@ function bindAdminSaveButtons() {
           body: JSON.stringify(patch)
         });
         Object.assign(source, result.sponsorPackage);
-        setAdminStatus(`Saved sponsor config for ${result.sponsorPackage.name}.`, "ok");
-        renderAdminEditors();
+        await reloadAdminConfigEditors();
+        await loadAdminDeployment();
+        setAdminStatus(`Saved sponsor config for ${result.sponsorPackage.name}. Public-field changes require catalog review and republishing.`, "ok");
       } catch (error) {
         setAdminStatus(error.message, "error");
       } finally {
@@ -8948,8 +9071,9 @@ function bindAdminSaveButtons() {
           body: JSON.stringify(patch)
         });
         Object.assign(source, result.vendorOffering);
-        setAdminStatus(`Saved vendor offering ${result.vendorOffering.name}.`, "ok");
-        renderAdminEditors();
+        await reloadAdminConfigEditors();
+        await loadAdminDeployment();
+        setAdminStatus(`Saved vendor offering ${result.vendorOffering.name}. Public-field changes require catalog review and republishing.`, "ok");
       } catch (error) {
         setAdminStatus(error.message, "error");
       } finally {
@@ -9070,8 +9194,45 @@ async function resetBoardDemo(event) {
   }
 }
 
+async function updatePartnerCatalogPublication(form, publish) {
+  const catalog = form.dataset.partnerCatalogPublication;
+  const buttons = [...form.querySelectorAll("button")];
+  buttons.forEach(button => { button.disabled = true; });
+  try {
+    const result = await adminFetch("/api/admin/partner-catalog-publication", {
+      method: "POST",
+      body: JSON.stringify({
+        catalog,
+        publish,
+        sourceUrl: form.elements.sourceUrl.value,
+        sourceCheckedAt: localDateTimeToIso(form.elements.sourceCheckedAt.value),
+        reason: form.elements.reason.value
+      })
+    });
+    await reloadAdminConfigEditors();
+    await loadAdminDeployment();
+    setAdminStatus(
+      publish
+        ? `${catalog === "sponsor" ? "Sponsorship" : "Vendor"} catalog published with ${result.readiness.ready ? "current source proof" : "a pending readiness check"}.`
+        : `${catalog === "sponsor" ? "Sponsorship" : "Vendor"} catalog held from public intake.`,
+      result.readiness.ready || !publish ? "ok" : "error"
+    );
+  } catch (error) {
+    setAdminStatus(error.message, "error");
+  } finally {
+    buttons.forEach(button => { button.disabled = !adminCan(catalog === "sponsor" ? "sponsor:write" : "finance:write"); });
+  }
+}
+
 document.querySelector("#admin-load-config").addEventListener("click", loadAdminWorkspace);
 document.querySelector("#admin-reset-board-demo")?.addEventListener("click", resetBoardDemo);
+document.querySelectorAll("[data-partner-catalog-publication]").forEach(form => {
+  form.addEventListener("submit", event => {
+    event.preventDefault();
+    updatePartnerCatalogPublication(form, true);
+  });
+  form.querySelector("[data-hold-partner-catalog]")?.addEventListener("click", () => updatePartnerCatalogPublication(form, false));
+});
 const adminCreateSponsorPackageForm = document.querySelector("#admin-create-sponsor-package");
 adminCreateSponsorPackageForm?.elements.name.addEventListener("input", event => {
   const idInput = adminCreateSponsorPackageForm.elements.id;
@@ -9102,12 +9263,11 @@ adminCreateSponsorPackageForm?.addEventListener("submit", async event => {
         requiresApproval: form.elements.requiresApproval.checked
       })
     });
-    adminConfigState.config.sponsorPackages.push(result.sponsorPackage);
-    adminConfigState.config.lastUpdated = result.lastUpdated;
     form.reset();
     delete form.elements.id.dataset.manuallyEdited;
-    renderAdminEditors();
-    setAdminStatus(`Added ${result.sponsorPackage.name} to the public sponsor catalog.`, "ok");
+    await reloadAdminConfigEditors();
+    await loadAdminDeployment();
+    setAdminStatus(`Added ${result.sponsorPackage.name} as a draft sponsor tier. Review and publish the catalog before it appears publicly.`, "ok");
   } catch (error) {
     setAdminStatus(error.message, "error");
   } finally {
@@ -9147,12 +9307,11 @@ adminCreateVendorOfferingForm?.addEventListener("submit", async event => {
         requiresApproval: form.elements.requiresApproval.checked
       })
     });
-    adminConfigState.config.vendorOfferings.push(result.vendorOffering);
-    adminConfigState.config.lastUpdated = result.lastUpdated;
     form.reset();
     delete form.elements.id.dataset.manuallyEdited;
-    renderAdminEditors();
-    setAdminStatus(`Added ${result.vendorOffering.name} to the public vendor intake.`, "ok");
+    await reloadAdminConfigEditors();
+    await loadAdminDeployment();
+    setAdminStatus(`Added ${result.vendorOffering.name} as a draft vendor offering. Review and publish the catalog before it appears publicly.`, "ok");
   } catch (error) {
     setAdminStatus(error.message, "error");
   } finally {
