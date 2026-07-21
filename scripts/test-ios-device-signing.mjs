@@ -17,8 +17,10 @@ const developerDir = process.env.DEVELOPER_DIR
 const env = { ...process.env, DEVELOPER_DIR: developerDir };
 const project = "ios/TexasSandFest.xcodeproj";
 const scheme = "TexasSandFest";
+const bundleIdentifier = "com.portalcodex.texassandfest";
 const derivedDataPath = path.join(tmpdir(), `texas-sandfest-device-${process.pid}`);
 const appPath = path.join(derivedDataPath, "Build/Products/Release-iphoneos/TexasSandFest.app");
+const profilePath = path.join(appPath, "embedded.mobileprovision");
 
 function run(command, args, label, { capture = false } = {}) {
   console.log(`\n=== ${label} ===`);
@@ -37,6 +39,17 @@ function run(command, args, label, { capture = false } = {}) {
     throw new Error(`${label} failed with exit code ${result.status || 1}.`);
   }
   return result.stdout || "";
+}
+
+function plistValue(plist, keyPath) {
+  const result = spawnSync("plutil", ["-extract", keyPath, "raw", "-o", "-", "-"], {
+    env,
+    encoding: "utf8",
+    input: plist
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new Error(`Signed provisioning profile is missing ${keyPath}.`);
+  return result.stdout.trim();
 }
 
 try {
@@ -64,7 +77,28 @@ try {
 
   if (!existsSync(appPath)) throw new Error(`Signed app was not created at ${appPath}.`);
   run("codesign", ["--verify", "--deep", "--strict", "--verbose=2", appPath], "Verify signed app bundle");
-  console.log("\nXcode device readiness: signed Release build and signature verification passed.");
+  if (!existsSync(profilePath)) throw new Error("Signed app does not contain an embedded provisioning profile.");
+
+  const profile = run("security", ["cms", "-D", "-i", profilePath], "Verify embedded provisioning identity", { capture: true });
+  const prefix = plistValue(profile, "ApplicationIdentifierPrefix.0");
+  const profileTeam = plistValue(profile, "TeamIdentifier.0");
+  const applicationIdentifier = plistValue(profile, "Entitlements.application-identifier");
+  const expiration = plistValue(profile, "ExpirationDate");
+  const configuredPrefix = String(process.env.SANDFEST_APPLE_APP_ID_PREFIX || "").trim();
+  if (!/^[A-Z0-9]{10}$/.test(prefix)) throw new Error("Embedded provisioning profile has an invalid App ID prefix.");
+  if (profileTeam !== team) throw new Error("Embedded provisioning profile does not match the Xcode development team.");
+  if (applicationIdentifier !== `${prefix}.${bundleIdentifier}`) {
+    throw new Error("Embedded provisioning profile does not match the Texas SandFest bundle identifier.");
+  }
+  if (configuredPrefix && configuredPrefix !== prefix) {
+    throw new Error("SANDFEST_APPLE_APP_ID_PREFIX does not match the signed app's embedded provisioning profile.");
+  }
+  if (!Number.isFinite(Date.parse(expiration)) || Date.parse(expiration) <= Date.now()) {
+    throw new Error("Embedded provisioning profile is expired or has an invalid expiration date.");
+  }
+
+  console.log(`\nSigned identity: ${applicationIdentifier}; profile expires ${expiration}`);
+  console.log("Xcode device readiness: signed Release build, signature, and provisioning identity passed.");
 } catch (error) {
   console.error(`\n${error.message}`);
   process.exitCode = 1;
