@@ -5539,7 +5539,7 @@ body.mode-ops header nav a[data-audience="public"] {
   margin: -10px 0 0;
 }
 .partner-program-note a { align-items: center; color: var(--deep); display: inline-flex; font-weight: 800; min-height: 24px; }
-.partner-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.partner-form-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; min-width: 0; }
 .partner-form {
   align-content: start;
   background: var(--white);
@@ -5547,6 +5547,8 @@ body.mode-ops header nav a[data-audience="public"] {
   border-radius: 8px;
   display: grid;
   gap: 16px;
+  min-width: 0;
+  overflow: hidden;
   padding: 22px;
 }
 .partner-form-heading {
@@ -5562,8 +5564,8 @@ body.mode-ops header nav a[data-audience="public"] {
   min-height: 44px;
   padding: 9px 12px;
 }
-.partner-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.partner-fields label { color: var(--muted); display: grid; font-size: 12px; font-weight: 700; gap: 5px; }
+.partner-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; min-width: 0; }
+.partner-fields label { color: var(--muted); display: grid; font-size: 12px; font-weight: 700; gap: 5px; min-width: 0; }
 .partner-fields input,
 .partner-fields select,
 .partner-fields textarea,
@@ -5593,6 +5595,10 @@ body.mode-ops header nav a[data-audience="public"] {
   min-width: 0;
   padding: 10px 11px;
 }
+.partner-fields input,
+.partner-fields select,
+.partner-fields textarea { max-width: 100%; width: 100%; }
+.partner-fields select { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .partner-field-wide { grid-column: 1 / -1; }
 .partner-fields textarea { min-height: 96px; resize: vertical; }
 .partner-offering-summary {
@@ -5968,8 +5974,10 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .admin-incident-create select,
 .admin-incident-create textarea,
 .admin-incident-controls input,
-.admin-incident-controls select { background: var(--white); border: 1px solid var(--line); border-radius: 6px; color: var(--ink); font: inherit; min-width: 0; padding: 8px; text-transform: none; }
+.admin-incident-controls select { background: var(--white); border: 1px solid var(--line); border-radius: 6px; color: var(--ink); font: inherit; min-height: 36px; min-width: 0; padding: 8px; text-transform: none; }
 .admin-incident-create textarea { resize: vertical; }
+.admin-incident-create select,
+.admin-incident-controls select { height: 36px; }
 .admin-incident-wide { grid-column: span 3; }
 .admin-incident-public { align-items: center; display: flex !important; flex-direction: row; gap: 7px !important; min-height: 38px; }
 .admin-incident-public input { height: 17px; margin: 0; min-width: 17px; padding: 0; width: 17px; }
@@ -6016,9 +6024,11 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .admin-dispatch-controls input,
 .admin-dispatch-controls select,
 .admin-dispatch-message input,
-.admin-dispatch-message textarea { background: var(--white); border: 1px solid var(--line); border-radius: 6px; color: var(--ink); font: inherit; min-width: 0; padding: 8px; text-transform: none; }
+.admin-dispatch-message textarea { background: var(--white); border: 1px solid var(--line); border-radius: 6px; color: var(--ink); font: inherit; min-height: 36px; min-width: 0; padding: 8px; text-transform: none; }
 .admin-dispatch-create textarea,
 .admin-dispatch-message textarea { resize: vertical; }
+.admin-dispatch-create select,
+.admin-dispatch-controls select { height: 36px; }
 .admin-dispatch-wide { grid-column: span 2; }
 .admin-dispatch-create .button,
 .admin-dispatch-controls .button,
@@ -6785,6 +6795,7 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 @media (max-width: 360px) {
   .admin-workspace-nav a { font-size: 12px; padding-inline: 2px; }
 }
+.admin-shell-body select { height: 36px; max-width: 100%; min-height: 36px; }
 .runtime-data-notice {
   align-items: center;
   border-bottom: 1px solid #7a4f00;

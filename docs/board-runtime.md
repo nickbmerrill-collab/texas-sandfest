@@ -97,6 +97,14 @@ board-laptop and narrow-phone viewports, it also requires the Live Beach header
 to remain visibly cued below the hero so the next interactive capability is
 apparent before scrolling.
 
+For Safari-compatible rendering proof against the same active, read-only
+session, install Playwright WebKit once and run:
+
+```bash
+npx playwright install webkit
+npm run board:rehearse:webkit
+```
+
 Use the reset icon in the Operations header when you want to discard
 demonstration changes and restore the synthetic starting state. After
 confirmation, the supervisor stops every local component, replaces the runtime,
@@ -360,12 +368,13 @@ npm run test:board-runtime
 
 The integration gate creates a temporary runtime, starts the real API plus local email and SMS providers, proves an explicit safety campaign with signed delivery and STOP/START callbacks, verifies finance/task/outreach/calendar exports, proves the current private staff directory and all seven team routes, converts the seeded prospect through a signed sponsor invitation, submits an additional vendor and sponsor, runs the worker, proves one delivered privacy-safe notice per assigned task, proves the standby camera state, drives all eight lanes through signed playback, verifies the live privacy-minimized camera state, and confirms the repository partner ledger is byte-for-byte unchanged.
 
-Run the real-browser acceptance separately after installing Playwright's local
-Chromium runtime once:
+Run both real-browser acceptance lanes after installing Playwright's local
+Chromium and WebKit runtimes once:
 
 ```bash
-npx playwright install chromium
+npx playwright install chromium webkit
 npm run test:browser
+npm run test:browser:webkit
 ```
 
 This lane starts a fresh temporary board API and web server on random loopback
@@ -381,8 +390,9 @@ authenticated delivered event through the local email sandbox, imports a
 source-attributed regional business candidate, activates a geofenced campaign,
 observes its bounded automated delivery, loads all eight Island Conditions
 lanes, and checks the critical public and operations views at a mobile viewport.
-CI installs an isolated Chromium runtime, retains screenshots and traces only on
-failure, and runs this acceptance inside `ready:production`.
+CI runs Chromium and Safari-compatible WebKit acceptance in separate jobs,
+retains screenshots and traces only on failure, and `ready:production` includes
+both engines.
 
 After the board presentation, verify the external Island Conditions sources
 before commissioning the live-tool lane:
