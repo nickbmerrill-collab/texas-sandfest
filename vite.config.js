@@ -90,7 +90,12 @@ export function validatePublicBuildEnvironment(env, target = buildTarget) {
       "[sandfest] VITE_SANDFEST_TURNSTILE_SITE_KEY not set — building the public site without Cloudflare Turnstile bot protection."
     );
   }
-  normalizeAppleApplicationIdentifierPrefix(env.SANDFEST_APPLE_APP_ID_PREFIX);
+  // The Apple application identifier prefix only powers iOS universal links,
+  // which a web-only deploy does not use. Validate it when provided; otherwise
+  // build without iOS deep-link support rather than failing the build.
+  if (String(env.SANDFEST_APPLE_APP_ID_PREFIX || "").trim()) {
+    normalizeAppleApplicationIdentifierPrefix(env.SANDFEST_APPLE_APP_ID_PREFIX);
+  }
 }
 
 function publicProductionSecurityPlugin(env, target = buildTarget) {
