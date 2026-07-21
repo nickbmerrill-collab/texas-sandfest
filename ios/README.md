@@ -16,6 +16,10 @@ From the repository root, `npm run test:ios-xcode` selects an available iPhone s
 the committed development team and the signed-in Apple account to refresh
 automatic provisioning, builds a Release app for iOS hardware, and verifies
 the resulting signature. The command does not upload or submit the app.
+`npm run test:ios-device-install` extends that proof by discovering an available
+paired iOS device with Developer Mode enabled, registering it when necessary,
+installing the signed app, and launching it. `SANDFEST_IOS_DEVICE_ID` can select
+a specific CoreDevice identifier or hardware UDID when more than one qualifies.
 
 ## Current screens
 
