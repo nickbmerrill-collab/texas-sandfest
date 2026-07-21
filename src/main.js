@@ -2066,6 +2066,14 @@ app.innerHTML = `
         <h2>Partner with Texas SandFest</h2>
         <p class="section-copy">Bring your business to the beach or put your brand behind one of the country's largest sand sculpture festivals.</p>
       </div>
+      <div id="public-sponsor-featured" class="public-sponsor-featured" hidden>
+        <div class="public-sponsor-featured-intro">
+          <span>Featured partners</span>
+          <h3>Backing the beach</h3>
+          <p>Meet the organizations helping make Texas SandFest possible.</p>
+        </div>
+        <div id="public-sponsor-showcase" class="public-sponsor-showcase" aria-label="Featured Texas SandFest partners"></div>
+      </div>
       <div class="tier-table partner-tier-table" id="public-sponsor-tiers">
         ${sponsorPackageCards(publicSponsorPackages)}
       </div>
@@ -2160,7 +2168,6 @@ app.innerHTML = `
         <button id="outreach-preferences-unsubscribe" class="button secondary" type="button" hidden>Stop sponsor outreach</button>
         <p id="outreach-preferences-status" aria-live="polite"></p>
       </div>
-      <div id="public-sponsor-showcase" class="public-sponsor-showcase" aria-label="Featured Texas SandFest partners" hidden></div>
       <p class="sponsor-community-label">Texas SandFest supporters</p>
       <div class="logo-wall" aria-label="Texas SandFest sponsor logos">
         ${sponsorLogoAssets.map(asset => `
@@ -5439,9 +5446,12 @@ const PUBLIC_SPONSOR_ASSET_PATH = "/api/public/sponsor-showcase/assets/";
 
 function renderPublicSponsorShowcase(items = []) {
   const showcase = document.querySelector("#public-sponsor-showcase");
+  const featured = document.querySelector("#public-sponsor-featured");
   if (!showcase) return;
   const sponsors = (Array.isArray(items) ? items : []).filter(item => item?.displayName);
+  if (featured) featured.hidden = sponsors.length === 0;
   showcase.hidden = sponsors.length === 0;
+  showcase.dataset.count = String(sponsors.length);
   showcase.innerHTML = sponsors.map(item => {
     const website = sponsorShowcaseWebsite(item.website);
     const primary = /^#[0-9A-F]{6}$/i.test(item.primaryColor || "") ? item.primaryColor : "#12333A";
@@ -5461,6 +5471,7 @@ function renderPublicSponsorShowcase(items = []) {
         ${item.packageName ? `<small>${escapeHtml(item.packageName)} partner</small>` : ""}
         <strong>${escapeHtml(item.displayName)}</strong>
         ${item.tagline ? `<span>${escapeHtml(item.tagline)}</span>` : ""}
+        ${website ? '<span class="public-sponsor-visit">Visit partner <span aria-hidden="true">&#8599;</span></span>' : ""}
       </span>`;
     const style = `--sponsor-primary:${primary};--sponsor-secondary:${secondary}`;
     return website
