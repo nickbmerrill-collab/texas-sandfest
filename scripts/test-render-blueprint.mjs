@@ -114,6 +114,11 @@ check("API health probe verifies the process and data plane", api?.healthCheckPa
 check("API owns a dedicated SandFest hostname", api?.domains?.includes("sandfest-api.heyelab.com"));
 check("API uses the dedicated production origin without a shared path prefix", apiEnv.get("SANDFEST_ENV")?.value === "production" && !apiEnv.has("SANDFEST_API_PREFIX"));
 check("API links and CORS include the canonical visitor site", apiEnv.get("SANDFEST_PUBLIC_SITE_URL")?.value === "https://sandfest.heyelab.com" && String(apiEnv.get("SANDFEST_CORS_ORIGINS")?.value || "").split(",").includes("https://sandfest.heyelab.com"));
+check("API release policy covers Pages preflight and admin origins", [
+  "https://nickbmerrill-collab.github.io",
+  "https://sandfest-admin.heyelab.com"
+].every(origin => String(apiEnv.get("SANDFEST_CORS_ORIGINS")?.value || "").split(",").includes(origin))
+  && String(apiEnv.get("SANDFEST_TURNSTILE_HOSTNAMES")?.value || "").split(",").includes("nickbmerrill-collab.github.io"));
 check("Stripe returns to the canonical visitor site", apiEnv.get("STRIPE_SUCCESS_URL")?.value?.startsWith("https://sandfest.heyelab.com/") && apiEnv.get("STRIPE_CANCEL_URL")?.value?.startsWith("https://sandfest.heyelab.com/"));
 check("API continuously reconciles launch work", Number(apiEnv.get("SANDFEST_DEPLOYMENT_TASK_SYNC_INTERVAL_MS")?.value) === 15 * 60_000);
 check("API uses private managed Postgres", apiEnv.get("SANDFEST_DATABASE_URL")?.fromDatabase?.name === "sandfest-db" && apiEnv.get("SANDFEST_DATABASE_URL")?.fromDatabase?.property === "connectionString");
