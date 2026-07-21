@@ -1,7 +1,122 @@
 import { escapeAttr, escapeHtml } from "../lib/html-escape.mjs";
+import {
+  EVENT_SCHEDULE_CATEGORIES,
+  EVENT_SCHEDULE_DAYS
+} from "../lib/event-schedule.mjs";
 import { REQUIRED_TICKET_POLICY_NOTICES } from "../lib/ticket-policy-schema.mjs";
 
 const PENDING_NOTICE_STATUSES = new Set(["pending", "draft_ready", "approved", "queued", "sending"]);
+
+export function eventScheduleEditorMarkup() {
+  return `<div class="admin-event-schedule-panel">
+    <div class="editor-heading admin-edit-title admin-event-schedule-heading">
+      <div>
+        <p class="eyebrow">Published program</p>
+        <h2>Daily schedule</h2>
+        <p id="admin-event-schedule-readiness" class="admin-event-guide-status">Not loaded</p>
+      </div>
+      <button id="admin-add-event-schedule-item" class="button secondary" data-requires-permission="content:write" type="button">Add item</button>
+    </div>
+    <form id="admin-event-schedule-form" class="admin-event-schedule-form" data-requires-permission="content:write">
+      <div id="admin-event-schedule-rows" class="admin-event-schedule-rows"></div>
+      <div class="admin-form-grid admin-event-schedule-publication">
+        <label><span>Official source</span><input name="sourceUrl" type="url" inputmode="url" required /></label>
+        <label><span>Source checked</span><input name="sourceCheckedAt" type="datetime-local" required /></label>
+      </div>
+      <div class="admin-form-grid admin-event-schedule-actions">
+        <label><span>Hold reason</span><input name="holdReason" maxlength="500" placeholder="Required only when holding publication" /></label>
+        <button id="admin-hold-event-schedule" class="button secondary" type="button">Hold schedule</button>
+        <button id="admin-publish-event-schedule" class="button primary" type="submit">Publish schedule</button>
+      </div>
+    </form>
+  </div>`;
+}
+
+function eventScheduleTimeInput(value) {
+  const input = String(value ?? "").trim();
+  if (/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(input)) return input;
+  const match = input.match(/^(1[0-2]|0?[1-9]):([0-5]\d)\s*(AM|PM)$/i);
+  if (!match) return "";
+  const hour = (Number(match[1]) % 12) + (match[3].toUpperCase() === "PM" ? 12 : 0);
+  return `${String(hour).padStart(2, "0")}:${match[2]}`;
+}
+
+function eventScheduleOptions(values, selected) {
+  return values.map(value => `<option ${value === selected ? "selected" : ""}>${value}</option>`).join("");
+}
+
+function eventScheduleRow(item = {}) {
+  return `<div class="admin-form-grid admin-event-schedule-row">
+    <input name="id" type="hidden" value="${escapeAttr(item.id ?? "")}" />
+    <label><span>Day</span><select name="day" required>${eventScheduleOptions(EVENT_SCHEDULE_DAYS, item.day)}</select></label>
+    <label><span>Time</span><input name="time" type="time" value="${escapeAttr(eventScheduleTimeInput(item.time))}" required /></label>
+    <label><span>Program</span><input name="title" maxlength="180" value="${escapeAttr(item.title ?? "")}" required /></label>
+    <label><span>Location</span><input name="zone" maxlength="120" value="${escapeAttr(item.zone ?? "")}" required /></label>
+    <label><span>Category</span><select name="category" required>${eventScheduleOptions(EVENT_SCHEDULE_CATEGORIES, item.category)}</select></label>
+    <button class="button secondary admin-event-schedule-remove" data-remove-event-schedule-item type="button" aria-label="Remove schedule item">&times;</button>
+  </div>`;
+}
+
+export function renderEventSchedule(bootstrap, readiness, isoToLocalDateTime) {
+  const form = document.querySelector("#admin-event-schedule-form");
+  const rows = document.querySelector("#admin-event-schedule-rows");
+  if (!form || !rows) return;
+  rows.innerHTML = (Array.isArray(bootstrap?.schedule) ? bootstrap.schedule : []).map(eventScheduleRow).join("");
+  form.elements.sourceUrl.value = bootstrap?.schedulePublication?.sourceUrl ?? "https://www.texassandfest.org/daily-schedule";
+  form.elements.sourceCheckedAt.value = isoToLocalDateTime(bootstrap?.schedulePublication?.sourceCheckedAt);
+  form.elements.holdReason.value = "";
+  const status = document.querySelector("#admin-event-schedule-readiness");
+  if (status) {
+    const hold = readiness?.publication?.holdReason ? ` Hold: ${readiness.publication.holdReason}` : "";
+    status.textContent = `${readiness?.reason ?? "Schedule readiness has not been checked."}${hold}`;
+    status.dataset.state = readiness?.ready ? "ok" : "warning";
+  }
+}
+
+function serializeEventSchedule(form) {
+  const fields = ["id", "day", "time", "title", "zone", "category"];
+  const values = new FormData(form);
+  return values.getAll("day").map((_, index) => Object.fromEntries(fields.map(field => [field, values.getAll(field)[index]])));
+}
+
+export function bindEventScheduleEditor({ adminFetch, localDateTimeToIso, refresh, setAdminStatus }) {
+  const form = document.querySelector("#admin-event-schedule-form");
+  if (!form) return;
+  const rows = document.querySelector("#admin-event-schedule-rows");
+  rows.addEventListener("click", event => event.target.closest("[data-remove-event-schedule-item]")?.closest(".admin-event-schedule-row")?.remove());
+  document.querySelector("#admin-add-event-schedule-item")?.addEventListener("click", () => {
+    rows.insertAdjacentHTML("beforeend", eventScheduleRow({ day: "Friday", time: "09:00", category: "Program" }));
+  });
+  const save = async (publish, button) => {
+    button.disabled = true;
+    try {
+      const data = await adminFetch("/api/admin/event-schedule/publish", {
+        method: "POST",
+        body: JSON.stringify(publish ? {
+          publish: true,
+          schedule: serializeEventSchedule(form),
+          sourceUrl: form.elements.sourceUrl.value,
+          sourceCheckedAt: localDateTimeToIso(form.elements.sourceCheckedAt.value)
+        } : { publish: false, reason: form.elements.holdReason.value })
+      });
+      await refresh();
+      setAdminStatus(publish
+        ? `Published ${data.schedule.length} schedule item${data.schedule.length === 1 ? "" : "s"}.`
+        : "The daily schedule is held and no detailed program is public.", publish ? "ok" : "warning");
+    } catch (error) {
+      setAdminStatus(error.message, "error");
+    } finally {
+      button.disabled = false;
+    }
+  };
+  form.addEventListener("submit", event => {
+    event.preventDefault();
+    save(true, document.querySelector("#admin-publish-event-schedule"));
+  });
+  document.querySelector("#admin-hold-event-schedule")?.addEventListener("click", event => {
+    save(false, event.currentTarget);
+  });
+}
 
 export function taskAssignmentNoticeAction(task, assignmentType, assignmentSummary) {
   const pending = PENDING_NOTICE_STATUSES.has(assignmentSummary?.latestStatus);

@@ -417,6 +417,11 @@ import {
 } from "../lib/operations-export.mjs";
 import { TURNSTILE_SITEVERIFY_URL, turnstileConfig, verifyTurnstileToken } from "../lib/turnstile.mjs";
 import { eventGuideReadiness, normalizeEventGuide, publicEventGuide, publishEventGuide } from "../lib/event-guide.mjs";
+import {
+  eventScheduleReadiness,
+  holdEventSchedule,
+  publishEventSchedule
+} from "../lib/event-schedule.mjs";
 import { publicAppBootstrap, publicAppBootstrapSafety } from "../lib/public-bootstrap.mjs";
 import {
   answerPublicConcierge,
@@ -1464,9 +1469,16 @@ console.log("\n=== Pure library suite ===\n");
       publishedBy: "staff-private-id"
     },
     schedule: [
-      { id: "gates", day: "Friday", time: "9:00 AM", title: "Beach gates open", zone: "North Gate", category: "Visitor", internalOwner: "operations" },
-      { id: "briefing", day: "Friday", time: "8:15 AM", title: "Volunteer captain briefing", zone: "Command", category: "Staff" }
+      { id: "gates", day: "Friday", time: "9:00 AM", title: "Beach gates open", zone: "North Gate", category: "Visitor", internalOwner: "operations" }
     ],
+    schedulePublication: {
+      status: "published",
+      eventId: "texas-sandfest-2027",
+      sourceUrl: "https://www.texassandfest.org/daily-schedule",
+      sourceCheckedAt: "2026-07-17T12:00:00.000Z",
+      publishedAt: "2026-07-17T12:05:00.000Z",
+      publishedBy: "staff-private-id"
+    },
     zones: [{ id: "north-gate", name: "North Gate", marker: "12.5", summary: "Guest entrance.", status: "busy" }],
     alert: { id: "none", active: false, audience: ["public", "staff"] },
     sponsors: [{ invoiceStatus: "overdue" }],
@@ -1475,15 +1487,79 @@ console.log("\n=== Pure library suite ===\n");
     financeSignals: [{ quickBooksStatus: "needs_match" }],
     runtime: { mode: "board_demo", label: "Synthetic board data", storageRoot: "/private/runtime" }
   };
-  const projected = publicAppBootstrap(internalBootstrap);
-  const boardProjected = publicAppBootstrap(internalBootstrap, { includeBoardRuntime: true });
+  const projected = publicAppBootstrap(internalBootstrap, { now: "2026-07-18T12:00:00.000Z" });
+  const boardProjected = publicAppBootstrap({
+    ...internalBootstrap,
+    schedulePublication: { status: "board_demo", eventId: "texas-sandfest-2027" }
+  }, { includeBoardRuntime: true, now: "2026-07-18T12:00:00.000Z" });
   const serialized = JSON.stringify(projected);
 
   ok("public bootstrap exposes only approved root collections", JSON.stringify(Object.keys(projected).sort()) === JSON.stringify(["alert", "guide", "schedule", "zones"]));
-  ok("public bootstrap excludes staff schedule and operational zone state", projected.schedule.length === 1 && projected.schedule[0].title === "Beach gates open" && !Object.hasOwn(projected.zones[0], "status"));
+  ok("public bootstrap exposes only validated published schedule and public zone fields", projected.schedule.length === 1 && projected.schedule[0].title === "Beach gates open" && !Object.hasOwn(projected.zones[0], "status"));
   ok("public bootstrap excludes publishing identity and private operations", !Object.hasOwn(projected.guide, "publishedBy") && !/(sponsors|vendors|coverage|financeSignals|invoiceStatus|quickBooksStatus)/.test(serialized));
   ok("public bootstrap policy rejects unprojected internal data", !publicAppBootstrapSafety(internalBootstrap).ready && publicAppBootstrapSafety(internalBootstrap).errors.some(error => error.includes("Unexpected public bootstrap keys")));
   ok("board runtime label requires explicit projection and validation", !Object.hasOwn(projected, "runtime") && boardProjected.runtime?.mode === "board_demo" && publicAppBootstrapSafety(boardProjected, { allowBoardRuntime: true }).ready && !publicAppBootstrapSafety(boardProjected).ready);
+}
+
+// Governed public event schedule
+{
+  const now = "2026-07-18T12:00:00.000Z";
+  const sourceCheckedAt = "2026-07-17T12:00:00.000Z";
+  const schedule = [
+    { day: "friday", time: "09:00", title: "Beach gates open", zone: "North Gate", category: "visitor" },
+    { id: "fri-showcase", day: "Friday", time: "1:30 PM", title: "Master sculptor showcase", zone: "Competition Corridor", category: "Competition" }
+  ];
+  const pending = eventScheduleReadiness({
+    eventId: "texas-sandfest-2027",
+    schedule: [],
+    publication: { status: "pending", eventId: "texas-sandfest-2027" }
+  }, { now });
+  const published = publishEventSchedule({}, {
+    schedule,
+    sourceUrl: "https://www.texassandfest.org/daily-schedule",
+    sourceCheckedAt
+  }, {
+    actorId: "content-test",
+    eventId: "texas-sandfest-2027",
+    now
+  });
+  const ready = eventScheduleReadiness({
+    eventId: "texas-sandfest-2027",
+    schedule: published.schedule,
+    publication: published.publication
+  }, { now });
+  const invalid = publishEventSchedule({}, {
+    schedule: [
+      { id: "duplicate", day: "Monday", time: "25:00", title: "", zone: "", category: "Staff" },
+      { id: "duplicate", day: "Friday", time: "09:00", title: "Program", zone: "North Gate", category: "Program" }
+    ],
+    sourceUrl: "http://example.com/schedule",
+    sourceCheckedAt: "2026-07-19T12:00:00.000Z"
+  }, {
+    actorId: "content-test",
+    eventId: "texas-sandfest-2027",
+    now
+  });
+  const held = holdEventSchedule({
+    schedule: published.schedule,
+    publication: published.publication
+  }, {
+    actorId: "content-test",
+    eventId: "texas-sandfest-2027",
+    reason: "Official program is being revised.",
+    now
+  });
+  const boardReady = eventScheduleReadiness({
+    eventId: "texas-sandfest-2027",
+    schedule: published.schedule,
+    publication: { status: "board_demo", eventId: "texas-sandfest-2027" }
+  }, { now, allowBoardDemo: true });
+
+  ok("unpublished event schedule fails closed", !pending.ready && pending.missing.includes("published") && pending.missing.includes("schedule"));
+  ok("event schedule publish normalizes records and captures source authority", published.ok && published.schedule[0].id === "fri-9-00-am-beach-gates-open" && published.schedule[0].time === "9:00 AM" && published.publication.publishedBy === "content-test" && ready.ready);
+  ok("event schedule rejects invalid records, duplicate ids, insecure sources, and future review", !invalid.ok && invalid.errors.some(error => error.includes("identifiers must be unique")) && invalid.errors.some(error => error.includes("HTTPS")) && invalid.errors.some(error => error.includes("future")));
+  ok("event schedule hold clears public programming and records accountability", held.ok && held.schedule.length === 0 && held.publication.status === "pending" && held.publication.heldBy === "content-test" && held.publication.holdReason === "Official program is being revised.");
+  ok("synthetic event schedule is ready only inside an explicit board runtime", boardReady.ready && !eventScheduleReadiness({ eventId: "texas-sandfest-2027", schedule: published.schedule, publication: { status: "board_demo" } }, { now }).ready);
 }
 
 // Public media manifest projection
@@ -6260,9 +6336,11 @@ try {
     }
   }
   ok("deployment exposes current event guide gate", health.data.eventGuideReady === true && deployment.data.deployment?.checks?.eventGuide?.ok === true);
+  ok("deployment reports unpublished detailed programming as a non-blocking launch warning", deployment.data.deployment?.checks?.eventSchedule?.ok === false && deployment.data.deployment?.checks?.eventSchedule?.severity === "warning");
   ok("deployment identifies operational documents awaiting 2027 rollover", health.data.currentEventId === DEFAULT_EVENT_ID && health.data.currentEventReady === false && deployment.data.deployment?.checks?.currentEvent?.severity === "warning" && deployment.data.deployment?.checks?.currentEvent?.message.includes("fleet=texas-sandfest-2026"));
 
   const initialPublicBootstrap = await hit("GET", "/api/public/bootstrap");
+  const initialAdminConfig = await hit("GET", "/api/admin/config", null, true);
   const unauthenticatedGuidePublish = await hit("POST", "/api/admin/event-guide/publish", { publish: true, guide: {} });
   const invalidGuidePublish = await hit("POST", "/api/admin/event-guide/publish", {
     publish: true,
@@ -6291,11 +6369,45 @@ try {
     && initialPublicBootstrap.data.guide?.dateRange === "April 16-18, 2027"
     && publicAppBootstrapSafety(initialPublicBootstrap.data).ready
     && JSON.stringify(Object.keys(initialPublicBootstrap.data).sort()) === JSON.stringify(["alert", "guide", "schedule", "zones"])
+    && initialPublicBootstrap.data.schedule?.length === 0
     && initialPublicBootstrap.data.schedule?.every(item => item.category !== "Staff")
     && initialPublicBootstrap.data.zones?.every(item => !Object.hasOwn(item, "status")));
   ok("event guide publish requires staff authentication", unauthenticatedGuidePublish.status === 401);
   ok("event guide publish rejects invalid dates", invalidGuidePublish.status === 400 && invalidGuidePublish.data.errors?.includes("Event end date cannot precede the start date."));
   ok("event guide publish updates public and admin readiness", validGuidePublish.status === 200 && validGuidePublish.data.readiness?.ready === true && publishedPublicBootstrap.data.guide?.sourceCheckedAt === sourceCheckedAt && !("publishedBy" in publishedPublicBootstrap.data.guide) && publishedAdminConfig.data.eventGuideReadiness?.ready === true);
+
+  const unauthenticatedSchedulePublish = await hit("POST", "/api/admin/event-schedule/publish", { publish: true, schedule: [] });
+  const invalidSchedulePublish = await hit("POST", "/api/admin/event-schedule/publish", {
+    publish: true,
+    schedule: [{ day: "Monday", time: "25:00", title: "", zone: "", category: "Staff" }],
+    sourceUrl: "http://example.com/schedule",
+    sourceCheckedAt: new Date(Date.now() + 86_400_000).toISOString()
+  }, true);
+  const validSchedulePublish = await hit("POST", "/api/admin/event-schedule/publish", {
+    publish: true,
+    schedule: [
+      { day: "Friday", time: "09:00", title: "Beach gates open", zone: "North Gate", category: "Visitor" },
+      { id: "fri-program", day: "Friday", time: "13:30", title: "Official program", zone: "Competition Corridor", category: "Program" }
+    ],
+    sourceUrl: "https://www.texassandfest.org/daily-schedule",
+    sourceCheckedAt
+  }, true);
+  const schedulePublishedPublicBootstrap = await hit("GET", "/api/public/bootstrap");
+  const schedulePublishedAdminConfig = await hit("GET", "/api/admin/config", null, true);
+  const invalidScheduleHold = await hit("POST", "/api/admin/event-schedule/publish", {
+    publish: false,
+    reason: "short"
+  }, true);
+  const validScheduleHold = await hit("POST", "/api/admin/event-schedule/publish", {
+    publish: false,
+    reason: "Official program is being revised."
+  }, true);
+  const scheduleHeldPublicBootstrap = await hit("GET", "/api/public/bootstrap");
+  const scheduleHeldAdminConfig = await hit("GET", "/api/admin/config", null, true);
+  ok("event schedule starts pending and is withheld from public clients", initialAdminConfig.data.eventScheduleReadiness?.ready === false && initialPublicBootstrap.data.schedule?.length === 0);
+  ok("event schedule publication requires staff authentication and governed records", unauthenticatedSchedulePublish.status === 401 && invalidSchedulePublish.status === 400 && invalidSchedulePublish.data.errors?.length >= 4);
+  ok("event schedule publication updates web and admin readiness", validSchedulePublish.status === 200 && validSchedulePublish.data.readiness?.ready === true && schedulePublishedPublicBootstrap.data.schedule?.length === 2 && schedulePublishedPublicBootstrap.data.schedule[0]?.time === "9:00 AM" && schedulePublishedAdminConfig.data.eventScheduleReadiness?.ready === true);
+  ok("event schedule hold requires a reason and immediately clears public programming", invalidScheduleHold.status === 400 && validScheduleHold.status === 200 && validScheduleHold.data.publication?.heldBy && scheduleHeldPublicBootstrap.data.schedule?.length === 0 && scheduleHeldAdminConfig.data.eventScheduleReadiness?.publication?.holdReason === "Official program is being revised.");
 
   const conciergeTicketApi = await hitRaw("POST", "/api/public/concierge", JSON.stringify({ question: "Where can I buy tickets?" }), { "content-type": "application/json" });
   const conciergeSponsorApi = await hit("POST", "/api/public/concierge", { question: "What sponsorship packages are open?" });
@@ -8307,6 +8419,7 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
   const smsAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("sms."));
   ok("Twilio webhook audit is aggregate-only", smsAuditApi.some(item => item.record?.action === "sms.delivery.webhook") && smsAuditApi.some(item => item.record?.action === "sms.preference.webhook") && !JSON.stringify(smsAuditApi).includes("+13615550188") && !JSON.stringify(smsAuditApi).includes("platform-twilio-auth-secret"));
   ok("event guide publish is audited", auditApi.data.audit?.some(item => item.record?.action === "content.event-guide.publish"));
+  ok("event schedule publish and hold are audited", auditApi.data.audit?.some(item => item.record?.action === "content.event-schedule.publish") && auditApi.data.audit?.some(item => item.record?.action === "content.event-schedule.hold"));
   ok("launch task synchronization is aggregate audited", auditApi.data.audit?.some(item => item.record?.action === "deployment.tasks.sync" && item.record?.after?.active === failingDeploymentChecks.length));
   ok("automatic launch task audit identifies the system actor", auditApi.data.audit?.some(item => item.record?.action === "deployment.tasks.sync" && item.record?.actor?.type === "system" && item.record?.actor?.id === "deployment-readiness" && item.record?.metadata?.automated === true && item.record?.after?.created === failingDeploymentChecks.length));
   const documentAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("document."));

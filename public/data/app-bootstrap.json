@@ -18,32 +18,7 @@
     "sourceCheckedAt": "2026-07-17T00:00:00.000Z",
     "lastUpdated": "2026-07-17T00:00:00.000Z"
   },
-  "schedule": [
-    {
-      "id": "fri-gates",
-      "day": "Friday",
-      "time": "9:00 AM",
-      "title": "Beach gates open",
-      "zone": "North Gate",
-      "category": "Visitor"
-    },
-    {
-      "id": "fri-sculptors",
-      "day": "Friday",
-      "time": "10:00 AM",
-      "title": "Master sculptor showcase",
-      "zone": "Competition Corridor",
-      "category": "Competition"
-    },
-    {
-      "id": "sun-awards",
-      "day": "Sunday",
-      "time": "10:30 AM",
-      "title": "Amateur awards prep",
-      "zone": "Main Stage",
-      "category": "Competition"
-    }
-  ],
+  "schedule": [],
   "zones": [
     {
       "id": "north-gate",

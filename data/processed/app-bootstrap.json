@@ -33,40 +33,19 @@
     "updatedAt": "2026-04-30T00:00:00Z",
     "expiresAt": null
   },
-  "schedule": [
-    {
-      "id": "fri-gates",
-      "day": "Friday",
-      "time": "9:00 AM",
-      "title": "Beach gates open",
-      "zone": "North Gate",
-      "category": "Visitor"
-    },
-    {
-      "id": "fri-sculptors",
-      "day": "Friday",
-      "time": "10:00 AM",
-      "title": "Master sculptor showcase",
-      "zone": "Competition Corridor",
-      "category": "Competition"
-    },
-    {
-      "id": "sat-brief",
-      "day": "Saturday",
-      "time": "8:15 AM",
-      "title": "Volunteer captain briefing",
-      "zone": "Command",
-      "category": "Staff"
-    },
-    {
-      "id": "sun-awards",
-      "day": "Sunday",
-      "time": "10:30 AM",
-      "title": "Amateur awards prep",
-      "zone": "Main Stage",
-      "category": "Competition"
-    }
-  ],
+  "schedule": [],
+  "schedulePublication": {
+    "status": "pending",
+    "eventId": "texas-sandfest-2027",
+    "sourceUrl": "https://www.texassandfest.org/daily-schedule",
+    "sourceCheckedAt": "2026-07-21T00:00:00.000Z",
+    "publishedAt": null,
+    "publishedBy": null,
+    "heldAt": "2026-07-21T00:00:00.000Z",
+    "heldBy": "content-audit:official-site",
+    "holdReason": "Official daily schedule currently identifies its detailed program as the 2026 schedule.",
+    "lastUpdated": "2026-07-21T00:00:00.000Z"
+  },
   "zones": [
     {
       "id": "north-gate",

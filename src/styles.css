@@ -682,6 +682,7 @@ h3 {
 .admin-readiness-grid article,
 .admin-order-monitor,
 .admin-event-guide-panel,
+.admin-event-schedule-panel,
 .admin-alert-panel,
 .admin-record-card,
 .admin-edit-card,
@@ -909,6 +910,12 @@ h3 {
 .schedule-list article.target {
   border-left-color: var(--coral);
   scroll-margin-top: 170px;
+}
+
+.schedule-publication-pending a {
+  color: var(--deep);
+  font-weight: 800;
+  justify-self: start;
 }
 
 time {
@@ -2071,7 +2078,8 @@ time {
   width: 100%;
 }
 
-.admin-event-guide-panel {
+.admin-event-guide-panel,
+.admin-event-schedule-panel {
   display: grid;
   gap: 14px;
   margin-top: 22px;
@@ -2331,6 +2339,11 @@ time {
   font-weight: 800;
 }
 
+.admin-event-guide-status[data-state="warning"] {
+  color: #9a5c00;
+  font-weight: 800;
+}
+
 .admin-event-guide-form {
   display: grid;
   gap: 12px;
@@ -2379,6 +2392,30 @@ time {
   align-items: end;
   display: flex;
   justify-content: flex-end;
+}
+
+.admin-event-schedule-heading {
+  flex-wrap: wrap;
+}
+
+.admin-event-schedule-form,
+.admin-event-schedule-rows {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-event-schedule-row {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.admin-event-schedule-remove {
+  color: var(--coral);
+  font-size: 24px;
+  height: 42px;
+  min-height: 42px;
+  padding: 0;
+  width: 44px;
 }
 
 .admin-alert-panel {

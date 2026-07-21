@@ -249,6 +249,32 @@ final class AppDataStoreTests: XCTestCase {
     }
 
     @MainActor
+    func testEmptyPublishedScheduleClearsBundledSampleProgramming() async throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let responsePayload = publicPayload(
+            guide: guide(dateRange: SampleData.guide.dateRange),
+            schedule: []
+        )
+        let responseData = try encoded(responsePayload)
+        let store = AppDataStore(
+            seedPayload: .sample,
+            apiBase: try XCTUnwrap(URL(string: "https://api.texassandfest.example")),
+            cacheURL: directory.appendingPathComponent("public-bootstrap.json"),
+            transport: AppDataTransport { _ in
+                AppDataHTTPResponse(data: responseData, statusCode: 200)
+            }
+        )
+
+        XCTAssertFalse(store.payload.schedule.isEmpty)
+        await store.refreshPublicData()
+
+        XCTAssertEqual(store.syncState, .live)
+        XCTAssertEqual(store.source, "Live public guide")
+        XCTAssertTrue(store.payload.schedule.isEmpty)
+    }
+
+    @MainActor
     func testBoardRuntimeKeepsRichSyntheticScheduleWithLiveOverrides() async throws {
         let directory = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
