@@ -90,9 +90,12 @@ volunteer, and team assignments, sponsor/vendor fulfillment, geofenced
 outreach with an invitation-ready prospect, private document extraction,
 deferred live-accounting label, browser
 errors, desktop overflow, and the exact active Visitor and Operations layouts at
-320px and 768px without submitting a form or changing demo data. The responsive
-gate rejects horizontal overflow, clipped Operations navigation or readiness
-labels, and any visible control or choice target below 24px.
+320px, 768px, and 1024px without submitting a form or changing demo data. The
+responsive gate rejects horizontal overflow, clipped Operations navigation or readiness
+labels, and any visible control or choice target below 24px. At both the
+board-laptop and narrow-phone viewports, it also requires the Live Beach header
+to remain visibly cued below the hero so the next interactive capability is
+apparent before scrolling.
 
 Use the reset icon in the Operations header when you want to discard
 demonstration changes and restore the synthetic starting state. After
