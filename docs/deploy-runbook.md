@@ -11,7 +11,19 @@ End-state hostnames (from `heyelab-backend-deployment.md`):
 
 This runbook prepares the public release gate first, provisions the API behind a Render Blueprint, publishes the visitor artifact only after the API passes launch acceptance, and then performs DNS cutover.
 
-## Phase 1 — Public web on GitHub Pages (enablement pending)
+## Phase 1 — Public web release controls
+
+The canonical `https://sandfest.heyelab.com` hostname currently resolves to the
+dedicated Texas SandFest Vercel project. Pull-request previews remain credential
+free and fail closed for protected intake. A Vercel production build is a
+release, not a preview: `scripts/verify-vercel-release.mjs` requires the real
+Turnstile site key, the signed Apple Application Identifier Prefix, and the same
+strict production API proof used by Pages before it compiles a replacement
+artifact. Missing account configuration, DNS, API readiness, published
+catalogs, live Island Conditions, or canonical-origin CORS fails the deployment
+and leaves the previously published production artifact in place.
+
+GitHub Pages remains a separately gated fallback and publication path.
 
 A workflow at `.github/workflows/pages.yml` builds the Vite app only after the full `CI` workflow succeeds for a direct push to `main`. Pull-request, feature-branch, and manually dispatched runs cannot publish, and there is no manual bypass around the release gate.
 
@@ -63,7 +75,13 @@ The production visitor build injects a CSP meta policy before any loadable resou
 
 The same build finalizes the public service worker with the exact hashed JavaScript, CSS, and font files emitted by Vite. Its cache name is derived from that artifact, installation fails instead of accepting a partial core shell, and activation removes superseded caches. The Pages workflow verifies that HTML, manifest, and worker remain safe under `/texas-sandfest/` before upload. Large galleries remain network-first or on-demand so a first visit does not force hundreds of media files into device storage.
 
-This static meta policy does not replace response headers. In particular, browsers ignore `frame-ancestors` in a meta CSP, and policies such as HSTS, `X-Content-Type-Options`, and `Permissions-Policy` require HTTP response headers. Before the canonical-domain launch, put `sandfest.heyelab.com` behind an edge capable of setting those headers, mirror the public CSP there, add `frame-ancestors 'none'`, and verify the headers directly from the customer hostname. The Render-hosted admin surface already declares this header set in `render.yaml`.
+This static meta policy does not replace response headers. In particular,
+browsers ignore `frame-ancestors` in a meta CSP, and policies such as HSTS,
+`X-Content-Type-Options`, and `Permissions-Policy` require HTTP response headers.
+`vercel.json` declares the mirrored CSP plus `frame-ancestors 'none'` and the
+required visitor response headers for the canonical host. Verify them directly
+after every production release. The Render-hosted admin surface declares its
+own header set in `render.yaml`.
 
 **Enable Pages once:**
 1. Go to https://github.com/nickbmerrill-collab/texas-sandfest/settings/pages
@@ -85,13 +103,17 @@ https://nickbmerrill-collab.github.io/texas-sandfest/
 ```
 
 Pull requests also receive a Vercel preview of the isolated public artifact.
-`vercel.json` owns that preview build so stale dashboard framework settings
-cannot make this Vite repository run a Next.js build. A preview is review
-evidence only: without a Turnstile site key it visibly disables sponsor intake,
-vendor intake, and private-access email. It does not replace the gated Pages
-release or prove that the production API and provider capabilities are live.
+`vercel.json` owns both preview and production build commands so stale dashboard
+framework settings cannot make this Vite repository run a Next.js build. A
+preview is review evidence only: without a Turnstile site key it visibly
+disables sponsor intake, vendor intake, and private-access email. The Vercel
+production target cannot use that preview exception; it must pass the canonical
+release gate before replacing `sandfest.heyelab.com`.
 
-That is the expected demo URL after a successful workflow and Pages enablement. Verify it directly before sharing it. To swap in `sandfest.heyelab.com`:
+That is the fallback Pages URL after a successful workflow and Pages
+enablement. Verify it directly before sharing it. The canonical
+`sandfest.heyelab.com` hostname already points to Vercel; move it to Pages only
+as an intentional hosting migration:
 
 1. In the repo's Pages settings, set the custom domain to `sandfest.heyelab.com`.
 2. In your DNS provider for `heyelab.com`, add:
