@@ -5,6 +5,7 @@
 //   SANDFEST_WORKER_ONCE=true node scripts/worker.mjs
 
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadDotEnv } from "../lib/load-env.mjs";
@@ -52,7 +53,8 @@ import {
   persistQuickBooksTokenRotation
 } from "../lib/quickbooks/credentials.mjs";
 import { issuePartnerPortalToken, partnerPortalConfig, partnerPortalUrl, vendorApplicationUrl } from "../lib/partner-portal.mjs";
-import { vendorOfferingCatalog } from "../lib/vendor-offerings.mjs";
+import { partnerCatalogPublicationReadiness } from "../lib/partner-catalog-publication.mjs";
+import { publicVendorOffering, vendorOfferingCatalog } from "../lib/vendor-offerings.mjs";
 import { taskPortalConfig, taskPortalUrlForTask } from "../lib/task-portal.mjs";
 import {
   appendOutreachPreferenceFooter,
@@ -97,6 +99,16 @@ const storage = await createStorage({
   configPaths: CONFIG_PATH_OVERRIDE ? { "admin-config": CONFIG_PATH_OVERRIDE } : {}
 });
 const CURRENT_EVENT_ID = eventContextConfig(process.env).eventId;
+const PARTNER_CATALOG_SOURCE_MAX_AGE_DAYS = Math.max(1, Number(process.env.SANDFEST_PARTNER_CATALOG_SOURCE_MAX_AGE_DAYS || 180));
+const BOARD_DEMO_RUNTIME = await (async () => {
+  if (process.env.SANDFEST_ENV === "production" || ROOT === CODE_ROOT) return false;
+  try {
+    const marker = JSON.parse(await readFile(path.join(ROOT, "board-runtime.json"), "utf8"));
+    return marker.kind === "synthetic-board-demonstration" && marker.eventId === CURRENT_EVENT_ID;
+  } catch {
+    return false;
+  }
+})();
 const POLL_MS = Number(process.env.SANDFEST_WORKER_POLL_MS || 2000);
 const ONCE = process.env.SANDFEST_WORKER_ONCE === "true";
 const BATCH = Number(process.env.SANDFEST_WORKER_BATCH || 10);
@@ -137,10 +149,21 @@ async function readRecipientContext() {
   ]);
   const staffDirectory = normalizeStaffDirectory(staffDirectoryInput, { eventId: CURRENT_EVENT_ID });
   const vendorCatalog = vendorOfferingCatalog(adminConfig);
+  const vendorItems = vendorCatalog.activeOfferings.map(publicVendorOffering);
+  const vendorPublication = partnerCatalogPublicationReadiness({
+    kind: "vendor",
+    eventId: CURRENT_EVENT_ID,
+    items: vendorItems,
+    catalogReady: vendorCatalog.ready,
+    publication: adminConfig.vendorOfferingPublication
+  }, {
+    maxSourceAgeDays: PARTNER_CATALOG_SOURCE_MAX_AGE_DAYS,
+    allowBoardDemo: BOARD_DEMO_RUNTIME
+  });
   return {
     volunteers: volunteerMirror?.volunteers || [],
     taskRecipients: staffTaskRecipients(staffDirectory, { eventId: CURRENT_EVENT_ID }),
-    vendorOfferings: vendorCatalog.ready ? vendorCatalog.activeOfferings : [],
+    vendorOfferings: vendorPublication.ready ? vendorCatalog.activeOfferings : [],
     applicationUrlForInterest: (application, offering) => vendorApplicationUrl(application, offering, { config: portalConfig })
   };
 }
