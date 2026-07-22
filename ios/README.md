@@ -86,7 +86,11 @@ local and simulator acceptance.
 
 ## Build direction
 
-The app should consume the same canonical SandFest API as the web platform. Guest mode gets the offline event guide, AI concierge, map, schedule, and alerts. Volunteer/staff mode gets check-in, captain instructions, zone status, and offline incident drafts.
+The app consumes the same canonical SandFest API as the web platform. Guest
+mode gets the offline event guide, AI concierge, map, schedule, and alerts. The
+board Admin mode gets authenticated operations snapshots, shared Fleet state,
+and server-authoritative incident command. Durable offline staff mutation sync
+remains a production requirement after native OIDC and conflict handling exist.
 
 ## Public data refresh
 
@@ -115,6 +119,13 @@ Fleet follows the same loopback-only board session boundary. Reads use
 admin endpoints and update the screen only from the server response. Failed or
 unauthenticated mutations never fall back to local state, so the device cannot
 show a checkout that the shared fleet ledger did not record.
+
+Incidents also use the authenticated board API as the only source of truth.
+The native command screen reads the shared Island Conditions incident ledger,
+creates operator incidents, records status and resolution changes, and creates
+team dispatch assignments with optional email drafts. It does not expose a send
+action, and failed or unauthenticated requests never create local incident or
+dispatch state.
 
 ## Ask Sandy
 

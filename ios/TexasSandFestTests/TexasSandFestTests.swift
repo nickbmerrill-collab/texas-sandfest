@@ -251,6 +251,270 @@ final class FleetStoreTests: XCTestCase {
     }
 }
 
+final class IncidentStoreTests: XCTestCase {
+    @MainActor
+    func testAuthenticatedIncidentWorkflowAppliesOnlyServerTruth() async throws {
+        let dashboard = Data(#"""
+        {
+          "lastUpdated": "2026-07-22T02:00:00.000Z",
+          "summary": { "activeIncidents": 1 },
+          "incidents": [
+            {
+              "id": "incident-1",
+              "title": "North gate queue",
+              "summary": "Queue entered the service lane.",
+              "severity": "high",
+              "status": "open",
+              "ownerTeam": "traffic",
+              "ownerName": null,
+              "publicImpact": true,
+              "publicAlertRecommended": false,
+              "createdAt": "2026-07-22T01:55:00.000Z",
+              "updatedAt": "2026-07-22T01:55:00.000Z",
+              "resolution": null
+            }
+          ],
+          "dispatches": [],
+          "assignmentDirectory": {
+            "teams": [
+              { "id": "traffic", "name": "Traffic and parking", "notificationReady": true }
+            ]
+          }
+        }
+        """#.utf8)
+        let created = Data(#"""
+        {
+          "incident": {
+            "id": "incident-2",
+            "title": "Lost party report",
+            "summary": "Last seen near the south entrance.",
+            "severity": "moderate",
+            "status": "open",
+            "ownerTeam": "operations",
+            "ownerName": null,
+            "publicImpact": false,
+            "publicAlertRecommended": false,
+            "createdAt": "2026-07-22T02:01:00.000Z",
+            "updatedAt": "2026-07-22T02:01:00.000Z",
+            "resolution": null
+          }
+        }
+        """#.utf8)
+        let updated = Data(#"""
+        {
+          "incident": {
+            "id": "incident-2",
+            "title": "Lost party report",
+            "summary": "Last seen near the south entrance.",
+            "severity": "high",
+            "status": "acknowledged",
+            "ownerTeam": "operations",
+            "ownerName": null,
+            "publicImpact": false,
+            "publicAlertRecommended": false,
+            "createdAt": "2026-07-22T02:01:00.000Z",
+            "updatedAt": "2026-07-22T02:02:00.000Z",
+            "resolution": null
+          }
+        }
+        """#.utf8)
+        let dispatched = Data(#"""
+        {
+          "incident": {
+            "id": "incident-2",
+            "title": "Lost party report",
+            "summary": "Last seen near the south entrance.",
+            "severity": "high",
+            "status": "acknowledged",
+            "ownerTeam": "traffic",
+            "ownerName": "Traffic and parking",
+            "publicImpact": false,
+            "publicAlertRecommended": false,
+            "createdAt": "2026-07-22T02:01:00.000Z",
+            "updatedAt": "2026-07-22T02:03:00.000Z",
+            "resolution": null
+          },
+          "dispatch": {
+            "id": "dispatch-1",
+            "incidentId": "incident-2",
+            "title": "Respond to Lost party report",
+            "instructions": "Check the south entrance and report to command.",
+            "status": "assigned",
+            "priority": "high",
+            "assigneeType": "team",
+            "assigneeId": "traffic",
+            "assigneeName": "Traffic and parking",
+            "dueAt": null,
+            "notification": {
+              "channel": "email",
+              "status": "draft_ready",
+              "recipientAvailable": true
+            }
+          }
+        }
+        """#.utf8)
+        let recorder = AppDataRequestRecorder()
+        let store = IncidentStore(transport: AppDataTransport { request in
+            await recorder.record(request)
+            let path = request.url?.path ?? ""
+            switch (request.httpMethod ?? "GET", path) {
+            case ("GET", "/api/admin/island-conditions"):
+                return AppDataHTTPResponse(data: dashboard, statusCode: 200)
+            case ("POST", "/api/admin/island-conditions/incidents"):
+                return AppDataHTTPResponse(data: created, statusCode: 201)
+            case ("PATCH", "/api/admin/island-conditions/incidents/incident-2"):
+                return AppDataHTTPResponse(data: updated, statusCode: 200)
+            case ("POST", "/api/admin/island-conditions/incidents/incident-2/dispatches"):
+                return AppDataHTTPResponse(data: dispatched, statusCode: 201)
+            default:
+                return AppDataHTTPResponse(data: Data(#"{"error":"Unexpected request"}"#.utf8), statusCode: 404)
+            }
+        })
+
+        await store.refresh(request: incidentRequest(path: "/api/admin/island-conditions"))
+        XCTAssertEqual(store.source, "Live board incidents")
+        XCTAssertEqual(store.activeIncidents.map(\.id), ["incident-1"])
+        XCTAssertEqual(store.teams.map(\.id), ["traffic"])
+
+        let createError = await store.createIncident(
+            title: "Lost party report",
+            summary: "Last seen near the south entrance.",
+            severity: "moderate",
+            ownerTeam: "operations",
+            publicImpact: false,
+            request: incidentRequest(path: "/api/admin/island-conditions/incidents", method: "POST")
+        )
+        XCTAssertNil(createError)
+        XCTAssertEqual(store.incident(id: "incident-2")?.status, "open")
+
+        let updateError = await store.updateIncident(
+            id: "incident-2",
+            status: "acknowledged",
+            severity: "high",
+            ownerTeam: "operations",
+            note: "Command acknowledged.",
+            request: incidentRequest(path: "/api/admin/island-conditions/incidents/incident-2", method: "PATCH")
+        )
+        XCTAssertNil(updateError)
+        XCTAssertEqual(store.incident(id: "incident-2")?.status, "acknowledged")
+
+        let dispatchError = await store.createDispatch(
+            incidentId: "incident-2",
+            teamId: "traffic",
+            instructions: "Check the south entrance and report to command.",
+            prepareEmailDraft: true,
+            request: incidentRequest(path: "/api/admin/island-conditions/incidents/incident-2/dispatches", method: "POST")
+        )
+        XCTAssertNil(dispatchError)
+        XCTAssertEqual(store.incident(id: "incident-2")?.ownerTeam, "traffic")
+        XCTAssertEqual(store.dispatches(for: "incident-2").first?.notification.status, "draft_ready")
+
+        let requests = await recorder.values()
+        XCTAssertEqual(requests.map(\.method), ["GET", "POST", "PATCH", "POST"])
+        XCTAssertTrue(requests.allSatisfy { $0.authorization == "Bearer local-board-secret" })
+        let dispatchBody = try XCTUnwrap(JSONSerialization.jsonObject(with: requests[3].body) as? [String: Any])
+        XCTAssertEqual(dispatchBody["assigneeType"] as? String, "team")
+        XCTAssertEqual(dispatchBody["assigneeId"] as? String, "traffic")
+        XCTAssertEqual(dispatchBody["channel"] as? String, "email")
+    }
+
+    @MainActor
+    func testMissingBoardSessionNeverCreatesLocalIncidentState() async {
+        let store = IncidentStore()
+
+        await store.refresh(request: nil)
+        let error = await store.createIncident(
+            title: "Must not persist",
+            summary: "No board session exists.",
+            severity: "critical",
+            ownerTeam: "operations",
+            publicImpact: true,
+            request: nil
+        )
+
+        XCTAssertEqual(store.source, "Board session required")
+        XCTAssertEqual(store.lastError, "Authenticated board incident access is unavailable.")
+        XCTAssertTrue(store.incidents.isEmpty)
+        XCTAssertTrue(error?.contains("no incident state was changed") == true)
+    }
+
+    @MainActor
+    func testIncidentCloseoutRefreshesServerCanceledDispatches() async {
+        let resolvedIncident = #"""
+        {
+          "id": "incident-closeout",
+          "title": "Resolved queue",
+          "summary": "Traffic flow returned to normal.",
+          "severity": "moderate",
+          "status": "resolved",
+          "ownerTeam": "traffic",
+          "ownerName": "Traffic and parking",
+          "publicImpact": false,
+          "publicAlertRecommended": false,
+          "createdAt": "2026-07-22T02:10:00.000Z",
+          "updatedAt": "2026-07-22T02:15:00.000Z",
+          "resolution": "Queue cleared and cones reset."
+        }
+        """#
+        let mutation = Data("{\"incident\":\(resolvedIncident)}".utf8)
+        let dashboard = Data(#"""
+        {
+          "lastUpdated": "2026-07-22T02:15:00.000Z",
+          "summary": { "activeIncidents": 0 },
+          "incidents": [\#(resolvedIncident)],
+          "dispatches": [
+            {
+              "id": "dispatch-canceled",
+              "incidentId": "incident-closeout",
+              "title": "Check traffic flow",
+              "instructions": "Report to command.",
+              "status": "canceled",
+              "priority": "moderate",
+              "assigneeType": "team",
+              "assigneeId": "traffic",
+              "assigneeName": "Traffic and parking",
+              "dueAt": null,
+              "notification": {
+                "channel": "email",
+                "status": "canceled",
+                "recipientAvailable": true
+              }
+            }
+          ],
+          "assignmentDirectory": { "teams": [] }
+        }
+        """#.utf8)
+        let store = IncidentStore(transport: AppDataTransport { request in
+            if request.httpMethod == "PATCH" {
+                return AppDataHTTPResponse(data: mutation, statusCode: 200)
+            }
+            return AppDataHTTPResponse(data: dashboard, statusCode: 200)
+        })
+
+        let error = await store.updateIncident(
+            id: "incident-closeout",
+            status: "resolved",
+            severity: "moderate",
+            ownerTeam: "traffic",
+            note: "Queue cleared and cones reset.",
+            request: incidentRequest(path: "/api/admin/island-conditions/incidents/incident-closeout", method: "PATCH"),
+            refreshRequest: incidentRequest(path: "/api/admin/island-conditions")
+        )
+
+        XCTAssertNil(error)
+        XCTAssertTrue(store.activeIncidents.isEmpty)
+        XCTAssertEqual(store.activeDispatchCount, 0)
+        XCTAssertEqual(store.dispatches(for: "incident-closeout").first?.status, "canceled")
+    }
+
+    private func incidentRequest(path: String, method: String = "GET") -> URLRequest {
+        var request = URLRequest(url: URL(string: "http://127.0.0.1:8806\(path)")!)
+        request.httpMethod = method
+        request.setValue("Bearer local-board-secret", forHTTPHeaderField: "Authorization")
+        return request
+    }
+}
+
 final class AppDataStoreTests: XCTestCase {
     @MainActor
     func testLiveBootstrapPersistsAndRestoresOnlyForMatchingAPIOrigin() async throws {

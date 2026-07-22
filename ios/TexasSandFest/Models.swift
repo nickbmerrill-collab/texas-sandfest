@@ -165,16 +165,6 @@ enum ZoneStatus: String, Codable {
     case attention
 }
 
-struct IncidentDraft: Identifiable, Codable {
-    let id: UUID
-    var type: String
-    var zoneId: String
-    var severity: String
-    var notes: String
-    var createdAt: Date
-    var syncedAt: Date?
-}
-
 struct SponsorAccount: Identifiable, Codable {
     let id: String
     let name: String
