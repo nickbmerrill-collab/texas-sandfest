@@ -2364,6 +2364,7 @@ time {
 }
 
 .admin-event-guide-form input,
+.admin-event-guide-form select,
 .admin-event-guide-form textarea {
   background: var(--white);
   border: 1px solid var(--line);
@@ -2381,11 +2382,14 @@ time {
 
 .admin-event-guide-location,
 .admin-event-guide-address,
-.admin-event-guide-source {
+.admin-event-guide-source,
+.admin-event-guide-volunteer-info,
+.admin-event-guide-volunteer-registration {
   grid-column: span 2;
 }
 
-.admin-event-guide-mission {
+.admin-event-guide-mission,
+.admin-event-guide-volunteer-note {
   grid-column: 1 / -1;
 }
 
@@ -3325,7 +3329,7 @@ time {
   text-underline-offset: 4px;
 }
 
-@media (max-width: 1320px) {
+@media (max-width: 1400px) {
   .topbar .primary-nav {
     display: none;
   }
@@ -3475,7 +3479,10 @@ time {
   .admin-event-guide-location,
   .admin-event-guide-address,
   .admin-event-guide-source,
-  .admin-event-guide-mission {
+  .admin-event-guide-mission,
+  .admin-event-guide-volunteer-info,
+  .admin-event-guide-volunteer-registration,
+  .admin-event-guide-volunteer-note {
     grid-column: auto;
   }
 
@@ -3790,6 +3797,75 @@ time {
 .guest-services-section {
   background: #eef7f6;
 }
+
+.volunteer-band {
+  background: var(--deep);
+  margin-top: 86px;
+  scroll-margin-top: 88px;
+}
+.volunteer-section {
+  align-items: start;
+  display: grid;
+  gap: 64px;
+  grid-template-columns: minmax(0, 1.05fr) minmax(360px, 0.95fr);
+  margin: 0 auto;
+  max-width: 1180px;
+  padding: 64px 32px;
+}
+.volunteer-section-loading { display: block; }
+.volunteer-section-loading p { color: #dce9e7; margin: 0; }
+.volunteer-intro { max-width: 650px; }
+.volunteer-intro .eyebrow { color: var(--sun); }
+.volunteer-intro h2 { color: var(--white); margin: 8px 0 14px; }
+.volunteer-intro > p:not(.eyebrow) { color: #dce9e7; line-height: 1.65; }
+.volunteer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 24px;
+}
+.volunteer-actions .button.primary { background: var(--sun); border-color: var(--sun); color: var(--deep); }
+.volunteer-actions .button.secondary { background: transparent; border-color: rgba(255, 255, 255, 0.52); color: var(--white); }
+.volunteer-actions .button[hidden] { display: none; }
+.volunteer-program-status {
+  border-left: 4px solid var(--sun);
+  margin: 18px 0 0;
+  padding: 4px 0 4px 12px;
+}
+.volunteer-program-status[data-state="open"] { border-left-color: #7dd3c0; }
+.volunteer-program-status[data-state="closed"],
+.volunteer-program-status[data-state="paused"],
+.volunteer-program-status[data-state="unavailable"] { border-left-color: var(--coral); }
+.volunteer-flow {
+  display: grid;
+  gap: 0;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.volunteer-flow li {
+  align-items: start;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 36px minmax(0, 1fr);
+  padding: 18px 0;
+}
+.volunteer-flow li:last-child { border-bottom: 1px solid rgba(255, 255, 255, 0.2); }
+.volunteer-flow li > span {
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.48);
+  border-radius: 50%;
+  color: var(--sun);
+  display: flex;
+  font-size: 13px;
+  font-weight: 900;
+  height: 32px;
+  justify-content: center;
+  width: 32px;
+}
+.volunteer-flow strong { color: var(--white); }
+.volunteer-flow p { color: #bdd1ce; line-height: 1.55; margin: 4px 0 0; }
 .guest-services-emergency {
   border-left: 4px solid var(--coral);
   color: var(--deep);
@@ -3918,6 +3994,7 @@ time {
 
 @media (max-width: 900px) {
   .guest-services-layout { grid-template-columns: 1fr; }
+  .volunteer-section { gap: 36px; grid-template-columns: 1fr; }
 }
 @media (max-width: 620px) {
   .guest-services-section .section-heading { align-items: flex-start; }
@@ -3928,6 +4005,10 @@ time {
   .guest-services-wide { grid-column: auto; }
   body.runtime-board-demo #guest-services,
   body.runtime-board-demo #guest-services-status-result { scroll-margin-top: 136px; }
+  .volunteer-band { margin-top: 64px; scroll-margin-top: 136px; }
+  .volunteer-section { padding: 48px 18px; }
+  .volunteer-actions { align-items: stretch; flex-direction: column; }
+  .volunteer-actions .button { justify-content: center; width: 100%; }
 }
 
 /* ============================================================

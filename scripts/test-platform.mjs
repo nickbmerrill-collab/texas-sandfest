@@ -1475,7 +1475,14 @@ console.log("\n=== Pure library suite ===\n");
     email: "info@texassandfest.org",
     address: "200 S. Alister Street, Suite E, Port Aransas, TX 78373",
     sourceUrl: "https://www.texassandfest.org/knowbeforeyougo",
-    sourceCheckedAt: "2026-07-16T12:00:00.000Z"
+    sourceCheckedAt: "2026-07-16T12:00:00.000Z",
+    volunteer: {
+      informationUrl: "https://www.texassandfest.org/volunteer",
+      registrationStatus: "upcoming",
+      registrationUrl: "https://texassandfest.volunteerlocal.com/volunteer/?id=next-season",
+      sourceCheckedAt: "2026-07-16T12:00:00.000Z",
+      note: "Registration opens after the current shift plan is approved."
+    }
   };
   const normalized = normalizeEventGuide(guide);
   const published = publishEventGuide({}, guide, {
@@ -1493,6 +1500,12 @@ console.log("\n=== Pure library suite ===\n");
     actorId: "content-test",
     now: "2026-07-17T12:00:00.000Z"
   });
+  const openWithoutRegistration = publishEventGuide(guide, {
+    volunteer: { ...guide.volunteer, registrationStatus: "open", registrationUrl: "" }
+  }, { actorId: "content-test", now: "2026-07-17T12:00:00.000Z" });
+  const openVolunteer = publishEventGuide(guide, {
+    volunteer: { ...guide.volunteer, registrationStatus: "open" }
+  }, { actorId: "content-test", now: "2026-07-17T12:00:00.000Z" });
   const ready = eventGuideReadiness(published.guide, {
     now: "2026-07-18T12:00:00.000Z",
     maxSourceAgeDays: 90
@@ -1511,6 +1524,7 @@ console.log("\n=== Pure library suite ===\n");
   ok("event guide rejects invalid dates, hours, source, and future review", !invalid.ok && invalid.errors.length === 4);
   ok("event guide rejects an id from a different event year", !wrongYear.ok && wrongYear.errors.includes("Event id and start-date year must match."));
   ok("event guide readiness requires current upcoming facts", ready.ready && ready.sourceAgeDays === 2 && !stale.ready && stale.missing.includes("source") && !past.ready && past.missing.includes("upcoming"));
+  ok("volunteer registration fails closed until an open reviewed URL is published", !openWithoutRegistration.ok && published.guide.volunteer.registrationUrl && publicGuide.volunteer.registrationUrl === null && openVolunteer.ok && publicEventGuide(openVolunteer.guide).volunteer.registrationUrl === guide.volunteer.registrationUrl);
   ok("public event guide hides publishing identity", !("publishedBy" in publicGuide) && !("status" in publicGuide) && publicGuide.sourceUrl === guide.sourceUrl);
 }
 
@@ -1551,6 +1565,7 @@ console.log("\n=== Pure library suite ===\n");
   ok("public bootstrap exposes only validated published schedule and public zone fields", projected.schedule.length === 1 && projected.schedule[0].title === "Beach gates open" && !Object.hasOwn(projected.zones[0], "status"));
   ok("public bootstrap excludes publishing identity and private operations", !Object.hasOwn(projected.guide, "publishedBy") && !/(sponsors|vendors|coverage|financeSignals|invoiceStatus|quickBooksStatus)/.test(serialized));
   ok("public bootstrap policy rejects unprojected internal data", !publicAppBootstrapSafety(internalBootstrap).ready && publicAppBootstrapSafety(internalBootstrap).errors.some(error => error.includes("Unexpected public bootstrap keys")));
+  ok("public bootstrap rejects a volunteer provider URL outside open registration", !publicAppBootstrapSafety({ ...projected, guide: { ...projected.guide, volunteer: { ...projected.guide.volunteer, registrationStatus: "upcoming", registrationUrl: "https://stale.example.test/signup" } } }).ready);
   ok("board runtime label requires explicit projection and validation", !Object.hasOwn(projected, "runtime") && boardProjected.runtime?.mode === "board_demo" && publicAppBootstrapSafety(boardProjected, { allowBoardRuntime: true }).ready && !publicAppBootstrapSafety(boardProjected).ready);
 }
 
@@ -1653,7 +1668,14 @@ console.log("\n=== Pure library suite ===\n");
         email: "info@texassandfest.org",
         phone: "361-267-2474",
         sourceUrl: "https://www.texassandfest.org/knowbeforeyougo",
-        sourceCheckedAt: "2026-07-18T12:00:00.000Z"
+        sourceCheckedAt: "2026-07-18T12:00:00.000Z",
+        volunteer: {
+          informationUrl: "https://www.texassandfest.org/volunteer",
+          registrationStatus: "upcoming",
+          registrationUrl: null,
+          sourceCheckedAt: "2026-07-18T12:00:00.000Z",
+          note: "2027 shift selection will be published after the operating plan is approved."
+        }
       },
       schedule: [{ day: "Friday", time: "9:00 AM", title: "Beach gates open" }],
       zones: [
@@ -1698,6 +1720,21 @@ console.log("\n=== Pure library suite ===\n");
     bootstrap: { ...context.bootstrap, zones: [] }
   });
   const vendorResult = answerPublicConcierge("How do vendors apply?", context);
+  const volunteerResult = answerPublicConcierge("How do I volunteer?", context);
+  const openVolunteerResult = answerPublicConcierge("How do I volunteer?", {
+    ...context,
+    bootstrap: {
+      ...context.bootstrap,
+      guide: {
+        ...context.bootstrap.guide,
+        volunteer: {
+          ...context.bootstrap.guide.volunteer,
+          registrationStatus: "open",
+          registrationUrl: "https://texassandfest.volunteerlocal.com/volunteer/?id=2027"
+        }
+      }
+    }
+  });
   const vendorInterestResult = answerPublicConcierge("How do vendors apply?", {
     ...context,
     vendors: {
@@ -1731,6 +1768,7 @@ console.log("\n=== Pure library suite ===\n");
   ok("public concierge follows application-open vendor catalog wording", vendorResult.ok && vendorResult.topic === "vendor" && vendorResult.answer.includes("vendor application") && !vendorResult.answer.includes("interest list"));
   ok("public concierge follows interest-only vendor catalog wording", vendorInterestResult.ok && vendorInterestResult.topic === "vendor" && vendorInterestResult.answer.includes("join the interest list") && vendorInterestResult.answer.includes("when applications open") && !vendorInterestResult.answer.includes("use the vendor application"));
   ok("public concierge explains mixed vendor intake without overpromising", mixedVendorResult.ok && mixedVendorResult.topic === "vendor" && mixedVendorResult.answer.includes("Some programs are accepting applications while others are collecting interest") && mixedVendorResult.answer.includes("see the current path"));
+  ok("public concierge follows governed volunteer registration state", volunteerResult.ok && volunteerResult.topic === "volunteer" && volunteerResult.answer.includes("has not opened") && volunteerResult.sources.some(item => item.href === "https://www.texassandfest.org/volunteer") && openVolunteerResult.answer.includes("registration is open") && openVolunteerResult.sources.some(item => item.href.includes("volunteerlocal.com")));
   ok("public concierge routes urgent safety questions to emergency help", emergencyResult.ok && emergencyResult.topic === "emergency" && emergencyResult.escalated && emergencyResult.answer.includes("Call 911") && emergencyResult.answer.includes("cannot dispatch"));
   ok("public concierge escalates unsupported questions without echoing input", unknownOk && unknownPayload.escalated && !JSON.stringify(unknownPayload).includes("private@example.com") && publicConciergeResponseSafety(unknownPayload).ready);
   ok("public concierge safety rejects private implementation fields", !publicConciergeResponseSafety({ ...ticketPayload, storageRoot: "/private/runtime" }).ready);
@@ -6656,6 +6694,19 @@ try {
     guide: { startDate: "2027-04-19", endDate: "2027-04-18" }
   }, true);
   const sourceCheckedAt = new Date(Date.now() - 1_000).toISOString();
+  const invalidOpenVolunteerPublish = await hit("POST", "/api/admin/event-guide/publish", {
+    publish: true,
+    guide: {
+      volunteer: {
+        informationUrl: "https://www.texassandfest.org/volunteer",
+        registrationStatus: "open",
+        registrationUrl: "",
+        sourceCheckedAt,
+        note: "Registration is open."
+      }
+    }
+  }, true);
+  const currentVolunteerRegistrationUrl = "https://texassandfest.volunteerlocal.com/volunteer/?id=2027-api-test";
   const validGuidePublish = await hit("POST", "/api/admin/event-guide/publish", {
     publish: true,
     guide: {
@@ -6669,7 +6720,14 @@ try {
       email: "info@texassandfest.org",
       address: "200 S. Alister Street, Suite E, Port Aransas, TX 78373",
       sourceUrl: "https://www.texassandfest.org/knowbeforeyougo",
-      sourceCheckedAt
+      sourceCheckedAt,
+      volunteer: {
+        informationUrl: "https://www.texassandfest.org/volunteer",
+        registrationStatus: "open",
+        registrationUrl: currentVolunteerRegistrationUrl,
+        sourceCheckedAt,
+        note: "Registration is open for current roles and shifts."
+      }
     }
   }, true);
   const publishedPublicBootstrap = await hit("GET", "/api/public/bootstrap");
@@ -6683,7 +6741,8 @@ try {
     && initialPublicBootstrap.data.zones?.every(item => !Object.hasOwn(item, "status")));
   ok("event guide publish requires staff authentication", unauthenticatedGuidePublish.status === 401);
   ok("event guide publish rejects invalid dates", invalidGuidePublish.status === 400 && invalidGuidePublish.data.errors?.includes("Event end date cannot precede the start date."));
-  ok("event guide publish updates public and admin readiness", validGuidePublish.status === 200 && validGuidePublish.data.readiness?.ready === true && publishedPublicBootstrap.data.guide?.sourceCheckedAt === sourceCheckedAt && !("publishedBy" in publishedPublicBootstrap.data.guide) && publishedAdminConfig.data.eventGuideReadiness?.ready === true);
+  ok("event guide open volunteer registration requires a reviewed HTTPS provider", invalidOpenVolunteerPublish.status === 400 && invalidOpenVolunteerPublish.data.errors?.includes("An HTTPS volunteer registration URL is required while registration is open."));
+  ok("event guide publish updates public and admin readiness", validGuidePublish.status === 200 && validGuidePublish.data.readiness?.ready === true && publishedPublicBootstrap.data.guide?.sourceCheckedAt === sourceCheckedAt && publishedPublicBootstrap.data.guide?.volunteer?.registrationUrl === currentVolunteerRegistrationUrl && !("publishedBy" in publishedPublicBootstrap.data.guide) && publishedAdminConfig.data.eventGuideReadiness?.ready === true);
 
   const unauthenticatedSchedulePublish = await hit("POST", "/api/admin/event-schedule/publish", { publish: true, schedule: [] });
   const invalidSchedulePublish = await hit("POST", "/api/admin/event-schedule/publish", {
