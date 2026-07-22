@@ -207,11 +207,19 @@ async function submitPartner(page, { kind, organizationName }) {
   if (response.status() !== 201 || payload.application?.type !== kind || !payload.application?.reference) {
     throw new Error(`${kind} signup returned ${response.status()} without a valid application reference.`);
   }
-  await page.locator("#partner-status-result").waitFor({ state: "visible", timeout: timeoutMs });
-  const portalText = await page.locator("#partner-status-result").innerText();
-  if (!portalText.includes(organizationName) || !portalText.includes(payload.application.reference)) {
+  await page.waitForFunction(({ expectedOrganization, expectedReference }) => {
+    const result = document.querySelector("#partner-status-result");
+    const status = document.querySelector("#partner-status-form .partner-form-status");
+    const text = result?.textContent || "";
+    return status?.dataset.state === "ok"
+      && text.includes(expectedOrganization)
+      && text.includes(expectedReference);
+  }, {
+    expectedOrganization: organizationName,
+    expectedReference: payload.application.reference
+  }, { timeout: timeoutMs }).catch(() => {
     throw new Error(`${kind} signup did not open its authenticated private status view.`);
-  }
+  });
   return {
     kind,
     organizationName,

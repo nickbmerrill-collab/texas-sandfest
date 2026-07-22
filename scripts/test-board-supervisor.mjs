@@ -168,6 +168,39 @@ async function signupProofRehearsal(sessionFile) {
   return report;
 }
 
+async function operationsProofRehearsal(sessionFile) {
+  const result = await run(
+    process.execPath,
+    ["scripts/prove-board-operations.mjs", "--json"],
+    commandEnvironment(sessionFile),
+    180_000
+  );
+  let report = null;
+  try {
+    report = JSON.parse(result.stdout);
+  } catch {
+    throw new Error(`Board Operations proof returned invalid JSON:\n${result.stderr}\n${result.stdout}`);
+  }
+  if (
+    result.code !== 0
+    || report.ok !== true
+    || report.accounting?.expenseStatus !== "paid"
+    || report.payment?.amountCents !== 500_000
+    || report.delegation?.assigneeType !== "volunteer"
+    || report.keyDate?.status !== "open"
+    || report.deliveries?.delivered !== 3
+    || report.reset?.applications !== 5
+    || report.reset?.budgetLines !== 6
+    || report.reset?.expenses !== 7
+    || report.reset?.openTasks !== 10
+    || report.reset?.milestones !== 16
+    || report.reset?.preflight !== `${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}/${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}`
+  ) {
+    throw new Error(`Board Operations proof failed:\n${JSON.stringify(report, null, 2)}`);
+  }
+  return report;
+}
+
 function rememberServicePids(session) {
   for (const service of Object.values(session?.services || {})) {
     if (Number.isInteger(Number(service.pid)) && Number(service.pid) > 0) observedPids.add(Number(service.pid));
@@ -551,6 +584,11 @@ try {
   const signupProofSession = await readBoardDemoSession(sessionFile);
   rememberServicePids(signupProofSession);
   console.log(`  ok public signup proof creates ${signupProof.submissions.length} applications, renders ${signupProof.operations.applicationCount} in Operations, and restores the ${signupProof.reset.applicationCount}-application baseline`);
+
+  const operationsProof = await operationsProofRehearsal(sessionFile);
+  const operationsProofSession = await readBoardDemoSession(sessionFile);
+  rememberServicePids(operationsProofSession);
+  console.log(`  ok Operations proof pays an expense, records $${(operationsProof.payment.amountCents / 100).toFixed(2)}, delegates a ${operationsProof.delegation.assigneeType} task, delivers ${operationsProof.deliveries.delivered} messages, and restores ${operationsProof.reset.preflight} readiness`);
 
   const stopped = await run(process.execPath, ["scripts/stop-board-demo.mjs", "--session-file", sessionFile], process.env, 25_000);
   if (stopped.code !== 0) throw new Error(`Board stop command failed:\n${stopped.stderr}\n${stopped.stdout}`);

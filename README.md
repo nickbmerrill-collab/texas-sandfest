@@ -80,6 +80,7 @@ npm run build:surfaces
 npm run ready:production
 npm run board:rehearse
 npm run board:prove:signups
+npm run board:prove:operations
 npm run deployment:verify
 npm run worker
 npm run worker:once
