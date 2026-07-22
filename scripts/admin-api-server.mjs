@@ -8270,7 +8270,13 @@ async function handleRequest(request, response) {
       const volunteerDirectory = hasPermission(session, "volunteers:read")
         ? (await readVolunteerMirror()).volunteers
           .filter(item => ASSIGNABLE_VOLUNTEER_STATUSES.has(item.status))
-          .map(item => ({ id: item.id, name: item.name, roles: item.roles, status: item.status }))
+          .map(item => ({
+            id: item.id,
+            name: item.name,
+            roles: item.roles,
+            status: item.status,
+            emailAvailable: Boolean(item.email)
+          }))
         : [];
       const rawStaffDirectory = await readStaffDirectory();
       const staffDirectory = publicStaffAssignmentDirectory(rawStaffDirectory, { eventId: CURRENT_EVENT_ID });

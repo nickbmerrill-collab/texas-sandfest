@@ -370,6 +370,57 @@ async function operationsProofRehearsal(sessionFile) {
   return report;
 }
 
+async function delegationJourneyProofRehearsal(sessionFile) {
+  const result = await run(
+    process.execPath,
+    ["scripts/prove-board-delegation-journey.mjs", "--json"],
+    commandEnvironment(sessionFile),
+    180_000
+  );
+  let report = null;
+  try {
+    report = JSON.parse(result.stdout);
+  } catch {
+    throw new Error(`Board delegation journey proof returned invalid JSON:\n${result.stderr}\n${result.stdout}`);
+  }
+  if (
+    result.code !== 0
+    || report.ok !== true
+    || report.delegation?.assigneeType !== "volunteer"
+    || report.delegation?.priority !== "high"
+    || report.delegation?.status !== "open"
+    || report.delivery?.status !== "sent"
+    || report.delivery?.deliveryStatus !== "delivered"
+    || report.delivery?.provider !== "brevo"
+    || report.delivery?.sandboxAuthenticated !== true
+    || report.delivery?.privateAccessDelivered !== true
+    || report.portal?.invalidCapabilityDenied !== true
+    || report.portal?.capabilityConcealed !== true
+    || report.portal?.acknowledged !== true
+    || report.portal?.started !== true
+    || report.portal?.blockerNoteRequired !== true
+    || report.portal?.blocked !== true
+    || report.portal?.completed !== true
+    || report.portal?.replayed !== true
+    || report.portal?.updates !== 4
+    || report.operations?.total !== 12
+    || report.operations?.active !== 10
+    || report.operations?.completed !== 2
+    || report.operations?.assignmentNotices !== 11
+    || report.operations?.followups !== 25
+    || report.audit?.records !== 4
+    || report.reset?.total !== 11
+    || report.reset?.active !== 10
+    || report.reset?.completed !== 1
+    || report.reset?.assignmentNotices !== 10
+    || report.reset?.followups !== 24
+    || report.reset?.preflight !== `${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}/${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}`
+  ) {
+    throw new Error(`Board delegation journey proof failed:\n${JSON.stringify(report, null, 2)}`);
+  }
+  return report;
+}
+
 async function documentProofRehearsal(sessionFile) {
   const result = await run(
     process.execPath,
@@ -811,6 +862,11 @@ try {
   rememberServicePids(operationsProofSession);
   console.log(`  ok Operations proof pays an expense, records $${(operationsProof.payment.amountCents / 100).toFixed(2)}, delegates a ${operationsProof.delegation.assigneeType} task, delivers ${operationsProof.deliveries.delivered} messages, and restores ${operationsProof.reset.preflight} readiness`);
 
+  const delegationJourneyProof = await delegationJourneyProofRehearsal(sessionFile);
+  const delegationJourneyProofSession = await readBoardDemoSession(sessionFile);
+  rememberServicePids(delegationJourneyProofSession);
+  console.log(`  ok delegation journey delivers one private ${delegationJourneyProof.delegation.assigneeType} assignment, records ${delegationJourneyProof.portal.updates} assignee updates and ${delegationJourneyProof.audit.records} privacy-safe audits, and restores ${delegationJourneyProof.reset.preflight} readiness`);
+
   const documentProof = await documentProofRehearsal(sessionFile);
   const documentProofSession = await readBoardDemoSession(sessionFile);
   rememberServicePids(documentProofSession);
@@ -868,7 +924,7 @@ try {
   const lingering = [...observedPids].filter(processAlive);
   if (lingering.length) throw new Error(`Board child processes remained alive after shutdown: ${lingering.join(", ")}`);
   console.log(`  ok second stop shuts down every process observed across both supervisor lifecycles`);
-  console.log("\nBoard demo supervisor: 25/25 checks passed.\n");
+  console.log("\nBoard demo supervisor: 26/26 checks passed.\n");
 } catch (error) {
   console.error(`\nBoard demo supervisor test failed: ${error.message}`);
   process.exitCode = 1;
