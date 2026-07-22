@@ -36,8 +36,8 @@ struct AdminDashboardView: View {
                     .foregroundStyle(Color.sandFestDeep)
                 Text("Staff-only view for crowd status, volunteer coverage, incidents, partner readiness, and finance signals.")
                     .foregroundStyle(.secondary)
-                HStack {
-                    statusPill("Public guide", dataStore.syncState.label)
+                HStack(spacing: 8) {
+                    statusPill("Public", dataStore.syncState.label)
                     statusPill("Operations", dataStore.adminSyncState.label)
                     statusPill("Open work", String(dataStore.adminTaskSummary?.active ?? 0))
                 }
@@ -118,11 +118,14 @@ struct AdminDashboardView: View {
     private func statusPill(_ label: String, _ value: String) -> some View {
         VStack(alignment: .leading) {
             Text(label).font(.caption).foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
             Text(value).font(.caption.weight(.bold))
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
         }
         .padding(10)
+        .frame(maxWidth: .infinity, minHeight: 58, alignment: .leading)
         .background(Color.sandFestGulf.opacity(0.12))
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
