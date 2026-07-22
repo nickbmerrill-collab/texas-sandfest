@@ -408,8 +408,14 @@ async function saveApplicationApproval(page, apiBase, applicationId, organizatio
   ), { timeout: timeoutMs });
   await card().locator("[data-save-application]").click();
   const response = await responsePromise;
-  if (!response.ok()) throw new Error(`Vendor application approval returned ${response.status()}.`);
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok()) throw new Error(`Vendor application approval returned ${response.status()}: ${payload.error || "unknown error"}.`);
+  await expect(page.locator("#admin-api-status")).toContainText("Application status saved");
   await expect(card().locator('[name="status"]')).toHaveValue("approved");
+  const partners = await getJson(apiBase, "/api/admin/partners", { admin: true });
+  if (partners.applications?.find(item => item.id === applicationId)?.status !== "approved") {
+    throw new Error("Vendor application approval was not persisted before onboarding review.");
+  }
 }
 
 async function reviewVendorProfile(page, apiBase, applicationId, action, reviewNotes = "") {
@@ -426,7 +432,7 @@ async function reviewVendorProfile(page, apiBase, applicationId, action, reviewN
   const payload = await response.json().catch(() => ({}));
   const expectedStatus = action === "approve" ? "approved" : "changes_requested";
   if (!response.ok() || payload.profile?.status !== expectedStatus) {
-    throw new Error(`Vendor profile ${action} returned ${response.status()} without ${expectedStatus} status.`);
+    throw new Error(`Vendor profile ${action} returned ${response.status()} without ${expectedStatus} status: ${payload.error || "unknown error"}.`);
   }
   await expect(section().locator(`[data-status="${expectedStatus}"]`)).toHaveText(expectedStatus.replace("_", " "));
   return payload;
