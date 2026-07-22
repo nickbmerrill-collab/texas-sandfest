@@ -1247,6 +1247,14 @@ console.log("\n=== Pure library suite ===\n");
   restartedLocalAutomationBoardState.emailSandbox.acceptedMessages = 0;
   restartedLocalAutomationBoardState.emailSandbox.deliveryCallbacks = 0;
   const restartedLocalAutomationBoardReport = evaluateBoardDemoReadiness(restartedLocalAutomationBoardState);
+  const inFlightTaskNoticeBoardState = structuredClone(localAutomationBoardState);
+  inFlightTaskNoticeBoardState.partners.followups.push({
+    id: "in_flight_task_notice",
+    kind: "task_assignment",
+    status: "draft",
+    body: ""
+  });
+  const inFlightTaskNoticeBoardReport = evaluateBoardDemoReadiness(inFlightTaskNoticeBoardState);
   const missingLocalCampaignProof = structuredClone(localAutomationBoardState);
   missingLocalCampaignProof.partners.followups = missingLocalCampaignProof.partners.followups
     .filter(item => item.automationPolicy !== "outreach_campaign_v1");
@@ -1308,6 +1316,7 @@ console.log("\n=== Pure library suite ===\n");
     && missingVendorOpeningReport.checks.find(item => item.id === "operations")?.ok === false
     && missingDurableDeliveryReport.checks.find(item => item.id === "operations")?.ok === false);
   ok("board demo readiness survives a fresh sandbox process when durable delivery proof is present", restartedLocalAutomationBoardReport.ok);
+  ok("board demo readiness stays stable while a new task notice is being prepared", inFlightTaskNoticeBoardReport.ok);
   const directionalCameraIds = ["harbor-island-entrance", "harbor-island-stacking", "ferry-loading", "ferry-stacking"];
   const partialFerryConditions = {
     ...readyBoardState.conditions,
