@@ -17,6 +17,7 @@ import {
   parseBoardIOSUserDomain,
   selectBoardIOSSimulator
 } from "../lib/board-ios-rehearsal.mjs";
+import { acquireBoardIOSRunLock } from "../lib/board-ios-run-lock.mjs";
 import {
   boardDemoSessionPath,
   boardDemoSessionProcessAlive,
@@ -28,6 +29,7 @@ const BUNDLE_IDENTIFIER = "com.portalcodex.texassandfest";
 const ADMIN_TOKEN = "board-demo-local-admin-token-change-me";
 const runtimeRoot = path.join(ROOT, ".sandfest-runtime", "board-ios");
 const derivedDataPath = path.join(runtimeRoot, "DerivedData");
+const runLockPath = path.join(runtimeRoot, "run.lock");
 
 function argumentValue(prefix) {
   return process.argv.find(argument => argument.startsWith(`${prefix}=`))?.slice(prefix.length + 1);
@@ -67,6 +69,15 @@ function run(command, args, { capture = false, label = command } = {}) {
   }
   return capture ? String(result.stdout || "").trim() : "";
 }
+
+const releaseRunLock = await acquireBoardIOSRunLock(runLockPath, {
+  onWait(owner) {
+    const ownerLabel = owner?.pid ? ` (PID ${owner.pid})` : "";
+    console.log(`Another iOS board rehearsal is active${ownerLabel}; waiting for it to finish...`);
+  }
+});
+
+try {
 
 console.log("\n=== Board source and service preflight ===");
 run(process.execPath, ["scripts/check-board-demo.mjs"], { label: "Board preflight" });
@@ -150,3 +161,6 @@ console.log(`Simulator:  ${simulator.name}`);
 console.log(`API:        ${apiBase}`);
 console.log(`Process:    ${appPID}`);
 console.log(`Screenshot: ${screenshotPath}`);
+} finally {
+  await releaseRunLock();
+}
