@@ -131,6 +131,24 @@ profile, and asset audit records without capability or storage-path exposure.
 Finally, it restores the exact five-application, two-prospect, one-featured-sponsor
 baseline at 12/12 readiness. Run it during rehearsal and wait for the reset.
 
+To prove the public ticket and accounting lifecycle, run:
+
+```bash
+npm run board:prove:tickets
+```
+
+The proof selects two three-day wristbands in the visible visitor site, requires
+acceptance of all four current demonstration policies, and confirms that the
+optional marketing and safety consent boxes stay unchecked. It completes the
+signed loopback payment, then requires the paid order, payment event, two queued
+fulfillment records, and ticket revenue to render in Operations. Finance issues
+the full refund through the ordinary Operations control; the proof requires both
+fulfillment records to reverse, the refund and net revenue to reconcile, ticket
+count to return to baseline, and the audit record to omit buyer contact, retry
+hashes, provider identifiers, and fulfillment IDs. Finally, it restores the
+empty ticket-order baseline at 12/12 readiness. Run it during rehearsal and wait
+for the reset; no external charge or Stripe call is made.
+
 To prove the operating workflows behind the board dashboard, run:
 
 ```bash

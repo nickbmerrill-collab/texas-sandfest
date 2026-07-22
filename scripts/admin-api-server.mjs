@@ -1927,6 +1927,42 @@ function adminPartnerBrandAssetAuditView(asset) {
   };
 }
 
+function adminTicketOrderAuditView(order) {
+  if (!order) return order;
+  return {
+    id: order.id,
+    eventId: order.eventId,
+    status: order.status,
+    provider: order.provider,
+    checkoutEnvironment: order.checkoutEnvironment,
+    lineItems: (order.lineItems || []).map(line => ({
+      productId: line.productId,
+      quantity: line.quantity,
+      unitAmount: line.unitAmount
+    })),
+    totals: order.totals,
+    consent: {
+      emailMarketing: order.consent?.emailMarketing === true,
+      smsMarketing: order.consent?.smsMarketing === true,
+      smsSafety: order.consent?.smsSafety === true,
+      contactStored: Boolean(order.customer?.email || order.customer?.phone)
+    },
+    policyAcceptance: {
+      version: order.policyAcceptance?.version || null,
+      acceptedAt: order.policyAcceptance?.acceptedAt || null,
+      noticeCount: order.policyAcceptance?.noticeIds?.length || 0
+    },
+    checkoutSessionPresent: Boolean(order.stripeCheckoutSessionId),
+    paymentIntentPresent: Boolean(order.paymentIntentId),
+    fulfillmentCount: order.fulfillmentRecordIds?.length || 0,
+    refundedAmountCents: order.refundedAmountCents || 0,
+    createdAt: order.createdAt || null,
+    paidAt: order.paidAt || null,
+    refundedAt: order.refundedAt || null,
+    updatedAt: order.updatedAt || null
+  };
+}
+
 function adminPartnerTaskView(task, followups = []) {
   if (!task) return task;
   const { lastAssignmentNoticeRequestId, ...safe } = task;
@@ -4229,9 +4265,9 @@ async function handleBoardTicketRefund(request, response, orderId) {
     sendJson(request, response, 409, { error: result.record.ticketReconciliation?.error || "The demonstration refund requires review." });
     return;
   }
-  await writeAuditRecord(request, "ticket.refund.board_sandbox", { type: "ticketOrder", id: order.id }, order, result.order, {
-    providerEventId: event.id,
-    reason,
+  await writeAuditRecord(request, "ticket.refund.board_sandbox", { type: "ticketOrder", id: order.id }, adminTicketOrderAuditView(order), adminTicketOrderAuditView(result.order), {
+    providerEventPresent: Boolean(event.id),
+    reasonLength: reason.length,
     synthetic: true
   });
   sendJson(request, response, 200, {

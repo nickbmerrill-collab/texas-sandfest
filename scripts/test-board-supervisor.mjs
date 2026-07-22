@@ -205,6 +205,44 @@ async function sponsorJourneyProofRehearsal(sessionFile) {
   return report;
 }
 
+async function ticketLifecycleProofRehearsal(sessionFile) {
+  const result = await run(
+    process.execPath,
+    ["scripts/prove-board-ticket-lifecycle.mjs", "--json"],
+    commandEnvironment(sessionFile),
+    180_000
+  );
+  let report = null;
+  try {
+    report = JSON.parse(result.stdout);
+  } catch {
+    throw new Error(`Board ticket lifecycle proof returned invalid JSON:\n${result.stderr}\n${result.stdout}`);
+  }
+  if (
+    result.code !== 0
+    || report.ok !== true
+    || report.purchase?.status !== "paid"
+    || report.purchase?.quantity !== 2
+    || report.purchase?.amountCents !== 6_000
+    || report.purchase?.fulfillmentCount !== 2
+    || report.refund?.status !== "refunded"
+    || report.refund?.refundedAmountCents !== 6_000
+    || report.refund?.fulfillmentRefunded !== 2
+    || report.revenue?.ticketEntries !== 2
+    || report.revenue?.refundCents !== 6_000
+    || report.revenue?.ticketsSold !== 100
+    || report.audit?.records !== 1
+    || report.reset?.orders !== 0
+    || report.reset?.paymentEvents !== 0
+    || report.reset?.fulfillment !== 0
+    || report.reset?.ticketEntries !== 0
+    || report.reset?.preflight !== `${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}/${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}`
+  ) {
+    throw new Error(`Board ticket lifecycle proof failed:\n${JSON.stringify(report, null, 2)}`);
+  }
+  return report;
+}
+
 async function operationsProofRehearsal(sessionFile) {
   const result = await run(
     process.execPath,
@@ -659,6 +697,11 @@ try {
   rememberServicePids(sponsorJourneyProofSession);
   console.log(`  ok sponsor journey converts a ${sponsorJourneyProof.invitation.packageId} invitation, approves branding, byte-verifies ${sponsorJourneyProof.showcase.logoBytes} public logo bytes, records ${sponsorJourneyProof.audit.records} audits, and restores ${sponsorJourneyProof.reset.preflight} readiness`);
 
+  const ticketLifecycleProof = await ticketLifecycleProofRehearsal(sessionFile);
+  const ticketLifecycleProofSession = await readBoardDemoSession(sessionFile);
+  rememberServicePids(ticketLifecycleProofSession);
+  console.log(`  ok ticket lifecycle records ${ticketLifecycleProof.purchase.quantity} admissions, refunds ${ticketLifecycleProof.refund.refundedAmountCents} cents, reverses ${ticketLifecycleProof.refund.fulfillmentRefunded} fulfillments, and restores ${ticketLifecycleProof.reset.preflight} readiness`);
+
   const operationsProof = await operationsProofRehearsal(sessionFile);
   const operationsProofSession = await readBoardDemoSession(sessionFile);
   rememberServicePids(operationsProofSession);
@@ -721,7 +764,7 @@ try {
   const lingering = [...observedPids].filter(processAlive);
   if (lingering.length) throw new Error(`Board child processes remained alive after shutdown: ${lingering.join(", ")}`);
   console.log(`  ok second stop shuts down every process observed across both supervisor lifecycles`);
-  console.log("\nBoard demo supervisor: 22/22 checks passed.\n");
+  console.log("\nBoard demo supervisor: 23/23 checks passed.\n");
 } catch (error) {
   console.error(`\nBoard demo supervisor test failed: ${error.message}`);
   process.exitCode = 1;
