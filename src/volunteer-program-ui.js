@@ -20,7 +20,9 @@ function statusCopy(program) {
   }[program.registrationStatus] || "Current volunteer registration details are not available yet.";
 }
 
-export function renderVolunteerProgram(section, input = {}) {
+export function renderVolunteerProgram(input = {}) {
+  const section = document.querySelector("#volunteer");
+  if (!section) return;
   const program = normalizeEventGuide({ volunteer: input }).volunteer;
   const informationUrl = safeHttpsHref(program.informationUrl);
   const registrationUrl = program.registrationStatus === "open"
@@ -30,6 +32,7 @@ export function renderVolunteerProgram(section, input = {}) {
   const message = informationUrl
     ? statusCopy(program)
     : "Current volunteer information is temporarily unavailable. Contact SandFest before making plans.";
+  section.className = "volunteer-band";
   section.dataset.registrationStatus = state;
   section.setAttribute("aria-busy", "false");
   section.innerHTML = `

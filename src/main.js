@@ -310,19 +310,10 @@ const defaultEventGuide = {
   address: "200 S. Alister Street, Suite E, Port Aransas, TX 78373",
   sourceUrl: "https://www.texassandfest.org/knowbeforeyougo",
   sourceCheckedAt: "2026-07-17T00:00:00.000Z",
-  volunteer: {
-    informationUrl: "https://www.texassandfest.org/volunteer",
-    registrationStatus: "upcoming",
-    registrationUrl: null,
-    sourceCheckedAt: "2026-07-22T00:00:00.000Z",
-    note: "2027 registration has not opened yet. Review the official volunteer page for current guidelines and return when shift selection is published."
-  },
   publishedAt: "2026-07-17T00:00:00.000Z",
   lastUpdated: "2026-07-17T00:00:00.000Z"
 };
 const event = normalizeEventGuide(appBootstrap?.guide ?? defaultEventGuide);
-let publicVolunteerProgramState = event.volunteer;
-let volunteerProgramUiPromise = null;
 
 const quickStats = [
   ["3", "festival days"],
@@ -400,7 +391,7 @@ const surfaces = [
   {
     name: "Native iOS",
     status: "Signed device build verified",
-    role: "Installed iPhone app for guests and staff with cached event data, push alerts, QR/ticket handoff, volunteer check-in, and incident capture. TestFlight distribution remains ahead."
+    role: "Installed iPhone app with cached guides, alerts, ticket handoff, volunteer check-in, incidents, and staff tools. TestFlight remains."
   },
   {
     name: "Port A Local Co",
@@ -2002,7 +1993,7 @@ app.innerHTML = `
       <div class="guest-services-loading"><p class="eyebrow">Visitor support</p><h2>Guest Services</h2><p>Loading secure request tools...</p></div>
     </section>
 
-    ${import.meta.env.VITE_SANDFEST_SURFACE === "admin" ? "" : `<section class="volunteer-band" id="volunteer" data-registration-status="checking" aria-busy="true"><div class="volunteer-section volunteer-section-loading"><p>Loading current volunteer information...</p></div></section>`}
+    ${import.meta.env.VITE_SANDFEST_SURFACE === "admin" ? "" : '<section id="volunteer" aria-busy="true"></section>'}
 
     <section class="section" id="operations">
       <div class="section-heading">
@@ -2287,7 +2278,7 @@ app.innerHTML = `
         <div>
           <p class="eyebrow">iOS source prototype</p>
           <h3>The field app prototype centers the realities of the beach.</h3>
-          <p class="section-copy">The current Swift app caches event data, maps the schedule to the published festival dates, and includes alerts, ticket handoff, volunteer, incident, partner, and operations views. Simulator tests, an optimized build, signing, and physical-device installation are verified; TestFlight distribution remains a release step.</p>
+          <p class="section-copy">The Swift app caches event data and includes alerts, ticket handoff, volunteer, incident, partner, and operations views. Simulator tests, signing, and physical-device installation are verified; TestFlight remains.</p>
           <div class="capability-list">
             <span>Offline map</span>
             <span>Push alerts</span>
@@ -2347,7 +2338,7 @@ app.innerHTML = `
         <article><strong>1. Content OS</strong><span>Canon event facts, FAQ, policies, maps, schedule, sponsor/vendor/volunteer documents.</span></article>
         <article><strong>2. AI Concierge</strong><span>RAG assistant with approved answers, escalation rules, multilingual support, and SMS/web widgets.</span></article>
         <article><strong>3. Ops Console</strong><span>Volunteer shifts, incidents, weather, crowd density, gate queues, lost party, ADA requests.</span></article>
-        <article><strong>4. Native iOS</strong><span>Signed app for the cached guide, alerts, check-in, incident capture, and staff tools; TestFlight distribution remains a release step.</span></article>
+        <article><strong>4. Native iOS</strong><span>Signed cached guide, alerts, check-in, incidents, and staff tools; TestFlight remains.</span></article>
         <article><strong>5. QuickBooks</strong><span>Connect accounting truth to sponsor invoices, vendor payments, raffle reconciliation, and impact reporting.</span></article>
         <article><strong>6. Partner Portals</strong><span>Sponsor CRM, vendor onboarding, nonprofit grants, city coordination, post-event impact.</span></article>
         <article><strong>7. Port A Local Co</strong><span>Expose SandFest as an event/destination module for local discovery, commerce, and retention.</span></article>
@@ -3409,13 +3400,8 @@ function applyPublicEventGuide(input) {
 }
 
 function renderPublicVolunteerProgram(input = {}) {
-  publicVolunteerProgramState = normalizeEventGuide({ volunteer: input }).volunteer;
-  if (import.meta.env.VITE_SANDFEST_SURFACE === "admin") return;
-  volunteerProgramUiPromise ??= import("./volunteer-program-ui.js");
-  void volunteerProgramUiPromise.then(module => {
-    const section = document.querySelector("#volunteer");
-    if (section) module.renderVolunteerProgram(section, publicVolunteerProgramState);
-  });
+  if (ADMIN_ENTRY) return;
+  void import("./volunteer-program-ui.js").then(module => module.renderVolunteerProgram(input));
 }
 
 function applyRuntimeNotice(runtime) {

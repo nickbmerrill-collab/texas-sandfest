@@ -3812,8 +3812,6 @@ time {
   max-width: 1180px;
   padding: 64px 32px;
 }
-.volunteer-section-loading { display: block; }
-.volunteer-section-loading p { color: #dce9e7; margin: 0; }
 .volunteer-intro { max-width: 650px; }
 .volunteer-intro .eyebrow { color: var(--sun); }
 .volunteer-intro h2 { color: var(--white); margin: 8px 0 14px; }
