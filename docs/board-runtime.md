@@ -113,6 +113,21 @@ replace every service and restore the five-application baseline, even if a
 workflow assertion fails. Do not run this state-mutating proof during the live
 walkthrough; run it during rehearsal and wait for its final 12/12 reset result.
 
+To prove the operating workflows behind the board dashboard, run:
+
+```bash
+npm run board:prove:operations
+```
+
+This second state-mutating rehearsal creates a budget allocation, submits and
+pays an expense, records the remaining synthetic sponsor receivable, delegates
+a volunteer task, and creates a due-soon sponsor key date through the visible
+Operations UI. It then requires authenticated local delivery of the payment
+confirmation, task notice, and automatic key-date reminder before asking the
+supervisor to replace every service and restore the exact accounting, partner,
+task, key-date, and message baseline at 12/12 readiness. Run it only during
+rehearsal and wait for the final reset result.
+
 For Safari-compatible rendering proof against the same active, read-only
 session, install Playwright WebKit once and run:
 
