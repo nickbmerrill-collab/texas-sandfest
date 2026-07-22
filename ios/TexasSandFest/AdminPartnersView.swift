@@ -34,6 +34,17 @@ struct AdminPartnersView: View {
                     }
                 }
 
+                Section("Volunteer Operations") {
+                    NavigationLink {
+                        VolunteerAttendanceView()
+                    } label: {
+                        Label("Shift Attendance", systemImage: "person.crop.circle.badge.checkmark")
+                            .font(.headline)
+                            .foregroundStyle(Color.sandFestDeep)
+                            .padding(.vertical, 4)
+                    }
+                }
+
                 Section("Sponsors") {
                     ForEach(dataStore.payload.sponsors) { sponsor in
                         VStack(alignment: .leading, spacing: 6) {

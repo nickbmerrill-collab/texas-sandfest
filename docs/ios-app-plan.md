@@ -103,7 +103,8 @@ installed TestFlight or device build before calling Universal Links live.
 - `GET /api/map-zones?eventId=...`
 - `GET /api/policies?audience=guest`
 - `POST /api/ai/ask`
-- `POST /api/volunteers/check-in`
+- `GET /api/admin/volunteers`
+- `POST /api/admin/volunteers/attendance`
 - `POST /api/incidents`
 - `GET /api/public/alert`
 - `POST /api/device-token`
