@@ -492,6 +492,13 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await expect(page.locator("#network-status")).toHaveText("Demo");
   await expect(page.locator("#mobile-nav-toggle")).toBeHidden();
   await expect(page.locator("#public-navigation")).toBeVisible();
+  await expect(page.locator('header nav a[href="#volunteer"]')).toBeVisible();
+  await expect(page.locator("#volunteer")).toHaveAttribute("data-registration-status", "upcoming");
+  await expect(page.locator("#volunteer-information-link")).toHaveAttribute("href", "https://www.texassandfest.org/volunteer");
+  await expect(page.locator("#volunteer-registration-link")).toBeHidden();
+  await page.locator('[data-prompt="How do I volunteer?"]').click();
+  await expect(page.locator("#chat .concierge-answer").last()).toContainText("has not opened");
+  await expect(page.locator("#chat .concierge-answer").last().locator('a[href="https://www.texassandfest.org/volunteer"]')).toHaveCount(1);
   await expect(page.locator("#experience")).toBeHidden();
   await expect(page.locator("#port-a")).toBeHidden();
   await expect(page.locator('header nav a[href="#port-a"]')).toBeHidden();
@@ -513,6 +520,9 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await expect(operationsPage.locator("#admin-api-status")).toContainText("Loaded");
   await expect(operationsPage.locator("#admin-command-signals")).toHaveAttribute("aria-busy", "false");
   await expect(operationsPage.locator("#admin-command-signals [data-command-signal]")).toHaveCount(8);
+  await expect(operationsPage.locator('#admin-event-guide-form [name="volunteerRegistrationStatus"]')).toHaveValue("upcoming");
+  await expect(operationsPage.locator('#admin-event-guide-form [name="volunteerInformationUrl"]')).toHaveValue("https://www.texassandfest.org/volunteer");
+  await expect(operationsPage.locator('#admin-event-guide-form [name="volunteerRegistrationUrl"]')).toHaveValue("");
   await expect(operationsPage.locator('#admin-sponsor-catalog-publication [data-catalog-publication-state]')).toHaveText("Board demo catalog");
   await expect(operationsPage.locator('#admin-vendor-catalog-publication [data-catalog-publication-state]')).toHaveText("Board demo catalog");
   const flounderSponsorCard = operationsPage.locator('[data-admin-sponsor="flounder"]');
@@ -2197,6 +2207,37 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   expect(pageErrors).toEqual([]);
 });
 
+test("volunteer handoff exposes only a server-published open registration provider", async ({ page }) => {
+  const registrationUrl = "https://texassandfest.volunteerlocal.com/volunteer/?id=2027-browser-test";
+  await page.route(`${apiBase}/api/public/bootstrap`, async route => {
+    const response = await route.fetch();
+    const payload = await response.json();
+    await route.fulfill({
+      response,
+      json: {
+        ...payload,
+        guide: {
+          ...payload.guide,
+          volunteer: {
+            ...payload.guide.volunteer,
+            registrationStatus: "open",
+            registrationUrl,
+            note: "Current volunteer roles and shifts are open."
+          }
+        }
+      }
+    });
+  });
+
+  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#volunteer`);
+  await expect(page.locator("#volunteer")).toHaveAttribute("data-registration-status", "open");
+  await expect(page.locator("#volunteer-registration-link")).toBeVisible();
+  await expect(page.locator("#volunteer-registration-link")).toHaveAttribute("href", registrationUrl);
+  await expect(page.locator("#volunteer-information-link")).toHaveClass(/secondary/);
+  await expect(page.locator("#volunteer-program-status")).toHaveText("Current volunteer roles and shifts are open.");
+  await expect(page.locator("#volunteer")).not.toContainText("2026");
+});
+
 test("Guest Services moves a visitor request through staff response and private status", async ({ page }) => {
   test.setTimeout(60_000);
   const runId = randomUUID().slice(0, 8);
@@ -2742,13 +2783,13 @@ test("visitor hero and navigation stay ordered across intermediate widths", asyn
     }
   }
 
-  await page.setViewportSize({ width: 1320, height: 720 });
+  await page.setViewportSize({ width: 1400, height: 720 });
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor`);
   await expect(page.locator("#public-navigation")).toBeHidden();
   await expect(page.locator("#mobile-nav-toggle")).toBeVisible();
   await assertNoHorizontalOverflow(page);
 
-  await page.setViewportSize({ width: 1321, height: 720 });
+  await page.setViewportSize({ width: 1401, height: 720 });
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor`);
   await expect(page.locator("#public-navigation")).toBeVisible();
   await expect(page.locator("#mobile-nav-toggle")).toBeHidden();

@@ -16,6 +16,13 @@
     "address": "200 S. Alister Street, Suite E, Port Aransas, TX 78373",
     "sourceUrl": "https://www.texassandfest.org/knowbeforeyougo",
     "sourceCheckedAt": "2026-07-17T00:00:00.000Z",
+    "volunteer": {
+      "informationUrl": "https://www.texassandfest.org/volunteer",
+      "registrationStatus": "upcoming",
+      "registrationUrl": null,
+      "sourceCheckedAt": "2026-07-22T00:00:00.000Z",
+      "note": "2027 registration has not opened yet. Review the official volunteer page for current guidelines and return when shift selection is published."
+    },
     "lastUpdated": "2026-07-17T00:00:00.000Z"
   },
   "schedule": [],

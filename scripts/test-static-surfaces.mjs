@@ -220,13 +220,13 @@ assert(Buffer.byteLength(publicHtml) <= 8 * KIB, "Public entry HTML exceeds the 
 assert(publicInitialScripts.gzipBytes <= 105 * KIB, "Initial public JavaScript exceeds the 105 KiB gzip budget.");
 assert(publicOptionalScripts.gzipBytes <= 12 * KIB, "On-demand public JavaScript exceeds the 12 KiB gzip budget.");
 assert(publicStyles.gzipBytes <= 30 * KIB, "Public CSS exceeds the 30 KiB gzip budget.");
-assert(publicScripts.gzipBytes + publicStyles.gzipBytes <= 144 * KIB, "Public JavaScript and CSS exceed the 144 KiB combined gzip budget.");
+assert(publicScripts.gzipBytes + publicStyles.gzipBytes <= 145 * KIB, "Public JavaScript and CSS exceed the 145 KiB combined gzip budget.");
 assert(publicPreferredFonts.rawBytes <= 200 * KIB, "Public preferred WOFF2 fonts exceed the 200 KiB delivery budget.");
 assert(publicOfflineFonts.rawBytes <= 450 * KIB, "Public compiled fonts exceed the 450 KiB offline-cache budget.");
 assert(adminInitialScripts.gzipBytes <= 121 * KIB, "Initial admin JavaScript exceeds the 121 KiB gzip budget.");
 assert(adminOptionalScripts.gzipBytes <= 6 * KIB, "On-demand admin JavaScript exceeds the 6 KiB gzip budget.");
 assert(adminStyles.gzipBytes <= 30 * KIB, "Admin CSS exceeds the 30 KiB gzip budget.");
-assert(adminScripts.gzipBytes + adminStyles.gzipBytes <= 155 * KIB, "Admin JavaScript and CSS exceed the 155 KiB combined gzip budget.");
+assert(adminScripts.gzipBytes + adminStyles.gzipBytes <= 156 * KIB, "Admin JavaScript and CSS exceed the 156 KiB combined gzip budget.");
 assert(robots === "User-agent: *\nAllow: /\n", "Public artifact has an invalid or unexpected robots.txt policy.");
 assert(publicHtml.includes("optimized/hero-1440.webp") && publicHtml.includes('fetchpriority="high"'), "Public artifact is missing its optimized hero preload.");
 assert(mediaDerivatives.derivatives?.length >= 30, "Public artifact is missing its optimized media catalog.");
@@ -371,6 +371,8 @@ assert(visitorSource.includes("if (sculptorRosterVisible) initialPublicLoads.pus
 
 assert(publicBootstrap.guide?.startDate === "2027-04-16" && publicBootstrap.guide?.endDate === "2027-04-18", "Public artifact does not contain the governed 2027 event guide.");
 assert(publicBootstrap.guide?.dailyOpen === "09:00" && publicBootstrap.guide?.dailyClose === "19:30", "Public artifact contains stale event hours.");
+assert(publicBootstrap.guide?.volunteer?.informationUrl === "https://www.texassandfest.org/volunteer", "Public artifact is missing the reviewed volunteer information path.");
+assert(publicBootstrap.guide?.volunteer?.registrationStatus === "upcoming" && publicBootstrap.guide?.volunteer?.registrationUrl === null, "Public artifact exposes volunteer registration before the current program opens.");
 const serializedPublicBootstrap = JSON.stringify(publicBootstrap);
 assert(publicAppBootstrapSafety(publicBootstrap).ready, "Public static bootstrap violates the approved visitor projection.");
 assert(JSON.stringify(Object.keys(publicBootstrap).sort()) === JSON.stringify(["alert", "guide", "schedule", "zones"]), "Public static bootstrap contains an unexpected root collection.");

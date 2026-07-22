@@ -390,8 +390,8 @@ const surfaces = [
   },
   {
     name: "Native iOS",
-    status: "Source prototype implemented",
-    role: "Local source prototype for guests and staff with cached event data, push alerts, QR/ticket handoff, volunteer check-in, and incident capture. Device QA and distribution remain ahead."
+    status: "Signed device build verified",
+    role: "Installed iPhone app with cached guides, alerts, ticket handoff, volunteer check-in, incidents, and staff tools. TestFlight remains."
   },
   {
     name: "Port A Local Co",
@@ -614,6 +614,7 @@ app.innerHTML = `
         <a href="#guest-services">Help</a>
         <a href="#tickets">Tickets</a>
         <a href="#schedule">Schedule</a>
+        <a href="#volunteer">Volunteer</a>
         <a href="#sculptors-showcase">Sculptors</a>
         <a href="#vendors-map">Vendors</a>
         <a href="#island-conditions">Island</a>
@@ -1210,6 +1211,11 @@ app.innerHTML = `
           <label class="admin-event-guide-address"><span>Office address</span><input name="address" maxlength="300" /></label>
           <label class="admin-event-guide-source"><span>Official source</span><input name="sourceUrl" type="url" inputmode="url" required /></label>
           <label><span>Source checked</span><input name="sourceCheckedAt" type="datetime-local" required /></label>
+          <label class="admin-event-guide-volunteer-info"><span>Volunteer information</span><input name="volunteerInformationUrl" type="url" inputmode="url" required /></label>
+          <label><span>Registration state</span><select name="volunteerRegistrationStatus" required><option value="upcoming">Upcoming</option><option value="open">Open</option><option value="paused">Paused</option><option value="closed">Closed</option></select></label>
+          <label class="admin-event-guide-volunteer-registration"><span>Registration provider</span><input name="volunteerRegistrationUrl" type="url" inputmode="url" /></label>
+          <label><span>Volunteer source checked</span><input name="volunteerSourceCheckedAt" type="datetime-local" required /></label>
+          <label class="admin-event-guide-volunteer-note"><span>Public volunteer note</span><textarea name="volunteerNote" rows="2" maxlength="500"></textarea></label>
           <div class="admin-event-guide-actions">
             <button id="admin-publish-event-guide" class="button primary" type="submit">Publish facts</button>
           </div>
@@ -1961,6 +1967,7 @@ app.innerHTML = `
           <button data-prompt="What is the current ferry wait?">Ferry</button>
           <button data-prompt="What sponsorship packages are open?">Sponsors</button>
           <button data-prompt="How do vendors apply?">Vendors</button>
+          <button data-prompt="How do I volunteer?">Volunteer</button>
           <button data-prompt="What accessibility guidance is available?">Accessibility</button>
         </div>
       </div>
@@ -1985,6 +1992,8 @@ app.innerHTML = `
     <section class="section guest-services-section" id="guest-services" data-audience="public" aria-busy="true">
       <div class="guest-services-loading"><p class="eyebrow">Visitor support</p><h2>Guest Services</h2><p>Loading secure request tools...</p></div>
     </section>
+
+    ${import.meta.env.VITE_SANDFEST_SURFACE === "admin" ? "" : '<section id="volunteer" aria-busy="true"></section>'}
 
     <section class="section" id="operations">
       <div class="section-heading">
@@ -2269,7 +2278,7 @@ app.innerHTML = `
         <div>
           <p class="eyebrow">iOS source prototype</p>
           <h3>The field app prototype centers the realities of the beach.</h3>
-          <p class="section-copy">The current Swift source caches event data, maps the schedule to the published festival dates, and includes alerts, ticket handoff, volunteer, incident, partner, and operations views. A real Xcode build, signing, device QA, and TestFlight distribution are still required.</p>
+          <p class="section-copy">The Swift app caches event data and includes alerts, ticket handoff, volunteer, incident, partner, and operations views. Simulator tests, signing, and physical-device installation are verified; TestFlight remains.</p>
           <div class="capability-list">
             <span>Offline map</span>
             <span>Push alerts</span>
@@ -2329,7 +2338,7 @@ app.innerHTML = `
         <article><strong>1. Content OS</strong><span>Canon event facts, FAQ, policies, maps, schedule, sponsor/vendor/volunteer documents.</span></article>
         <article><strong>2. AI Concierge</strong><span>RAG assistant with approved answers, escalation rules, multilingual support, and SMS/web widgets.</span></article>
         <article><strong>3. Ops Console</strong><span>Volunteer shifts, incidents, weather, crowd density, gate queues, lost party, ADA requests.</span></article>
-        <article><strong>4. Native iOS</strong><span>Implemented source prototype for the cached guide, alerts, check-in, incident capture, and staff tools; real-device QA and TestFlight release remain.</span></article>
+        <article><strong>4. Native iOS</strong><span>Signed cached guide, alerts, check-in, incidents, and staff tools; TestFlight remains.</span></article>
         <article><strong>5. QuickBooks</strong><span>Connect accounting truth to sponsor invoices, vendor payments, raffle reconciliation, and impact reporting.</span></article>
         <article><strong>6. Partner Portals</strong><span>Sponsor CRM, vendor onboarding, nonprofit grants, city coordination, post-event impact.</span></article>
         <article><strong>7. Port A Local Co</strong><span>Expose SandFest as an event/destination module for local discovery, commerce, and retention.</span></article>
@@ -2348,6 +2357,8 @@ app.innerHTML = `
     </footer>`}
   </main>
 `;
+
+renderPublicVolunteerProgram(event.volunteer);
 
 function addMessage(text, type) {
   const chat = document.querySelector("#chat");
@@ -3384,7 +3395,13 @@ function applyPublicEventGuide(input) {
     `${guide.name}, ${guide.dateRange}, on the beach in Port Aransas. Tickets, sculptors, island conditions, vendors, sponsors, and visitor information.`
   );
   document.querySelector('meta[property="og:title"]')?.setAttribute("content", guide.name);
+  renderPublicVolunteerProgram(guide.volunteer);
   return true;
+}
+
+function renderPublicVolunteerProgram(input = {}) {
+  if (ADMIN_ENTRY) return;
+  void import("./volunteer-program-ui.js").then(module => module.renderVolunteerProgram(input));
 }
 
 function applyRuntimeNotice(runtime) {
@@ -3474,7 +3491,12 @@ function renderAdminEventGuide(bootstrap, readiness) {
     email: guide.email ?? "",
     address: guide.address,
     sourceUrl: guide.sourceUrl ?? "",
-    sourceCheckedAt: isoToLocalDateTime(guide.sourceCheckedAt)
+    sourceCheckedAt: isoToLocalDateTime(guide.sourceCheckedAt),
+    volunteerInformationUrl: guide.volunteer.informationUrl ?? "",
+    volunteerRegistrationStatus: guide.volunteer.registrationStatus,
+    volunteerRegistrationUrl: guide.volunteer.registrationUrl ?? "",
+    volunteerSourceCheckedAt: isoToLocalDateTime(guide.volunteer.sourceCheckedAt),
+    volunteerNote: guide.volunteer.note
   };
   Object.entries(values).forEach(([name, value]) => {
     if (form.elements[name]) form.elements[name].value = value;
@@ -3488,13 +3510,28 @@ function renderAdminEventGuide(bootstrap, readiness) {
 
 async function publishAdminEventGuide(form) {
   const values = Object.fromEntries(new FormData(form).entries());
+  const {
+    volunteerInformationUrl,
+    volunteerRegistrationStatus,
+    volunteerRegistrationUrl,
+    volunteerSourceCheckedAt,
+    volunteerNote,
+    ...guideValues
+  } = values;
   const data = await adminFetch("/api/admin/event-guide/publish", {
     method: "POST",
     body: JSON.stringify({
       publish: true,
       guide: {
-        ...values,
-        sourceCheckedAt: localDateTimeToIso(values.sourceCheckedAt)
+        ...guideValues,
+        sourceCheckedAt: localDateTimeToIso(guideValues.sourceCheckedAt),
+        volunteer: {
+          informationUrl: volunteerInformationUrl,
+          registrationStatus: volunteerRegistrationStatus,
+          registrationUrl: volunteerRegistrationUrl,
+          sourceCheckedAt: localDateTimeToIso(volunteerSourceCheckedAt),
+          note: volunteerNote
+        }
       }
     })
   });
@@ -4039,7 +4076,7 @@ function initMobileNavigation() {
     }
   });
   window.addEventListener("hashchange", () => setOpen(false));
-  const mobileViewport = window.matchMedia("(max-width: 920px)");
+  const mobileViewport = window.matchMedia("(max-width: 1400px)");
   mobileViewport.addEventListener?.("change", event => {
     if (!event.matches) setOpen(false);
   });
