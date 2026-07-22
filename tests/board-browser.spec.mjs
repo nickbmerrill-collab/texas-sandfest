@@ -3270,9 +3270,15 @@ test("governed visitor guidance is searchable, source-cited, and staff publishab
   const firstAnswer = adminGuidance.locator('.admin-visitor-guidance-row textarea[name="answer"]').first();
   const revisedAnswer = `${await firstAnswer.inputValue()} Board browser publication verified.`;
   await firstAnswer.fill(revisedAnswer);
-  const publishResponsePromise = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/visitor-guidance/publish" && response.request().method() === "POST");
-  await page.locator("#admin-publish-visitor-guidance").click();
-  const publishResponse = await publishResponsePromise;
+  const publishButton = page.locator("#admin-publish-visitor-guidance");
+  await expect(publishButton).toBeEnabled();
+  const [publishResponse] = await Promise.all([
+    page.waitForResponse(
+      response => new URL(response.url()).pathname === "/api/admin/visitor-guidance/publish" && response.request().method() === "POST",
+      { timeout: 25_000 }
+    ),
+    publishButton.click()
+  ]);
   expect(publishResponse.status()).toBe(200);
   await expect(page.locator("#admin-api-status")).toContainText("Published 6 current visitor answers");
 
