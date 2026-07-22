@@ -25,6 +25,7 @@ import {
   selectBoardIOSSimulator
 } from "../lib/board-ios-rehearsal.mjs";
 import { acquireBoardIOSRunLock } from "../lib/board-ios-run-lock.mjs";
+import { resolveIOSInstallDevice } from "../lib/ios-device-readiness.mjs";
 import {
   BOARD_DEMO_LOCAL_GENERATION_KEY,
   BOARD_DEMO_SESSION_GENERATION_KEY,
@@ -932,6 +933,36 @@ console.log("\n=== Pure library suite ===\n");
   await releaseRecoveredIOSRun();
   ok("iOS board rehearsal serializes concurrent launches and recovers dead owners", secondIOSRunWaited);
   await rm(iosRunLockRoot, { recursive: true, force: true });
+  const iosDevice = ({
+    identifier,
+    name,
+    udid = `${identifier}-udid`,
+    pairingState = "paired",
+    transportType = "wired",
+    developerModeStatus = "enabled",
+    lastConnectionDate = "2026-07-22T12:00:00.000Z"
+  }) => ({
+    identifier,
+    hardwareProperties: {
+      platform: "iOS",
+      reality: "physical",
+      marketingName: name,
+      udid
+    },
+    connectionProperties: { pairingState, transportType, lastConnectionDate },
+    deviceProperties: { developerModeStatus }
+  });
+  const offlineIPhone = iosDevice({ identifier: "offline", name: "iPhone 17 Pro", transportType: null });
+  const disabledIPad = iosDevice({ identifier: "disabled", name: "iPad Air", developerModeStatus: "disabled" });
+  const connectedIPhone = iosDevice({ identifier: "connected", name: "iPhone 16 Pro", lastConnectionDate: "2026-07-22T13:00:00.000Z" });
+  const iosDeviceSelection = resolveIOSInstallDevice([offlineIPhone, disabledIPad, connectedIPhone]);
+  const iosOfflineSelection = resolveIOSInstallDevice([offlineIPhone]);
+  const iosDisabledSelection = resolveIOSInstallDevice([disabledIPad], "disabled");
+  const iosMissingSelection = resolveIOSInstallDevice([connectedIPhone], "missing");
+  ok("iOS device gate selects connected hardware and diagnoses actionable device state", iosDeviceSelection.device?.identifier === "connected"
+    && iosOfflineSelection.reason?.includes("paired and Developer Mode is enabled, but it is not connected")
+    && iosDisabledSelection.reason?.includes("Developer Mode is not enabled on iPad Air")
+    && iosMissingSelection.reason?.includes("does not identify a physical iOS device known to Xcode"));
   const storage = () => {
     const values = new Map();
     return {
