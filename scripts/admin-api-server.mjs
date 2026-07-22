@@ -369,6 +369,16 @@ import {
 import { boardDemoSyntheticConditions } from "../lib/board-conditions.mjs";
 import { buildBoardImpactSnapshot } from "../lib/board-impact.mjs";
 import {
+  createGuestServicesCase,
+  emptyGuestServices,
+  findGuestServicesCase,
+  guestServicesDashboard,
+  guestServicesIntakeFingerprint,
+  normalizeGuestServices,
+  publicGuestServicesCase,
+  updateGuestServicesCase
+} from "../lib/guest-services.mjs";
+import {
   createStripePartnerCheckoutSession,
   publicStripePartnerPaymentsReadiness,
   stripePartnerEventContext,
@@ -416,6 +426,7 @@ const INCOMING_DOCUMENT_STORAGE = incomingDocumentStorageConfig(ROOT);
 const DOCUMENT_EXTRACTION_SOURCE = documentExtractionSourceConfig();
 const OUTREACH_PREFERENCES = outreachPreferencesConfig();
 const TURNSTILE = turnstileConfig(process.env);
+const GUEST_SERVICES_SECRET = String(process.env.SANDFEST_GUEST_SERVICES_SECRET || process.env.SANDFEST_PARTNER_PORTAL_SECRET || "").trim();
 const BREVO_WEBHOOK = brevoWebhookConfig(process.env);
 const PORT = Number(process.env.PORT || process.env.SANDFEST_API_PORT || 8788);
 const SANDFEST_ENV = process.env.SANDFEST_ENV || "development";
@@ -761,6 +772,8 @@ const rolePermissions = {
     "jobs:write",
     "audit:read",
     "impact:read",
+    "guest_services:read",
+    "guest_services:write",
     "snapshot:read"
   ],
   ticketing_admin: [
@@ -771,6 +784,8 @@ const rolePermissions = {
     "payments:read",
     "revenue:read",
     "consent:read",
+    "guest_services:read",
+    "guest_services:write",
     "fulfillment:read",
     "audit:read",
     "snapshot:read"
@@ -810,6 +825,7 @@ const rolePermissions = {
     "fulfillment:read",
     "audit:read",
     "impact:read",
+    "guest_services:read",
     "snapshot:read"
   ],
   viewer: [
@@ -830,6 +846,7 @@ const rolePermissions = {
     "fulfillment:read",
     "audit:read",
     "impact:read",
+    "guest_services:read",
     "snapshot:read"
   ]
 };
@@ -1563,6 +1580,43 @@ async function readPartnerOperations() {
   );
 }
 
+async function readGuestServices() {
+  return normalizeGuestServices(
+    await readPlatformDoc(ROOT, "guestServices", emptyGuestServices(CURRENT_EVENT_ID)),
+    { eventId: CURRENT_EVENT_ID }
+  );
+}
+
+function guestServicesAccessToken(record) {
+  if (GUEST_SERVICES_SECRET.length < 32) return null;
+  const signature = createHmac("sha256", GUEST_SERVICES_SECRET)
+    .update(`guest-services-v1:${record.eventId}:${record.id}:${record.reference}`)
+    .digest("base64url");
+  return `tsfg_${signature}`;
+}
+
+function guestServicesAuditView(record) {
+  if (!record) return null;
+  return {
+    id: record.id,
+    eventId: record.eventId,
+    reference: record.reference,
+    category: record.category,
+    priority: record.priority,
+    status: record.status,
+    assignedTeam: record.assignedTeam,
+    publicUpdates: record.updates?.filter(item => item.public).length || 0,
+    internalUpdates: record.updates?.filter(item => !item.public).length || 0,
+    updatedAt: record.updatedAt,
+    resolvedAt: record.resolvedAt
+  };
+}
+
+function adminGuestServicesCase(record) {
+  const { accessTokenHash: _accessTokenHash, idempotencyKeyHash: _idempotencyKeyHash, idempotencyFingerprint: _idempotencyFingerprint, ...safe } = record;
+  return safe;
+}
+
 function newestTimestamp(values) {
   return values
     .filter(value => value && Number.isFinite(new Date(value).getTime()))
@@ -1872,6 +1926,20 @@ async function mutatePartnerOperations(mutator) {
     result = mutator(doc);
     return result?.ok ? result.doc : doc;
   }, { fallback: emptyPartnerOperations(CURRENT_EVENT_ID) });
+  return result;
+}
+
+async function mutateGuestServices(mutator) {
+  let result = null;
+  await updatePlatformDoc(ROOT, "guestServices", current => {
+    const doc = normalizeGuestServices(current, { eventId: CURRENT_EVENT_ID });
+    if (doc.eventId !== CURRENT_EVENT_ID) {
+      result = { ok: false, eventContextMismatch: true, error: `Guest Services is assigned to ${doc.eventId}; complete rollover to ${CURRENT_EVENT_ID} before accepting changes.` };
+      return doc;
+    }
+    result = mutator(doc);
+    return result?.ok ? result.doc : doc;
+  }, { fallback: emptyGuestServices(CURRENT_EVENT_ID) });
   return result;
 }
 
@@ -2508,6 +2576,22 @@ function partnerIntakeIdempotency(request, type, body = {}) {
   };
 }
 
+function guestServicesIdempotency(request, body = {}) {
+  const header = Array.isArray(request.headers["idempotency-key"])
+    ? request.headers["idempotency-key"][0]
+    : request.headers["idempotency-key"];
+  const key = String(header || "").trim();
+  if (!key) return { ok: true, idempotencyKeyHash: null, idempotencyFingerprint: guestServicesIntakeFingerprint(body) };
+  if (key.length < 16 || key.length > 200 || !/^[A-Za-z0-9._:-]+$/.test(key)) {
+    return { ok: false, error: "Idempotency-Key must be 16 to 200 URL-safe characters." };
+  }
+  return {
+    ok: true,
+    idempotencyKeyHash: createHash("sha256").update(key).digest("hex"),
+    idempotencyFingerprint: guestServicesIntakeFingerprint(body)
+  };
+}
+
 function outreachImportPreviewHash(csv, defaultsInput = {}) {
   const defaults = normalizeOutreachImportDefaults(defaultsInput);
   const canonical = {
@@ -2704,7 +2788,7 @@ function rateLimitProfile(pathname, method) {
     return { name: "checkout", limit: CHECKOUT_RATE_LIMIT };
   }
   if (method === "POST" && pathname === "/api/public/concierge") return { name: "concierge", limit: PUBLIC_RATE_LIMIT };
-  if (method === "POST" && ["/api/public/partner-status", "/api/public/partner-contact-preferences", "/api/public/partner-portal-recovery", "/api/public/partner-payment-checkout", "/api/public/outreach-preferences", "/api/public/task-status", "/api/public/task-status/update"].includes(pathname)) {
+  if (method === "POST" && ["/api/public/guest-services/status", "/api/public/partner-status", "/api/public/partner-contact-preferences", "/api/public/partner-portal-recovery", "/api/public/partner-payment-checkout", "/api/public/outreach-preferences", "/api/public/task-status", "/api/public/task-status/update"].includes(pathname)) {
     return { name: "partner-status", limit: PARTNER_STATUS_RATE_LIMIT };
   }
   // Unauthenticated write paths get a stricter bucket (festival abuse protection).
@@ -2715,6 +2799,7 @@ function rateLimitProfile(pathname, method) {
       pathname === "/api/public/voting" ||
       pathname === "/api/public/vendor-applications" ||
       pathname === "/api/public/sponsor-inquiries" ||
+      pathname === "/api/public/guest-services" ||
       pathname === "/api/public/outreach-preferences/unsubscribe" ||
       pathname === "/api/public/partner-brand-profile" ||
       pathname === "/api/public/partner-brand-assets" ||
@@ -4967,6 +5052,60 @@ async function handleRequest(request, response) {
       return;
     }
 
+    if (method === "POST" && pathname === "/api/public/guest-services") {
+      if (GUEST_SERVICES_SECRET.length < 32) {
+        sendJson(request, response, 503, { error: "Guest Services intake is temporarily unavailable." });
+        return;
+      }
+      const body = await readBody(request);
+      const idempotency = guestServicesIdempotency(request, body);
+      if (!idempotency.ok) {
+        sendJson(request, response, 400, { error: idempotency.error });
+        return;
+      }
+      const botVerification = await verifyTurnstileToken({
+        token: body.botToken,
+        action: "guest_services_request",
+        remoteIp: requestIp(request),
+        idempotencyKey: idempotency.idempotencyKeyHash || idempotency.idempotencyFingerprint
+      }, { config: TURNSTILE });
+      if (!botVerification.ok) {
+        sendJson(request, response, botVerification.unavailable ? 503 : 400, { error: botVerification.error });
+        return;
+      }
+      const result = await mutateGuestServices(doc => createGuestServicesCase(doc, body, {
+        eventId: CURRENT_EVENT_ID,
+        idFactory: prefix => `${prefix}_${randomUUID()}`,
+        referenceFactory: () => `TSF-GS-${randomUUID().split("-")[0].toUpperCase()}`,
+        accessTokenFactory: ({ id, reference }) => guestServicesAccessToken({ eventId: CURRENT_EVENT_ID, id, reference }),
+        idempotencyKeyHash: idempotency.idempotencyKeyHash,
+        idempotencyFingerprint: idempotency.idempotencyFingerprint,
+        now: new Date().toISOString()
+      }));
+      if (!result?.ok) {
+        sendJson(request, response, result?.conflict ? 409 : result?.eventContextMismatch ? 409 : 400, { error: result?.error || "Guest Services request could not be created." });
+        return;
+      }
+      const accessToken = guestServicesAccessToken(result.case);
+      sendJson(request, response, result.replay ? 200 : 201, {
+        replay: result.replay === true,
+        request: publicGuestServicesCase(result.case),
+        access: { reference: result.case.reference, token: accessToken }
+      }, { "cache-control": "no-store" });
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/public/guest-services/status") {
+      const body = await readBody(request);
+      const result = findGuestServicesCase(await readGuestServices(), body.reference, body.token, { eventId: CURRENT_EVENT_ID });
+      if (!result.ok) {
+        sendJson(request, response, 404, { error: result.error }, { "cache-control": "no-store" });
+        return;
+      }
+      sendJson(request, response, 200, { request: publicGuestServicesCase(result.case) }, { "cache-control": "no-store" });
+      return;
+    }
+
     if (method === "GET" && pathname === "/api/public/tickets") {
       const tickets = await storage.config.read("ticket-products");
       sendJson(request, response, 200, publicTicketCatalog(
@@ -6657,6 +6796,39 @@ async function handleRequest(request, response) {
     if (method === "GET" && pathname === "/api/admin/impact") {
       if (!(await requirePermission(request, response, "impact:read"))) return;
       sendJson(request, response, 200, { snapshot: await boardImpactSnapshot() });
+      return;
+    }
+
+    if (method === "GET" && pathname === "/api/admin/guest-services") {
+      if (!(await requirePermission(request, response, "guest_services:read"))) return;
+      const dashboard = guestServicesDashboard(await readGuestServices(), { eventId: CURRENT_EVENT_ID });
+      sendJson(request, response, 200, { ...dashboard, cases: dashboard.cases.map(adminGuestServicesCase) });
+      return;
+    }
+
+    const guestServicesCaseMatch = pathname.match(/^\/api\/admin\/guest-services\/cases\/([^/]+)$/);
+    if (method === "PATCH" && guestServicesCaseMatch) {
+      const session = await requirePermission(request, response, "guest_services:write");
+      if (!session) return;
+      const caseId = decodeURIComponent(guestServicesCaseMatch[1]);
+      const beforeDoc = await readGuestServices();
+      const before = beforeDoc.cases.find(item => item.id === caseId) || null;
+      const body = await readBody(request);
+      const result = await mutateGuestServices(doc => updateGuestServicesCase(doc, caseId, body, {
+        eventId: CURRENT_EVENT_ID,
+        actorId: session.id,
+        idFactory: prefix => `${prefix}_${randomUUID()}`,
+        now: new Date().toISOString()
+      }));
+      if (!result?.ok) {
+        sendJson(request, response, result?.notFound ? 404 : result?.eventContextMismatch ? 409 : 400, { error: result?.error || "Guest Services case could not be updated." });
+        return;
+      }
+      if (result.changed) {
+        await writeAuditRecord(request, "guest_services.case.update", { type: "guestServicesCase", id: caseId }, guestServicesAuditView(before), guestServicesAuditView(result.case));
+      }
+      const dashboard = guestServicesDashboard(result.doc, { eventId: CURRENT_EVENT_ID });
+      sendJson(request, response, 200, { changed: result.changed, case: adminGuestServicesCase(result.case), summary: dashboard.summary });
       return;
     }
 

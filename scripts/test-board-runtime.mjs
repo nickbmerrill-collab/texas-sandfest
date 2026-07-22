@@ -216,7 +216,9 @@ try {
   temporary = await mkdtemp(path.join(tmpdir(), "sandfest-board-runtime-test-"));
   const targetRoot = path.join(temporary, "runtime");
   const sourcePartnerPath = platformDocumentFilePath(ROOT, "partnerOps");
+  const sourceGuestServicesPath = platformDocumentFilePath(ROOT, "guestServices");
   const sourceDigestBefore = await digest(sourcePartnerPath);
+  const sourceGuestServicesDigestBefore = await digest(sourceGuestServicesPath);
   const prepared = await prepareBoardRuntime({
     sourceRoot: ROOT,
     targetRoot,
@@ -264,7 +266,7 @@ try {
   check("runtime ownership rejects a stale process after handoff", staleOwnerRejected && currentOwner.required === true);
   check("board seed covers core operations", prepared.applications === 5 && prepared.invoices === 1 && prepared.payments === 1
     && prepared.budgetLines === 6 && prepared.expenses === 7 && prepared.tasks === 11 && prepared.prospects === 2 && prepared.safetySmsRecipients === 1);
-  check("board seed covers field operations", prepared.cameras === 8 && prepared.volunteerShifts === 12 && prepared.documents === 4);
+  check("board seed covers field operations", prepared.cameras === 8 && prepared.volunteerShifts === 12 && prepared.guestServiceCases === 3 && prepared.documents === 4);
   check("production refuses synthetic board conditions", await productionRejectsSyntheticConditions(targetRoot));
 
   const port = await freePort();
@@ -551,6 +553,39 @@ try {
     && calendarExport.contentType.startsWith("text/calendar")
     && calendarExport.body.toString("utf8").includes("BEGIN:VEVENT"));
 
+  const seededGuestServices = await request(base, "GET", "/api/admin/guest-services", undefined, { auth: true });
+  const guestServicesInput = {
+    category: "lost_item",
+    title: "Synthetic sunglasses request",
+    details: "Black sunglasses were last seen beside the synthetic South Gate information table.",
+    location: "South Gate",
+    festivalDay: "Saturday",
+    contactName: "Morgan Visitor",
+    contactEmail: "morgan.visitor@example.com",
+    contactPhone: "+13615550155",
+    contactPreference: "email",
+    consentToContact: true
+  };
+  const guestRequest = await request(base, "POST", "/api/public/guest-services", guestServicesInput, { idempotencyKey: "board-runtime-guest-services-0001" });
+  const replayedGuestRequest = await request(base, "POST", "/api/public/guest-services", guestServicesInput, { idempotencyKey: "board-runtime-guest-services-0001" });
+  const deniedGuestStatus = await request(base, "POST", "/api/public/guest-services/status", { reference: guestRequest.data.access?.reference, token: "tsfg_wrong" });
+  const newGuestCaseId = (await request(base, "GET", "/api/admin/guest-services", undefined, { auth: true })).data.cases?.find(item => item.reference === guestRequest.data.access?.reference)?.id;
+  const unauthenticatedGuestUpdate = await request(base, "PATCH", `/api/admin/guest-services/cases/${newGuestCaseId}`, { status: "in_progress" });
+  const updatedGuestCase = await request(base, "PATCH", `/api/admin/guest-services/cases/${newGuestCaseId}`, {
+    status: "in_progress",
+    priority: "normal",
+    assignedTeam: "guest-services",
+    publicMessage: "Guest Services is checking the South Gate information table.",
+    internalNote: "Synthetic board-demo note for the response team.",
+    publishUpdate: true
+  }, { auth: true });
+  const guestStatus = await request(base, "POST", "/api/public/guest-services/status", guestRequest.data.access);
+  const guestAdminAfter = await request(base, "GET", "/api/admin/guest-services", undefined, { auth: true });
+  const adminGuestRecord = guestAdminAfter.data.cases?.find(item => item.id === newGuestCaseId);
+  check("board Guest Services seed shows active, urgent, and resolved work", seededGuestServices.status === 200 && seededGuestServices.data.summary?.total === 3 && seededGuestServices.data.summary?.active === 2 && seededGuestServices.data.summary?.resolved === 1 && !JSON.stringify(seededGuestServices.data).includes("accessTokenHash"));
+  check("public Guest Services intake is private and replay safe", guestRequest.status === 201 && replayedGuestRequest.status === 200 && replayedGuestRequest.data.replay === true && replayedGuestRequest.data.access?.token === guestRequest.data.access?.token && deniedGuestStatus.status === 404 && !Object.hasOwn(guestRequest.data.request || {}, "contact") && !Object.hasOwn(guestRequest.data.request || {}, "details"));
+  check("staff Guest Services updates require permission and close the visitor loop", unauthenticatedGuestUpdate.status === 401 && updatedGuestCase.status === 200 && guestStatus.status === 200 && guestStatus.data.request?.status === "in_progress" && guestStatus.data.request?.updates?.at(-1)?.message.includes("South Gate") && !JSON.stringify(guestStatus.data).includes("board-demo note") && adminGuestRecord?.contact?.email === "morgan.visitor@example.com" && !Object.hasOwn(adminGuestRecord || {}, "accessTokenHash") && !Object.hasOwn(adminGuestRecord || {}, "idempotencyKeyHash"));
+
   const vendor = await request(base, "POST", "/api/public/vendor-applications", {
     organizationName: "Boardwalk Arts Collective",
     contactName: "Casey Nguyen",
@@ -714,7 +749,8 @@ try {
   check("board camera playback keeps all signed pipelines current", playback.ok && playback.cameras === 8 && playback.heartbeats === 8 && playbackPublic.data.summary?.armedCameras === 8 && playbackPublic.data.summary?.liveCameras === 8 && playbackPublic.data.summary?.healthyPipelines === 8 && playbackAdmin.data.cameras?.every(camera => camera.health?.agentId === "board-camera-playback"));
   check("board camera playback stays public-metrics-only", playbackAdmin.data.cameras?.every(camera => camera.observation?.rawMediaStored === false) && playbackPublic.data.cameras?.every(camera => camera.operationalStatus === "live" && !Object.hasOwn(camera, "sourceId") && !Object.hasOwn(camera, "health") && !Object.hasOwn(camera.observation || {}, "modelName") && !Object.hasOwn(camera.observation || {}, "notes") && !Object.hasOwn(camera.observation || {}, "rawMediaStored")));
   const sourceDigestAfter = await digest(sourcePartnerPath);
-  check("board workflows do not mutate repository partner data", sourceDigestAfter === sourceDigestBefore);
+  const sourceGuestServicesDigestAfter = await digest(sourceGuestServicesPath);
+  check("board workflows do not mutate repository operational data", sourceDigestAfter === sourceDigestBefore && sourceGuestServicesDigestAfter === sourceGuestServicesDigestBefore);
 } finally {
   await smsSandbox?.close();
   await emailSandbox?.close();

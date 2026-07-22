@@ -10,12 +10,151 @@ const PENDING_NOTICE_STATUSES = new Set(["pending", "draft_ready", "approved", "
 export function operationsNavigationLinks({ islandLabel = "Island conditions" } = {}) {
   return `<a href="#admin-config">Overview</a>
     <a href="#admin-impact-report">Impact</a>
+    <a href="#admin-guest-services">Guest services</a>
     <a href="#admin-documents">Documents</a>
     <a href="#admin-partners">Partners</a>
     <a href="#admin-budget">Accounting</a>
     <a href="#admin-volunteers">Staffing</a>
     <a href="#admin-island-conditions">${escapeHtml(islandLabel)}</a>
     <a href="#admin-system-monitor">Systems</a>`;
+}
+
+export function guestServicesMarkup() {
+  return `<section class="admin-guest-services" id="admin-guest-services" aria-labelledby="admin-guest-services-title">
+    <div class="admin-guest-services-heading">
+      <div>
+        <p class="eyebrow">Visitor support desk</p>
+        <h2 id="admin-guest-services-title">Guest Services cases</h2>
+        <p id="admin-guest-services-status">Waiting for current-event requests.</p>
+      </div>
+      <div class="admin-guest-services-actions">
+        <label><span>View</span><select id="admin-guest-services-filter"><option value="active">Active</option><option value="all">All cases</option><option value="resolved">Resolved</option></select></label>
+        <button id="admin-load-guest-services" class="button secondary" data-requires-permission="guest_services:read" type="button">Refresh</button>
+      </div>
+    </div>
+    <div id="admin-guest-services-kpis" class="admin-guest-services-kpis" aria-live="polite" aria-busy="true">
+      <article><span>Active</span><strong>—</strong></article>
+      <article><span>Urgent</span><strong>—</strong></article>
+      <article><span>Resolved</span><strong>—</strong></article>
+    </div>
+    <div id="admin-guest-services-list" class="admin-guest-services-list keyboard-scroll-region" role="region" aria-label="Guest Services case queue" tabindex="0">
+      <article class="empty-state"><span>No Guest Services cases loaded.</span></article>
+    </div>
+  </section>`;
+}
+
+function guestServicesDate(value) {
+  if (!value) return "Not updated";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "Not updated" : date.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+function guestServicesLabel(value) {
+  return String(value || "").replaceAll("_", " ").replace(/\b\w/g, letter => letter.toUpperCase());
+}
+
+function guestServicesCaseMarkup(item, teams, canWrite) {
+  const publicUpdates = (item.updates || []).filter(update => update.public).slice(-2).reverse();
+  return `<article class="admin-guest-services-case" data-guest-services-case="${escapeAttr(item.id)}" data-status="${escapeAttr(item.status)}" data-priority="${escapeAttr(item.priority)}">
+    <header>
+      <div><span>${escapeHtml(item.reference)} · ${escapeHtml(guestServicesLabel(item.category))}</span><strong>${escapeHtml(item.title)}</strong></div>
+      <div><b>${escapeHtml(guestServicesLabel(item.priority))}</b><em>${escapeHtml(guestServicesLabel(item.status))}</em></div>
+    </header>
+    <div class="admin-guest-services-details">
+      <p>${escapeHtml(item.details)}</p>
+      <dl>
+        <div><dt>Location</dt><dd>${escapeHtml(item.location || "Not provided")}</dd></div>
+        <div><dt>Contact</dt><dd>${escapeHtml(item.contact?.name || "Not provided")}</dd></div>
+        <div><dt>Email</dt><dd>${escapeHtml(item.contact?.email || "Not provided")}</dd></div>
+        <div><dt>Mobile</dt><dd>${escapeHtml(item.contact?.phone || "Not provided")}</dd></div>
+      </dl>
+    </div>
+    ${publicUpdates.length ? `<div class="admin-guest-services-history">${publicUpdates.map(update => `<p><strong>${escapeHtml(guestServicesDate(update.at))}</strong><span>${escapeHtml(update.message)}</span></p>`).join("")}</div>` : ""}
+    <form class="admin-guest-services-update">
+      <label><span>Status</span><select name="status" ${canWrite ? "" : "disabled"}>${["open", "in_progress", "waiting_for_guest", "resolved", "closed"].map(value => `<option value="${value}" ${item.status === value ? "selected" : ""}>${guestServicesLabel(value)}</option>`).join("")}</select></label>
+      <label><span>Priority</span><select name="priority" ${canWrite ? "" : "disabled"}>${["normal", "high", "urgent"].map(value => `<option value="${value}" ${item.priority === value ? "selected" : ""}>${guestServicesLabel(value)}</option>`).join("")}</select></label>
+      <label><span>Response team</span><select name="assignedTeam" ${canWrite ? "" : "disabled"}>${teams.map(team => `<option value="${escapeAttr(team.id)}" ${item.assignedTeam === team.id ? "selected" : ""}>${escapeHtml(team.label)}</option>`).join("")}</select></label>
+      <label class="admin-guest-services-wide"><span>Visitor update</span><textarea name="publicMessage" rows="2" maxlength="1000" ${canWrite ? "" : "disabled"}></textarea></label>
+      <label class="admin-guest-services-wide"><span>Internal note</span><textarea name="internalNote" rows="2" maxlength="1000" ${canWrite ? "" : "disabled"}></textarea></label>
+      <label class="admin-guest-services-publish"><input name="publishUpdate" type="checkbox" ${canWrite ? "" : "disabled"} /><span>Publish the visitor update in the private status view</span></label>
+      <button class="button primary" type="submit" ${canWrite ? "" : "disabled"}>Save case</button>
+    </form>
+    <footer>Opened ${escapeHtml(guestServicesDate(item.createdAt))} · updated ${escapeHtml(guestServicesDate(item.updatedAt))}</footer>
+  </article>`;
+}
+
+export function createGuestServicesUi({ adminCan, adminFetch, setAdminStatus }) {
+  let payload = null;
+  let mounted = false;
+
+  function filteredCases() {
+    const filter = document.querySelector("#admin-guest-services-filter")?.value || "active";
+    const cases = payload?.cases || [];
+    if (filter === "resolved") return cases.filter(item => ["resolved", "closed"].includes(item.status));
+    if (filter === "active") return cases.filter(item => !["resolved", "closed"].includes(item.status));
+    return cases;
+  }
+
+  function render() {
+    const list = document.querySelector("#admin-guest-services-list");
+    const kpis = document.querySelector("#admin-guest-services-kpis");
+    const status = document.querySelector("#admin-guest-services-status");
+    if (!list || !kpis || !payload) return;
+    const summary = payload.summary || {};
+    kpis.innerHTML = [
+      ["Active", summary.active || 0],
+      ["Urgent", summary.urgent || 0],
+      ["Resolved", summary.resolved || 0]
+    ].map(([label, value]) => `<article><span>${label}</span><strong>${Number(value).toLocaleString()}</strong></article>`).join("");
+    kpis.setAttribute("aria-busy", "false");
+    const cases = filteredCases();
+    list.innerHTML = cases.map(item => guestServicesCaseMarkup(item, payload.teams || [], adminCan("guest_services:write"))).join("") || '<article class="empty-state"><span>No cases match this view.</span></article>';
+    if (status) status.textContent = `${payload.eventId} · ${summary.active || 0} active · updated ${guestServicesDate(payload.lastUpdated)}`;
+    list.querySelectorAll(".admin-guest-services-update").forEach(form => form.addEventListener("submit", async event => {
+      event.preventDefault();
+      const card = form.closest("[data-guest-services-case]");
+      const button = form.querySelector('button[type="submit"]');
+      const values = Object.fromEntries(new FormData(form).entries());
+      button.disabled = true;
+      try {
+        await adminFetch(`/api/admin/guest-services/cases/${encodeURIComponent(card.dataset.guestServicesCase)}`, {
+          method: "PATCH",
+          body: JSON.stringify({ ...values, publishUpdate: form.elements.publishUpdate.checked })
+        });
+        await load({ quiet: true });
+        setAdminStatus("Guest Services case saved.", "ok");
+      } catch (error) {
+        setAdminStatus(error.message, "error");
+        button.disabled = !adminCan("guest_services:write");
+      }
+    }));
+  }
+
+  async function load({ quiet = false } = {}) {
+    if (!adminCan("guest_services:read")) return null;
+    const button = document.querySelector("#admin-load-guest-services");
+    if (button) button.disabled = true;
+    try {
+      payload = await adminFetch("/api/admin/guest-services");
+      render();
+      if (!quiet) setAdminStatus(`Loaded ${payload.summary.active} active Guest Services case${payload.summary.active === 1 ? "" : "s"}.`, "ok");
+      return payload;
+    } catch (error) {
+      if (!quiet) setAdminStatus(error.message, "error");
+      throw error;
+    } finally {
+      if (button) button.disabled = !adminCan("guest_services:read");
+    }
+  }
+
+  function mount() {
+    if (mounted) return;
+    mounted = true;
+    document.querySelector("#admin-load-guest-services")?.addEventListener("click", () => load());
+    document.querySelector("#admin-guest-services-filter")?.addEventListener("change", render);
+  }
+
+  return { load, mount, render };
 }
 
 export function boardImpactReportMarkup() {

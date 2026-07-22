@@ -24,6 +24,14 @@ import { boardDemoAccessPlugin } from "../vite.config.js";
 import { publicPartnerIntakeReadiness } from "../lib/public-partner-intake.mjs";
 import { buildRevenueLedgerView, partnerRevenueEntries, summarizeLedger, ticketRevenueEntries } from "../lib/revenue.mjs";
 import {
+  createGuestServicesCase,
+  emptyGuestServices,
+  findGuestServicesCase,
+  guestServicesDashboard,
+  publicGuestServicesCase,
+  updateGuestServicesCase
+} from "../lib/guest-services.mjs";
+import {
   createBudgetLine,
   createExpenseRequest,
   emptyBudgetControl,
@@ -1712,6 +1720,51 @@ console.log("\n=== Pure library suite ===\n");
   ok("public concierge safety rejects private implementation fields", !publicConciergeResponseSafety({ ...ticketPayload, storageRoot: "/private/runtime" }).ready);
 }
 
+// Guest Services intake and private case tracking
+{
+  const input = {
+    category: "accessibility",
+    title: "Accessible entrance guidance",
+    details: "Please confirm the best entrance for a reserved beach wheelchair.",
+    location: "North Gate",
+    festivalDay: "Saturday",
+    contactName: "Casey Visitor",
+    contactEmail: "casey@example.com",
+    contactPhone: "+13615550177",
+    contactPreference: "email",
+    consentToContact: true
+  };
+  let sequence = 0;
+  const options = {
+    eventId: DEFAULT_EVENT_ID,
+    idFactory: prefix => `${prefix}_${++sequence}`,
+    referenceFactory: () => "TSF-GS-TEST0001",
+    accessTokenFactory: () => "tsfg_private_test_capability_0001",
+    idempotencyKeyHash: "a".repeat(64),
+    idempotencyFingerprint: "b".repeat(64),
+    now: "2026-07-22T12:00:00.000Z"
+  };
+  const created = createGuestServicesCase(emptyGuestServices(DEFAULT_EVENT_ID), input, options);
+  const replay = createGuestServicesCase(created.doc, input, options);
+  const conflict = createGuestServicesCase(created.doc, { ...input, title: "Different request" }, { ...options, idempotencyFingerprint: "c".repeat(64) });
+  const access = findGuestServicesCase(created.doc, created.case.reference, created.accessToken, { eventId: DEFAULT_EVENT_ID });
+  const denied = findGuestServicesCase(created.doc, created.case.reference, "tsfg_wrong", { eventId: DEFAULT_EVENT_ID });
+  const updated = updateGuestServicesCase(created.doc, created.case.id, {
+    status: "in_progress",
+    priority: "high",
+    assignedTeam: "guest-services",
+    publicMessage: "Guest Services confirmed the accessible pickup location.",
+    internalNote: "Coordinate with the North Gate captain.",
+    publishUpdate: true
+  }, { eventId: DEFAULT_EVENT_ID, actorId: "staff-test", idFactory: prefix => `${prefix}_${++sequence}`, now: "2026-07-22T12:05:00.000Z" });
+  const publicView = publicGuestServicesCase(updated.case);
+  const dashboard = guestServicesDashboard(updated.doc, { eventId: DEFAULT_EVENT_ID });
+  ok("Guest Services intake is idempotent and rejects changed replay details", created.ok && !created.replay && replay.ok && replay.replay && conflict.conflict);
+  ok("Guest Services capability grants only the matching private request", access.ok && !denied.ok && access.case.id === created.case.id);
+  ok("Guest Services public status excludes contact, details, secrets, and internal notes", publicView.status === "in_progress" && publicView.updates.length === 2 && publicView.updates.at(-1).message.includes("pickup location") && !Object.hasOwn(publicView, "contact") && !Object.hasOwn(publicView, "details") && !JSON.stringify(publicView).includes("North Gate captain") && !JSON.stringify(publicView).includes("casey@example.com") && !JSON.stringify(publicView).includes("accessTokenHash"));
+  ok("Guest Services dashboard prioritizes current operational work", dashboard.summary.active === 1 && dashboard.summary.resolved === 0 && dashboard.cases[0].priority === "high");
+}
+
 // Annual event context and archive-first rollover
 {
   const guide = {
@@ -1751,6 +1804,7 @@ console.log("\n=== Pure library suite ===\n");
     partnerOps: { ...emptyPartnerOperations(from), applications: [{ id: "app-1" }] },
     incomingDocuments: { ...emptyIncomingDocumentIntake(from), documents: [{ id: "doc-1", eventId: from }] },
     islandConditions: { eventId: from, cameras: [{ id: "cam-1", observation: { peopleCount: 20 } }], observations: [{ id: "obs-1" }], incidents: [{ id: "incident-1" }], dispatches: [{ id: "dispatch-1" }] },
+    guestServices: { ...emptyGuestServices(from), cases: [{ id: "guest-case-1", eventId: from }] },
     smsOperations: { ...emptySmsOperations(from), campaigns: [{ id: "sms-campaign-1" }], messages: [{ id: "sms-message-1" }], preferenceEvents: [{ id: "sms-preference-1" }] }
   };
   const rollover = planEventRollover({
@@ -1771,7 +1825,7 @@ console.log("\n=== Pure library suite ===\n");
   ok("current event context reports stale and missing operational documents", !mismatched.ready && mismatched.mismatchedDocs.length === 2 && !invalidConfig.valid);
   ok("event rollover covers every governed operational document", rollover.ok && Object.keys(rollover.documents).length === ROLLOVER_DOCUMENT_KEYS.length && /^[a-f0-9]{64}$/.test(rollover.archiveDigest));
   ok("event archive digest is stable across object key order", eventArchiveDigest({ b: 2, a: { d: 4, c: 3 } }) === eventArchiveDigest({ a: { c: 3, d: 4 }, b: 2 }));
-  ok("event rollover carries reusable setup and resets season activity", rollover.documents.budgetControl.budgetLines.length === 0 && rollover.documents.budgetControl.expenses.length === 0 && rollover.documents.fleet.assets[0].status === "available" && rollover.documents.fleet.checkouts.length === 0 && rollover.documents.volunteers.shifts.length === 0 && rollover.documents.consent.records.length === 0 && rollover.documents.passportHunt.hunt.id === "sculpture-passport-2027" && rollover.documents.passportHunt.hunt.active === false && rollover.documents.voting.votes.length === 0 && rollover.documents.partnerOps.eventId === DEFAULT_EVENT_ID && rollover.documents.incomingDocuments.documents.length === 0 && rollover.documents.islandConditions.incidents.length === 0 && rollover.documents.smsOperations.campaigns.length === 0);
+  ok("event rollover carries reusable setup and resets season activity", rollover.documents.budgetControl.budgetLines.length === 0 && rollover.documents.budgetControl.expenses.length === 0 && rollover.documents.fleet.assets[0].status === "available" && rollover.documents.fleet.checkouts.length === 0 && rollover.documents.volunteers.shifts.length === 0 && rollover.documents.consent.records.length === 0 && rollover.documents.passportHunt.hunt.id === "sculpture-passport-2027" && rollover.documents.passportHunt.hunt.active === false && rollover.documents.voting.votes.length === 0 && rollover.documents.partnerOps.eventId === DEFAULT_EVENT_ID && rollover.documents.incomingDocuments.documents.length === 0 && rollover.documents.islandConditions.incidents.length === 0 && rollover.documents.guestServices.cases.length === 0 && rollover.documents.smsOperations.campaigns.length === 0);
   ok("event rollover refuses mixed source context", !rejectedRollover.ok && rejectedRollover.mismatches?.[0]?.key === "fleet");
 }
 

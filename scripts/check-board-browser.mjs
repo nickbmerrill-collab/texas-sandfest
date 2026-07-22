@@ -148,7 +148,7 @@ async function responsiveLayoutObservation(page, { surface, url, width, height }
     await page.waitForFunction(() => document.querySelectorAll("#public-sponsor-tiers [data-package-id]").length === 11, null, { timeout: timeoutMs });
   } else {
     await waitForAdminWorkspace(page);
-    await page.waitForFunction(() => document.querySelectorAll(".admin-workspace-nav a").length === 8, null, { timeout: timeoutMs });
+    await page.waitForFunction(() => document.querySelectorAll(".admin-workspace-nav a").length === 9, null, { timeout: timeoutMs });
   }
 
   return page.evaluate(({ surface, width, height }) => {
@@ -312,6 +312,8 @@ if (visitorUrl && operationsUrl) {
       await page.waitForFunction(() => document.querySelectorAll("#public-sponsor-tiers [data-package-id]").length === 11, null, { timeout: timeoutMs });
       await page.waitForFunction(() => document.querySelector("#ticketing-status-pill")?.textContent?.trim() === "Local payment sandbox", null, { timeout: timeoutMs });
       await page.waitForFunction(() => document.querySelectorAll("#island-camera-grid article").length === 8, null, { timeout: timeoutMs });
+      await page.waitForFunction(() => document.querySelector("#guest-services")?.getAttribute("aria-busy") === "false"
+        && document.querySelectorAll('#guest-services-form [name="category"] option[value]:not([value=""])').length === 6, null, { timeout: timeoutMs });
       await page.locator("#public-sponsor-showcase").scrollIntoViewIfNeeded();
       await page.waitForFunction(() => {
         const card = [...document.querySelectorAll("#public-sponsor-showcase .public-sponsor-card")]
@@ -342,6 +344,12 @@ if (visitorUrl && operationsUrl) {
         vendorConsentChecked: document.querySelector('#vendor-application-form [name="consentToContact"]')?.checked === true,
         vendorSubmitEnabled: !document.querySelector('#vendor-application-form button[type="submit"]')?.disabled,
         sponsorSubmitEnabled: !document.querySelector('#sponsor-inquiry-form button[type="submit"]')?.disabled,
+        guestServicesCategories: document.querySelectorAll('#guest-services-form [name="category"] option[value]:not([value=""])').length,
+        guestServicesConsentChecked: document.querySelector('#guest-services-form [name="consentToContact"]')?.checked === true,
+        guestServicesSubmitLabel: document.querySelector('#guest-services-form button[type="submit"]')?.textContent?.trim(),
+        guestServicesStatusSubmitLabel: document.querySelector('#guest-services-status-form button[type="submit"]')?.textContent?.trim(),
+        guestServicesEmergencyText: document.querySelector(".guest-services-emergency")?.textContent?.replace(/\s+/g, " ").trim(),
+        guestServicesPrivateEmpty: document.querySelector("#guest-services-status-result")?.textContent?.replace(/\s+/g, " ").trim(),
         checkoutProducts: document.querySelectorAll('#ticket-product-grid [data-ticket-action="increase"]').length,
         checkoutLabel: document.querySelector("#ticketing-status-pill")?.textContent?.trim(),
         checkoutButton: document.querySelector("#checkout-btn")?.textContent?.trim(),
@@ -452,6 +460,10 @@ if (visitorUrl && operationsUrl) {
           && delivered.some(item => item.textContent?.includes("campaign-approved automation"));
       }, null, { timeout: timeoutMs });
       await page.waitForFunction(() => document.querySelectorAll("#admin-audit-list [data-audit-action]").length > 0, null, { timeout: timeoutMs });
+      await page.waitForFunction(() => document.querySelector("#admin-guest-services-kpis")?.getAttribute("aria-busy") === "false"
+        && document.querySelectorAll("#admin-guest-services-list [data-guest-services-case]").length === 2, null, { timeout: timeoutMs });
+      await page.selectOption("#admin-guest-services-filter", "all");
+      await page.waitForFunction(() => document.querySelectorAll("#admin-guest-services-list [data-guest-services-case]").length === 3, null, { timeout: timeoutMs });
       observations.operations = await page.evaluate(() => ({
         title: document.title,
         heading: document.querySelector("#admin-config h1")?.textContent?.trim(),
@@ -501,6 +513,12 @@ if (visitorUrl && operationsUrl) {
           };
         })(),
         partnerApplications: document.querySelectorAll("#admin-partner-applications [data-partner-application]").length,
+        guestServiceCases: document.querySelectorAll("#admin-guest-services-list [data-guest-services-case]").length,
+        guestServiceStatuses: [...document.querySelectorAll("#admin-guest-services-list [data-guest-services-case]")].map(item => item.dataset.status),
+        guestServiceKpis: Object.fromEntries([...document.querySelectorAll("#admin-guest-services-kpis article")]
+          .map(item => [item.querySelector("span")?.textContent?.trim(), item.querySelector("strong")?.textContent?.trim()])),
+        guestServiceText: document.querySelector("#admin-guest-services")?.textContent?.replace(/\s+/g, " ").trim(),
+        guestServicePrivateLeak: /accessTokenHash|idempotencyKeyHash|tsfg_/.test(document.querySelector("#admin-guest-services")?.textContent || ""),
         tasks: document.querySelectorAll("#admin-partner-tasks [data-task]").length,
         taskSummary: document.querySelector("#admin-task-board-summary")?.textContent?.trim(),
         taskAssignmentTypes: [...new Set([...document.querySelectorAll('#admin-partner-tasks [data-task] [name="assigneeType"]')].map(item => item.value))],
@@ -658,6 +676,30 @@ if (visitorUrl && operationsUrl) {
         throw new Error(observations.operationsError || "The operations command center did not finish loading.");
       }
       return `${item.commandSignals} operating signals fit the 1280x720 board viewport and open their focused workspaces in at most ${item.commandNavigation.maxElapsedMs} ms; outreach and Island conditions occupy distinct full-width rows, with keyboard activation, the presentation reset control, and persistent synthetic Demo label.`;
+    });
+    await inspect("guest_services", "Guest Services request desk", "Inspect public intake, private status access, and the prepared staff queue.", async () => {
+      const visitor = observations.visitor;
+      const operations = observations.operations;
+      if (
+        visitor?.guestServicesCategories !== 6
+        || visitor?.guestServicesConsentChecked
+        || visitor?.guestServicesSubmitLabel !== "Send request"
+        || visitor?.guestServicesStatusSubmitLabel !== "View status"
+        || !visitor?.guestServicesEmergencyText?.includes("call 911")
+        || !visitor?.guestServicesPrivateEmpty?.includes("Your request stays private")
+        || operations?.guestServiceCases !== 3
+        || operations?.guestServiceKpis?.Active !== "2"
+        || operations?.guestServiceKpis?.Urgent !== "0"
+        || operations?.guestServiceKpis?.Resolved !== "1"
+        || !operations?.guestServiceStatuses?.includes("open")
+        || !operations?.guestServiceStatuses?.includes("in_progress")
+        || !operations?.guestServiceStatuses?.includes("resolved")
+        || !operations?.guestServiceText?.includes("Blue canvas tote near the Family Sand Lab")
+        || !operations?.guestServiceText?.includes("Beach wheelchair pickup guidance")
+        || !operations?.guestServiceText?.includes("Saturday wristband replacement")
+        || operations?.guestServicePrivateLeak
+      ) throw new Error("The public Guest Services intake, private status boundary, or prepared staff queue is incomplete.");
+      return `${visitor.guestServicesCategories} public help categories, private status access, emergency guidance, and ${operations.guestServiceCases} prepared staff cases spanning open, in-progress, and resolved states rendered without private capabilities.`;
     });
     await inspect("operations_workflows", "Operations workflow queues", "Inspect partner, task, document, and accounting board data.", async () => {
       const item = observations.operations;
@@ -858,7 +900,7 @@ if (visitorUrl && operationsUrl) {
     await inspect("responsive_layout", "Phone and tablet presentation layout", "Inspect the active Visitor and Operations links at 320px and 768px.", async () => {
       const snapshots = observations.responsive;
       if (!snapshots) throw new Error(observations.responsiveError || "Responsive presentation checks did not run.");
-      const expectedWorkspaceLabels = ["Overview", "Impact", "Documents", "Partners", "Accounting", "Staffing", "Island conditions", "Systems"];
+      const expectedWorkspaceLabels = ["Overview", "Impact", "Guest services", "Documents", "Partners", "Accounting", "Staffing", "Island conditions", "Systems"];
       const required = [snapshots.visitor320, snapshots.visitor1024, snapshots.operations320, snapshots.operations768];
       const issue = required.find(item => (
         !item
@@ -906,6 +948,7 @@ if (visitorUrl && operationsUrl) {
       ["sponsor_brand", "Sponsor branding"],
       ["island_conditions", "Island Conditions"],
       ["operations_shell", "Operations command center"],
+      ["guest_services", "Guest Services request desk"],
       ["operations_workflows", "Operations workflow queues"],
       ["finance_dates", "Payment and key-date tracking"],
       ["messaging_delegation", "Automated messages and delegation"],
@@ -927,6 +970,7 @@ if (visitorUrl && operationsUrl) {
     ["sponsor_brand", "Sponsor branding"],
     ["island_conditions", "Island Conditions"],
     ["operations_shell", "Operations command center"],
+    ["guest_services", "Guest Services request desk"],
     ["operations_workflows", "Operations workflow queues"],
     ["finance_dates", "Payment and key-date tracking"],
     ["messaging_delegation", "Automated messages and delegation"],

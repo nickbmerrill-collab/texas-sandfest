@@ -125,4 +125,6 @@ Four features built and verified (DOM + `npm run build`):
 
 13. **Eventeny application bridge** — vendor and sponsor application CSVs now pass through a preview-gated, contact-attested, annual-event-scoped import. Trusted package/offering prices seed the same tasks, key dates, compliance, branding, and fulfillment workflows as native intake; exact replays converge, changed provider records require manual review, and provider acknowledgments are not duplicated. Direct Eventeny API synchronization still requires credentials.
 
+14. **Guest Services case desk** — the visitor site now accepts protected lost-item, accessibility, ticketing, separated-party, vendor, and general support requests. Each request receives a private status capability; Operations can route priority and ownership, retain internal notes, and publish bounded updates back to that private view without exposing contact details or capability material.
+
 **Next up (blocked on logins where noted):** direct Eventeny/Square API synchronization and QuickBooks reconciliation; Twilio sender approval + launch-volume acceptance → enable safety SMS; Mapbox token → GPS map layer; website visitor cutover from Wix.

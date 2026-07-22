@@ -478,6 +478,7 @@ test("board workflows operate through the public and staff interfaces", async ({
   const settlementCsv = `transaction_id,date,category,gross_amount,fee_amount,net_amount,quantity,payout_id,payout_date,reconciled,entry_type
 ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${runId},2027-03-03,yes,receipt`;
 
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#sponsors`);
   await expect(page.locator("#network-status")).toHaveText("Demo");
   await expect(page.locator("#mobile-nav-toggle")).toBeHidden();
@@ -2187,6 +2188,90 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   expect(pageErrors).toEqual([]);
 });
 
+test("Guest Services moves a visitor request through staff response and private status", async ({ page }) => {
+  test.setTimeout(60_000);
+  const runId = randomUUID().slice(0, 8);
+  const title = `Lost board presentation tote ${runId}`;
+  const publicUpdate = `Guest Services located the tote and moved it to North Gate ${runId}.`;
+  const internalNote = `Verified the claim tag before release ${runId}.`;
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#guest-services`);
+  await expect(page.locator("#guest-services")).toHaveAttribute("aria-busy", "false");
+  const form = page.locator("#guest-services-form");
+  await expect(form.locator('[name="category"] option[value]:not([value=""])')).toHaveCount(6);
+  await form.locator('[name="category"]').selectOption("lost_item");
+  await form.locator('[name="festivalDay"]').selectOption({ label: "Saturday" });
+  await form.locator('[name="title"]').fill(title);
+  await form.locator('[name="details"]').fill("A blue canvas tote was left beside the family activity seating area.");
+  await form.locator('[name="location"]').fill("Family Sand Lab");
+  await form.locator('[name="contactName"]').fill("Board Browser Guest");
+  await form.locator('[name="contactEmail"]').fill(`guest.${runId}@example.com`);
+  await form.locator('[name="contactPhone"]').fill("+13615550199");
+  await form.locator('[name="consentToContact"]').check();
+  const createResponsePromise = page.waitForResponse(response => new URL(response.url()).pathname === "/api/public/guest-services"
+    && response.request().method() === "POST");
+  await form.locator('button[type="submit"]').click();
+  const createResponse = await createResponsePromise;
+  expect(createResponse.status()).toBe(201);
+  const created = await createResponse.json();
+  expect(created.request).toMatchObject({ title, category: "lost_item", status: "open", assignedTeam: "guest-services" });
+  expect(created.access.reference).toMatch(/^TSF-GS-[A-F0-9]{8}$/);
+  expect(created.access.token).toMatch(/^tsfg_[A-Za-z0-9_-]+$/);
+  expect(JSON.stringify(created.request)).not.toMatch(/accessTokenHash|idempotencyKeyHash|contactEmail|contactPhone/);
+  await expect(page.locator("#guest-services-status-result")).toContainText(title);
+  await expect(page.locator("#guest-services-status-result [data-status]")).toHaveText("Received");
+  await expect(page.locator('#guest-services-status-form [name="reference"]')).toHaveValue(created.access.reference);
+  await expect(page.locator('#guest-services-status-form [name="token"]')).toHaveValue(created.access.token);
+  await assertChoiceTargets(page, "Guest Services visitor intake");
+  await assertNoHorizontalOverflow(page);
+
+  const admin = await page.context().newPage();
+  try {
+    await admin.setViewportSize({ width: 1280, height: 720 });
+    await admin.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}`);
+    await expect(admin.locator("#admin-api-status")).toContainText("Loaded", { timeout: 25_000 });
+    await admin.locator("#admin-guest-services-filter").selectOption("all");
+    const adminCase = admin.locator("#admin-guest-services-list [data-guest-services-case]").filter({ hasText: title });
+    await expect(adminCase).toHaveCount(1);
+    await expect(adminCase).toContainText("Board Browser Guest");
+    await expect(adminCase).not.toContainText(created.access.token);
+    await adminCase.locator('[name="status"]').selectOption("in_progress");
+    await adminCase.locator('[name="priority"]').selectOption("high");
+    await adminCase.locator('[name="assignedTeam"]').selectOption("guest-services");
+    await adminCase.locator('[name="publicMessage"]').fill(publicUpdate);
+    await adminCase.locator('[name="internalNote"]').fill(internalNote);
+    await adminCase.locator('[name="publishUpdate"]').check();
+    const caseId = await adminCase.getAttribute("data-guest-services-case");
+    const updateResponsePromise = admin.waitForResponse(response => new URL(response.url()).pathname === `/api/admin/guest-services/cases/${caseId}`
+      && response.request().method() === "PATCH");
+    await adminCase.locator('button[type="submit"]').click();
+    expect((await updateResponsePromise).status()).toBe(200);
+    await expect(admin.locator("#admin-api-status")).toContainText("Guest Services case saved");
+    await expect(adminCase).toContainText(publicUpdate);
+    await expect(admin.locator("#admin-guest-services")).not.toContainText(created.access.token);
+    await expect(admin.locator("#admin-guest-services")).not.toContainText(/accessTokenHash|idempotencyKeyHash/);
+    await assertNoHorizontalOverflow(admin);
+
+    const adminPayload = await adminApi("/api/admin/guest-services");
+    expect(adminPayload.status).toBe(200);
+    const storedCase = adminPayload.data.cases.find(item => item.reference === created.access.reference);
+    expect(storedCase).toMatchObject({ title, status: "in_progress", priority: "high", assignedTeam: "guest-services" });
+    expect(JSON.stringify(storedCase)).not.toMatch(/accessTokenHash|idempotencyKeyHash|tsfg_/);
+  } finally {
+    await admin.close();
+  }
+
+  const statusResponsePromise = page.waitForResponse(response => new URL(response.url()).pathname === "/api/public/guest-services/status"
+    && response.request().method() === "POST");
+  await page.locator('#guest-services-status-form button[type="submit"]').click();
+  expect((await statusResponsePromise).status()).toBe(200);
+  await expect(page.locator("#guest-services-status-result [data-status]")).toHaveText("In progress");
+  await expect(page.locator("#guest-services-status-result")).toContainText(publicUpdate);
+  await expect(page.locator("#guest-services-status-result")).not.toContainText(internalNote);
+  await assertNoHorizontalOverflow(page);
+});
+
 test("incident delivery verification safely resolves ambiguous provider outcomes", async ({ page }) => {
   test.setTimeout(60_000);
   const runId = randomUUID().slice(0, 8);
@@ -2499,6 +2584,7 @@ test("operations command summary fits and navigates across board viewports", asy
       && element.scrollHeight <= element.clientHeight + 1
     ))).toBe(true);
   }
+  await expect.poll(() => page.locator(".admin-workspace-nav").evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
   await assertNoHorizontalOverflow(page);
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -2590,13 +2676,13 @@ test("visitor hero and navigation stay ordered across intermediate widths", asyn
     }
   }
 
-  await page.setViewportSize({ width: 1240, height: 720 });
+  await page.setViewportSize({ width: 1320, height: 720 });
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor`);
   await expect(page.locator("#public-navigation")).toBeHidden();
   await expect(page.locator("#mobile-nav-toggle")).toBeVisible();
   await assertNoHorizontalOverflow(page);
 
-  await page.setViewportSize({ width: 1241, height: 720 });
+  await page.setViewportSize({ width: 1321, height: 720 });
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor`);
   await expect(page.locator("#public-navigation")).toBeVisible();
   await expect(page.locator("#mobile-nav-toggle")).toBeHidden();
@@ -2980,10 +3066,11 @@ test("critical public and operations views fit a mobile viewport", async ({ page
   await expect.poll(() => mobileCampaignOutcomes.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
   const workspaceNav = page.locator(".admin-workspace-nav");
   const workspaceLinks = workspaceNav.locator("a");
-  await expect(workspaceLinks).toHaveCount(8);
+  await expect(workspaceLinks).toHaveCount(9);
   await expect(workspaceLinks).toHaveText([
     "Overview",
     "Impact",
+    "Guest services",
     "Documents",
     "Partners",
     "Accounting",
