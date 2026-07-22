@@ -113,6 +113,22 @@ replace every service and restore the five-application baseline, even if a
 workflow assertion fails. Do not run this state-mutating proof during the live
 walkthrough; run it during rehearsal and wait for its final 12/12 reset result.
 
+To prove the complete visitor-to-staff Guest Services journey, run:
+
+```bash
+npm run board:prove:guest-services
+```
+
+The proof submits an accessibility request through the visible visitor form,
+requires the browser retry key to return the original reference and private
+capability, and confirms an invalid capability cannot open the request. Guest
+Services then routes the case at high priority, publishes an in-progress update,
+retains a separate internal note, and resolves the case with final arrival
+guidance. The visitor's private status must show all three public updates while
+withholding contact details, request details, retry hashes, and both staff-only
+notes. The proof requires two privacy-minimized staff audit records and then
+restores the exact three-case baseline at 12/12 readiness.
+
 To prove the complete vendor onboarding and readiness journey, run:
 
 ```bash
