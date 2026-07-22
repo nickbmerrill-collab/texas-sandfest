@@ -302,12 +302,25 @@ async function submitVendorProfile(page, apiBase, organizationName, runId, { rev
     : "Private initial trailer placement note for the board vendor proof.");
   await profile.locator('[name="waterRequired"]').uncheck();
 
-  const responsePromise = page.waitForResponse(response => (
-    response.url() === `${apiBase}/api/public/partner-vendor-profile`
-    && response.request().method() === "POST"
-  ), { timeout: timeoutMs });
-  await profile.locator('button[type="submit"]').click();
-  const response = await responsePromise;
+  const button = profile.locator('button[type="submit"]');
+  await expect(button).toBeEnabled();
+  let response;
+  try {
+    [response] = await Promise.all([
+      page.waitForResponse(candidate => (
+        candidate.url() === `${apiBase}/api/public/partner-vendor-profile`
+        && candidate.request().method() === "POST"
+      ), { timeout: timeoutMs }),
+      button.click()
+    ]);
+  } catch (error) {
+    const state = await profile.evaluate(form => ({
+      connected: form.isConnected,
+      buttonDisabled: form.querySelector('button[type="submit"]')?.disabled === true,
+      status: form.querySelector(".partner-form-status, .partner-vendor-status")?.textContent?.trim() || "missing"
+    })).catch(() => ({ connected: false, buttonDisabled: null, status: "unavailable" }));
+    throw new Error(`Vendor operating profile submission did not reach the API: ${error.message}; state=${JSON.stringify(state)}.`);
+  }
   const payload = await response.json().catch(() => ({}));
   if (response.status() !== 200 || payload.application?.vendorOnboarding?.profile?.status !== "submitted") {
     throw new Error(`Vendor operating profile returned ${response.status()} without submitted status.`);
