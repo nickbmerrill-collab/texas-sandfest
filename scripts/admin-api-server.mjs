@@ -1906,6 +1906,27 @@ function adminPartnerFollowupAuditView(followup) {
   };
 }
 
+function adminPartnerBrandAssetAuditView(asset) {
+  if (!asset) return asset;
+  return {
+    id: asset.id,
+    applicationId: asset.applicationId,
+    kind: asset.kind,
+    label: asset.label,
+    sourceType: asset.sourceType,
+    contentType: asset.contentType,
+    sizeBytes: asset.sizeBytes,
+    status: asset.status,
+    checksumPresent: Boolean(asset.checksumSha256),
+    reviewNotesLength: String(asset.reviewNotes || "").length,
+    reviewedAt: asset.reviewedAt || null,
+    reviewedBy: asset.reviewedBy || null,
+    createdBy: asset.createdBy || null,
+    createdAt: asset.createdAt || null,
+    updatedAt: asset.updatedAt || null
+  };
+}
+
 function adminPartnerTaskView(task, followups = []) {
   if (!task) return task;
   const { lastAssignmentNoticeRequestId, ...safe } = task;
@@ -8885,7 +8906,13 @@ async function handleRequest(request, response) {
         sendJson(request, response, result?.error === "Brand asset not found." ? 404 : 400, { error: result?.error || "Brand asset review could not be saved." });
         return;
       }
-      await writeAuditRecord(request, `partner.brand_asset.${result.asset.status}`, { type: "brand_asset", id: assetId }, before, result.asset);
+      await writeAuditRecord(
+        request,
+        `partner.brand_asset.${result.asset.status}`,
+        { type: "brand_asset", id: assetId },
+        adminPartnerBrandAssetAuditView(before),
+        adminPartnerBrandAssetAuditView(result.asset)
+      );
       sendJson(request, response, 200, { asset: result.asset, followup: result.followup, notificationDrafted: result.followupChanged });
       return;
     }

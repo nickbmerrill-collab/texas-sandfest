@@ -9422,6 +9422,14 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
   const sponsorInvitationAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("outreach.sponsor_invitation."));
   const serializedSponsorInvitationAuditApi = JSON.stringify(sponsorInvitationAuditApi);
   ok("sponsor invitation audit is aggregate-only", sponsorInvitationAuditApi.some(item => item.record?.action === "outreach.sponsor_invitation.issue") && sponsorInvitationAuditApi.some(item => item.record?.action === "outreach.sponsor_invitation.copy") && sponsorInvitationAuditApi.some(item => item.record?.action === "outreach.sponsor_invitation.revoke") && !serializedSponsorInvitationAuditApi.includes("tsfi1.") && !serializedSponsorInvitationAuditApi.includes("morgan@api-coastal-bank.example"));
+  const sponsorBrandAssetAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("partner.brand_asset."));
+  const serializedSponsorBrandAssetAuditApi = JSON.stringify(sponsorBrandAssetAuditApi);
+  ok("sponsor brand asset audit omits private storage metadata", sponsorBrandAssetAuditApi.some(item => item.record?.action === "partner.brand_asset.changes_requested")
+    && sponsorBrandAssetAuditApi.some(item => item.record?.action === "partner.brand_asset.approved")
+    && sponsorBrandAssetAuditApi.every(item => item.record?.after?.checksumPresent === true)
+    && !serializedSponsorBrandAssetAuditApi.includes("storageKey")
+    && !serializedSponsorBrandAssetAuditApi.includes("checksumSha256")
+    && !serializedSponsorBrandAssetAuditApi.includes("platform-brand-logo.png"));
   ok("operations export downloads are audited", auditApi.data.audit?.filter(item => item.record?.action === "operations.export.download").length >= 9);
   ok("new admin audit records use current event context", auditApi.data.audit?.filter(item => item.record?.createdAt?.startsWith(new Date().toISOString().slice(0, 10))).every(item => item.record?.eventId === DEFAULT_EVENT_ID));
 } finally {
