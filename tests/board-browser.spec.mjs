@@ -2196,7 +2196,15 @@ test("Guest Services moves a visitor request through staff response and private 
   const internalNote = `Verified the claim tag before release ${runId}.`;
 
   await page.setViewportSize({ width: 390, height: 844 });
+  const readinessResponsePromise = page.waitForResponse(response => new URL(response.url()).pathname === "/api/public/guest-services"
+    && response.request().method() === "GET");
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#guest-services`);
+  const readinessResponse = await readinessResponsePromise;
+  const readiness = await readinessResponse.json();
+  expect(readinessResponse.status()).toBe(200);
+  expect(readiness).toMatchObject({ eventId: DEFAULT_EVENT_ID, available: true, consentVersion: "guest-services-intake-v1" });
+  expect(readiness.categories).toHaveLength(6);
+  expect(JSON.stringify(readiness)).not.toMatch(/defaultTeam|defaultPriority|secret/i);
   await expect(page.locator("#guest-services")).toHaveAttribute("aria-busy", "false");
   const form = page.locator("#guest-services-form");
   await expect(form.locator('[name="category"] option[value]:not([value=""])')).toHaveCount(6);
@@ -2269,6 +2277,28 @@ test("Guest Services moves a visitor request through staff response and private 
   await expect(page.locator("#guest-services-status-result [data-status]")).toHaveText("In progress");
   await expect(page.locator("#guest-services-status-result")).toContainText(publicUpdate);
   await expect(page.locator("#guest-services-status-result")).not.toContainText(internalNote);
+  await assertNoHorizontalOverflow(page);
+});
+
+test("Guest Services intake fails closed when server readiness is unavailable", async ({ page }) => {
+  await page.route("**/api/public/guest-services", async route => {
+    if (route.request().method() !== "GET") return route.continue();
+    await route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "temporarily unavailable" })
+    });
+  });
+  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#guest-services`);
+  const section = page.locator("#guest-services");
+  await expect(section).toHaveAttribute("aria-busy", "false");
+  const form = page.locator("#guest-services-form");
+  await expect(form).toHaveAttribute("data-public-intake-state", "unavailable");
+  await expect(form.locator('[name="category"]')).toBeDisabled();
+  await expect(form.locator('button[type="submit"]')).toBeDisabled();
+  await expect(form.locator('button[type="submit"]')).toHaveText("Guest Services unavailable");
+  await expect(form.locator(".partner-form-status")).toContainText("Call Guest Services for help");
+  await expect(page.locator('#guest-services-status-form button[type="submit"]')).toBeEnabled();
   await assertNoHorizontalOverflow(page);
 });
 

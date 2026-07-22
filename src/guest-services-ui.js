@@ -48,7 +48,12 @@ function saved() {
   }
 }
 
-function markup({ eventPhone, intakeReady }) {
+function categoryOptions(categories = []) {
+  if (!categories.length) return '<option value="">Checking availability...</option>';
+  return `<option value="">Choose one</option>${categories.map(category => `<option value="${escapeAttr(category.id)}">${escapeHtml(category.label)}</option>`).join("")}`;
+}
+
+function markup({ eventPhone }) {
   const phone = String(eventPhone || "").replace(/[^\d+]/g, "");
   return `<div class="section-heading">
       <div><p class="eyebrow">Visitor support</p><h2>Guest Services</h2><p class="section-copy">Request help with a lost item, accessibility, tickets, a separated party, or another festival question.</p></div>
@@ -56,10 +61,10 @@ function markup({ eventPhone, intakeReady }) {
     </div>
     <p class="guest-services-emergency"><strong>For an immediate threat or medical emergency, call 911.</strong> Do not submit health information, payment details, government IDs, or passwords.</p>
     <div class="guest-services-layout">
-      <form id="guest-services-form" class="guest-services-form" data-turnstile-action="guest_services_request" data-public-intake-state="${intakeReady ? "ready" : "unavailable"}">
+      <form id="guest-services-form" class="guest-services-form" data-turnstile-action="guest_services_request" data-public-intake-state="checking">
         <div class="partner-form-title"><span>New request</span><h3>How can we help?</h3></div>
         <div class="guest-services-fields">
-          <label>Type of help<select name="category" required><option value="">Choose one</option><option value="lost_item">Lost item</option><option value="accessibility">Accessibility help</option><option value="ticketing">Ticket or entry help</option><option value="family_reunification">Separated party</option><option value="vendor_question">Vendor or food question</option><option value="general">General visitor help</option></select></label>
+          <label>Type of help<select name="category" required disabled>${categoryOptions()}</select></label>
           <label>Festival day<select name="festivalDay"><option value="">Not sure</option><option>Friday</option><option>Saturday</option><option>Sunday</option></select></label>
           <label class="guest-services-wide">Short summary<input name="title" required minlength="4" maxlength="140" /></label>
           <label class="guest-services-wide">Details<textarea name="details" required minlength="10" maxlength="2000" rows="4"></textarea></label>
@@ -72,7 +77,7 @@ function markup({ eventPhone, intakeReady }) {
         <p class="partner-data-use-note">Texas SandFest uses these details only to respond to and operate this Guest Services request. The private status capability is not included in staff exports or public pages.</p>
         <label class="partner-consent"><input name="consentToContact" type="checkbox" required /><span>I agree that Texas SandFest may store these details and contact me about this request.</span></label>
         <div class="partner-verification" data-turnstile-verification hidden><div data-turnstile-widget></div></div>
-        <button class="button primary" type="submit" ${intakeReady ? "" : "disabled"}>${intakeReady ? "Send request" : "Guest Services unavailable"}</button>
+        <button class="button primary" type="submit" disabled>Checking availability...</button>
         <p class="partner-form-status" aria-live="polite"></p>
       </form>
       <div class="guest-services-status-panel">
@@ -94,6 +99,39 @@ export function createGuestServicesUi({ apiBase, eventPhone, intakeReady, turnst
   if (!root) return { mount: () => {}, loadStatus: () => null };
   let botProtection = { enabled: false, tokenFor: () => "", reset: () => {} };
   let botPromise = null;
+  let intakeAvailable = false;
+
+  function applyReadiness(payload = {}) {
+    const form = root.querySelector("#guest-services-form");
+    const select = form.querySelector('[name="category"]');
+    const button = form.querySelector('button[type="submit"]');
+    const status = form.querySelector(".partner-form-status");
+    const categories = Array.isArray(payload.categories)
+      ? payload.categories.filter(category => category?.id && category?.label).slice(0, 20)
+      : [];
+    intakeAvailable = intakeReady === true && payload.available === true && categories.length > 0;
+    form.dataset.publicIntakeState = intakeAvailable ? "ready" : "unavailable";
+    select.innerHTML = categoryOptions(categories);
+    select.disabled = !intakeAvailable;
+    button.disabled = !intakeAvailable;
+    button.textContent = intakeAvailable ? "Send request" : "Guest Services unavailable";
+    setStatus(status, intakeAvailable ? "" : "Online requests are temporarily unavailable. Call Guest Services for help.", intakeAvailable ? "idle" : "error");
+  }
+
+  async function loadReadiness() {
+    try {
+      const response = await requestWithTimeout(`${apiBase()}/api/public/guest-services`, { cache: "no-store" }, 10_000);
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error("Guest Services availability could not be confirmed.");
+      applyReadiness(payload);
+      return payload;
+    } catch {
+      applyReadiness();
+      return null;
+    } finally {
+      root.setAttribute("aria-busy", "false");
+    }
+  }
 
   async function ensureBotProtection() {
     if (!turnstileSiteKey) return;
@@ -139,6 +177,10 @@ export function createGuestServicesUi({ apiBase, eventPhone, intakeReady, turnst
   async function submit(form) {
     const status = form.querySelector(".partner-form-status");
     const button = form.querySelector('button[type="submit"]');
+    if (!intakeAvailable) {
+      setStatus(status, "Online requests are temporarily unavailable. Call Guest Services for help.", "error");
+      return;
+    }
     await ensureBotProtection();
     const payload = Object.fromEntries(new FormData(form).entries());
     payload.consentToContact = form.elements.consentToContact.checked === true;
@@ -164,7 +206,7 @@ export function createGuestServicesUi({ apiBase, eventPhone, intakeReady, turnst
       setStatus(status, friendlyError(error, "Guest Services request could not be sent."), "error");
       botProtection.reset(form);
     } finally {
-      button.disabled = !intakeReady;
+      button.disabled = !intakeAvailable;
     }
   }
 
@@ -178,8 +220,8 @@ export function createGuestServicesUi({ apiBase, eventPhone, intakeReady, turnst
   }
 
   function mount() {
-    root.innerHTML = markup({ eventPhone, intakeReady });
-    root.setAttribute("aria-busy", "false");
+    root.innerHTML = markup({ eventPhone });
+    root.setAttribute("aria-busy", "true");
     const intake = root.querySelector("#guest-services-form");
     intake.addEventListener("submit", event => { event.preventDefault(); void submit(intake); });
     if (turnstileSiteKey) {
@@ -194,6 +236,7 @@ export function createGuestServicesUi({ apiBase, eventPhone, intakeReady, turnst
     root.querySelector("#guest-services-forget").addEventListener("click", forget);
     const existing = saved();
     if (existing) void loadStatus(existing).catch(() => null);
+    return loadReadiness();
   }
 
   return { loadStatus, mount };

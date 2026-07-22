@@ -8,6 +8,7 @@ import {
   verifyProductionApi,
   verifyLiveDeployment
 } from "../lib/deployment-verifier.mjs";
+import { publicGuestServicesReadiness } from "../lib/guest-services.mjs";
 import { sandfestAppleAppSiteAssociation } from "../lib/public-deep-links.mjs";
 
 let passed = 0;
@@ -113,6 +114,7 @@ const routes = new Map([
   [new URL("api/public/tickets", config.apiUrl).toString(), () => jsonResponse({ products: [{ availableForCheckout: true }] })],
   [new URL("api/public/sponsors", config.apiUrl).toString(), () => jsonResponse({ sponsorPackages: [{ id: "whale", name: "Whale", amount: 2500000, currency: "usd", publicLabel: "$25k+", active: true, requiresApproval: true, benefits: ["Main-stage recognition"] }] })],
   [new URL("api/public/vendors", config.apiUrl).toString(), () => jsonResponse({ vendorOfferings: [{ id: "food" }] })],
+  [new URL("api/public/guest-services", config.apiUrl).toString(), () => jsonResponse(publicGuestServicesReadiness({ eventId: "texas-sandfest-2027", available: true }))],
   [new URL("api/public/island-conditions", config.apiUrl).toString(), () => jsonResponse(liveConditionsBody)],
   [new URL("api/public/concierge", config.apiUrl).toString(), () => jsonResponse({
     answer: "Current ticket options are available in the Tickets section.",
@@ -210,6 +212,21 @@ const unsafeConciergeFetch = async (url, options = {}) => {
 const unsafeConcierge = await verifyLiveDeployment({ config, artifacts, fetchImpl: unsafeConciergeFetch });
 check("public concierge private fields fail closed", !unsafeConcierge.ok
   && unsafeConcierge.checks.some(item => item.id === "api.public_concierge" && !item.ok));
+
+const unsafeGuestServicesFetch = async (url, options = {}) => {
+  if (String(url) === new URL("api/public/guest-services", config.apiUrl).toString()) {
+    return jsonResponse({
+      ...publicGuestServicesReadiness({ eventId: "texas-sandfest-2027", available: true }),
+      secretReady: true,
+      categories: [{ id: "lost_item", label: "Lost item", defaultTeam: "guest-services" }]
+    });
+  }
+  return fetchImpl(url, options);
+};
+const unsafeGuestServices = await verifyLiveDeployment({ config, artifacts, fetchImpl: unsafeGuestServicesFetch });
+check("Guest Services readiness rejects private routing and secret state", !unsafeGuestServices.ok
+  && unsafeGuestServices.checks.some(item => item.id === "api.guest_services_intake" && !item.ok)
+  && unsafeGuestServices.checks.some(item => item.id === "api.guest_services_privacy" && !item.ok));
 
 const staleConditionsFetch = async (url, options = {}) => {
   if (String(url) === new URL("api/public/island-conditions", config.apiUrl).toString()) {

@@ -553,6 +553,7 @@ try {
     && calendarExport.contentType.startsWith("text/calendar")
     && calendarExport.body.toString("utf8").includes("BEGIN:VEVENT"));
 
+  const guestServicesReadiness = await request(base, "GET", "/api/public/guest-services");
   const seededGuestServices = await request(base, "GET", "/api/admin/guest-services", undefined, { auth: true });
   const guestServicesInput = {
     category: "lost_item",
@@ -582,6 +583,7 @@ try {
   const guestStatus = await request(base, "POST", "/api/public/guest-services/status", guestRequest.data.access);
   const guestAdminAfter = await request(base, "GET", "/api/admin/guest-services", undefined, { auth: true });
   const adminGuestRecord = guestAdminAfter.data.cases?.find(item => item.id === newGuestCaseId);
+  check("board Guest Services readiness is server-authoritative and privacy-safe", guestServicesReadiness.status === 200 && guestServicesReadiness.data.available === true && guestServicesReadiness.data.categories?.length === 6 && guestServicesReadiness.data.eventId === "texas-sandfest-2027" && !JSON.stringify(guestServicesReadiness.data).includes("defaultTeam") && !JSON.stringify(guestServicesReadiness.data).includes("secret"));
   check("board Guest Services seed shows active, urgent, and resolved work", seededGuestServices.status === 200 && seededGuestServices.data.summary?.total === 3 && seededGuestServices.data.summary?.active === 2 && seededGuestServices.data.summary?.resolved === 1 && !JSON.stringify(seededGuestServices.data).includes("accessTokenHash"));
   check("public Guest Services intake is private and replay safe", guestRequest.status === 201 && replayedGuestRequest.status === 200 && replayedGuestRequest.data.replay === true && replayedGuestRequest.data.access?.token === guestRequest.data.access?.token && deniedGuestStatus.status === 404 && !Object.hasOwn(guestRequest.data.request || {}, "contact") && !Object.hasOwn(guestRequest.data.request || {}, "details"));
   check("staff Guest Services updates require permission and close the visitor loop", unauthenticatedGuestUpdate.status === 401 && updatedGuestCase.status === 200 && guestStatus.status === 200 && guestStatus.data.request?.status === "in_progress" && guestStatus.data.request?.updates?.at(-1)?.message.includes("South Gate") && !JSON.stringify(guestStatus.data).includes("board-demo note") && adminGuestRecord?.contact?.email === "morgan.visitor@example.com" && !Object.hasOwn(adminGuestRecord || {}, "accessTokenHash") && !Object.hasOwn(adminGuestRecord || {}, "idempotencyKeyHash"));

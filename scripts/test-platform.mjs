@@ -29,6 +29,8 @@ import {
   findGuestServicesCase,
   guestServicesDashboard,
   publicGuestServicesCase,
+  publicGuestServicesReadiness,
+  publicGuestServicesReadinessSafety,
   updateGuestServicesCase
 } from "../lib/guest-services.mjs";
 import {
@@ -1759,9 +1761,13 @@ console.log("\n=== Pure library suite ===\n");
   }, { eventId: DEFAULT_EVENT_ID, actorId: "staff-test", idFactory: prefix => `${prefix}_${++sequence}`, now: "2026-07-22T12:05:00.000Z" });
   const publicView = publicGuestServicesCase(updated.case);
   const dashboard = guestServicesDashboard(updated.doc, { eventId: DEFAULT_EVENT_ID });
+  const readiness = publicGuestServicesReadiness({ eventId: DEFAULT_EVENT_ID, available: true });
+  const readinessSafety = publicGuestServicesReadinessSafety(readiness, { eventId: DEFAULT_EVENT_ID });
+  const unsafeReadiness = publicGuestServicesReadinessSafety({ ...readiness, secretReady: true }, { eventId: DEFAULT_EVENT_ID });
   ok("Guest Services intake is idempotent and rejects changed replay details", created.ok && !created.replay && replay.ok && replay.replay && conflict.conflict);
   ok("Guest Services capability grants only the matching private request", access.ok && !denied.ok && access.case.id === created.case.id);
   ok("Guest Services public status excludes contact, details, secrets, and internal notes", publicView.status === "in_progress" && publicView.updates.length === 2 && publicView.updates.at(-1).message.includes("pickup location") && !Object.hasOwn(publicView, "contact") && !Object.hasOwn(publicView, "details") && !JSON.stringify(publicView).includes("North Gate captain") && !JSON.stringify(publicView).includes("casey@example.com") && !JSON.stringify(publicView).includes("accessTokenHash"));
+  ok("Guest Services publishes a bounded privacy-safe readiness contract", readiness.available && readiness.categories.length === 6 && readinessSafety.ready && !unsafeReadiness.ready && !JSON.stringify(readiness).includes("defaultTeam"));
   ok("Guest Services dashboard prioritizes current operational work", dashboard.summary.active === 1 && dashboard.summary.resolved === 0 && dashboard.cases[0].priority === "high");
 }
 
@@ -6452,11 +6458,18 @@ try {
   ok("ordinary development API hides presentation reset", health.data.boardDemoResetReady === false && unavailableBoardReset.status === 404);
   ok("ordinary development API hides board SMS preference simulation", unavailableBoardSmsPreference.status === 404);
   const readiness = await hit("GET", "/ready");
+  const publicGuestServicesReadinessApi = await hitRaw("GET", "/api/public/guest-services");
   const deployment = await hit("GET", "/api/admin/deployment", null, true);
   const unauthenticatedAppBootstrap = await hit("GET", "/api/admin/app-bootstrap");
   const appBootstrap = await hit("GET", "/api/admin/app-bootstrap", null, true);
   const queueStatus = await hit("GET", "/api/admin/jobs?limit=12", null, true);
   ok("GET /ready queue health", readiness.status === 200 && readiness.data.checks?.queue === true && readiness.data.checks?.queueStatus?.staleRunning === 0);
+  ok("public Guest Services readiness is current and privacy-safe", publicGuestServicesReadinessApi.status === 200
+    && publicGuestServicesReadinessApi.data.eventId === DEFAULT_EVENT_ID
+    && publicGuestServicesReadinessApi.data.available === true
+    && publicGuestServicesReadinessApi.data.categories?.length === 6
+    && publicGuestServicesReadinessSafety(publicGuestServicesReadinessApi.data, { eventId: DEFAULT_EVENT_ID }).ready
+    && publicGuestServicesReadinessApi.headers.get("cache-control") === "no-store");
   ok("deployment exposes data plane gate", deployment.status === 200 && deployment.data.deployment?.checks?.dataPlane?.ok === true);
   ok("native admin bootstrap requires authentication", unauthenticatedAppBootstrap.status === 401);
   ok("native admin bootstrap exposes privacy-minimized operating lanes", appBootstrap.status === 200
@@ -6502,6 +6515,7 @@ try {
     && deploymentGroups.reduce((total, group) => total + group.total, 0) === deploymentChecks.length
     && deploymentGroups.every(group => group.group && group.passing + group.warnings + group.errors === group.total));
   ok("deployment exposes configured outreach discovery gate", deployment.data.deployment?.checks?.outreachDiscovery?.ok === true && deployment.data.deployment?.checks?.outreachDiscovery?.message.includes("fixture"));
+  ok("deployment exposes server-authoritative Guest Services readiness", deployment.data.deployment?.checks?.guestServices?.ok === true && deployment.data.deployment?.checks?.guestServices?.message.includes("private request capabilities"));
   ok("deployment exposes sponsor package integrity gate", deployment.data.deployment?.checks?.sponsorPackages?.ok === true && deployment.data.deployment?.checks?.sponsorPackages?.message.includes("source-reviewed and published"));
   ok("admin queue health summary", queueStatus.status === 200 && queueStatus.data.summary?.operational === true && Array.isArray(queueStatus.data.jobs));
   if (child) {
@@ -6923,6 +6937,7 @@ try {
       ok("production requires artifact-bound camera model approval", data.deployment?.checks?.cameraModelApproval?.ok === true && data.deployment?.checks?.cameraModelApproval?.message.includes(productionModelSha256.slice(0, 12)));
       ok("production ingest rejects detector bytes outside the approval", mismatchedModelResponse.status === 409 && mismatchedModel.reason === "camera_model_checksum_mismatch");
       ok("production requires partner intake bot verification", data.deployment?.checks?.partnerIntakeBotProtection?.ok === false && data.deployment?.checks?.partnerIntakeBotProtection?.severity === "error");
+      ok("production requires Guest Services capability and bot verification", data.deployment?.checks?.guestServices?.ok === false && data.deployment?.checks?.guestServices?.severity === "error");
       ok("production requires current recovery evidence", data.deployment?.checks?.backupRecovery?.ok === false && data.deployment?.checks?.backupRecovery?.severity === "error");
       ok("production rejects disabled launch work automation", data.deployment?.checks?.deploymentTaskSync?.ok === false && data.deployment?.checks?.deploymentTaskSync?.severity === "error" && data.deployment?.automation?.deploymentTaskSync?.enabled === false);
       ok("production rejects unreadable sponsor package config", data.deployment?.checks?.sponsorPackages?.ok === false && data.deployment?.checks?.sponsorPackages?.severity === "error");
