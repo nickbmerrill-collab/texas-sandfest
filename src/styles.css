@@ -2203,6 +2203,10 @@ time {
   padding: 24px 0;
 }
 
+.admin-document-panel > * {
+  min-width: 0;
+}
+
 .admin-document-heading {
   align-items: end;
   display: flex;
@@ -2300,6 +2304,12 @@ time {
 .admin-document-list {
   display: grid;
   gap: 12px;
+}
+
+@media (min-width: 921px) and (max-width: 1200px) {
+  .admin-document-upload {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .admin-document-row {
