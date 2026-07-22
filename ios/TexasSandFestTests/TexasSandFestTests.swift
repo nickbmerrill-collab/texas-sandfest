@@ -156,6 +156,101 @@ final class UserTicketsStoreTests: XCTestCase {
     }
 }
 
+final class FleetStoreTests: XCTestCase {
+    @MainActor
+    func testAuthenticatedRefreshAndCheckoutApplyServerFleetTruth() async throws {
+        var availableAsset = try XCTUnwrap(FleetSampleData.assets.first(where: { $0.id == "cart-02" }))
+        let dashboard = FleetDashboardPayload(
+            lastUpdated: "2026-07-22T01:00:00.000Z",
+            eventId: SampleData.guide.id,
+            summary: FleetSummary(
+                totals: FleetTotals(
+                    assets: 1,
+                    available: 1,
+                    checkedOut: 0,
+                    maintenance: 0,
+                    openCheckouts: 0,
+                    withTracker: 1,
+                    withLiveLocation: 0,
+                    rentalCostCents: 45_000,
+                    damageReports: 0
+                ),
+                byStatus: ["available": 1],
+                byType: ["golf_cart": 1],
+                teams: [:]
+            ),
+            assets: [availableAsset],
+            openCheckouts: []
+        )
+        let dashboardData = try JSONEncoder().encode(dashboard)
+        availableAsset.status = "checked_out"
+        availableAsset.activeCheckout = FleetCheckout(
+            id: "checkout-live",
+            assetId: availableAsset.id,
+            checkedOutTo: "Board Runner",
+            team: "site-ops",
+            method: "ios_scan"
+        )
+        let mutationData = try JSONEncoder().encode(FleetMutationTestPayload(asset: availableAsset))
+        let recorder = AppDataRequestRecorder()
+        let store = FleetStore(
+            seed: [],
+            transport: AppDataTransport { request in
+                await recorder.record(request)
+                if request.httpMethod == "POST" {
+                    return AppDataHTTPResponse(data: mutationData, statusCode: 200)
+                }
+                return AppDataHTTPResponse(data: dashboardData, statusCode: 200)
+            }
+        )
+        var refreshRequest = URLRequest(url: try XCTUnwrap(URL(string: "http://127.0.0.1:8806/api/admin/fleet")))
+        refreshRequest.setValue("Bearer local-board-secret", forHTTPHeaderField: "Authorization")
+
+        await store.refreshFromAPI(request: refreshRequest)
+
+        XCTAssertEqual(store.source, "Live board fleet")
+        XCTAssertEqual(store.assets.map(\.id), ["cart-02"])
+        var checkoutRequest = refreshRequest
+        checkoutRequest.httpMethod = "POST"
+        let error = await store.postCheckout(
+            assetId: "cart-02",
+            checkedOutTo: "Board Runner",
+            team: "site-ops",
+            startChargePct: 92,
+            request: checkoutRequest
+        )
+
+        XCTAssertNil(error)
+        XCTAssertEqual(store.assets.first?.activeCheckout?.checkedOutTo, "Board Runner")
+        let requests = await recorder.values()
+        XCTAssertEqual(requests.map(\.method), ["GET", "POST"])
+        XCTAssertTrue(requests.allSatisfy { $0.authorization == "Bearer local-board-secret" })
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: requests[1].body) as? [String: Any])
+        XCTAssertEqual(body["assetId"] as? String, "cart-02")
+        XCTAssertEqual(body["startChargePct"] as? Int, 92)
+    }
+
+    @MainActor
+    func testMissingBoardSessionNeverMutatesFleetLocally() async throws {
+        let original = try XCTUnwrap(FleetSampleData.assets.first(where: { $0.id == "cart-02" }))
+        let store = FleetStore(seed: [original])
+
+        await store.refreshFromAPI(request: nil)
+        let error = await store.postCheckout(
+            assetId: original.id,
+            checkedOutTo: "Should Not Persist",
+            team: "site-ops",
+            startChargePct: 100,
+            request: nil
+        )
+
+        XCTAssertEqual(store.source, "Sample seed - board session required")
+        XCTAssertEqual(store.lastError, "Authenticated board Fleet access is unavailable.")
+        XCTAssertEqual(store.assets.first?.status, "available")
+        XCTAssertTrue(error?.contains("no fleet state was changed") == true)
+    }
+}
+
 final class AppDataStoreTests: XCTestCase {
     @MainActor
     func testLiveBootstrapPersistsAndRestoresOnlyForMatchingAPIOrigin() async throws {
@@ -433,6 +528,12 @@ final class AppDataStoreTests: XCTestCase {
         XCTAssertEqual(store.payload.coverage.first?.filled, 18)
         XCTAssertEqual(store.payload.financeSignals.map(\.id), ["quickbooks", "receivables", "revenue", "budget"])
 
+        let fleetRequest = try XCTUnwrap(store.makeBoardAdminRequest(path: "/api/admin/fleet"))
+        XCTAssertEqual(fleetRequest.url?.absoluteString, "http://127.0.0.1:8806/api/admin/fleet")
+        XCTAssertEqual(fleetRequest.httpMethod, "GET")
+        XCTAssertEqual(fleetRequest.value(forHTTPHeaderField: "Authorization"), "Bearer local-board-secret")
+        XCTAssertNil(store.makeBoardAdminRequest(path: "/api/public/bootstrap"))
+
         let requests = await recorder.values()
         XCTAssertEqual(requests.map(\.path), ["/api/public/bootstrap", "/api/admin/app-bootstrap"])
         XCTAssertNil(requests[0].authorization)
@@ -466,6 +567,7 @@ final class AppDataStoreTests: XCTestCase {
         let requests = await recorder.values()
         XCTAssertEqual(store.staffAccessMode, .visitorOnly)
         XCTAssertEqual(store.adminSource, "Bundled admin demo")
+        XCTAssertNil(store.makeBoardAdminRequest(path: "/api/admin/fleet"))
         XCTAssertEqual(requests.map(\.path), ["/api/public/bootstrap"])
         XCTAssertTrue(requests.allSatisfy { $0.authorization == nil })
     }
@@ -673,7 +775,9 @@ private actor ConciergeRequestRecorder {
 
 private struct AppDataRequestSnapshot: Sendable {
     let path: String
+    let method: String
     let authorization: String?
+    let body: Data
 }
 
 private actor AppDataRequestRecorder {
@@ -682,11 +786,17 @@ private actor AppDataRequestRecorder {
     func record(_ request: URLRequest) {
         snapshots.append(AppDataRequestSnapshot(
             path: request.url?.path ?? "",
-            authorization: request.value(forHTTPHeaderField: "Authorization")
+            method: request.httpMethod ?? "GET",
+            authorization: request.value(forHTTPHeaderField: "Authorization"),
+            body: request.httpBody ?? Data()
         ))
     }
 
     func values() -> [AppDataRequestSnapshot] {
         snapshots
     }
+}
+
+private struct FleetMutationTestPayload: Encodable {
+    let asset: FleetAsset
 }

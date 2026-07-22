@@ -94,6 +94,10 @@ struct FleetDashboardPayload: Codable {
     var openCheckouts: [FleetCheckout]
 }
 
+private struct FleetMutationPayload: Decodable {
+    let asset: FleetAsset?
+}
+
 // MARK: - Sample seed (offline / no API)
 
 enum FleetSampleData {
@@ -203,10 +207,15 @@ final class FleetStore: ObservableObject {
     @Published private(set) var assets: [FleetAsset]
     @Published private(set) var source: String
     @Published var lastError: String?
+    private let transport: AppDataTransport
 
-    init(seed: [FleetAsset] = FleetSampleData.assets) {
+    init(
+        seed: [FleetAsset] = FleetSampleData.assets,
+        transport: AppDataTransport = .live
+    ) {
         assets = seed
         source = "Sample seed"
+        self.transport = transport
     }
 
     var availableCount: Int { assets.filter(\.isAvailable).count }
@@ -217,98 +226,28 @@ final class FleetStore: ObservableObject {
         assets.first { $0.id == id }
     }
 
-    func applyLocalCheckout(
-        assetId: String,
-        checkedOutTo: String,
-        team: String,
-        startChargePct: Int?,
-        method: String
-    ) -> String? {
-        guard let idx = assets.firstIndex(where: { $0.id == assetId }) else {
-            return "Asset not found: \(assetId)"
-        }
-        var asset = assets[idx]
-        if asset.isMaintenance { return "Asset is in maintenance." }
-        if asset.isCheckedOut { return "Asset is already checked out." }
-        let trimmed = checkedOutTo.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty { return "Name / callsign is required." }
-
-        let checkout = FleetCheckout(
-            id: "co_local_\(UUID().uuidString.prefix(8))",
-            assetId: assetId,
-            checkedOutTo: trimmed,
-            team: team.trimmingCharacters(in: .whitespacesAndNewlines),
-            checkOutAt: ISO8601DateFormatter().string(from: Date()),
-            startCondition: asset.condition,
-            startChargePct: startChargePct,
-            method: method
-        )
-        asset.status = "checked_out"
-        asset.activeCheckout = checkout
-        assets[idx] = asset
-        source = "Local (offline)"
-        return nil
-    }
-
-    func applyLocalCheckin(
-        assetId: String,
-        endChargePct: Int?,
-        damageReport: String?,
-        method: String
-    ) -> String? {
-        guard let idx = assets.firstIndex(where: { $0.id == assetId }) else {
-            return "Asset not found: \(assetId)"
-        }
-        var asset = assets[idx]
-        guard asset.activeCheckout != nil || asset.isCheckedOut else {
-            return "No open checkout for \(assetId)."
-        }
-        let damaged = !(damageReport ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        asset.status = damaged ? "maintenance" : "available"
-        if damaged { asset.condition = "damaged" }
-        asset.activeCheckout = nil
-        assets[idx] = asset
-        source = "Local (offline)"
-        return nil
-    }
-
     func replace(with remote: [FleetAsset], source label: String) {
         assets = remote
         source = label
         lastError = nil
     }
 
-    func refreshFromAPI(token: String? = nil) async {
-        let base = AppDataStore.apiBase
-        var request = URLRequest(url: base.appending(path: "/api/admin/fleet"))
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        if let token, !token.isEmpty {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        } else if let env = ProcessInfo.processInfo.environment["SANDFEST_ADMIN_API_TOKEN"] {
-            request.setValue("Bearer \(env)", forHTTPHeaderField: "Authorization")
+    func refreshFromAPI(request: URLRequest?) async {
+        guard let request else {
+            source = "Sample seed - board session required"
+            lastError = "Authenticated board Fleet access is unavailable."
+            return
         }
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let http = response as? HTTPURLResponse else {
-                lastError = "No response"
+            let response = try await transport.load(request)
+            guard response.statusCode == 200 else {
+                lastError = "Fleet API \(response.statusCode)"
                 return
             }
-            if http.statusCode == 401 || http.statusCode == 403 {
-                // Expected without a token — keep sample seed.
-                lastError = nil
-                source = "Sample seed (API auth required)"
-                return
-            }
-            guard http.statusCode == 200 else {
-                lastError = "Fleet API \(http.statusCode)"
-                return
-            }
-            let payload = try JSONDecoder().decode(FleetDashboardPayload.self, from: data)
-            replace(with: payload.assets, source: "Live API")
+            let payload = try JSONDecoder().decode(FleetDashboardPayload.self, from: response.data)
+            replace(with: payload.assets, source: "Live board fleet")
         } catch {
-            // Offline-first: keep seed, surface a soft note.
-            lastError = nil
-            source = "Sample seed (offline)"
+            lastError = "Fleet refresh failed. Existing fleet data was not changed."
         }
     }
 
@@ -317,7 +256,7 @@ final class FleetStore: ObservableObject {
         checkedOutTo: String,
         team: String,
         startChargePct: Int?,
-        token: String?
+        request: URLRequest?
     ) async -> String? {
         var body: [String: Any] = [
             "assetId": assetId,
@@ -326,28 +265,14 @@ final class FleetStore: ObservableObject {
             "method": "ios_scan"
         ]
         if let startChargePct { body["startChargePct"] = startChargePct }
-        if let err = await postMutation(path: "/api/admin/fleet/checkout", body: body, token: token) {
-            // Fall back to local so ops still works on the beach.
-            if let local = applyLocalCheckout(
-                assetId: assetId,
-                checkedOutTo: checkedOutTo,
-                team: team,
-                startChargePct: startChargePct,
-                method: "ios_scan"
-            ) {
-                return "\(err) · local: \(local)"
-            }
-            return "\(err) — recorded offline."
-        }
-        await refreshFromAPI(token: token)
-        return nil
+        return await postMutation(request: request, body: body)
     }
 
     func postCheckin(
         assetId: String,
         endChargePct: Int?,
         damageReport: String?,
-        token: String?
+        request: URLRequest?
     ) async -> String? {
         let damaged = !(damageReport ?? "").isEmpty
         var body: [String: Any] = [
@@ -357,43 +282,38 @@ final class FleetStore: ObservableObject {
         ]
         if let endChargePct { body["endChargePct"] = endChargePct }
         if let damageReport, !damageReport.isEmpty { body["damageReport"] = damageReport }
-        if let err = await postMutation(path: "/api/admin/fleet/checkin", body: body, token: token) {
-            if let local = applyLocalCheckin(
-                assetId: assetId,
-                endChargePct: endChargePct,
-                damageReport: damageReport,
-                method: "ios_scan"
-            ) {
-                return "\(err) · local: \(local)"
-            }
-            return "\(err) — recorded offline."
-        }
-        await refreshFromAPI(token: token)
-        return nil
+        return await postMutation(request: request, body: body)
     }
 
-    private func postMutation(path: String, body: [String: Any], token: String?) async -> String? {
-        let base = AppDataStore.apiBase
-        var request = URLRequest(url: base.appending(path: path))
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let auth = token
-            ?? ProcessInfo.processInfo.environment["SANDFEST_ADMIN_API_TOKEN"]
-        if let auth, !auth.isEmpty {
-            request.setValue("Bearer \(auth)", forHTTPHeaderField: "Authorization")
+    private func postMutation(request inputRequest: URLRequest?, body: [String: Any]) async -> String? {
+        guard var request = inputRequest else {
+            return "Authenticated board Fleet access is unavailable; no fleet state was changed."
         }
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let http = response as? HTTPURLResponse else { return "No response" }
-            if http.statusCode == 200 { return nil }
-            if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let response = try await transport.load(request)
+            if response.statusCode == 200 {
+                let payload = try JSONDecoder().decode(FleetMutationPayload.self, from: response.data)
+                guard let asset = payload.asset else {
+                    return "Fleet API returned no updated asset; fleet state was not changed locally."
+                }
+                if let index = assets.firstIndex(where: { $0.id == asset.id }) {
+                    assets[index] = asset
+                } else {
+                    assets.append(asset)
+                }
+                source = "Live board fleet"
+                lastError = nil
+                return nil
+            }
+            if let obj = try? JSONSerialization.jsonObject(with: response.data) as? [String: Any],
                let error = obj["error"] as? String {
                 return error
             }
-            return "HTTP \(http.statusCode)"
+            return "Fleet API \(response.statusCode); no fleet state was changed."
         } catch {
-            return error.localizedDescription
+            return "Fleet request failed; no fleet state was changed."
         }
     }
 }
@@ -401,6 +321,7 @@ final class FleetStore: ObservableObject {
 // MARK: - Fleet ops screen
 
 struct FleetView: View {
+    @EnvironmentObject private var dataStore: AppDataStore
     @StateObject private var store = FleetStore()
     @State private var filter: FleetFilter = .all
     @State private var scanning = false
@@ -423,11 +344,20 @@ struct FleetView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    Label(store.source, systemImage: store.source == "Live board fleet" ? "checkmark.circle.fill" : "externaldrive")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(store.source == "Live board fleet" ? Color.sandFestGulf : .secondary)
                     kpiHeader
                     if let statusNote {
                         Text(statusNote)
                             .font(.footnote)
                             .foregroundStyle(.secondary)
+                            .padding(.horizontal, 4)
+                    }
+                    if let lastError = store.lastError {
+                        Label(lastError, systemImage: "exclamationmark.triangle.fill")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(Color.sandFestCoral)
                             .padding(.horizontal, 4)
                     }
                     filterChips
@@ -448,14 +378,9 @@ struct FleetView: View {
             .background(Color.sandFestFoam.ignoresSafeArea())
             .navigationTitle("Fleet")
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Text(store.source)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button {
-                        Task { await store.refreshFromAPI() }
+                        Task { await refreshFleet() }
                     } label: {
                         Image(systemName: "arrow.clockwise")
                     }
@@ -483,6 +408,7 @@ struct FleetView: View {
                 FleetAssetSheet(
                     asset: asset,
                     mode: sheetMode,
+                    canManage: canManageFleet,
                     onCheckout: { name, team, charge in
                         Task {
                             let note = await store.postCheckout(
@@ -490,7 +416,10 @@ struct FleetView: View {
                                 checkedOutTo: name,
                                 team: team,
                                 startChargePct: charge,
-                                token: nil
+                                request: dataStore.makeBoardAdminRequest(
+                                    path: "/api/admin/fleet/checkout",
+                                    method: "POST"
+                                )
                             )
                             statusNote = note ?? "Checked out \(asset.label) to \(name)."
                             selected = nil
@@ -502,7 +431,10 @@ struct FleetView: View {
                                 assetId: asset.id,
                                 endChargePct: charge,
                                 damageReport: damage,
-                                token: nil
+                                request: dataStore.makeBoardAdminRequest(
+                                    path: "/api/admin/fleet/checkin",
+                                    method: "POST"
+                                )
                             )
                             statusNote = note ?? "Checked in \(asset.label)."
                             selected = nil
@@ -511,9 +443,22 @@ struct FleetView: View {
                 )
             }
             .task {
-                await store.refreshFromAPI()
+                await refreshFleet()
             }
         }
+    }
+
+    private func refreshFleet() async {
+        await store.refreshFromAPI(
+            request: dataStore.makeBoardAdminRequest(path: "/api/admin/fleet")
+        )
+    }
+
+    private var canManageFleet: Bool {
+        dataStore.makeBoardAdminRequest(
+            path: "/api/admin/fleet/checkout",
+            method: "POST"
+        ) != nil
     }
 
     private var kpiHeader: some View {
@@ -648,6 +593,7 @@ enum FleetSheetMode {
 struct FleetAssetSheet: View {
     let asset: FleetAsset
     var mode: FleetSheetMode
+    let canManage: Bool
     var onCheckout: (String, String, Int?) -> Void
     var onCheckin: (Int?, String?) -> Void
 
@@ -662,11 +608,13 @@ struct FleetAssetSheet: View {
     init(
         asset: FleetAsset,
         mode: FleetSheetMode,
+        canManage: Bool,
         onCheckout: @escaping (String, String, Int?) -> Void,
         onCheckin: @escaping (Int?, String?) -> Void
     ) {
         self.asset = asset
         self.mode = mode
+        self.canManage = canManage
         self.onCheckout = onCheckout
         self.onCheckin = onCheckin
         _localMode = State(initialValue: mode)
@@ -702,6 +650,13 @@ struct FleetAssetSheet: View {
                     }
                 }
 
+                if !canManage {
+                    Section {
+                        Label("Authenticated board Fleet access is unavailable.", systemImage: "lock.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
                 if localMode == .checkout || (!asset.isCheckedOut && localMode == .detail) {
                     Section("Check out") {
                         TextField("Name / callsign", text: $name)
@@ -711,7 +666,7 @@ struct FleetAssetSheet: View {
                         Button("Check out") {
                             onCheckout(name, team, Int(startCharge))
                         }
-                        .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || asset.isCheckedOut || asset.isMaintenance)
+                        .disabled(!canManage || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || asset.isCheckedOut || asset.isMaintenance)
                     }
                 }
 
@@ -726,7 +681,7 @@ struct FleetAssetSheet: View {
                                 damage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : damage
                             )
                         }
-                        .disabled(!asset.isCheckedOut)
+                        .disabled(!canManage || !asset.isCheckedOut)
                     }
                 }
             }
@@ -739,8 +694,10 @@ struct FleetAssetSheet: View {
                 ToolbarItem(placement: .primaryAction) {
                     if asset.isCheckedOut {
                         Button("Check in") { localMode = .checkin }
+                            .disabled(!canManage)
                     } else if asset.isAvailable {
                         Button("Check out") { localMode = .checkout }
+                            .disabled(!canManage)
                     }
                 }
             }
@@ -751,4 +708,5 @@ struct FleetAssetSheet: View {
 
 #Preview {
     FleetView()
+        .environmentObject(AppDataStore())
 }
