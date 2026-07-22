@@ -339,6 +339,138 @@ final class AppDataStoreTests: XCTestCase {
     }
 
     @MainActor
+    func testBoardRuntimeLoadsAuthenticatedOperationsWithoutCachingPrivateData() async throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cacheURL = directory.appendingPathComponent("public-bootstrap.json")
+        let publicResponse = try encoded(publicPayload(
+            guide: guide(dateRange: SampleData.guide.dateRange),
+            schedule: [scheduleItem(id: "board-live")],
+            runtime: PublicRuntime(mode: "board_demo", label: "Synthetic board data")
+        ))
+        let adminResponse = Data(#"""
+        {
+          "eventId": "texas-sandfest-2027",
+          "partners": {
+            "taskSummary": { "active": 7, "overdue": 1, "blocked": 2, "unassigned": 0 },
+            "sponsors": [{
+              "id": "sponsor-live",
+              "name": "Live Sponsor",
+              "tier": "Marlin",
+              "expectedCents": 1500000,
+              "paidCents": 1000000,
+              "balanceCents": 500000,
+              "invoiceStatus": "approved",
+              "deliverablesTotal": 8,
+              "deliverablesComplete": 3,
+              "nextAction": "Approve stage banner"
+            }],
+            "vendors": [{
+              "id": "vendor-live",
+              "name": "Live Vendor",
+              "category": "food",
+              "readinessStatus": "blocked",
+              "missingRequirements": 2,
+              "boothNumber": null
+            }]
+          },
+          "volunteers": {
+            "coverage": [{ "id": "north", "zone": "North Gate", "filled": 18, "needed": 22 }]
+          },
+          "finance": {
+            "quickbooks": {
+              "connected": false,
+              "environment": "sandbox",
+              "invoiceSyncEnabled": false,
+              "canSyncPartnerInvoices": false,
+              "reason": "QuickBooks invoice sync is disabled."
+            },
+            "receivables": {
+              "amountExpectedCents": 2800000,
+              "amountPaidCents": 1000000,
+              "balanceCents": 1800000,
+              "overdueCents": 0
+            },
+            "budget": {
+              "totals": { "budgetCents": 53000000, "committedCents": 18640000, "remainingCents": 34360000 },
+              "counts": { "pendingApprovals": 2 }
+            },
+            "revenue": {
+              "totals": { "grossCents": 1750000, "netCents": 1722575 },
+              "reconciliation": { "pctReconciled": 75 }
+            }
+          }
+        }
+        """#.utf8)
+        let recorder = AppDataRequestRecorder()
+        let store = AppDataStore(
+            seedPayload: .sample,
+            apiBase: try XCTUnwrap(URL(string: "http://127.0.0.1:8806")),
+            cacheURL: cacheURL,
+            boardAdminToken: "local-board-secret",
+            transport: AppDataTransport { request in
+                await recorder.record(request)
+                switch request.url?.path {
+                case "/api/public/bootstrap":
+                    return AppDataHTTPResponse(data: publicResponse, statusCode: 200)
+                case "/api/admin/app-bootstrap":
+                    return AppDataHTTPResponse(data: adminResponse, statusCode: 200)
+                default:
+                    throw TestFailure.offline
+                }
+            }
+        )
+
+        await store.refreshPublicData()
+
+        XCTAssertEqual(store.staffAccessMode, .boardDemo)
+        XCTAssertEqual(store.adminSyncState, .live)
+        XCTAssertEqual(store.adminSource, "Live board operations")
+        XCTAssertEqual(store.adminTaskSummary, AdminTaskSummary(active: 7, overdue: 1, blocked: 2, unassigned: 0))
+        XCTAssertEqual(store.payload.sponsors.map(\.name), ["Live Sponsor"])
+        XCTAssertEqual(store.payload.sponsors.first?.invoiceStatus, "Approved - $5,000 due")
+        XCTAssertEqual(store.payload.vendors.first?.status, "Blocked - 2 requirements missing")
+        XCTAssertEqual(store.payload.coverage.first?.filled, 18)
+        XCTAssertEqual(store.payload.financeSignals.map(\.id), ["quickbooks", "receivables", "revenue", "budget"])
+
+        let requests = await recorder.values()
+        XCTAssertEqual(requests.map(\.path), ["/api/public/bootstrap", "/api/admin/app-bootstrap"])
+        XCTAssertNil(requests[0].authorization)
+        XCTAssertEqual(requests[1].authorization, "Bearer local-board-secret")
+        let cachedText = try String(contentsOf: cacheURL, encoding: .utf8)
+        XCTAssertFalse(cachedText.contains("local-board-secret"))
+        XCTAssertFalse(cachedText.contains("Live Sponsor"))
+    }
+
+    @MainActor
+    func testRemoteBoardLabelNeverRequestsAuthenticatedOperations() async throws {
+        let publicResponse = try encoded(publicPayload(
+            guide: guide(dateRange: SampleData.guide.dateRange),
+            schedule: [scheduleItem(id: "remote-board-label")],
+            runtime: PublicRuntime(mode: "board_demo", label: "Synthetic board data")
+        ))
+        let recorder = AppDataRequestRecorder()
+        let store = AppDataStore(
+            seedPayload: .sample,
+            apiBase: try XCTUnwrap(URL(string: "https://sandfest-api.example.com")),
+            cacheURL: nil,
+            boardAdminToken: "must-not-leave-device",
+            transport: AppDataTransport { request in
+                await recorder.record(request)
+                return AppDataHTTPResponse(data: publicResponse, statusCode: 200)
+            }
+        )
+
+        await store.refreshPublicData()
+
+        let requests = await recorder.values()
+        XCTAssertEqual(store.staffAccessMode, .visitorOnly)
+        XCTAssertEqual(store.adminSource, "Bundled admin demo")
+        XCTAssertEqual(requests.map(\.path), ["/api/public/bootstrap"])
+        XCTAssertTrue(requests.allSatisfy { $0.authorization == nil })
+    }
+
+    @MainActor
     func testConciergePostsBoundedQuestionAndReturnsSourceCitedAnswer() async throws {
         let directory = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -536,5 +668,25 @@ private actor ConciergeRequestRecorder {
 
     func value() -> ConciergeRequestSnapshot? {
         snapshot
+    }
+}
+
+private struct AppDataRequestSnapshot: Sendable {
+    let path: String
+    let authorization: String?
+}
+
+private actor AppDataRequestRecorder {
+    private var snapshots: [AppDataRequestSnapshot] = []
+
+    func record(_ request: URLRequest) {
+        snapshots.append(AppDataRequestSnapshot(
+            path: request.url?.path ?? "",
+            authorization: request.value(forHTTPHeaderField: "Authorization")
+        ))
+    }
+
+    func values() -> [AppDataRequestSnapshot] {
+        snapshots
     }
 }

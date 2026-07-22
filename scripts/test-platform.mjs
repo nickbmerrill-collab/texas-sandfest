@@ -6302,9 +6302,24 @@ try {
   ok("ordinary development API hides board SMS preference simulation", unavailableBoardSmsPreference.status === 404);
   const readiness = await hit("GET", "/ready");
   const deployment = await hit("GET", "/api/admin/deployment", null, true);
+  const unauthenticatedAppBootstrap = await hit("GET", "/api/admin/app-bootstrap");
+  const appBootstrap = await hit("GET", "/api/admin/app-bootstrap", null, true);
   const queueStatus = await hit("GET", "/api/admin/jobs?limit=12", null, true);
   ok("GET /ready queue health", readiness.status === 200 && readiness.data.checks?.queue === true && readiness.data.checks?.queueStatus?.staleRunning === 0);
   ok("deployment exposes data plane gate", deployment.status === 200 && deployment.data.deployment?.checks?.dataPlane?.ok === true);
+  ok("native admin bootstrap requires authentication", unauthenticatedAppBootstrap.status === 401);
+  ok("native admin bootstrap exposes privacy-minimized operating lanes", appBootstrap.status === 200
+    && appBootstrap.data.eventId === DEFAULT_EVENT_ID
+    && Array.isArray(appBootstrap.data.partners?.sponsors)
+    && Array.isArray(appBootstrap.data.partners?.vendors)
+    && Array.isArray(appBootstrap.data.volunteers?.coverage)
+    && Number.isFinite(appBootstrap.data.finance?.budget?.totals?.budgetCents)
+    && Number.isFinite(appBootstrap.data.finance?.revenue?.totals?.netCents));
+  const appBootstrapText = JSON.stringify(appBootstrap.data);
+  ok("native admin bootstrap excludes partner and volunteer contact details", !appBootstrapText.includes("contactEmail")
+    && !appBootstrapText.includes("contactPhone")
+    && !appBootstrapText.includes("portalAccess")
+    && !appBootstrapText.includes("@example.com"));
   const deploymentChecks = Object.values(deployment.data.deployment?.checks || {});
   const deploymentGroups = deployment.data.deployment?.groups || [];
   const failingDeploymentChecks = deploymentChecks.filter(check => !check.ok);
