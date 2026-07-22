@@ -2335,6 +2335,10 @@ PG-EVENTENY-V-1,vendor,Postgres Eventeny Vendor,Postgres Import Contact,${postgr
   const serializedEventenyPartnerImportAudits = JSON.stringify(persistedAudits.rows.filter(row => row.data?.action === "partner.application.import"));
   const serializedStaffImportAudits = JSON.stringify(persistedAudits.rows.filter(row => row.data?.action === "staff_directory.import.commit"));
   const serializedBudgetAudits = JSON.stringify(persistedAudits.rows.filter(row => row.data?.action?.startsWith("budget.")));
+  const serializedPartnerPaymentAudits = JSON.stringify(persistedAudits.rows.filter(row => (
+    row.data?.action?.startsWith("partner.payment.")
+    && row.data?.target?.id === postgresPayment.data.payment?.id
+  )));
   const serializedContactPreferenceAudits = JSON.stringify(persistedAudits.rows.filter(row => row.data?.action === "partner.contact_preference.update"));
   check("append tables persisted", totals.completions === 1 && totals.votes === 1, `${totals.completions} completion, ${totals.votes} vote`);
   check("admin audits persisted", totals.audits >= 4, `${totals.audits} audit events`);
@@ -2346,6 +2350,15 @@ PG-EVENTENY-V-1,vendor,Postgres Eventeny Vendor,Postgres Import Contact,${postgr
     && serializedBudgetAudits.includes("budget.expense.submit") && serializedBudgetAudits.includes("budget.expense.approve")
     && serializedBudgetAudits.includes("budget.expense.mark_paid") && !serializedBudgetAudits.includes("Postgres Private")
     && !serializedBudgetAudits.includes("PRIVATE-PG-ACH-1001"));
+  check("Postgres partner payment audit is durable and reference-safe", serializedPartnerPaymentAudits.includes("partner.payment.record")
+    && serializedPartnerPaymentAudits.includes("partner.payment.refund")
+    && serializedPartnerPaymentAudits.includes('"accountingReferenceAvailable":true')
+    && serializedPartnerPaymentAudits.includes('"reversalReasonAvailable":true')
+    && !serializedPartnerPaymentAudits.includes("PG-ACH-100")
+    && !serializedPartnerPaymentAudits.includes("Postgres durability verification")
+    && !serializedPartnerPaymentAudits.includes("externalRef")
+    && !serializedPartnerPaymentAudits.includes("paymentIntentId")
+    && !serializedPartnerPaymentAudits.includes("providerEventId"));
   check("Postgres Eventeny import audit is aggregate-only", serializedEventenyPartnerImportAudits.includes("eventeny-partners-postgres.csv") && !serializedEventenyPartnerImportAudits.includes(postgresEventenyImportEmail) && !serializedEventenyPartnerImportAudits.includes("Postgres Import Contact"));
   check("Postgres staff import audit is aggregate-only", serializedStaffImportAudits.includes("staff-directory-postgres.json") && serializedStaffImportAudits.includes("hr_import") && !serializedStaffImportAudits.includes("postgres-traffic@example.com") && !serializedStaffImportAudits.includes("Postgres Incident Commander"));
   check("Postgres audits exclude bearer credential fragments", !serializedAudits.includes("tokenHint") && !serializedAudits.includes(TOKEN));

@@ -419,6 +419,14 @@ async function operationsProofRehearsal(sessionFile) {
     || report.delegation?.assigneeType !== "volunteer"
     || report.keyDate?.status !== "open"
     || report.deliveries?.delivered !== 3
+    || report.exports?.files !== 5
+    || report.exports?.budgetRows !== 7
+    || report.exports?.expenseRows !== 8
+    || report.exports?.paymentRows !== 2
+    || report.exports?.receivableRows !== 4
+    || report.exports?.calendarEvents !== 17
+    || report.audit?.records !== 11
+    || report.audit?.exports !== 5
     || report.reset?.applications !== 5
     || report.reset?.budgetLines !== 6
     || report.reset?.expenses !== 7
@@ -974,7 +982,7 @@ try {
   const operationsProof = await operationsProofRehearsal(sessionFile);
   const operationsProofSession = await readBoardDemoSession(sessionFile);
   rememberServicePids(operationsProofSession);
-  console.log(`  ok Operations proof pays an expense, records $${(operationsProof.payment.amountCents / 100).toFixed(2)}, delegates a ${operationsProof.delegation.assigneeType} task, delivers ${operationsProof.deliveries.delivered} messages, and restores ${operationsProof.reset.preflight} readiness`);
+  console.log(`  ok Operations proof pays an expense, records $${(operationsProof.payment.amountCents / 100).toFixed(2)}, delivers ${operationsProof.deliveries.delivered} messages, parses ${operationsProof.exports.files} exports, verifies ${operationsProof.audit.records} reference-safe audits, and restores ${operationsProof.reset.preflight} readiness`);
 
   const delegationJourneyProof = await delegationJourneyProofRehearsal(sessionFile);
   const delegationJourneyProofSession = await readBoardDemoSession(sessionFile);

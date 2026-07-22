@@ -213,10 +213,12 @@ This second state-mutating rehearsal creates a budget allocation, submits and
 pays an expense, records the remaining synthetic sponsor receivable, delegates
 a volunteer task, and creates a due-soon sponsor key date through the visible
 Operations UI. It then requires authenticated local delivery of the payment
-confirmation, task notice, and automatic key-date reminder before asking the
-supervisor to replace every service and restore the exact accounting, partner,
-task, key-date, and message baseline at 12/12 readiness. Run it only during
-rehearsal and wait for the final reset result.
+confirmation, task notice, and automatic key-date reminder; downloads and parses
+the budget, expense, payment, receivables, and calendar files; and proves that
+the lifecycle audit retains financial state without storing payee or accounting
+references. It then asks the supervisor to replace every service and restore the
+exact accounting, partner, task, key-date, and message baseline at 12/12
+readiness. Run it only during rehearsal and wait for the final reset result.
 
 To prove the complete staff-to-volunteer delegation journey, run:
 

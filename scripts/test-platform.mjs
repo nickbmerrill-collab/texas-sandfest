@@ -9423,6 +9423,22 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
     && budgetAuditApi.some(item => item.record?.action === "budget.expense.approve" && item.record?.metadata?.overBudgetOverride === true)
     && budgetAuditApi.some(item => item.record?.action === "budget.expense.mark_paid")
     && !serializedBudgetAuditApi.includes("API Private") && !serializedBudgetAuditApi.includes("PRIVATE-ACH-API-1001"));
+  const partnerPaymentAuditApi = (auditApi.data.audit || []).filter(item => (
+    item.record?.action?.startsWith("partner.payment.")
+    && item.record?.target?.id === paymentApi.data.payment?.id
+  ));
+  const serializedPartnerPaymentAuditApi = JSON.stringify(partnerPaymentAuditApi);
+  ok("partner payment audit preserves financial state without private reconciliation references", partnerPaymentAuditApi.some(item => item.record?.action === "partner.payment.record"
+    && item.record?.after?.amountCents === 100000
+    && item.record?.after?.accountingReferenceAvailable === true)
+    && partnerPaymentAuditApi.some(item => item.record?.action === "partner.payment.void"
+      && item.record?.after?.status === "voided"
+      && item.record?.after?.reversalReasonAvailable === true)
+    && !serializedPartnerPaymentAuditApi.includes("API-CHECK-100")
+    && !serializedPartnerPaymentAuditApi.includes("API verification reversal")
+    && !serializedPartnerPaymentAuditApi.includes("externalRef")
+    && !serializedPartnerPaymentAuditApi.includes("paymentIntentId")
+    && !serializedPartnerPaymentAuditApi.includes("providerEventId"));
   const eventenyPartnerImportAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action === "partner.application.import");
   ok("Eventeny application import audit is aggregate-only", eventenyPartnerImportAuditApi.length >= 1 && eventenyPartnerImportAuditApi.some(item => item.record?.after?.fileName === "eventeny-applications-api.csv" && item.record?.after?.summary?.imported === 2) && !JSON.stringify(eventenyPartnerImportAuditApi).includes(eventenyPartnerEmailApi) && !JSON.stringify(eventenyPartnerImportAuditApi).includes("Vendor Import Contact"));
   const boothImportAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action === "booths.import.commit");
