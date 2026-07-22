@@ -511,21 +511,25 @@ async function proveReadyState(page, apiBase, applicationId, requirementCount) {
   await expect(page.locator("#admin-vendor-readiness-summary")).toContainText("2/3 ready");
 
   const partners = await getJson(apiBase, "/api/admin/partners", { admin: true });
+  const application = partners.applications?.find(item => item.id === applicationId);
   const state = partners.vendorReadiness?.vendors?.find(item => item.applicationId === applicationId);
   const profile = partners.vendorProfiles?.find(item => item.applicationId === applicationId);
-  const documents = (partners.vendorDocuments || []).filter(item => item.applicationId === applicationId && item.status !== "superseded");
+  const documents = (partners.vendorDocuments || []).filter(item => item.applicationId === applicationId && !["superseded", "archived"].includes(item.status));
   const notices = (partners.followups || []).filter(item => item.applicationId === applicationId && [
     "vendor_profile_changes",
     "vendor_requirement_changes",
     "vendor_assignment_ready"
   ].includes(item.kind));
   if (
-    state?.status !== "ready"
+    application?.status !== "approved"
+    || state?.status !== "ready"
     || state.profileStatus !== "approved"
     || profile?.revision !== 2
     || state.compliance?.approved !== requirementCount
     || state.assignmentStatus !== "confirmed"
     || state.boothNumber !== BOOTH_NUMBER
+    || partners.vendorReadiness?.totals?.ready !== 2
+    || partners.vendorReadiness?.totals?.vendors !== 3
     || documents.length !== requirementCount
     || notices.length !== 3
     || notices.some(item => item.status !== "sent" || item.deliveryStatus !== "delivered")
@@ -534,6 +538,7 @@ async function proveReadyState(page, apiBase, applicationId, requirementCount) {
   }
   return {
     status: state.status,
+    applicationStatus: application.status,
     readyVendors: partners.vendorReadiness.totals.ready,
     totalVendors: partners.vendorReadiness.totals.vendors,
     profileStatus: state.profileStatus,
@@ -697,6 +702,7 @@ try {
   };
 
   const ready = await proveReadyState(operationsPage, endpoints.apiBase, intake.application.id, requirements.length);
+  result.application.status = ready.applicationStatus;
   result.profile = { status: ready.profileStatus, revision: ready.profileRevision };
   result.compliance = {
     required: requirements.length,

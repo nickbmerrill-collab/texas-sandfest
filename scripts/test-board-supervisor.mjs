@@ -187,6 +187,7 @@ async function vendorJourneyProofRehearsal(sessionFile) {
     || report.application?.type !== "vendor"
     || report.application?.intakeMode !== "application"
     || report.application?.offeringId !== "marketplace-booth"
+    || report.application?.status !== "approved"
     || report.profile?.status !== "approved"
     || report.profile?.revision !== 2
     || report.compliance?.required !== 5
