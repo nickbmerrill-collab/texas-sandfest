@@ -1261,10 +1261,11 @@ time {
 .consent-check {
   display: flex;
   gap: 10px;
-  align-items: flex-start;
+  align-items: center;
   font-size: 13px;
   color: var(--ink);
   cursor: pointer;
+  min-height: 44px;
 }
 .consent-check input {
   margin-top: 2px;
@@ -5598,7 +5599,7 @@ body.mode-ops header nav a[data-audience="public"] {
 .partner-fields input,
 .partner-fields select,
 .partner-fields textarea { max-width: 100%; width: 100%; }
-.partner-fields select { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.partner-fields select { height: 42px; min-height: 42px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .partner-field-wide { grid-column: 1 / -1; }
 .partner-fields textarea { min-height: 96px; resize: vertical; }
 .partner-offering-summary {
@@ -6043,6 +6044,18 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .admin-delivery-reconciliation > div:first-child strong { color: var(--deep); font-size: 12px; }
 .admin-delivery-reconciliation > div:first-child span,
 .admin-delivery-resolution { color: var(--muted); font-size: 10px; line-height: 1.45; margin: 0; overflow-wrap: anywhere; }
+.admin-delivery-reconciliation input,
+.admin-delivery-reconciliation textarea {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--ink);
+  font: inherit;
+  min-width: 0;
+  padding: 8px 9px;
+  width: 100%;
+}
+.admin-delivery-reconciliation input { height: 40px; }
 .admin-delivery-reconciliation-actions { display: flex; flex-wrap: wrap; gap: 7px; grid-column: 1 / -1; }
 .admin-delivery-reconciliation-actions .button { min-height: 40px; padding: 8px 10px; }
 .admin-delivery-resolution[data-resolution="confirmed_sent"] { color: #2d6840; }

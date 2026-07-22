@@ -2841,6 +2841,12 @@ function setAdminStatus(message, state = "idle") {
   pill.dataset.state = state;
 }
 
+function setAdminWorkspaceState(state) {
+  const status = document.querySelector("#admin-api-status");
+  status.dataset.workspaceState = state;
+  status.setAttribute("aria-busy", state === "loading" ? "true" : "false");
+}
+
 async function writeClipboardText(value) {
   if (!value || !navigator.clipboard?.writeText) return false;
   try {
@@ -9084,6 +9090,7 @@ function bindAdminSaveButtons() {
 async function loadAdminWorkspace() {
   const button = document.querySelector("#admin-load-config");
   button.disabled = true;
+  setAdminWorkspaceState("loading");
   setAdminStatus("Loading admin config...", "idle");
   let loaded = false;
   try {
@@ -9130,12 +9137,14 @@ async function loadAdminWorkspace() {
       await loadAdminConditions({ quiet: true }).catch(() => {});
     }
     setAdminStatus(`Loaded ${adminConfigState.tickets.products.length} ticket products, ${adminConfigState.config.sponsorPackages.length} sponsor packages, and ${adminConfigState.config.vendorOfferings.length} vendor offerings.`, "ok");
+    setAdminWorkspaceState("ready");
     loaded = true;
     if (BOARD_DEMO_ACCESS.enabled) boardDemoWorkspaceLoaded = true;
     stabilizeRenderedHashTarget();
   } catch (error) {
     const localHint = ADMIN_AUTH_MODE === "token" ? " Confirm the local API is running and the token matches." : "";
     setAdminStatus(`${error.message}${localHint}`, "error");
+    setAdminWorkspaceState("failed");
   } finally {
     button.disabled = ADMIN_AUTH_MODE === "oidc" && !adminToken();
   }
