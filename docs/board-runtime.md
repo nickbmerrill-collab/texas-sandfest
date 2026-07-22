@@ -44,7 +44,7 @@ presentation navigation if the checkout changes while the stack is running.
 The supervisor prepares or reuses the isolated runtime, selects unused loopback
 ports without stopping another local service, starts the web, API, worker,
 email, SMS, and eight-camera playback processes, and prints the exact Visitor
-and Operations links only after the same ten readiness checks pass. That gate
+and Operations links only after the same 12 readiness checks pass. That gate
 requires sandbox-shaped provider acceptance plus authenticated, durable delivery
 events for transactional and campaign-approved messages, not merely a configured
 worker. A normal supervisor restart can therefore reuse those audited delivery
@@ -96,6 +96,22 @@ labels, and any visible control or choice target below 24px. At both the
 board-laptop and narrow-phone viewports, it also requires the Live Beach header
 to remain visibly cued below the hero so the next interactive capability is
 apparent before scrolling.
+
+To prove that the visible signup controls mutate the exact supervised stack,
+then return it to its prepared state, run:
+
+```bash
+npm run board:prove:signups
+```
+
+This command requires the same clean, ready, exact-loopback session as the
+read-only rehearsal. It uses the visible demo presets, confirms that consent is
+still unchecked, deliberately grants consent, submits one synthetic vendor and
+one synthetic sponsor through the public forms, opens each private status view,
+and verifies both references in Operations. It then asks the supervisor to
+replace every service and restore the five-application baseline, even if a
+workflow assertion fails. Do not run this state-mutating proof during the live
+walkthrough; run it during rehearsal and wait for its final 12/12 reset result.
 
 For Safari-compatible rendering proof against the same active, read-only
 session, install Playwright WebKit once and run:

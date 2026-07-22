@@ -142,6 +142,32 @@ async function browserRehearsal(sessionFile, environment = {}) {
   return report;
 }
 
+async function signupProofRehearsal(sessionFile) {
+  const result = await run(
+    process.execPath,
+    ["scripts/prove-board-signups.mjs", "--json"],
+    commandEnvironment(sessionFile),
+    120_000
+  );
+  let report = null;
+  try {
+    report = JSON.parse(result.stdout);
+  } catch {
+    throw new Error(`Board signup proof returned invalid JSON:\n${result.stderr}\n${result.stdout}`);
+  }
+  if (
+    result.code !== 0
+    || report.ok !== true
+    || report.submissions?.length !== 2
+    || report.operations?.applicationCount !== 7
+    || report.reset?.applicationCount !== 5
+    || report.reset?.preflight !== `${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}/${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}`
+  ) {
+    throw new Error(`Board signup proof failed:\n${JSON.stringify(report, null, 2)}`);
+  }
+  return report;
+}
+
 function rememberServicePids(session) {
   for (const service of Object.values(session?.services || {})) {
     if (Number.isInteger(Number(service.pid)) && Number(service.pid) > 0) observedPids.add(Number(service.pid));
@@ -521,6 +547,11 @@ try {
   const recoveredReport = await preflight(sessionFile);
   console.log(`  ok recovered stack returns to ${recoveredReport.passed}/${recoveredReport.total} readiness`);
 
+  const signupProof = await signupProofRehearsal(sessionFile);
+  const signupProofSession = await readBoardDemoSession(sessionFile);
+  rememberServicePids(signupProofSession);
+  console.log(`  ok public signup proof creates ${signupProof.submissions.length} applications, renders ${signupProof.operations.applicationCount} in Operations, and restores the ${signupProof.reset.applicationCount}-application baseline`);
+
   const stopped = await run(process.execPath, ["scripts/stop-board-demo.mjs", "--session-file", sessionFile], process.env, 25_000);
   if (stopped.code !== 0) throw new Error(`Board stop command failed:\n${stopped.stderr}\n${stopped.stdout}`);
   await waitFor(async () => supervisor.exitCode != null, 10_000, "Supervisor exit");
@@ -573,7 +604,7 @@ try {
   const lingering = [...observedPids].filter(processAlive);
   if (lingering.length) throw new Error(`Board child processes remained alive after shutdown: ${lingering.join(", ")}`);
   console.log(`  ok second stop shuts down every process observed across both supervisor lifecycles`);
-  console.log("\nBoard demo supervisor: 19/19 checks passed.\n");
+  console.log("\nBoard demo supervisor: 20/20 checks passed.\n");
 } catch (error) {
   console.error(`\nBoard demo supervisor test failed: ${error.message}`);
   process.exitCode = 1;
