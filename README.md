@@ -231,7 +231,7 @@ Target deployment shape:
 
 See `docs/heyelab-backend-deployment.md`.
 
-Local admin roles are controlled with `SANDFEST_ADMIN_ROLE`. Supported prototype values are `super_admin`, `ops_admin`, `ticketing_admin`, `sponsor_admin`, `finance_admin`, and `viewer`.
+Local admin roles are controlled with `SANDFEST_ADMIN_ROLE`. Supported prototype values are `super_admin`, `ops_admin`, `ticketing_admin`, `sponsor_admin`, `finance_admin`, and `viewer`. Staff and volunteer delegation requires `tasks:write`, while launch-gate work synchronization requires `deployment:write`; both are limited to Operations and super admin rather than inherited from partner-management access.
 
 Local rate limits are controlled with `SANDFEST_PUBLIC_RATE_LIMIT`, `SANDFEST_ADMIN_RATE_LIMIT`, `SANDFEST_CHECKOUT_RATE_LIMIT`, `SANDFEST_PARTNER_STATUS_RATE_LIMIT`, and `SANDFEST_RATE_LIMIT_WINDOW_MS`.
 

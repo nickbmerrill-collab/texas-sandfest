@@ -174,11 +174,16 @@ Until Heyelab's IdP is live, `/ready` returns 503 and `GET /api/admin/deployment
 | Role | Intent |
 | --- | --- |
 | `super_admin` | Full local access |
-| `ops_admin` | Operations, documents, staff and volunteer routing, partner workflows, conditions, fulfillment, automation failure acknowledgment, and audit |
+| `ops_admin` | Operations, documents, staff and volunteer routing, launch-work synchronization, partner workflows, conditions, fulfillment, automation failure acknowledgment, and audit |
 | `ticketing_admin` | Ticket config, orders, payment events, fulfillment reads, audit |
 | `sponsor_admin` | Sponsor package config, orders, fulfillment reads, audit |
 | `finance_admin` | Finance reads plus partner payment posting/reversal and reviewed invoice create, approve, void, and sync |
 | `viewer` | Read-only admin visibility |
+
+Generic task delegation requires the dedicated `tasks:write` capability, and
+launch-gate task synchronization requires `deployment:write`. Only
+`ops_admin` and the wildcard `super_admin` receive those capabilities;
+`partners:write` does not grant either one.
 
 ## Admin Configuration Surface
 

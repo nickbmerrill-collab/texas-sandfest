@@ -15,6 +15,13 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { boardDemoAccessConfig } from "../lib/board-demo-access.mjs";
 import {
+  ADMIN_ROLE_PERMISSIONS,
+  ADMIN_ROLE_PRIORITY,
+  ADMIN_ROLES,
+  adminRoleHasPermission
+} from "../lib/admin-permissions.mjs";
+import { ADMIN_DEPLOYMENT_WRITE, ADMIN_TASKS_WRITE } from "../lib/admin-permission-names.mjs";
+import {
   assessBoardIOSScreenshot,
   boardIOSLaunchArguments,
   boardIOSProcessIsActive,
@@ -1442,6 +1449,29 @@ console.log("\n=== Pure library suite ===\n");
   ok("private portal fragment capabilities are concealed", partnerPortalSafeHash("#partner-status?reference=TSF-V-000001&token=private") === "#partner-status" && taskPortalSafeHash("#task-status?task=task_1&token=private") === "#task-status" && partnerPortalSafeHash("#sponsors") == null && taskPortalSafeHash("#sponsors") == null);
   ok("partner portal rejection classification preserves outage retries", shouldForgetPartnerPortalAccess(404) && shouldForgetPartnerPortalAccess(401) && !shouldForgetPartnerPortalAccess(429) && !shouldForgetPartnerPortalAccess(503) && !shouldForgetPartnerPortalAccess(0));
   ok("partner portal forgets only the rejected saved capability", preservedNewer && removedCurrent);
+}
+
+// Admin roles are one immutable policy shared by JWT resolution, API route
+// guards, and browser controls. Partner access alone must not authorize staff
+// delegation or production launch work.
+{
+  const restrictedRoles = ["ticketing_admin", "sponsor_admin", "finance_admin", "viewer"];
+  ok("admin role policy is complete and immutable", Object.isFrozen(ADMIN_ROLE_PERMISSIONS)
+    && Object.isFrozen(ADMIN_ROLES)
+    && ADMIN_ROLES.length === 6
+    && ADMIN_ROLE_PRIORITY === ADMIN_ROLES
+    && new Set(ADMIN_ROLE_PRIORITY).size === ADMIN_ROLES.length
+    && ADMIN_ROLES.every(role => Object.isFrozen(ADMIN_ROLE_PERMISSIONS[role])
+      && new Set(ADMIN_ROLE_PERMISSIONS[role]).size === ADMIN_ROLE_PERMISSIONS[role].length));
+  ok("task delegation is limited to Operations", adminRoleHasPermission("super_admin", ADMIN_TASKS_WRITE)
+    && adminRoleHasPermission("ops_admin", ADMIN_TASKS_WRITE)
+    && restrictedRoles.every(role => !adminRoleHasPermission(role, ADMIN_TASKS_WRITE)));
+  ok("launch work synchronization is limited to Operations", adminRoleHasPermission("super_admin", ADMIN_DEPLOYMENT_WRITE)
+    && adminRoleHasPermission("ops_admin", ADMIN_DEPLOYMENT_WRITE)
+    && restrictedRoles.every(role => !adminRoleHasPermission(role, ADMIN_DEPLOYMENT_WRITE)));
+  ok("partner mutation does not imply task or deployment control", adminRoleHasPermission("sponsor_admin", "partners:write")
+    && !adminRoleHasPermission("sponsor_admin", ADMIN_TASKS_WRITE)
+    && !adminRoleHasPermission("sponsor_admin", ADMIN_DEPLOYMENT_WRITE));
 }
 
 // Browser admin authentication
@@ -6936,6 +6966,58 @@ async function runSmokeWorkerOnce(environment = {}) {
   return { exitCode, stdout, stderr };
 }
 
+async function runRestrictedRoleProbe(role) {
+  if (!apiChildEnv) return null;
+  const port = String(await freePort());
+  const baseUrl = `http://127.0.0.1:${port}`;
+  const roleChild = spawn("node", ["scripts/admin-api-server.mjs"], {
+    cwd: ROOT,
+    env: {
+      ...apiChildEnv,
+      SANDFEST_API_PORT: port,
+      SANDFEST_ADMIN_ROLE: role,
+      SANDFEST_DEPLOYMENT_TASK_SYNC_INTERVAL_MS: "0"
+    },
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+  let output = "";
+  try {
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error(`${role} API start timeout:\n${output}`)), 8_000);
+      const fail = error => {
+        clearTimeout(timeout);
+        reject(error);
+      };
+      const onData = chunk => {
+        output += String(chunk);
+        if (output.includes("listening")) {
+          clearTimeout(timeout);
+          resolve();
+        }
+      };
+      roleChild.stdout.on("data", onData);
+      roleChild.stderr.on("data", onData);
+      roleChild.once("error", fail);
+      roleChild.once("exit", code => fail(new Error(`${role} API exited ${code}:\n${output}`)));
+    });
+    const request = async (method, pathname, body) => {
+      const response = await fetch(`${baseUrl}${pathname}`, {
+        method,
+        headers: { "content-type": "application/json", authorization: `Bearer ${TOKEN}` },
+        body: body === undefined ? undefined : JSON.stringify(body)
+      });
+      return { status: response.status, data: await response.json().catch(() => ({})) };
+    };
+    return {
+      session: await request("GET", "/api/admin/session"),
+      taskMutation: await request("POST", "/api/admin/partners/tasks", { title: "Restricted role probe" }),
+      deploymentMutation: await request("POST", "/api/admin/deployment/tasks/sync")
+    };
+  } finally {
+    await stopChild(roleChild);
+  }
+}
+
 try {
   if (child) {
     await writeFile(path.join(isolatedRuntimeRoot, "data", "processed", "consent-ledger.json"), `${JSON.stringify({
@@ -6959,6 +7041,7 @@ try {
   const publicPartnerReadinessApi = await hitRaw("GET", "/api/public/partner-intake");
   const publicGuestServicesReadinessApi = await hitRaw("GET", "/api/public/guest-services");
   const deployment = await hit("GET", "/api/admin/deployment", null, true);
+  const sponsorRoleProbe = child ? await runRestrictedRoleProbe("sponsor_admin") : null;
   const unauthenticatedAppBootstrap = await hit("GET", "/api/admin/app-bootstrap");
   const appBootstrap = await hit("GET", "/api/admin/app-bootstrap", null, true);
   const queueStatus = await hit("GET", "/api/admin/jobs?limit=12", null, true);
@@ -6976,6 +7059,17 @@ try {
     && publicGuestServicesReadinessSafety(publicGuestServicesReadinessApi.data, { eventId: DEFAULT_EVENT_ID }).ready
     && publicGuestServicesReadinessApi.headers.get("cache-control") === "no-store");
   ok("deployment exposes data plane gate", deployment.status === 200 && deployment.data.deployment?.checks?.dataPlane?.ok === true);
+  if (sponsorRoleProbe) {
+    ok("sponsor role session excludes staff and launch control", sponsorRoleProbe.session.status === 200
+      && sponsorRoleProbe.session.data.session?.role === "sponsor_admin"
+      && sponsorRoleProbe.session.data.session.permissions.includes("partners:write")
+      && !sponsorRoleProbe.session.data.session.permissions.includes(ADMIN_TASKS_WRITE)
+      && !sponsorRoleProbe.session.data.session.permissions.includes(ADMIN_DEPLOYMENT_WRITE));
+    ok("sponsor role cannot mutate delegated or launch work", sponsorRoleProbe.taskMutation.status === 403
+      && sponsorRoleProbe.taskMutation.data.requiredPermission === ADMIN_TASKS_WRITE
+      && sponsorRoleProbe.deploymentMutation.status === 403
+      && sponsorRoleProbe.deploymentMutation.data.requiredPermission === ADMIN_DEPLOYMENT_WRITE);
+  }
   ok("native admin bootstrap requires authentication", unauthenticatedAppBootstrap.status === 401);
   ok("native admin bootstrap exposes privacy-minimized operating lanes", appBootstrap.status === 200
     && appBootstrap.data.eventId === DEFAULT_EVENT_ID
@@ -7005,7 +7099,7 @@ try {
   const deploymentTaskReplay = await hit("POST", "/api/admin/deployment/tasks/sync", null, true);
   const deploymentTaskWorkspace = await hit("GET", "/api/admin/partners", null, true);
   const launchTasksApi = (deploymentTaskWorkspace.data.tasks || []).filter(task => task.relatedEntityType === "deployment_check" && ["open", "in_progress", "blocked"].includes(task.status));
-  ok("deployment task sync requires task delegation permission", unauthenticatedDeploymentTaskSync.status === 401);
+  ok("deployment task sync requires an authenticated admin session", unauthenticatedDeploymentTaskSync.status === 401);
   ok("automatic deployment sync creates one task per failing gate", launchTasksApi.length === failingDeploymentChecks.length && new Set(launchTasksApi.map(task => task.relatedEntityId)).size === failingDeploymentChecks.length);
   ok("manual deployment task sync converges with automatic state", deploymentTaskSync.status === 200 && deploymentTaskSync.data.sync?.created === 0 && deploymentTaskSync.data.sync?.active === failingDeploymentChecks.length);
   ok("deployment task API replay is idempotent", deploymentTaskReplay.status === 200 && deploymentTaskReplay.data.sync?.changed === false && deploymentTaskReplay.data.sync?.created === 0 && deploymentTaskReplay.data.sync?.active === failingDeploymentChecks.length);
