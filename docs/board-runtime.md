@@ -197,6 +197,23 @@ supervisor to replace every service and restore the exact accounting, partner,
 task, key-date, and message baseline at 12/12 readiness. Run it only during
 rehearsal and wait for the final reset result.
 
+To prove the complete staff-to-volunteer delegation journey, run:
+
+```bash
+npm run board:prove:delegation
+```
+
+The proof creates a high-priority volunteer assignment through the visible
+Operations work board and requires the selected roster member to show
+notification readiness without exposing an email address. The versioned task
+notice must reach authenticated local delivery and contain the private mobile
+task link. An invalid capability is denied, the valid link is concealed from
+the browser address after opening, and the volunteer acknowledges, starts,
+reports a required blocker, and completes the assignment. Operations must show
+the blocker and completion while four capability-attributed audits omit the
+private link and note text. The supervisor then restores the exact 11-task,
+10-active-task, ten-assignment-notice baseline at 12/12 readiness.
+
 To prove the private document-ingestion workflow against the active stack, run:
 
 ```bash
