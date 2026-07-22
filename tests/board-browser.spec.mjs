@@ -2626,6 +2626,27 @@ test("operations command summary fits and navigates across board viewports", asy
   }));
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
   expect(commandBounds.every(bounds => bounds.top >= 0 && bounds.bottom <= 720)).toBe(true);
+
+  for (const { width, columns } of [
+    { width: 1138, columns: 3 },
+    { width: 921, columns: 3 },
+    { width: 920, columns: 1 }
+  ]) {
+    await page.setViewportSize({ width, height: 800 });
+    await assertNoHorizontalOverflow(page);
+    await expect.poll(() => page.locator("#admin-documents").evaluate(panel => {
+      const panelBounds = panel.getBoundingClientRect();
+      return [...panel.children].every(child => {
+        const childBounds = child.getBoundingClientRect();
+        return childBounds.left >= panelBounds.left - 1 && childBounds.right <= panelBounds.right + 1;
+      });
+    })).toBe(true);
+    expect(await page.locator("#admin-document-upload").evaluate(form => (
+      getComputedStyle(form).gridTemplateColumns.split(" ").length
+    ))).toBe(columns);
+  }
+  await page.setViewportSize({ width: 1280, height: 720 });
+
   const commandTargets = {
     applications: { id: "admin-partner-applications-workspace", heading: "Applications and accounting" },
     receivables: { id: "admin-receivables-workspace", heading: "Open accounts" },
