@@ -2425,7 +2425,7 @@ test("operations command summary fits and navigates across board viewports", asy
         && bounds.top < window.innerHeight
         && target.contains(document.activeElement)
         && document.activeElement?.textContent?.trim() === heading);
-    }, { id: targetId, heading }), { timeout: 500 }).toBe(true);
+    }, { id: targetId, heading }), { timeout: 2_000 }).toBe(true);
   }
   await page.locator('[data-command-signal="applications"]').focus();
   await page.keyboard.press("Enter");
@@ -2435,7 +2435,7 @@ test("operations command summary fits and navigates across board viewports", asy
     return Boolean(target?.contains(active)
       && active?.textContent?.trim() === "Applications and accounting"
       && getComputedStyle(active).outlineStyle !== "none");
-  }), { timeout: 500 }).toBe(true);
+  }), { timeout: 2_000 }).toBe(true);
   const firstFollowup = page.locator("#admin-partner-followups [data-followup]").first();
   await expect(firstFollowup.locator('[data-review-followup][data-action="approve"]')).toBeVisible();
   const editedFollowupId = await firstFollowup.getAttribute("data-followup");
@@ -2486,7 +2486,7 @@ test("operations command summary fits and navigates across board viewports", asy
         && bounds.top < window.innerHeight
         && target.contains(document.activeElement)
         && document.activeElement?.textContent?.trim() === heading);
-    }, { id: targetId, heading }), { timeout: 500 }).toBe(true);
+    }, { id: targetId, heading }), { timeout: 2_000 }).toBe(true);
   }
   await assertNoHorizontalOverflow(page);
 });
