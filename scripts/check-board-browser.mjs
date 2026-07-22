@@ -444,6 +444,7 @@ if (visitorUrl && operationsUrl) {
       await page.waitForFunction(() => document.querySelectorAll("#admin-command-signals [data-command-signal]").length === 8, null, { timeout: timeoutMs });
       await page.waitForFunction(() => document.querySelectorAll("#admin-budget-lines [data-budget-line]").length === 6
         && document.querySelectorAll("#admin-expense-list [data-budget-expense]").length === 7, null, { timeout: timeoutMs });
+      await page.waitForFunction(() => document.querySelectorAll("#admin-volunteer-attendance [data-volunteer-assignment]").length >= 10, null, { timeout: timeoutMs });
       await page.waitForFunction(() => {
         const delivered = [...document.querySelectorAll('#admin-partner-followups [data-delivery-status="delivered"]')];
         return delivered.some(item => item.textContent?.includes("transactional automation"))
@@ -503,6 +504,11 @@ if (visitorUrl && operationsUrl) {
         tasks: document.querySelectorAll("#admin-partner-tasks [data-task]").length,
         taskSummary: document.querySelector("#admin-task-board-summary")?.textContent?.trim(),
         taskAssignmentTypes: [...new Set([...document.querySelectorAll('#admin-partner-tasks [data-task] [name="assigneeType"]')].map(item => item.value))],
+        volunteerAttendanceAssignments: document.querySelectorAll("#admin-volunteer-attendance [data-volunteer-assignment]").length,
+        volunteerAttendanceCheckedIn: document.querySelectorAll('#admin-volunteer-attendance [data-attendance-status="checked_in"]').length,
+        volunteerAttendanceCheckOutActions: [...document.querySelectorAll('#admin-volunteer-attendance [data-attendance-status="checked_in"] button')]
+          .filter(item => !item.disabled && item.textContent?.trim() === "Check out").length,
+        volunteerAttendanceText: document.querySelector("#admin-volunteer-attendance")?.textContent?.replace(/\s+/g, " ").trim(),
         milestones: document.querySelectorAll("#admin-partner-milestones [data-admin-milestone]").length,
         keyDateSummary: document.querySelector("#admin-key-date-summary")?.textContent?.trim(),
         receivablesSummary: document.querySelector("#admin-receivables-summary")?.textContent?.trim(),
@@ -746,11 +752,15 @@ if (visitorUrl && operationsUrl) {
         || item?.tasks < 9
         || !item?.taskSummary?.includes("active")
         || requiredAssignmentTypes.some(type => !item.taskAssignmentTypes?.includes(type))
+        || item?.volunteerAttendanceAssignments < 10
+        || item?.volunteerAttendanceCheckedIn < 1
+        || item?.volunteerAttendanceCheckOutActions < 1
+        || /@example\.com|\+1\d{10}/.test(item?.volunteerAttendanceText || "")
         || !item?.commandSignalText?.assignments?.includes("staff / volunteer / team")
       ) {
-        throw new Error("Local message automation, SMS preference, or three-way assignment proof is incomplete.");
+        throw new Error("Local message automation, SMS preference, three-way assignment, or volunteer attendance proof is incomplete.");
       }
-      return `${item.deliveredFollowups} loopback messages include application decisions, vendor opening, payment confirmation, sponsor proof review, automatic key-date, transactional, and campaign-approved delivery proof; 1 provider outcome is locked for staff verification before retry; the signed SMS preference control is ${item.smsPreferenceState.replace("_", " ")}; ${item.editableMessageDrafts} drafts can be revised before approval and ${item.reviewReadyOutreachMessages} outreach draft remains staff-controlled; ${item.tasks} tasks cover staff, volunteer, and team owners.`;
+      return `${item.deliveredFollowups} loopback messages include application decisions, vendor opening, payment confirmation, sponsor proof review, automatic key-date, transactional, and campaign-approved delivery proof; 1 provider outcome is locked for staff verification before retry; the signed SMS preference control is ${item.smsPreferenceState.replace("_", " ")}; ${item.editableMessageDrafts} drafts can be revised before approval and ${item.reviewReadyOutreachMessages} outreach draft remains staff-controlled; ${item.tasks} tasks cover staff, volunteer, and team owners, with ${item.volunteerAttendanceAssignments} shared shift assignments and active captain check-out.`;
     });
     await inspect("fulfillment_outreach", "Fulfillment and geofenced outreach", "Inspect sponsor branding, vendor readiness, and targeted campaign records.", async () => {
       const item = observations.operations;

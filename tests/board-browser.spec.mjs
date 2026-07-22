@@ -907,6 +907,23 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   const messagingKpi = partnerKpis.locator("article").filter({ hasText: "Messaging" });
   await expect(messagingKpi).toContainText("Review first");
   await expect(messagingKpi).toContainText(/\d+ drafts? awaiting staff review/);
+  const attendanceList = page.locator("#admin-volunteer-attendance");
+  await expect(attendanceList.locator("[data-volunteer-assignment]")).toHaveCount(38);
+  const activeAttendance = attendanceList.locator('[data-attendance-status="checked_in"]').first();
+  const activeAttendanceId = await activeAttendance.getAttribute("data-volunteer-assignment");
+  await expect(activeAttendance.getByRole("button", { name: "Check out" })).toBeEnabled();
+  const volunteerCheckOutResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/volunteers/attendance" && response.request().method() === "POST");
+  await activeAttendance.getByRole("button", { name: "Check out" }).click();
+  expect((await volunteerCheckOutResponse).status()).toBe(200);
+  await expect(attendanceList.locator(`[data-volunteer-assignment="${activeAttendanceId}"]`)).toHaveAttribute("data-attendance-status", "checked_out");
+  const scheduledAttendance = attendanceList.locator('[data-attendance-status="scheduled"]').first();
+  const scheduledAttendanceId = await scheduledAttendance.getAttribute("data-volunteer-assignment");
+  await expect(scheduledAttendance.getByRole("button", { name: "Check in" })).toBeEnabled();
+  const volunteerCheckInResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/volunteers/attendance" && response.request().method() === "POST");
+  await scheduledAttendance.getByRole("button", { name: "Check in" }).click();
+  expect((await volunteerCheckInResponse).status()).toBe(200);
+  await expect(attendanceList.locator(`[data-volunteer-assignment="${scheduledAttendanceId}"]`)).toHaveAttribute("data-attendance-status", "checked_in");
+  await expect(page.locator("#admin-volunteers-kpis").getByText("1 in", { exact: false })).toBeVisible();
   const budgetKpis = page.locator("#admin-budget-kpis");
   await expect(budgetKpis.locator("article").filter({ hasText: "Annual budget" })).toContainText("$530,000.00");
   await expect(budgetKpis.locator("article").filter({ hasText: "Committed" })).toContainText("$186,400.00");
@@ -3167,11 +3184,19 @@ test("partner portal recovery is private, delivered, and mobile-safe", async ({ 
   await vendor.locator('[name="consentToContact"]').check();
   const intake = await submitAndCapture(page, vendor, "/api/public/vendor-applications");
 
+  await expect(page.locator('#partner-status-form [name="reference"]')).toHaveValue(intake.application.reference);
+  await expect(page.locator("#partner-status-form .partner-form-status")).toContainText("Secure status loaded");
+  await page.waitForTimeout(1_750);
+
   const recovery = page.locator("#partner-portal-recovery-form");
+  const recoverySubmit = recovery.locator('button[type="submit"]');
+  await expect(recoverySubmit).toBeEnabled();
   await recovery.locator('[name="reference"]').fill(intake.application.reference);
   await recovery.locator('[name="contactEmail"]').fill(contactEmail);
+  await recoverySubmit.evaluate(button => button.scrollIntoView({ behavior: "instant", block: "center" }));
+  await expect(recoverySubmit).toBeInViewport({ ratio: 1 });
   const matchedResponsePromise = page.waitForResponse(response => new URL(response.url()).pathname === "/api/public/partner-portal-recovery" && response.request().method() === "POST");
-  await recovery.locator('button[type="submit"]').click();
+  await recoverySubmit.click();
   const matchedResponse = await matchedResponsePromise;
   const matchedPayload = await matchedResponse.json();
   expect(matchedResponse.status()).toBe(202);
@@ -3183,7 +3208,7 @@ test("partner portal recovery is private, delivered, and mobile-safe", async ({ 
 
   await recovery.locator('[name="contactEmail"]').fill(`unknown.${runId}@example.com`);
   const missedResponsePromise = page.waitForResponse(response => new URL(response.url()).pathname === "/api/public/partner-portal-recovery" && response.request().method() === "POST");
-  await recovery.locator('button[type="submit"]').click();
+  await recoverySubmit.click();
   const missedResponse = await missedResponsePromise;
   const missedPayload = await missedResponse.json();
   expect(missedResponse.status()).toBe(202);

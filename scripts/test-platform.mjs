@@ -38,7 +38,11 @@ import {
   revenueImportPreviewHash
 } from "../lib/revenue-import.mjs";
 import { applyCheckout, applyCheckin, summarizeFleet, parseAssetQrPayload } from "../lib/fleet.mjs";
-import { summarizeVolunteers } from "../lib/volunteers.mjs";
+import {
+  applyVolunteerAttendance,
+  summarizeVolunteers,
+  volunteerAttendanceBoard
+} from "../lib/volunteers.mjs";
 import {
   VOLUNTEERLOCAL_IMPORT_MAX_ROWS,
   applyVolunteerLocalImport,
@@ -911,6 +915,20 @@ console.log("\n=== Pure library suite ===\n");
       staffDirectory: { ready: true, routedTeams: 7, totalTeams: 7 },
       email: { ready: true }
     },
+    volunteers: {
+      eventId: "texas-sandfest-2027",
+      attendance: {
+        summary: { assigned: 18, scheduled: 17, checkedIn: 1, checkedOut: 0, exceptions: 0 },
+        assignments: [{
+          id: "shift_demo:vol_demo",
+          volunteerId: "vol_demo",
+          shiftId: "shift_demo",
+          attendanceStatus: "checked_in",
+          canCheckIn: false,
+          canCheckOut: true
+        }]
+      }
+    },
     budget: {
       eventId: "texas-sandfest-2027",
       currency: "usd",
@@ -1118,6 +1136,7 @@ console.log("\n=== Pure library suite ===\n");
     state => { state.partners.milestones = []; },
     state => { state.partners.followups = []; },
     state => { state.partners.tasks = state.partners.tasks.filter(item => item.assigneeType !== "staff"); },
+    state => { state.volunteers.attendance.summary.checkedIn = 0; state.volunteers.attendance.assignments = []; },
     state => { state.partners.fulfillment.profiles.approved = 0; },
     state => { state.partners.vendorReadiness.totals.ready = 0; },
     state => { state.partners.summary.outreach.prospects = 0; }
@@ -1126,7 +1145,7 @@ console.log("\n=== Pure library suite ===\n");
     mutate(state);
     return evaluateBoardDemoReadiness(state);
   });
-  ok("board demo readiness requires budget, finance, key dates, messaging, delegation, fulfillment, vendor, and outreach proof", missingWorkflowReports.every(report => (
+  ok("board demo readiness requires budget, finance, key dates, messaging, delegation, attendance, fulfillment, vendor, and outreach proof", missingWorkflowReports.every(report => (
     report.ok === false && report.checks.find(item => item.id === "operations")?.ok === false
   )));
   let remoteBoardCheckRejected = false;
@@ -2258,6 +2277,57 @@ HOURS-100,${DEFAULT_EVENT_ID},VL-100,SHIFT-100,2027-04-09T08:00:00-05:00,2027-04
   ok("VolunteerLocal shift and hours resolve stable mirror IDs", committed.doc.shifts[0]?.filledVolunteerIds.includes(taylor.id) && committed.doc.shifts[0]?.captainId === taylor.id && committed.doc.hourLogs[0]?.volunteerId === taylor.id && committed.doc.hourLogs[0]?.shiftId === committed.doc.shifts[0]?.id && committed.doc.hourLogs[0]?.hours === 4);
   ok("VolunteerLocal commit records bounded provenance", committed.importRecord?.provider === "volunteerlocal" && committed.importRecord?.files.roster === "roster.csv" && committed.importRecord?.bundleHash === bundleHash && committed.doc.imports.length === 1 && !JSON.stringify(committed.importRecord).includes("taylor@example.com"));
   ok("VolunteerLocal replay is idempotent", replayed.replay && !replayed.changed && replayed.doc.volunteers.length === committed.doc.volunteers.length && replayed.doc.imports.length === 1);
+  const attendanceShift = committed.doc.shifts[0];
+  const attendanceDoc = {
+    ...committed.doc,
+    shifts: [
+      attendanceShift,
+      { ...attendanceShift, id: "shift_attendance_second", filledVolunteerIds: [taylor.id] }
+    ],
+    hourLogs: []
+  };
+  const checkedIn = applyVolunteerAttendance(attendanceDoc, {
+    action: "check_in",
+    volunteerId: taylor.id,
+    shiftId: attendanceShift.id,
+    method: "captain",
+    note: "Captain verified arrival."
+  }, {
+    eventId: DEFAULT_EVENT_ID,
+    actorId: "captain-test",
+    idFactory: () => "attendance_test_1",
+    now: "2027-04-09T08:01:00.000Z"
+  });
+  const checkInReplay = applyVolunteerAttendance(checkedIn.doc, {
+    action: "check_in",
+    volunteerId: taylor.id,
+    shiftId: attendanceShift.id
+  }, { eventId: DEFAULT_EVENT_ID, now: "2027-04-09T08:02:00.000Z" });
+  const overlapping = applyVolunteerAttendance(checkedIn.doc, {
+    action: "check_in",
+    volunteerId: taylor.id,
+    shiftId: "shift_attendance_second"
+  }, { eventId: DEFAULT_EVENT_ID, now: "2027-04-09T08:03:00.000Z" });
+  const checkedOut = applyVolunteerAttendance(checkedIn.doc, {
+    action: "check_out",
+    volunteerId: taylor.id,
+    shiftId: attendanceShift.id,
+    attendanceId: checkedIn.attendance.id,
+    note: "Shift complete."
+  }, { eventId: DEFAULT_EVENT_ID, actorId: "captain-test", now: "2027-04-09T12:01:00.000Z" });
+  const checkOutReplay = applyVolunteerAttendance(checkedOut.doc, {
+    action: "check_out",
+    volunteerId: taylor.id,
+    shiftId: attendanceShift.id,
+    attendanceId: checkedIn.attendance.id
+  }, { eventId: DEFAULT_EVENT_ID, now: "2027-04-09T12:02:00.000Z" });
+  const attendanceBoard = volunteerAttendanceBoard(checkedIn.doc.volunteers, checkedIn.doc.shifts, checkedIn.doc.hourLogs);
+  ok("volunteer attendance records assigned shift check-in without local fallback", checkedIn.ok && checkedIn.volunteer.status === "checked_in" && checkedIn.attendance.verifiedBy === "captain-test" && checkedIn.attendance.source === "sandfest_live" && checkedIn.doc.hourLogs.length === 1);
+  ok("volunteer attendance retries converge and overlapping shifts fail closed", checkInReplay.replay === true && overlapping.ok === false && overlapping.conflict === true && checkedIn.doc.hourLogs.length === 1);
+  ok("volunteer attendance board exposes actionable assignments without contact details", attendanceBoard.summary.checkedIn === 1 && attendanceBoard.assignments.some(item => item.volunteerId === taylor.id && item.canCheckOut) && !JSON.stringify(attendanceBoard).includes("taylor@example.com"));
+  ok("volunteer checkout calculates hours and is idempotent", checkedOut.ok && checkedOut.volunteer.status === "confirmed" && checkedOut.attendance.hours === 4 && checkOutReplay.replay === true);
+  const staleRosterMerge = applyVolunteerLocalImport(checkedIn.doc, parsed, { now: "2027-04-09T08:04:00.000Z" });
+  ok("VolunteerLocal refresh cannot erase an active local check-in", staleRosterMerge.ok && staleRosterMerge.doc.volunteers.find(item => item.id === taylor.id)?.status === "checked_in");
   const changedMirrorHash = volunteerLocalImportPreviewHash(bundle, {
     ...defaults,
     mirrorFingerprint: volunteerLocalMirrorFingerprint({ ...existing, lastUpdated: "2027-01-02T00:00:00.000Z" })
@@ -6815,7 +6885,8 @@ try {
 VL-API-1,${DEFAULT_EVENT_ID},API Volunteer Lead,api-volunteer@example.com,active,yes,no,gate|traffic
 VL-API-WRONG,texas-sandfest-2026,Wrong Event Volunteer,wrong-volunteer@example.com,active,yes,yes,gate`;
   const volunteerShiftsCsvApi = `shift_id,event_id,role,zone,start_time,end_time,needed,volunteer_ids,captain_id
-SHIFT-API-1,${DEFAULT_EVENT_ID},gate,north_gate,2027-04-09T08:00:00-05:00,2027-04-09T12:00:00-05:00,2,VL-API-1,VL-API-1`;
+SHIFT-API-1,${DEFAULT_EVENT_ID},gate,north_gate,2027-04-09T08:00:00-05:00,2027-04-09T12:00:00-05:00,2,VL-API-1,VL-API-1
+SHIFT-API-2,${DEFAULT_EVENT_ID},traffic,north_gate,2027-04-09T13:00:00-05:00,2027-04-09T17:00:00-05:00,2,VL-API-1,VL-API-1`;
   const volunteerHoursCsvApi = `hour_log_id,event_id,volunteer_id,shift_id,check_in,check_out
 HOURS-API-1,${DEFAULT_EVENT_ID},VL-API-1,SHIFT-API-1,2027-04-09T08:00:00-05:00,2027-04-09T12:00:00-05:00`;
   const volunteerImportPayloadApi = {
@@ -6851,11 +6922,48 @@ HOURS-API-1,${DEFAULT_EVENT_ID},VL-API-1,SHIFT-API-1,2027-04-09T08:00:00-05:00,2
   const importedVolunteerApi = volunteersAfterCommitApi.data.volunteers?.find(item => item.externalId === "VL-API-1");
   const importedShiftApi = volunteersAfterCommitApi.data.shifts?.find(item => item.externalId === "SHIFT-API-1");
   ok("VolunteerLocal API import requires authentication and event attestation", unauthenticatedVolunteerImportApi.status === 401 && unattestedVolunteerImportApi.status === 400);
-  ok("VolunteerLocal API preview is non-mutating", volunteerImportPreviewApi.status === 200 && volunteerImportPreviewApi.data.summary?.volunteers?.created === 1 && volunteerImportPreviewApi.data.summary?.shifts?.created === 1 && volunteerImportPreviewApi.data.summary?.hourLogs?.created === 1 && volunteerImportPreviewApi.data.summary?.invalid === 1 && /^[a-f0-9]{64}$/.test(volunteerImportPreviewApi.data.previewHash || "") && volunteersBeforePreviewApi.data.volunteers?.length === volunteersAfterPreviewApi.data.volunteers?.length && !volunteersAfterPreviewApi.data.volunteers?.some(item => item.externalId === "VL-API-1"));
+  ok("VolunteerLocal API preview is non-mutating", volunteerImportPreviewApi.status === 200 && volunteerImportPreviewApi.data.summary?.volunteers?.created === 1 && volunteerImportPreviewApi.data.summary?.shifts?.created === 2 && volunteerImportPreviewApi.data.summary?.hourLogs?.created === 1 && volunteerImportPreviewApi.data.summary?.invalid === 1 && /^[a-f0-9]{64}$/.test(volunteerImportPreviewApi.data.previewHash || "") && volunteersBeforePreviewApi.data.volunteers?.length === volunteersAfterPreviewApi.data.volunteers?.length && !volunteersAfterPreviewApi.data.volunteers?.some(item => item.externalId === "VL-API-1"));
   ok("VolunteerLocal API preview hash fails closed", staleVolunteerImportApi.status === 409);
   ok("VolunteerLocal API commit reconciles roster coverage and hours", volunteerImportCommitApi.status === 201 && importedVolunteerApi?.waiverSigned === true && importedVolunteerApi?.smsConsent === false && importedShiftApi?.filledVolunteerIds.includes(importedVolunteerApi?.id) && volunteersAfterCommitApi.data.hourLogs?.some(item => item.externalId === "HOURS-API-1" && item.volunteerId === importedVolunteerApi?.id) && volunteersAfterCommitApi.data.imports?.[0]?.files?.roster === "volunteerlocal-roster.csv");
   ok("VolunteerLocal API replay is idempotent", volunteerImportReplayApi.status === 200 && volunteerImportReplayApi.data.replay === true && volunteersAfterCommitApi.data.volunteers?.filter(item => item.externalId === "VL-API-1").length === 1 && volunteersAfterCommitApi.data.imports?.length === 1);
   ok("VolunteerLocal import feeds governed task assignment directory", volunteerTaskDirectoryApi.data.assignmentDirectory?.volunteers?.some(item => item.id === importedVolunteerApi?.id && item.name === "API Volunteer Lead" && !("email" in item)) && !volunteerTaskDirectoryApi.data.assignmentDirectory?.volunteers?.some(item => item.id === "vol_006"));
+  const attendanceShiftApi = volunteersAfterCommitApi.data.shifts?.find(item => item.externalId === "SHIFT-API-2");
+  const unauthenticatedAttendanceApi = await hit("POST", "/api/admin/volunteers/attendance", {
+    action: "check_in",
+    volunteerId: importedVolunteerApi?.id,
+    shiftId: attendanceShiftApi?.id
+  });
+  const volunteerCheckInApi = await hit("POST", "/api/admin/volunteers/attendance", {
+    action: "check_in",
+    volunteerId: importedVolunteerApi?.id,
+    shiftId: attendanceShiftApi?.id,
+    method: "captain"
+  }, true);
+  const volunteerCheckInReplayApi = await hit("POST", "/api/admin/volunteers/attendance", {
+    action: "check_in",
+    volunteerId: importedVolunteerApi?.id,
+    shiftId: attendanceShiftApi?.id,
+    method: "captain"
+  }, true);
+  const volunteerCheckOutApi = await hit("POST", "/api/admin/volunteers/attendance", {
+    action: "check_out",
+    volunteerId: importedVolunteerApi?.id,
+    shiftId: attendanceShiftApi?.id,
+    attendanceId: volunteerCheckInApi.data.attendance?.id,
+    method: "captain"
+  }, true);
+  const volunteerCheckOutReplayApi = await hit("POST", "/api/admin/volunteers/attendance", {
+    action: "check_out",
+    volunteerId: importedVolunteerApi?.id,
+    shiftId: attendanceShiftApi?.id,
+    attendanceId: volunteerCheckInApi.data.attendance?.id,
+    method: "captain"
+  }, true);
+  const volunteersAfterAttendanceApi = await hit("GET", "/api/admin/volunteers", null, true);
+  ok("volunteer attendance API requires staff authentication", unauthenticatedAttendanceApi.status === 401);
+  ok("volunteer attendance API records and projects shared check-in", volunteerCheckInApi.status === 200 && volunteerCheckInApi.data.attendance?.source === "sandfest_live" && volunteerCheckInApi.data.volunteer?.status === "checked_in" && volunteerCheckInApi.data.attendanceBoard?.assignments?.some(item => item.volunteerId === importedVolunteerApi?.id && item.shiftId === attendanceShiftApi?.id && item.canCheckOut === true));
+  ok("volunteer attendance API retries converge", volunteerCheckInReplayApi.status === 200 && volunteerCheckInReplayApi.data.replay === true && volunteerCheckOutReplayApi.status === 200 && volunteerCheckOutReplayApi.data.replay === true);
+  ok("volunteer attendance API checkout closes hours and roster status", volunteerCheckOutApi.status === 200 && volunteerCheckOutApi.data.attendance?.checkOutAt && volunteerCheckOutApi.data.volunteer?.status === "confirmed" && volunteersAfterAttendanceApi.data.attendance?.assignments?.some(item => item.volunteerId === importedVolunteerApi?.id && item.shiftId === attendanceShiftApi?.id && item.attendanceStatus === "checked_out"));
 
   const staffCsvApi = `staff_id,event_id,name,work_email,status,role,team,notification_team
 staff_operations,${DEFAULT_EVENT_ID},Jamie Torres,jamie.torres@staff.example,active,ops_admin,operations,operations

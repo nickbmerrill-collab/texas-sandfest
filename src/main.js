@@ -1433,6 +1433,14 @@ app.innerHTML = `
             <div id="admin-volunteers-gaps" class="admin-volunteers-rows keyboard-scroll-region" role="region" aria-label="Understaffed volunteer shifts" tabindex="0"></div>
           </div>
         </div>
+        <div class="admin-volunteer-attendance">
+          <div>
+            <strong>Shift attendance</strong>
+          </div>
+          <div id="admin-volunteer-attendance" class="admin-volunteer-attendance-list keyboard-scroll-region" role="region" aria-label="Volunteer shift attendance" tabindex="0">
+            <article class="empty-state"><span>No shift assignments loaded.</span></article>
+          </div>
+        </div>
         <form id="admin-import-volunteers" class="admin-inline-form admin-revenue-import" data-requires-permission="volunteers:write">
           <strong>Reconcile VolunteerLocal exports</strong>
           <label class="admin-import-file"><span>Roster CSV</span><input name="rosterFile" type="file" accept=".csv,text/csv" required /></label>
@@ -6162,6 +6170,7 @@ function renderAdminVolunteers(payload) {
   const updated = document.querySelector("#admin-volunteers-updated");
   const zonesEl = document.querySelector("#admin-volunteers-zones");
   const gapsEl = document.querySelector("#admin-volunteers-gaps");
+  const attendanceEl = document.querySelector("#admin-volunteer-attendance");
   const importHistory = document.querySelector("#admin-volunteer-import-history");
   if (!kpis || !s) return;
   kpis.innerHTML = [
@@ -6195,6 +6204,16 @@ function renderAdminVolunteers(payload) {
       <i>${g.fillPct}%</i>
     </article>
   `).join("") || '<article class="empty-state"><span>All shifts filled.</span></article>';
+
+  if (attendanceEl) {
+    adminOperationsUi.renderVolunteerAttendance(attendanceEl, payload.attendance, {
+      adminCan,
+      adminFetch,
+      conditionLabel,
+      loadAdminVolunteers,
+      setAdminStatus
+    });
+  }
 
   if (importHistory) {
     importHistory.innerHTML = (payload.imports || []).map(item => {

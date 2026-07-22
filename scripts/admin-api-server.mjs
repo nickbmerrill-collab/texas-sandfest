@@ -62,11 +62,13 @@ import {
   summarizeFleet
 } from "../lib/fleet.mjs";
 import {
+  applyVolunteerAttendance,
   enrichShifts,
   normalizeHourLog,
   normalizeShift,
   normalizeVolunteer,
-  summarizeVolunteers
+  summarizeVolunteers,
+  volunteerAttendanceBoard
 } from "../lib/volunteers.mjs";
 import {
   applyVolunteerLocalImport,
@@ -1108,11 +1110,36 @@ function volunteerDashboardPayload(mirror) {
       status: z.status,
       openGaps: z.openGaps
     })),
+    attendance: volunteerAttendanceBoard(mirror.volunteers, mirror.shifts, mirror.hourLogs),
     shifts: enrichShifts(mirror.shifts),
     volunteers: mirror.volunteers,
     hourLogs: mirror.hourLogs,
     imports: (mirror.imports || []).slice(-20).reverse()
   };
+}
+
+async function mutateVolunteerAttendance(input, options = {}) {
+  let result = null;
+  const fallback = {
+    eventId: CURRENT_EVENT_ID,
+    lastUpdated: null,
+    source: "empty",
+    zoneLabels: {},
+    volunteers: [],
+    shifts: [],
+    hourLogs: [],
+    imports: []
+  };
+  await updatePlatformDoc(ROOT, "volunteers", current => {
+    const currentDoc = current || fallback;
+    result = applyVolunteerAttendance(currentDoc, input, {
+      ...options,
+      eventId: CURRENT_EVENT_ID,
+      idFactory: () => `attendance_${randomUUID()}`
+    });
+    return result?.ok && !result.replay ? result.doc : currentDoc;
+  }, { fallback });
+  return result;
 }
 
 function volunteerImportResponse(result) {
@@ -6958,6 +6985,60 @@ async function handleRequest(request, response) {
         summary: payload.summary,
         coverage: payload.coverage,
         understaffed: payload.summary.understaffed
+      });
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/admin/volunteers/attendance") {
+      const session = await requirePermission(request, response, "volunteers:write");
+      if (!session) return;
+      const body = await readBody(request);
+      const attendanceAction = String(body.action || "").trim().toLowerCase();
+      const beforeMirror = await readVolunteerMirror();
+      const beforeVolunteer = beforeMirror.volunteers.find(item => item.id === String(body.volunteerId || "").trim()) || null;
+      const beforeAttendance = beforeMirror.hourLogs.find(item => item.id === String(body.attendanceId || "").trim()) || null;
+      const result = await mutateVolunteerAttendance(body, {
+        actorId: session.id,
+        now: new Date().toISOString()
+      });
+      if (!result?.ok) {
+        sendJson(request, response, result?.conflict ? 409 : 400, { error: result?.error || "Volunteer attendance could not be recorded." });
+        return;
+      }
+      if (!result.replay) {
+        await writeAuditRecord(request, `volunteers.attendance.${attendanceAction}`, {
+          type: "volunteerAttendance",
+          id: result.attendance.id
+        }, {
+          volunteerId: beforeVolunteer?.id || null,
+          volunteerStatus: beforeVolunteer?.status || null,
+          attendanceId: beforeAttendance?.id || null,
+          checkInAt: beforeAttendance?.checkInAt || null,
+          checkOutAt: beforeAttendance?.checkOutAt || null
+        }, {
+          volunteerId: result.volunteer.id,
+          volunteerStatus: result.volunteer.status,
+          attendanceId: result.attendance.id,
+          checkInAt: result.attendance.checkInAt,
+          checkOutAt: result.attendance.checkOutAt
+        }, {
+          shiftId: result.shift.id,
+          method: result.attendance.method,
+          hours: result.attendance.hours
+        });
+      }
+      const mirror = await readVolunteerMirror();
+      sendJson(request, response, 200, {
+        replay: result.replay === true,
+        volunteer: result.volunteer,
+        attendance: result.attendance,
+        attendanceBoard: volunteerAttendanceBoard(mirror.volunteers, mirror.shifts, mirror.hourLogs),
+        summary: summarizeVolunteers(mirror.volunteers, mirror.shifts, mirror.hourLogs, {
+          eventId: mirror.eventId,
+          source: mirror.source,
+          generatedAt: mirror.lastUpdated,
+          zoneLabels: mirror.zoneLabels
+        })
       });
       return;
     }

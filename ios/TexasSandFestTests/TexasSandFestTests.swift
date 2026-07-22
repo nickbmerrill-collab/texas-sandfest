@@ -819,6 +819,135 @@ final class NativeTaskBoardStoreTests: XCTestCase {
     }
 }
 
+final class NativeVolunteerAttendanceStoreTests: XCTestCase {
+    @MainActor
+    func testAuthenticatedAttendanceWorkflowAppliesServerBoard() async throws {
+        let dashboard = Data(#"""
+        {
+          "attendance": {
+            "assignments": [{
+              "id": "shift-1:vol-1", "shiftId": "shift-1", "volunteerId": "vol-1",
+              "volunteerName": "Alex Rivera", "volunteerStatus": "checked_in",
+              "roleId": "gate", "zoneId": "north-gate", "zoneLabel": "North Gate",
+              "day": "Friday", "startsAt": "2027-04-16T13:00:00.000Z", "endsAt": "2027-04-16T17:00:00.000Z",
+              "captain": false, "attendanceStatus": "checked_in", "attendanceId": "attendance-1",
+              "checkInAt": "2027-04-16T13:01:00.000Z", "checkOutAt": null, "hours": 0,
+              "canCheckIn": false, "canCheckOut": true
+            }],
+            "recent": [],
+            "summary": { "assigned": 1, "scheduled": 0, "checkedIn": 1, "checkedOut": 0, "exceptions": 0 }
+          }
+        }
+        """#.utf8)
+        let mutation = Data(#"""
+        {
+          "replay": false,
+          "attendance": { "id": "attendance-1" },
+          "volunteer": { "id": "vol-1" },
+          "attendanceBoard": {
+            "assignments": [{
+              "id": "shift-1:vol-1", "shiftId": "shift-1", "volunteerId": "vol-1",
+              "volunteerName": "Alex Rivera", "volunteerStatus": "confirmed",
+              "roleId": "gate", "zoneId": "north-gate", "zoneLabel": "North Gate",
+              "day": "Friday", "startsAt": "2027-04-16T13:00:00.000Z", "endsAt": "2027-04-16T17:00:00.000Z",
+              "captain": false, "attendanceStatus": "checked_out", "attendanceId": "attendance-1",
+              "checkInAt": "2027-04-16T13:01:00.000Z", "checkOutAt": "2027-04-16T17:02:00.000Z", "hours": 4.02,
+              "canCheckIn": false, "canCheckOut": false
+            }],
+            "recent": [],
+            "summary": { "assigned": 1, "scheduled": 0, "checkedIn": 0, "checkedOut": 1, "exceptions": 0 }
+          },
+          "summary": {}
+        }
+        """#.utf8)
+        let recorder = AppDataRequestRecorder()
+        let store = NativeVolunteerAttendanceStore(transport: AppDataTransport { request in
+            await recorder.record(request)
+            if request.httpMethod == "POST" {
+                return AppDataHTTPResponse(data: mutation, statusCode: 200)
+            }
+            return AppDataHTTPResponse(data: dashboard, statusCode: 200)
+        })
+
+        await store.refresh(request: attendanceRequest(path: "/api/admin/volunteers"))
+
+        XCTAssertEqual(store.source, "Live shared shift roster")
+        XCTAssertEqual(store.board.summary.checkedIn, 1)
+        let active = try XCTUnwrap(store.board.assignments.first)
+        XCTAssertTrue(active.canCheckOut)
+
+        let succeeded = await store.record(
+            active,
+            request: attendanceRequest(path: "/api/admin/volunteers/attendance", method: "POST")
+        )
+
+        XCTAssertTrue(succeeded)
+        XCTAssertEqual(store.board.summary.checkedOut, 1)
+        XCTAssertEqual(store.board.assignments.first?.attendanceStatus, "checked_out")
+        XCTAssertEqual(store.board.assignments.first?.hours, 4.02)
+        let requests = await recorder.values()
+        XCTAssertEqual(requests.map(\.method), ["GET", "POST"])
+        XCTAssertTrue(requests.allSatisfy { $0.authorization == "Bearer local-board-secret" })
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: requests[1].body) as? [String: Any])
+        XCTAssertEqual(body["action"] as? String, "check_out")
+        XCTAssertEqual(body["volunteerId"] as? String, "vol-1")
+        XCTAssertEqual(body["shiftId"] as? String, "shift-1")
+        XCTAssertEqual(body["attendanceId"] as? String, "attendance-1")
+        XCTAssertEqual(body["method"] as? String, "mobile")
+    }
+
+    @MainActor
+    func testMissingSessionAndRejectedMutationPreserveAttendance() async throws {
+        let store = NativeVolunteerAttendanceStore(transport: AppDataTransport { _ in
+            AppDataHTTPResponse(data: Data(#"{"error":"Shift assignment changed."}"#.utf8), statusCode: 409)
+        })
+        let assignment = VolunteerAttendanceAssignment(
+            id: "shift-1:vol-1",
+            shiftId: "shift-1",
+            volunteerId: "vol-1",
+            volunteerName: "Alex Rivera",
+            volunteerStatus: "confirmed",
+            roleId: "gate",
+            zoneId: "north-gate",
+            zoneLabel: "North Gate",
+            day: "Friday",
+            startsAt: nil,
+            endsAt: nil,
+            captain: false,
+            attendanceStatus: "scheduled",
+            attendanceId: nil,
+            checkInAt: nil,
+            checkOutAt: nil,
+            hours: 0,
+            canCheckIn: true,
+            canCheckOut: false
+        )
+
+        await store.refresh(request: nil)
+        XCTAssertEqual(store.source, "Board session required")
+        XCTAssertTrue(store.board.assignments.isEmpty)
+
+        let missingSession = await store.record(assignment, request: nil)
+        XCTAssertFalse(missingSession)
+        XCTAssertTrue(store.board.assignments.isEmpty)
+
+        let rejected = await store.record(
+            assignment,
+            request: attendanceRequest(path: "/api/admin/volunteers/attendance", method: "POST")
+        )
+        XCTAssertFalse(rejected)
+        XCTAssertTrue(store.board.assignments.isEmpty)
+        XCTAssertEqual(store.lastError, "Shift assignment changed.")
+    }
+
+    private func attendanceRequest(path: String, method: String = "GET") -> URLRequest {
+        var request = URLRequest(url: URL(string: "http://127.0.0.1:8806\(path)")!)
+        request.httpMethod = method
+        request.setValue("Bearer local-board-secret", forHTTPHeaderField: "Authorization")
+        return request
+    }
+}
+
 final class AppDataStoreTests: XCTestCase {
     @MainActor
     func testLiveBootstrapPersistsAndRestoresOnlyForMatchingAPIOrigin() async throws {
