@@ -12,6 +12,28 @@ struct AdminPartnersView: View {
                         .foregroundStyle(dataStore.adminSyncState == .live ? Color.sandFestGulf : .secondary)
                 }
 
+                Section("Delegated Work") {
+                    NavigationLink {
+                        NativeTaskBoardView()
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "checklist")
+                                .font(.title2)
+                                .foregroundStyle(Color.sandFestGulf)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Staff and Volunteer Work Board")
+                                    .font(.headline)
+                                if let summary = dataStore.adminTaskSummary {
+                                    Text("\(summary.active) active · \(summary.overdue) overdue · \(summary.blocked) blocked")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+
                 Section("Sponsors") {
                     ForEach(dataStore.payload.sponsors) { sponsor in
                         VStack(alignment: .leading, spacing: 6) {
