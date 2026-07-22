@@ -128,6 +128,23 @@ supervisor to replace every service and restore the exact accounting, partner,
 task, key-date, and message baseline at 12/12 readiness. Run it only during
 rehearsal and wait for the final reset result.
 
+To prove the private document-ingestion workflow against the active stack, run:
+
+```bash
+npm run board:prove:documents
+```
+
+The proof uploads a checksum-distinct copy of the board briefing through the
+visible Operations form, assigns it to the Production team, waits for private
+PPTX extraction, and verifies the bounded staff-only preview. It advances the
+synchronized review task from open to in progress to done, downloads the source
+through the governed control and verifies identical SHA-256 bytes. It requires
+a completed extraction automation record plus privacy-safe upload, review, and
+download audit evidence. It then asks the supervisor to replace every service
+and restore the exact four-document,
+ten-open-task, 21-completed-job baseline at 12/12 readiness. Run it during
+rehearsal and wait for the final reset before the live walkthrough.
+
 For Safari-compatible rendering proof against the same active, read-only
 session, install Playwright WebKit once and run:
 
