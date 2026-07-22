@@ -463,7 +463,7 @@ async function verifyReady(label, timeoutMs = 60_000) {
         delete state.error;
         await persistState();
         if (label === "startup") {
-          console.log("\n[board-demo] Board presentation stack is ready (10/10 checks).\n");
+          console.log(`\n[board-demo] Board presentation stack is ready (${last.report.passed}/${last.report.total} checks).\n`);
           console.log(`[board-demo] Source:     ${sourceRevision.branch}@${sourceRevision.commit.slice(0, 8)}${sourceRevision.matchesOriginMain ? " (origin/main)" : ""}`);
           console.log(`[board-demo] Visitor:    ${visitor}`);
           console.log(`[board-demo] Operations: ${operations}`);

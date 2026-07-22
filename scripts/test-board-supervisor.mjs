@@ -250,6 +250,9 @@ try {
     rememberServicePids(session);
     return session;
   }, 90_000, "Initial board demo readiness");
+  if (!output.includes("Board presentation stack is ready (11/11 checks).")) {
+    throw new Error(`Supervisor startup banner does not match the current readiness report:\n${output.slice(-4_000)}`);
+  }
   if (Number(new URL(initial.endpoints.webBase).port) === webPort || !occupiedPortServer.listening) {
     throw new Error("Supervisor did not preserve and move around the occupied web port.");
   }
