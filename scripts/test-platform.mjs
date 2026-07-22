@@ -24,6 +24,7 @@ import {
   parseBoardIOSUserDomain,
   selectBoardIOSSimulator
 } from "../lib/board-ios-rehearsal.mjs";
+import { acquireBoardIOSRunLock } from "../lib/board-ios-run-lock.mjs";
 import {
   BOARD_DEMO_LOCAL_GENERATION_KEY,
   BOARD_DEMO_SESSION_GENERATION_KEY,
@@ -907,6 +908,30 @@ console.log("\n=== Pure library suite ===\n");
     && !boardIOSProcessIsActive(iosProcessState, "com.portalcodex.texassandfest", 62935)
     && healthyIOSCapture.ok
     && !blankIOSCapture.ok);
+  const iosRunLockRoot = await mkdtemp(path.join(tmpdir(), "sandfest-ios-run-lock-"));
+  const iosRunLockPath = path.join(iosRunLockRoot, "run.lock");
+  const releaseFirstIOSRun = await acquireBoardIOSRunLock(iosRunLockPath);
+  let iosRunWaitNotices = 0;
+  let secondIOSRunAcquired = false;
+  const secondIOSRun = acquireBoardIOSRunLock(iosRunLockPath, {
+    retryMs: 5,
+    waitTimeoutMs: 1_000,
+    onWait: () => { iosRunWaitNotices += 1; }
+  }).then(release => {
+    secondIOSRunAcquired = true;
+    return release;
+  });
+  await new Promise(resolve => setTimeout(resolve, 25));
+  const secondIOSRunWaited = !secondIOSRunAcquired && iosRunWaitNotices === 1;
+  await releaseFirstIOSRun();
+  const releaseSecondIOSRun = await secondIOSRun;
+  await releaseSecondIOSRun();
+  await mkdir(iosRunLockPath);
+  await writeFile(path.join(iosRunLockPath, "owner.json"), JSON.stringify({ pid: 2_147_483_647, token: "dead-owner" }), "utf8");
+  const releaseRecoveredIOSRun = await acquireBoardIOSRunLock(iosRunLockPath, { retryMs: 5, waitTimeoutMs: 1_000 });
+  await releaseRecoveredIOSRun();
+  ok("iOS board rehearsal serializes concurrent launches and recovers dead owners", secondIOSRunWaited);
+  await rm(iosRunLockRoot, { recursive: true, force: true });
   const storage = () => {
     const values = new Map();
     return {
