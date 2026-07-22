@@ -233,9 +233,18 @@ Checkout attempts and webhook events are stored locally under `data/processed/or
 npm run test:ios-xcode
 npm run test:ios-device
 npm run test:ios-device-install
+npm run board:ios
 ```
 
 The Xcode gate selects an available iPhone simulator, runs the native XCTest target, and compiles an optimized simulator build with Swift warnings treated as errors. It uses `/Applications/Xcode.app/Contents/Developer` when the shell's global developer selector still points at standalone Command Line Tools. The committed project can be regenerated with `cd ios && xcodegen generate` when XcodeGen is installed.
+
+`npm run board:ios` requires the supervised board stack on clean `main`, selects
+and boots an available iPhone simulator, compiles the optimized app, installs it,
+launches the explicitly labeled Admin board mode against the exact loopback API,
+and verifies both the running app process and a nonblank simulator capture. Use
+`npm run board:ios -- --mode=visitor` for the public app. The command leaves the
+app open in Simulator and stores its latest capture under the ignored
+`.sandfest-runtime/board-ios/` directory.
 
 The device-signing gate is a local release check. It uses the committed Apple
 development team with Xcode automatic signing, allows Xcode to refresh the
