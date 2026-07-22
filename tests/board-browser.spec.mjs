@@ -861,7 +861,17 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await expect(sponsorBrandPreview.locator("[data-brand-preview-tagline]")).toHaveText("Healthier coast, stronger community");
   await expect(sponsorBrandPreview).toHaveCSS("background-color", "rgb(10, 101, 112)");
   await expect(sponsorBrandPreview.locator('[data-brand-preview-color="secondary"]')).toHaveCSS("background-color", "rgb(242, 201, 76)");
-  const sponsorBrandProfileResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/public/partner-brand-profile" && response.request().method() === "POST");
+  const sponsorBrandValidity = await sponsorBrandProfile.evaluate(form => ({
+    valid: form.checkValidity(),
+    invalidFields: [...form.elements]
+      .filter(field => field.willValidate && !field.checkValidity())
+      .map(field => ({ name: field.name || field.type, message: field.validationMessage }))
+  }));
+  expect(sponsorBrandValidity, JSON.stringify(sponsorBrandValidity)).toEqual({ valid: true, invalidFields: [] });
+  const sponsorBrandProfileResponse = page.waitForResponse(response => (
+    new URL(response.url()).pathname === "/api/public/partner-brand-profile"
+    && response.request().method() === "POST"
+  ), { timeout: 15_000 });
   await sponsorBrandProfile.locator('button[type="submit"]').click();
   expect((await sponsorBrandProfileResponse).status()).toBe(200);
   await expect(page.locator("#partner-status-form .partner-form-status")).toContainText("Brand profile submitted for review.");

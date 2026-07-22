@@ -6300,6 +6300,26 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .island-condition-kpis p { margin: 0; }
 .island-condition-kpis small { color: var(--muted); }
 .island-condition-kpis small a { color: var(--gulf); font-weight: 800; }
+/* admin-prune:start visitor-incident-notices */
+.island-condition-notices { display: grid; gap: 10px; margin-top: 14px; }
+.island-condition-notices[hidden] { display: none; }
+.island-condition-notice {
+  background: #fff8ef;
+  border: 1px solid #dca36f;
+  border-left: 4px solid #b4562e;
+  border-radius: 6px;
+  display: grid;
+  gap: 5px;
+  padding: 14px 16px;
+}
+.island-condition-notice > div { align-items: center; display: flex; justify-content: space-between; }
+.island-condition-notice > div span { color: var(--muted); font-size: 11px; font-weight: 800; text-transform: uppercase; }
+.island-condition-notice > div b { color: #853818; font-size: 11px; text-transform: uppercase; }
+.island-condition-notice > strong { color: var(--deep); }
+.island-condition-notice > p { color: #493931; margin: 0; }
+.island-condition-notice > small { color: var(--muted); font-size: 11px; }
+.island-condition-notice[data-severity="critical"] { background: #fff2ed; border-color: #d96a46; border-left-color: var(--coral); }
+/* admin-prune:end visitor-incident-notices */
 .island-camera-heading { align-items: center; display: flex; justify-content: space-between; margin: 26px 0 10px; }
 .island-camera-heading span { color: var(--muted); font-size: 12px; }
 .island-camera-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }

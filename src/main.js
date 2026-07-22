@@ -1082,6 +1082,7 @@ app.innerHTML = `
       <div id="island-condition-kpis" class="island-condition-kpis">
         <article class="empty-state"><span>Loading current conditions...</span></article>
       </div>
+      <div id="island-condition-notices" class="island-condition-notices" aria-live="polite" hidden></div>
       <div class="island-camera-heading">
         <strong>Traffic, crowd, and line monitors</strong>
         <span id="island-condition-updated" role="status" aria-live="polite">Checking sources</span>
@@ -5739,6 +5740,7 @@ function isBoardConditionSimulation(payload) {
 
 function renderIslandConditions(payload) {
   const kpis = document.querySelector("#island-condition-kpis");
+  const notices = document.querySelector("#island-condition-notices");
   const grid = document.querySelector("#island-camera-grid");
   const updated = document.querySelector("#island-condition-updated");
   if (!kpis || !grid) return;
@@ -5786,6 +5788,21 @@ function renderIslandConditions(payload) {
       <p>${escapeHtml(weather.alerts?.[0]?.event || (syntheticWeather ? "No simulated weather alerts" : "No active NWS alerts"))}</p>
       <small>${escapeHtml(weather.source || "National Weather Service")}</small>
     </article>`;
+  if (notices) {
+    const activeNotices = Array.isArray(payload.notices) ? payload.notices : [];
+    notices.hidden = activeNotices.length === 0;
+    notices.innerHTML = activeNotices.map(notice => {
+      const updatedAt = new Date(notice.updatedAt || "");
+      const hasUpdatedAt = Number.isFinite(updatedAt.getTime());
+      return `
+        <article class="island-condition-notice" data-public-incident="${escapeAttr(notice.id || "")}" data-severity="${escapeAttr(notice.severity || "moderate")}">
+          <div><span>Current island notice</span><b>${escapeHtml(conditionLabel(notice.severity || "moderate"))}</b></div>
+          <strong>${escapeHtml(notice.title || "Island conditions update")}</strong>
+          <p>${escapeHtml(notice.summary || "SandFest operations is monitoring current conditions.")}</p>
+          ${hasUpdatedAt ? `<small><time datetime="${escapeAttr(updatedAt.toISOString())}">Updated ${escapeHtml(updatedAt.toLocaleString([], { dateStyle: "medium", timeStyle: "short" }))}</time></small>` : ""}
+        </article>`;
+    }).join("");
+  }
   grid.innerHTML = (payload.cameras || []).map(camera => {
     const displayStatus = camera.operationalStatus === "live" ? camera.level : camera.operationalStatus || camera.level;
     const observation = camera.freshness?.state === "live" && ["live", "degraded"].includes(camera.operationalStatus)

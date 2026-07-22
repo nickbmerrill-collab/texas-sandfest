@@ -9804,7 +9804,7 @@ async function handleRequest(request, response) {
         sendJson(request, response, result?.error === "Incident not found." ? 404 : 400, { error: result?.error || "Dispatch could not be created." });
         return;
       }
-      if (result.changed) await writeAuditRecord(request, "conditions.dispatch.create", { type: "incident_dispatch", id: result.dispatch.id }, null, result.dispatch, { incidentId });
+      if (result.changed) await writeAuditRecord(request, "conditions.dispatch.create", { type: "incident_dispatch", id: result.dispatch.id }, null, incidentDispatchResponse(result.dispatch), { incidentId });
       sendJson(request, response, result.changed ? 201 : 200, { dispatch: incidentDispatchResponse(result.dispatch), incident: result.incident, duplicate: result.duplicate === true, email: publicEmailReadiness() });
       return;
     }
@@ -9829,7 +9829,7 @@ async function handleRequest(request, response) {
         sendJson(request, response, result?.error === "Dispatch not found." ? 404 : 400, { error: result?.error || "Dispatch could not be updated." });
         return;
       }
-      await writeAuditRecord(request, "conditions.dispatch.update", { type: "incident_dispatch", id: dispatchId }, result.before, result.dispatch, { incidentId });
+      await writeAuditRecord(request, "conditions.dispatch.update", { type: "incident_dispatch", id: dispatchId }, incidentDispatchResponse(result.before), incidentDispatchResponse(result.dispatch), { incidentId });
       sendJson(request, response, 200, { dispatch: incidentDispatchResponse(result.dispatch) });
       return;
     }
@@ -9855,7 +9855,7 @@ async function handleRequest(request, response) {
         sendJson(request, response, result?.error === "Dispatch not found." ? 404 : result?.conflict ? 409 : 400, { error: result?.error || "Dispatch message could not be reviewed." });
         return;
       }
-      await writeAuditRecord(request, `conditions.dispatch.message.${body.action}`, { type: "incident_dispatch", id: dispatchId }, result.before, result.dispatch, { incidentId });
+      await writeAuditRecord(request, `conditions.dispatch.message.${body.action}`, { type: "incident_dispatch", id: dispatchId }, incidentDispatchResponse(result.before), incidentDispatchResponse(result.dispatch), { incidentId });
       sendJson(request, response, 200, { dispatch: incidentDispatchResponse(result.dispatch), email: publicEmailReadiness() });
       return;
     }

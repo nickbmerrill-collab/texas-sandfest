@@ -74,6 +74,7 @@
     "board:prove:signups": "node scripts/prove-board-signups.mjs",
     "board:prove:guest-services": "node scripts/prove-board-guest-services.mjs",
     "board:prove:delegation": "node scripts/prove-board-delegation-journey.mjs",
+    "board:prove:incident": "node scripts/prove-board-incident-journey.mjs",
     "board:prove:vendor": "node scripts/prove-board-vendor-journey.mjs",
     "board:prove:operations": "node scripts/prove-board-operations.mjs",
     "board:prove:documents": "node scripts/prove-board-documents.mjs",
