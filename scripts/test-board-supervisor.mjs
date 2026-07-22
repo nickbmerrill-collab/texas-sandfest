@@ -168,6 +168,43 @@ async function signupProofRehearsal(sessionFile) {
   return report;
 }
 
+async function sponsorJourneyProofRehearsal(sessionFile) {
+  const result = await run(
+    process.execPath,
+    ["scripts/prove-board-sponsor-journey.mjs", "--json"],
+    commandEnvironment(sessionFile),
+    180_000
+  );
+  let report = null;
+  try {
+    report = JSON.parse(result.stdout);
+  } catch {
+    throw new Error(`Board sponsor journey proof returned invalid JSON:\n${result.stderr}\n${result.stdout}`);
+  }
+  if (
+    result.code !== 0
+    || report.ok !== true
+    || report.invitation?.packageId !== "tarpon"
+    || report.application?.type !== "sponsor"
+    || report.application?.outreachConversion !== true
+    || report.review?.applicationStatus !== "approved"
+    || report.review?.profileStatus !== "approved"
+    || report.review?.assetStatus !== "approved"
+    || report.showcase?.sponsorCount !== 2
+    || report.showcase?.logoBytes < 1
+    || !/^[a-f0-9]{64}$/i.test(String(report.showcase?.logoChecksumSha256 || ""))
+    || report.audit?.records < 4
+    || report.reset?.applications !== 5
+    || report.reset?.prospects !== 2
+    || report.reset?.wonProspects !== 0
+    || report.reset?.featuredSponsors !== 1
+    || report.reset?.preflight !== `${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}/${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}`
+  ) {
+    throw new Error(`Board sponsor journey proof failed:\n${JSON.stringify(report, null, 2)}`);
+  }
+  return report;
+}
+
 async function operationsProofRehearsal(sessionFile) {
   const result = await run(
     process.execPath,
@@ -617,6 +654,11 @@ try {
   rememberServicePids(signupProofSession);
   console.log(`  ok public signup proof creates ${signupProof.submissions.length} applications, renders ${signupProof.operations.applicationCount} in Operations, and restores the ${signupProof.reset.applicationCount}-application baseline`);
 
+  const sponsorJourneyProof = await sponsorJourneyProofRehearsal(sessionFile);
+  const sponsorJourneyProofSession = await readBoardDemoSession(sessionFile);
+  rememberServicePids(sponsorJourneyProofSession);
+  console.log(`  ok sponsor journey converts a ${sponsorJourneyProof.invitation.packageId} invitation, approves branding, byte-verifies ${sponsorJourneyProof.showcase.logoBytes} public logo bytes, records ${sponsorJourneyProof.audit.records} audits, and restores ${sponsorJourneyProof.reset.preflight} readiness`);
+
   const operationsProof = await operationsProofRehearsal(sessionFile);
   const operationsProofSession = await readBoardDemoSession(sessionFile);
   rememberServicePids(operationsProofSession);
@@ -679,7 +721,7 @@ try {
   const lingering = [...observedPids].filter(processAlive);
   if (lingering.length) throw new Error(`Board child processes remained alive after shutdown: ${lingering.join(", ")}`);
   console.log(`  ok second stop shuts down every process observed across both supervisor lifecycles`);
-  console.log("\nBoard demo supervisor: 21/21 checks passed.\n");
+  console.log("\nBoard demo supervisor: 22/22 checks passed.\n");
 } catch (error) {
   console.error(`\nBoard demo supervisor test failed: ${error.message}`);
   process.exitCode = 1;

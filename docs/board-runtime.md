@@ -113,6 +113,24 @@ replace every service and restore the five-application baseline, even if a
 workflow assertion fails. Do not run this state-mutating proof during the live
 walkthrough; run it during rehearsal and wait for its final 12/12 reset result.
 
+To prove the targeted sponsor outreach and branding journey, run:
+
+```bash
+npm run board:prove:sponsor
+```
+
+The proof uses the prepared, geographically scored Coastal Bend Community Bank
+prospect in the visible outreach workspace. Staff issue a package-specific,
+expiring invitation and open it through the ordinary Operations control. The
+recipient sees a locked organization, email, and package, grants contact consent,
+and creates the sponsor application through the public form. The same private
+portal submits a live brand preview and uploaded PNG logo; Operations approves
+the application, profile, and asset. The proof then requires a second public
+sponsor card, byte-identical logo delivery, and governed invitation, application,
+profile, and asset audit records without capability or storage-path exposure.
+Finally, it restores the exact five-application, two-prospect, one-featured-sponsor
+baseline at 12/12 readiness. Run it during rehearsal and wait for the reset.
+
 To prove the operating workflows behind the board dashboard, run:
 
 ```bash
