@@ -476,14 +476,6 @@ const incomingPipelines = ["eventeny", "quickbooks", "finance", "ops", "docs", "
 const ingestionPipelines = [...sourcePipelines, ...incomingPipelines];
 const incomingFiles = incomingInventory?.files ?? [];
 
-const adminTasks = [
-  ["Connect Eventeny", "Export current-season tickets, applications, sponsor records, vendor lists, and message threads."],
-  ["Connect QuickBooks", "Add Intuit credentials, complete OAuth, then snapshot company info and open invoices."],
-  ["Curate media", "Approve public-safe photo sets, sponsor logos, maps, captions, and App Store-safe imagery."],
-  ["Normalize roles", "Define guest, volunteer, vendor, sponsor, board, finance, ops, and super-admin permissions."],
-  ["Publish app feed", "Promote reviewed records into the shared bootstrap payload used by web and iOS."]
-];
-
 const app = document.querySelector("#app");
 
 function formatMoney(cents) {
@@ -1195,7 +1187,7 @@ app.innerHTML = `
             <p id="admin-deployment-check-count" class="admin-launch-readiness-count">Load the operations workspace to evaluate launch gates.</p>
           </div>
           <div class="admin-launch-readiness-actions">
-            <button id="admin-sync-deployment-tasks" type="button" class="button secondary" data-requires-permission="partners:write">Sync work board</button>
+            <button id="admin-sync-deployment-tasks" type="button" class="button secondary" data-requires-permission="deployment:write">Sync work board</button>
             <div class="admin-readiness-filter" role="group" aria-label="Deployment checks">
               <button type="button" data-deployment-filter="attention" aria-pressed="true">Needs action <span id="admin-deployment-attention-count">0</span></button>
               <button type="button" data-deployment-filter="all" aria-pressed="false">All checks <span id="admin-deployment-total-count">0</span></button>
@@ -1682,7 +1674,7 @@ app.innerHTML = `
               <button id="admin-commit-partner-import" class="button primary" type="button" hidden disabled>Import valid applications</button>
             </div>
           </form>
-          <form id="admin-create-task" class="admin-inline-form admin-task-create" data-requires-permission="partners:write">
+          <form id="admin-create-task" class="admin-inline-form admin-task-create" data-requires-permission="tasks:write">
             <strong>Delegate a task</strong>
             <label><span>Task</span><input name="title" required maxlength="180" /></label>
             <label><span>Assignment</span><select name="assigneeType"><option value="team">Team</option><option value="volunteer">Volunteer</option><option value="staff">Staff member</option><option value="unassigned">Unassigned</option></select></label>
@@ -2097,24 +2089,6 @@ app.innerHTML = `
             <code>${pipeline.drop}</code>
           </article>
         `).join("")}
-      </div>
-      <div class="admin-task-panel">
-        <div>
-          <p class="eyebrow">Next access unlocks</p>
-          <h3>Plug-in sequence</h3>
-          <p class="section-copy">Once credentials and exports arrive, these become the first implementation passes before any public launch.</p>
-        </div>
-        <div class="task-list">
-          ${adminTasks.map(([name, detail], index) => `
-            <article>
-              <span>${index + 1}</span>
-              <div>
-                <strong>${name}</strong>
-                <p>${detail}</p>
-              </div>
-            </article>
-          `).join("")}
-        </div>
       </div>
       <div class="incoming-file-panel">
         <div class="section-heading">
@@ -6981,8 +6955,8 @@ function renderAdminTaskBoard(payload) {
         <input name="assigneeId" list="admin-task-assignee-options" value="${escapeAttr(task.assigneeId || "")}" aria-label="${escapeAttr(task.title)} owner" />
         <input name="dueAt" type="datetime-local" value="${escapeAttr(taskDateTimeInput(task.dueAt))}" aria-label="${escapeAttr(task.title)} due date" />
         <select name="priority" aria-label="${escapeAttr(task.title)} priority">${taskPriorityOptions(task.priority)}</select>
-        <button type="button" class="button secondary" data-save-task="${escapeAttr(task.id)}" ${adminCan("partners:write") ? "" : "disabled"}>Save task</button>
-        <button type="button" class="button secondary" data-resend-task="${escapeAttr(task.id)}" ${adminCan("partners:write") && !assignmentNoticeAction.disabled ? "" : "disabled"}>${escapeHtml(assignmentNoticeAction.label)}</button>
+        <button type="button" class="button secondary" data-save-task="${escapeAttr(task.id)}" ${adminCan("tasks:write") ? "" : "disabled"}>Save task</button>
+        <button type="button" class="button secondary" data-resend-task="${escapeAttr(task.id)}" ${adminCan("tasks:write") && !assignmentNoticeAction.disabled ? "" : "disabled"}>${escapeHtml(assignmentNoticeAction.label)}</button>
       </div>
     </article>`;
   }).join("") || '<article class="empty-state"><span>No tasks match these filters.</span></article>';
@@ -9426,7 +9400,7 @@ document.querySelector("#admin-sync-deployment-tasks")?.addEventListener("click"
   } catch (error) {
     setAdminStatus(error.message, "error");
   } finally {
-    button.disabled = !adminCan("partners:write");
+    button.disabled = !adminCan("deployment:write");
   }
 });
 
@@ -9885,7 +9859,7 @@ document.querySelector("#admin-create-task")?.addEventListener("submit", async e
     form.reset();
     await loadAdminPartners({ quiet: true });
     setAdminStatus("Task delegated.", "ok");
-  } catch (error) { setAdminStatus(error.message, "error"); } finally { button.disabled = false; }
+  } catch (error) { setAdminStatus(error.message, "error"); } finally { button.disabled = !adminCan("tasks:write"); }
 });
 
 document.querySelector("#admin-create-prospect")?.addEventListener("submit", async event => {

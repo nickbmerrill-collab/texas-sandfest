@@ -7,6 +7,8 @@ import { loadDotEnv } from "../lib/load-env.mjs";
 import { RUNTIME_OWNERSHIP_ERROR_CODE, assertRuntimeOwnership, resolveRuntimeRoot, runtimeRootProfile } from "../lib/runtime-root.mjs";
 import { createStorage } from "../lib/storage.mjs";
 import { authMode, authModeIsJwt, resolveSession } from "../lib/auth.mjs";
+import { ADMIN_ROLE_PERMISSIONS } from "../lib/admin-permissions.mjs";
+import { ADMIN_DEPLOYMENT_WRITE, ADMIN_TASKS_WRITE } from "../lib/admin-permission-names.mjs";
 import { buildRevenueLedgerView, partnerRevenueEntries, summarizeLedger, ticketRevenueEntries } from "../lib/revenue.mjs";
 import {
   createBudgetLine,
@@ -760,118 +762,7 @@ const alertSeverities = new Set([
   "clear"
 ]);
 
-const rolePermissions = {
-  super_admin: ["*"],
-  ops_admin: [
-    "admin:read",
-    "content:write",
-    "documents:read",
-    "documents:write",
-    "alert:read",
-    "alert:write",
-    "orders:read",
-    "payments:read",
-    "revenue:read",
-    "budget:read",
-    "fleet:read",
-    "fleet:write",
-    "volunteers:read",
-    "volunteers:write",
-    "staff:write",
-    "consent:read",
-    "passport:read",
-    "voting:read",
-    "booths:read",
-    "booths:write",
-    "partners:read",
-    "partners:write",
-    "outreach:read",
-    "outreach:write",
-    "conditions:read",
-    "conditions:write",
-    "fulfillment:read",
-    "fulfillment:update",
-    "jobs:write",
-    "audit:read",
-    "impact:read",
-    "guest_services:read",
-    "guest_services:write",
-    "snapshot:read"
-  ],
-  ticketing_admin: [
-    "admin:read",
-    "alert:read",
-    "ticket:write",
-    "orders:read",
-    "payments:read",
-    "revenue:read",
-    "consent:read",
-    "guest_services:read",
-    "guest_services:write",
-    "fulfillment:read",
-    "audit:read",
-    "snapshot:read"
-  ],
-  sponsor_admin: [
-    "admin:read",
-    "alert:read",
-    "sponsor:write",
-    "partners:read",
-    "partners:write",
-    "outreach:read",
-    "outreach:write",
-    "orders:read",
-    "fulfillment:read",
-    "audit:read",
-    "snapshot:read"
-  ],
-  finance_admin: [
-    "admin:read",
-    "alert:read",
-    "orders:read",
-    "payments:read",
-    "revenue:read",
-    "revenue:write",
-    "budget:read",
-    "budget:write",
-    "fleet:read",
-    "volunteers:read",
-    "consent:read",
-    "passport:read",
-    "voting:read",
-    "booths:read",
-    "partners:read",
-    "documents:read",
-    "finance:write",
-    "conditions:read",
-    "fulfillment:read",
-    "audit:read",
-    "impact:read",
-    "guest_services:read",
-    "snapshot:read"
-  ],
-  viewer: [
-    "admin:read",
-    "alert:read",
-    "orders:read",
-    "payments:read",
-    "revenue:read",
-    "fleet:read",
-    "volunteers:read",
-    "consent:read",
-    "passport:read",
-    "voting:read",
-    "booths:read",
-    "partners:read",
-    "outreach:read",
-    "conditions:read",
-    "fulfillment:read",
-    "audit:read",
-    "impact:read",
-    "guest_services:read",
-    "snapshot:read"
-  ]
-};
+const rolePermissions = ADMIN_ROLE_PERMISSIONS;
 
 function checkStatus(ok, message, severity = "error") {
   return {
@@ -7072,7 +6963,7 @@ async function handleRequest(request, response) {
     }
 
     if (method === "POST" && pathname === "/api/admin/deployment/tasks/sync") {
-      const session = await requirePermission(request, response, "partners:write");
+      const session = await requirePermission(request, response, ADMIN_DEPLOYMENT_WRITE);
       if (!session) return;
       const deployment = await deploymentProfile();
       const result = await syncDeploymentTasks(deployment.checks, session.id);
@@ -9405,7 +9296,7 @@ async function handleRequest(request, response) {
     }
 
     if (method === "POST" && pathname === "/api/admin/partners/tasks") {
-      const session = await requirePermission(request, response, "partners:write");
+      const session = await requirePermission(request, response, ADMIN_TASKS_WRITE);
       if (!session) return;
       const body = await readBody(request);
       const assignment = await enrichTaskAssignment(body);
@@ -9429,7 +9320,7 @@ async function handleRequest(request, response) {
 
     const partnerTaskMatch = pathname.match(/^\/api\/admin\/partners\/tasks\/([^/]+)$/);
     if (method === "PATCH" && partnerTaskMatch) {
-      const session = await requirePermission(request, response, "partners:write");
+      const session = await requirePermission(request, response, ADMIN_TASKS_WRITE);
       if (!session) return;
       const taskId = decodeURIComponent(partnerTaskMatch[1]);
       const body = await readBody(request);
@@ -9456,7 +9347,7 @@ async function handleRequest(request, response) {
 
     const partnerTaskNoticeMatch = pathname.match(/^\/api\/admin\/partners\/tasks\/([^/]+)\/assignment-notice$/);
     if (method === "POST" && partnerTaskNoticeMatch) {
-      const session = await requirePermission(request, response, "partners:write");
+      const session = await requirePermission(request, response, ADMIN_TASKS_WRITE);
       if (!session) return;
       const taskId = decodeURIComponent(partnerTaskNoticeMatch[1]);
       const body = await readBody(request);

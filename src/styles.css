@@ -3158,61 +3158,6 @@ time {
   padding: 9px 10px;
 }
 
-.admin-task-panel {
-  align-items: start;
-  background: var(--deep);
-  border-radius: 8px;
-  color: var(--white);
-  display: grid;
-  gap: 32px;
-  grid-template-columns: 0.75fr 1.25fr;
-  margin-top: 22px;
-  padding: 28px;
-}
-
-.admin-task-panel h3 {
-  color: var(--white);
-  font-size: 30px;
-}
-
-.admin-task-panel .section-copy {
-  color: rgba(255, 253, 247, 0.72);
-}
-
-.task-list {
-  display: grid;
-  gap: 12px;
-}
-
-.task-list article {
-  align-items: start;
-  background: rgba(255, 253, 247, 0.08);
-  border: 1px solid rgba(255, 253, 247, 0.16);
-  border-radius: 8px;
-  display: grid;
-  gap: 14px;
-  grid-template-columns: 34px 1fr;
-  padding: 14px;
-}
-
-.task-list article > span {
-  align-items: center;
-  background: var(--sun);
-  border-radius: 999px;
-  color: #2c2308;
-  display: inline-flex;
-  font-weight: 900;
-  height: 30px;
-  justify-content: center;
-  width: 30px;
-}
-
-.task-list p {
-  color: rgba(255, 253, 247, 0.72);
-  line-height: 1.5;
-  margin: 4px 0 0;
-}
-
 .incoming-file-panel {
   margin-top: 32px;
 }
@@ -3601,7 +3546,6 @@ time {
   .asset-workflow,
   .map-media-section,
   .map-media-grid,
-  .admin-task-panel,
   .incoming-table article,
   .domain-grid,
   .finance-grid,
