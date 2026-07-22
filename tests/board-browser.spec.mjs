@@ -659,8 +659,8 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await expect(featuredSponsor).toHaveCount(1);
   await expect(featuredSponsor).toContainText("Marlin partner");
   await expect(featuredSponsor).toContainText("Rooted on the Texas coast");
-  await expect(featuredSponsor).toContainText("Visit partner");
-  await expect(featuredSponsor).toHaveAttribute("href", "https://example.com/gulf-shore");
+  await expect(featuredSponsor).not.toContainText("Visit partner");
+  await expect(featuredSponsor).not.toHaveAttribute("href", /.+/);
   const featuredSponsorLogo = featuredSponsor.locator("img");
   await expect(featuredSponsorLogo).toHaveAttribute("src", /\/api\/public\/sponsor-showcase\/assets\/demo_brand_asset_gulf_shore_primary$/);
   await expect.poll(() => featuredSponsorLogo.evaluate(image => image.complete && image.naturalWidth > 0)).toBe(true);

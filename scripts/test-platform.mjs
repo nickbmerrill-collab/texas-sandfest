@@ -499,6 +499,7 @@ import { boardDemoSyntheticConditions } from "../lib/board-conditions.mjs";
 import { boardPartnerFormPreset } from "../src/board-demo/partner-form-presets.js";
 import { developmentPublicApiBase } from "../src/dev-public-api-base.js";
 import { taskAssignmentNoticeAction } from "../src/admin-operations-ui.js";
+import { safePublicHttpsUrl } from "../lib/public-outbound-url.mjs";
 import { eventArchiveDigest, planEventRollover, ROLLOVER_DOCUMENT_KEYS } from "../lib/event-rollover.mjs";
 import {
   cleanAuthCallbackUrl,
@@ -4075,7 +4076,18 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   const approvedPublicLogo = publicLogoAsset.ok ? reviewPartnerBrandAsset(publicLogoAsset.doc, publicLogoAsset.asset.id, { status: "approved" }, { actorId: "sponsor_admin_1", idFactory, now }) : { ok: false };
   const sponsorShowcase = approvedPublicLogo.ok ? publicSponsorShowcase(approvedPublicLogo.doc) : [];
   const sponsorShowcaseJson = JSON.stringify(sponsorShowcase);
-  ok("approved sponsor branding publishes safely", sponsorShowcase.length === 1 && sponsorShowcase[0].displayName === "Gulf Coast Bank" && sponsorShowcase[0].logo?.path.endsWith("/asset_upload_test") && approvedPublicSponsorAsset(approvedPublicLogo.doc, "asset_upload_test")?.storageKey === storedAsset.storageKey && !sponsorShowcaseJson.includes("storageKey") && !sponsorShowcaseJson.includes("contactEmail") && !sponsorShowcaseJson.includes("checksum") && !sponsorShowcaseJson.includes("approvedBy"));
+  ok("approved sponsor branding publishes safely", sponsorShowcase.length === 1 && sponsorShowcase[0].displayName === "Gulf Coast Bank" && sponsorShowcase[0].website === null && sponsorShowcase[0].logo?.path.endsWith("/asset_upload_test") && approvedPublicSponsorAsset(approvedPublicLogo.doc, "asset_upload_test")?.storageKey === storedAsset.storageKey && !sponsorShowcaseJson.includes("storageKey") && !sponsorShowcaseJson.includes("contactEmail") && !sponsorShowcaseJson.includes("checksum") && !sponsorShowcaseJson.includes("approvedBy"));
+  ok("public sponsor destination keeps genuine HTTPS links", safePublicHttpsUrl("https://partners.coastalbank.com/community#sandfest") === "https://partners.coastalbank.com/community" && safePublicHttpsUrl("https://fcu.org/community") === "https://fcu.org/community");
+  ok("public sponsor destination rejects reserved and private hosts", [
+    "https://example.com/sponsor",
+    "https://brand.example/sponsor",
+    "https://partner.test/sponsor",
+    "https://localhost/sponsor",
+    "https://127.0.0.1/sponsor",
+    "https://10.0.0.5/sponsor",
+    "https://192.168.1.20/sponsor",
+    "https://[::1]/sponsor"
+  ].every(value => safePublicHttpsUrl(value) === null));
   ok("brand asset content validation", !validatePartnerAssetUpload({ buffer: Buffer.from("not-a-png"), contentType: "image/png", fileName: "fake.png" }, { maxBytes: 1024 }).ok);
   const recoveryPdf = Buffer.from("%PDF-1.4\nSandFest recovery proof\n%%EOF\n");
   const recoveryReferences = partnerAssetRecoveryReferences({

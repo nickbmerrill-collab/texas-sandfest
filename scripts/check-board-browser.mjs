@@ -367,6 +367,8 @@ if (visitorUrl && operationsUrl) {
         sponsorFeatureVisible: document.querySelector("#public-sponsor-featured")?.getClientRects().length > 0,
         sponsorFeatureHeading: document.querySelector("#public-sponsor-featured h3")?.textContent?.trim(),
         sponsorFeatureCount: document.querySelector("#public-sponsor-showcase")?.dataset.count,
+        sponsorPlaceholderLinks: [...document.querySelectorAll("#public-sponsor-showcase a[href]")]
+          .filter(item => /(?:^|\.)example\.(?:com|net|org)$|\.(?:example|invalid|local|localhost|test)$/i.test(new URL(item.href).hostname)).length,
         sponsorFeatureBeforePackages: (() => {
           const featured = document.querySelector("#public-sponsor-featured");
           const packages = document.querySelector("#public-sponsor-tiers");
@@ -431,10 +433,10 @@ if (visitorUrl && operationsUrl) {
     });
     await inspect("sponsor_brand", "Sponsor branding", "Inspect the approved board sponsor asset and showcase projection.", async () => {
       const item = observations.visitor;
-      if (item?.sponsorCards < 1 || !item?.sponsorLogoLoaded || !item?.sponsorFeatureVisible || item?.sponsorFeatureHeading !== "Backing the beach" || item?.sponsorFeatureCount !== String(item.sponsorCards) || !item?.sponsorFeatureBeforePackages) {
+      if (item?.sponsorCards < 1 || !item?.sponsorLogoLoaded || !item?.sponsorFeatureVisible || item?.sponsorFeatureHeading !== "Backing the beach" || item?.sponsorFeatureCount !== String(item.sponsorCards) || item?.sponsorPlaceholderLinks !== 0 || !item?.sponsorFeatureBeforePackages) {
         throw new Error("The approved sponsor showcase did not render prominently ahead of the package catalog.");
       }
-      return `${item.sponsorCards} approved sponsor card rendered with a loaded logo in the featured-partner band ahead of the package catalog.`;
+      return `${item.sponsorCards} approved sponsor card rendered with a loaded logo and no placeholder destination in the featured-partner band ahead of the package catalog.`;
     });
     await inspect("island_conditions", "Island Conditions", "Inspect the synthetic camera playback and conditions refresh.", async () => {
       const item = observations.visitor;
