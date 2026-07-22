@@ -4,13 +4,14 @@ import SwiftUI
 //
 // Tracks which sculptures the visitor has "stamped" on their Sculpture
 // Passport. Mirrors FavoritesStore: small, per-user, UserDefaults-backed, no
-// server roundtrip. Sculpture.id is an Int, so we persist [Int]. On the beach a
+// server roundtrip. Published entry IDs are persisted so a reordered roster
+// cannot move a stamp to a different sculpture. On the beach a
 // stamp is earned by scanning the QR at a sculpture; in the app you can also tap
 // to collect (and the QR scanner reuses the existing Eventeny scanner).
 
 @MainActor
 final class PassportStore: ObservableObject {
-    @Published private(set) var collected: Set<Int>
+    @Published private(set) var collected: Set<String>
     @Published private(set) var lastSyncNote: String?
 
     /// Stable device-scoped attendee id for POST /api/public/passport/stamp.
@@ -21,8 +22,10 @@ final class PassportStore: ObservableObject {
     private let defaults = UserDefaults.standard
 
     init() {
-        if let data = defaults.array(forKey: defaultsKey) as? [Int] {
+        if let data = defaults.stringArray(forKey: defaultsKey) {
             collected = Set(data)
+        } else if let legacy = defaults.array(forKey: defaultsKey) as? [Int] {
+            collected = Set(legacy.map { "legacy:\($0)" })
         } else {
             collected = []
         }
@@ -35,36 +38,31 @@ final class PassportStore: ObservableObject {
         }
     }
 
-    func isCollected(_ id: Int) -> Bool { collected.contains(id) }
+    func isCollected(_ sculpture: Sculpture) -> Bool {
+        collected.contains(sculpture.passportKey)
+    }
 
-    func toggle(_ id: Int) {
-        if collected.contains(id) { collected.remove(id) } else { collected.insert(id) }
+    func toggle(_ sculpture: Sculpture) {
+        let key = sculpture.passportKey
+        if collected.contains(key) { collected.remove(key) } else { collected.insert(key) }
         persist()
-        if collected.contains(id) {
-            Task { await stampBackend(payload: "TSF-CP-\(String(format: "%04d", id))", method: "tap") }
+        if collected.contains(key) {
+            Task { await stampBackend(payload: sculpture.canonicalPassportCode, method: "tap") }
         }
     }
 
-    func collect(_ id: Int) {
-        guard !collected.contains(id) else { return }
-        collected.insert(id)
-        persist()
-        Task { await stampBackend(payload: "TSF-CP-\(String(format: "%04d", id))", method: "tap") }
+    func collect(_ sculpture: Sculpture) {
+        guard collectLocally(sculpture) else { return }
+        Task { await stampBackend(payload: sculpture.canonicalPassportCode, method: "tap") }
     }
 
     /// Stamp from a raw QR payload (tsf:cp:… / TSF-CP-… / bare id). Always
-    /// updates local store when a local sculpture id can be derived.
-    func collectFromScan(payload: String, localSculptureId: Int?) {
-        if let localSculptureId {
-            collect(localSculptureId)
-            // collect() already posts TSF-CP-NNNN; also post the raw payload so
-            // backend resolve works for tsf:entry: / tsf:cp: codes.
-            if !payload.uppercased().hasPrefix("TSF-CP-") {
-                Task { await stampBackend(payload: payload, method: "qr_scan") }
-            }
-        } else {
-            Task { await stampBackend(payload: payload, method: "qr_scan") }
+    /// updates local store when a published sculpture can be resolved.
+    func collectFromScan(payload: String, localSculpture: Sculpture?) {
+        if let localSculpture {
+            _ = collectLocally(localSculpture)
         }
+        Task { await stampBackend(payload: payload, method: "qr_scan") }
     }
 
     func reset() {
@@ -74,6 +72,13 @@ final class PassportStore: ObservableObject {
 
     private func persist() {
         defaults.set(Array(collected), forKey: defaultsKey)
+    }
+
+    private func collectLocally(_ sculpture: Sculpture) -> Bool {
+        guard !collected.contains(sculpture.passportKey) else { return false }
+        collected.insert(sculpture.passportKey)
+        persist()
+        return true
     }
 
     /// Best-effort sync to Node public stamp API. Offline-safe (local stamp already applied).
@@ -120,6 +125,7 @@ final class PassportStore: ObservableObject {
 // MARK: - Sculptors screen
 
 struct SculptorsView: View {
+    @EnvironmentObject private var dataStore: AppDataStore
     @EnvironmentObject private var passport: PassportStore
 
     @State private var filter: String = "All"
@@ -127,7 +133,7 @@ struct SculptorsView: View {
     @State private var scanning = false
     @State private var scanNote: String? = nil
 
-    private var sculptures: [Sculpture] { SampleData.liveBeach.sculptures }
+    private var sculptures: [Sculpture] { dataStore.sculptures }
 
     private var categories: [String] {
         ["All"] + Array(Set(sculptures.map(\.category))).sorted()
@@ -139,22 +145,34 @@ struct SculptorsView: View {
     }
 
     private var collectedCount: Int {
-        sculptures.filter { passport.isCollected($0.id) }.count
+        sculptures.filter { passport.isCollected($0) }.count
     }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    passportHeader
-                    corridorMap
-                    filterChips
-                    LazyVStack(alignment: .leading, spacing: 12) {
-                        ForEach(filtered) { sculpture in
-                            Button { selected = sculpture } label: {
-                                sculptorRow(sculpture)
+                    Label(dataStore.sculptorSource, systemImage: dataStore.sculptorSyncState == .live ? "checkmark.circle.fill" : "clock")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(dataStore.sculptorSyncState == .live ? Color.sandFestGulf : .secondary)
+                    if sculptures.isEmpty {
+                        ContentUnavailableView(
+                            "Sculptor roster coming soon",
+                            systemImage: "photo.artframe",
+                            description: Text("The current event roster is awaiting staff publication.")
+                        )
+                        .frame(maxWidth: .infinity, minHeight: 360)
+                    } else {
+                        passportHeader
+                        corridorMap
+                        filterChips
+                        LazyVStack(alignment: .leading, spacing: 12) {
+                            ForEach(filtered) { sculpture in
+                                Button { selected = sculpture } label: {
+                                    sculptorRow(sculpture)
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
                         }
                     }
                 }
@@ -167,6 +185,7 @@ struct SculptorsView: View {
                     Button { scanning = true } label: {
                         Label("Scan", systemImage: "qrcode.viewfinder")
                     }
+                    .disabled(sculptures.isEmpty)
                 }
             }
         }
@@ -229,7 +248,7 @@ struct SculptorsView: View {
                             .frame(width: 16, height: 16)
                             .overlay(Circle().stroke(.white, lineWidth: 2))
                             .overlay(alignment: .center) {
-                                if passport.isCollected(sculpture.id) {
+                                if passport.isCollected(sculpture) {
                                     Image(systemName: "checkmark")
                                         .font(.system(size: 8, weight: .black))
                                         .foregroundStyle(.white)
@@ -294,7 +313,7 @@ struct SculptorsView: View {
                         .lineLimit(1)
                 }
                 Spacer()
-                if passport.isCollected(sculpture.id) {
+                if passport.isCollected(sculpture) {
                     Image(systemName: "checkmark.seal.fill")
                         .foregroundStyle(Color.sandFestSun)
                 }
@@ -345,13 +364,20 @@ struct SculptorsView: View {
         let trimmed = payload.trimmingCharacters(in: .whitespacesAndNewlines)
         let digits = trimmed.filter(\.isNumber)
         let localId = Int(digits)
-        let match = localId.flatMap { id in sculptures.first(where: { $0.id == id }) }
+        let entryId = trimmed.lowercased().hasPrefix("tsf:entry:")
+            ? String(trimmed.dropFirst("tsf:entry:".count))
+            : nil
+        let match = sculptures.first(where: { sculpture in
+            sculpture.entryId == entryId
+                || sculpture.canonicalPassportCode.caseInsensitiveCompare(trimmed) == .orderedSame
+                || (entryId == nil && localId == sculpture.id)
+        })
 
         if let match {
-            passport.collectFromScan(payload: trimmed, localSculptureId: match.id)
+            passport.collectFromScan(payload: trimmed, localSculpture: match)
             scanNote = "Stamped: \(match.sculptor)"
         } else if trimmed.lowercased().hasPrefix("tsf:") || trimmed.uppercased().hasPrefix("TSF-CP-") {
-            passport.collectFromScan(payload: trimmed, localSculptureId: nil)
+            passport.collectFromScan(payload: trimmed, localSculpture: nil)
             scanNote = "Stamp sent to server"
         } else {
             scanNote = "Unrecognized code"
@@ -390,15 +416,17 @@ struct SculptorDetailSheet: View {
                         .padding(.horizontal, 12).padding(.vertical, 5)
                         .background(categoryColor(sculpture.category), in: Capsule())
                         .foregroundStyle(.white)
-                    if sculpture.state == "carving" {
-                        Text("● Sculpting live")
+                    if sculpture.state == "sculpting" || sculpture.state == "carving" {
+                        Text("Sculpting")
                             .font(.caption.weight(.bold))
                             .foregroundStyle(Color.sandFestCoral)
                     }
                     Spacer()
-                    Text(sculpture.crowd.label)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    if sculpture.crowdStatusVerified != false {
+                        Text(sculpture.crowd.label)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 Text(sculpture.sculptor)
@@ -409,24 +437,30 @@ struct SculptorDetailSheet: View {
                 Text(sculpture.bio)
                     .font(.body)
 
-                HStack(spacing: 14) {
-                    Label(sculpture.audioMinutes, systemImage: "headphones")
-                    Label(sculpture.timelapseHours, systemImage: "timelapse")
+                if !sculpture.audioMinutes.isEmpty || !sculpture.timelapseHours.isEmpty {
+                    HStack(spacing: 14) {
+                        if !sculpture.audioMinutes.isEmpty {
+                            Label(sculpture.audioMinutes, systemImage: "headphones")
+                        }
+                        if !sculpture.timelapseHours.isEmpty {
+                            Label(sculpture.timelapseHours, systemImage: "timelapse")
+                        }
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 }
-                .font(.caption)
-                .foregroundStyle(.secondary)
 
                 Button {
-                    passport.toggle(sculpture.id)
+                    passport.toggle(sculpture)
                 } label: {
                     Label(
-                        passport.isCollected(sculpture.id) ? "Stamped — tap to remove" : "Collect passport stamp",
-                        systemImage: passport.isCollected(sculpture.id) ? "checkmark.seal.fill" : "seal"
+                        passport.isCollected(sculpture) ? "Stamped — tap to remove" : "Collect passport stamp",
+                        systemImage: passport.isCollected(sculpture) ? "checkmark.seal.fill" : "seal"
                     )
                     .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(passport.isCollected(sculpture.id) ? Color.sandFestSun : Color.sandFestGulf)
+                .tint(passport.isCollected(sculpture) ? Color.sandFestSun : Color.sandFestGulf)
                 .padding(.top, 4)
             }
             .padding()

@@ -298,6 +298,60 @@ struct PublicSandFestPayload: Codable {
     }
 }
 
+struct PublicSculptorRoster: Codable {
+    let meta: PublicSculptorRosterMeta
+    let legend: [PublicSculptorLegend]
+    let sculptors: [PublicSculptor]
+    let entries: [PublicSculptureEntry]
+    let pois: [PublicSculpturePOI]
+}
+
+struct PublicSculptorRosterMeta: Codable {
+    let eventId: String
+    let publicationStatus: String
+    let sourceUrl: String?
+    let publishedAt: String?
+}
+
+struct PublicSculptorLegend: Codable {
+    let colorKey: String
+    let label: String
+    let colorHex: String
+}
+
+struct PublicSculptor: Codable {
+    let id: String
+    let name: String
+    let division: String
+    let hometown: String
+    let returning: Bool
+    let bio: String
+    let entryId: String
+}
+
+struct PublicSculptureEntry: Codable {
+    let id: String
+    let title: String
+    let sculptorId: String
+    let division: String
+    let status: String
+    let beachMarker: String
+    let poiId: String
+    let statement: String
+}
+
+struct PublicSculpturePOI: Codable {
+    let id: String
+    let type: String
+    let entryId: String?
+    let illustratedMapXY: PublicSculptureMapPoint?
+}
+
+struct PublicSculptureMapPoint: Codable {
+    let x: Double
+    let y: Double
+}
+
 enum ConciergeConfidence: String, Codable, Equatable {
     case high
     case medium
@@ -354,6 +408,53 @@ struct Sculpture: Identifiable, Codable {
     let audioMinutes: String   // e.g. "4:12"
     let timelapseHours: String // e.g. "2h timelapse"
     let photoURL: String       // headshot/portfolio photo from texassandfest.org
+    let entryId: String?
+    let passportCode: String?
+    let crowdStatusVerified: Bool?
+
+    init(
+        id: Int,
+        x: Double,
+        y: Double,
+        sculptor: String,
+        country: String,
+        title: String,
+        category: String,
+        crowd: SculptureCrowd,
+        state: String,
+        bio: String,
+        audioMinutes: String,
+        timelapseHours: String,
+        photoURL: String,
+        entryId: String? = nil,
+        passportCode: String? = nil,
+        crowdStatusVerified: Bool? = true
+    ) {
+        self.id = id
+        self.x = x
+        self.y = y
+        self.sculptor = sculptor
+        self.country = country
+        self.title = title
+        self.category = category
+        self.crowd = crowd
+        self.state = state
+        self.bio = bio
+        self.audioMinutes = audioMinutes
+        self.timelapseHours = timelapseHours
+        self.photoURL = photoURL
+        self.entryId = entryId
+        self.passportCode = passportCode
+        self.crowdStatusVerified = crowdStatusVerified
+    }
+
+    var passportKey: String {
+        entryId ?? "legacy:\(id)"
+    }
+
+    var canonicalPassportCode: String {
+        passportCode ?? "TSF-CP-\(String(format: "%04d", id))"
+    }
 }
 
 enum BloomHue: String, Codable {

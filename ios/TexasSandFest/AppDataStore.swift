@@ -25,6 +25,14 @@ private struct PublicBootstrapCache: Codable {
     let payload: PublicSandFestPayload
 }
 
+private struct PublicSculptorRosterCache: Codable {
+    let schemaVersion: Int
+    let apiScope: String
+    let eventID: String
+    let savedAt: Date
+    let payload: PublicSculptorRoster
+}
+
 private struct ConciergeQuestion: Encodable {
     let question: String
 }
@@ -136,12 +144,17 @@ final class AppDataStore: ObservableObject {
     @Published private(set) var adminSource = "Bundled admin demo"
     @Published private(set) var adminSyncState: SyncState = .cached
     @Published private(set) var adminTaskSummary: AdminTaskSummary?
+    @Published private(set) var sculptures: [Sculpture] = []
+    @Published private(set) var sculptorSource = "Awaiting current roster"
+    @Published private(set) var sculptorSyncState: SyncState = .cached
 
     private let bundledPayload: SandFestPayload
     private let resolvedAPIBase: URL
     private let cacheURL: URL?
+    private let sculptorCacheURL: URL?
     private let transport: AppDataTransport
     private let boardAdminToken: String?
+    private var sculptorPublicationStatus: String?
 
     init(
         seedPayload: SandFestPayload? = nil,
@@ -157,6 +170,7 @@ final class AppDataStore: ObservableObject {
         bundledPayload = seedResult.payload
         self.resolvedAPIBase = resolvedAPIBase
         self.cacheURL = resolvedCacheURL
+        self.sculptorCacheURL = Self.sculptorCacheURL(for: resolvedCacheURL)
         self.transport = transport
         self.boardAdminToken = Self.nonEmpty(boardAdminToken ?? Self.boardAdminToken)
 
@@ -175,6 +189,19 @@ final class AppDataStore: ObservableObject {
             alert = seedResult.payload.alert
             source = seedResult.source
             staffAccessMode = .visitorOnly
+        }
+
+        if let cachedRoster = Self.loadCachedSculptorRoster(
+            from: sculptorCacheURL,
+            apiBase: resolvedAPIBase,
+            expectedEventID: seedResult.payload.guide.id,
+            allowSample: staffAccessMode == .boardDemo && Self.isLoopback(resolvedAPIBase)
+        ) {
+            sculptures = cachedRoster.sculptures
+            sculptorPublicationStatus = cachedRoster.publicationStatus
+            sculptorSource = cachedRoster.sculptures.isEmpty
+                ? "Roster awaiting publication"
+                : "Cached sculptor roster"
         }
     }
 
@@ -254,6 +281,17 @@ final class AppDataStore: ObservableObject {
             staffAccessMode = Self.staffAccessMode(for: publicPayload, apiBase: targetBase)
             syncState = .live
             Self.persist(publicPayload, to: cacheURL, apiBase: targetBase)
+            let allowsSampleRoster = staffAccessMode == .boardDemo && Self.isLoopback(targetBase)
+            if !allowsSampleRoster && sculptorPublicationStatus == "sample" {
+                sculptures = []
+                sculptorPublicationStatus = nil
+                sculptorSource = "Awaiting current roster"
+            }
+            await refreshPublicSculptors(
+                apiBase: targetBase,
+                expectedEventID: publicPayload.guide.id,
+                runtime: publicPayload.runtime
+            )
             if staffAccessMode == .boardDemo {
                 await refreshBoardOperations(apiBase: targetBase)
             } else {
@@ -261,6 +299,43 @@ final class AppDataStore: ObservableObject {
             }
         } catch {
             syncState = .offline
+        }
+    }
+
+    private func refreshPublicSculptors(
+        apiBase: URL,
+        expectedEventID: String,
+        runtime: PublicRuntime?
+    ) async {
+        sculptorSyncState = .refreshing
+        do {
+            var request = URLRequest(url: Self.publicURL(apiBase: apiBase, path: ["api", "public", "sculptors"]))
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            request.timeoutInterval = 12
+            request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+            let response = try await transport.load(request)
+            guard response.statusCode == 200 else {
+                throw AppDataError.httpStatus(response.statusCode)
+            }
+            let roster = try Self.decoder.decode(PublicSculptorRoster.self, from: response.data)
+            let resolved = try Self.resolveSculptors(
+                roster,
+                expectedEventID: expectedEventID,
+                allowSample: runtime?.mode == "board_demo" && Self.isLoopback(apiBase)
+            )
+            sculptures = resolved
+            sculptorPublicationStatus = roster.meta.publicationStatus
+            sculptorSource = resolved.isEmpty
+                ? "Roster awaiting publication"
+                : runtime?.mode == "board_demo" ? "Live board sculptor roster" : "Live sculptor roster"
+            sculptorSyncState = .live
+            Self.persistSculptorRoster(roster, to: sculptorCacheURL, apiBase: apiBase)
+        } catch {
+            sculptorSyncState = .offline
+            if sculptures.isEmpty {
+                sculptorSource = "Sculptor roster unavailable"
+            }
         }
     }
 
@@ -432,6 +507,101 @@ final class AppDataStore: ObservableObject {
               Set(answer.suggestions).count == answer.suggestions.count,
               answer.suggestions.allSatisfy({ !$0.isEmpty && $0.count <= 120 }) else {
             throw AppDataError.invalidConciergeResponse
+        }
+    }
+
+    private static func resolveSculptors(
+        _ roster: PublicSculptorRoster,
+        expectedEventID: String,
+        allowSample: Bool
+    ) throws -> [Sculpture] {
+        guard roster.meta.eventId == expectedEventID else {
+            throw AppDataError.eventMismatch(expected: expectedEventID, received: roster.meta.eventId)
+        }
+
+        let status = roster.meta.publicationStatus
+        if status != "published" && !(status == "sample" && allowSample) {
+            guard roster.sculptors.isEmpty, roster.entries.isEmpty,
+                  roster.pois.filter({ $0.type == "sculpture" }).isEmpty else {
+                throw AppDataError.invalidSculptorRoster
+            }
+            return []
+        }
+        if status == "published" {
+            guard let sourceURL = roster.meta.sourceUrl,
+                  URL(string: sourceURL)?.scheme?.lowercased() == "https" else {
+                throw AppDataError.invalidSculptorRoster
+            }
+        }
+
+        guard (1...200).contains(roster.sculptors.count),
+              roster.entries.count == roster.sculptors.count,
+              (1...40).contains(roster.legend.count),
+              Set(roster.sculptors.map(\.id)).count == roster.sculptors.count,
+              Set(roster.entries.map(\.id)).count == roster.entries.count,
+              Set(roster.pois.map(\.id)).count == roster.pois.count,
+              Set(roster.legend.map(\.colorKey)).count == roster.legend.count else {
+            throw AppDataError.invalidSculptorRoster
+        }
+
+        let sculptorsByID = Dictionary(uniqueKeysWithValues: roster.sculptors.map { ($0.id, $0) })
+        let entriesByID = Dictionary(uniqueKeysWithValues: roster.entries.map { ($0.id, $0) })
+        let legendByKey = Dictionary(uniqueKeysWithValues: roster.legend.map { ($0.colorKey, $0) })
+        let sculpturePOIs = roster.pois.filter { $0.type == "sculpture" }
+        let poisByEntry = Dictionary(grouping: sculpturePOIs, by: { $0.entryId ?? "" })
+
+        guard roster.sculptors.allSatisfy({ sculptor in
+            !sculptor.id.isEmpty
+                && !sculptor.name.isEmpty
+                && !sculptor.entryId.isEmpty
+                && entriesByID[sculptor.entryId]?.sculptorId == sculptor.id
+        }), roster.entries.allSatisfy({ entry in
+            guard let sculptor = sculptorsByID[entry.sculptorId],
+                  let poi = poisByEntry[entry.id]?.only,
+                  let point = poi.illustratedMapXY else { return false }
+            return !entry.id.isEmpty
+                && !entry.title.isEmpty
+                && !entry.poiId.isEmpty
+                && poi.id == entry.poiId
+                && sculptor.entryId == entry.id
+                && sculptor.division == entry.division
+                && legendByKey[entry.division] != nil
+                && (0...1).contains(point.x)
+                && (0...1).contains(point.y)
+        }) else {
+            throw AppDataError.invalidSculptorRoster
+        }
+
+        return try roster.entries.enumerated().map { index, entry in
+            guard let sculptor = sculptorsByID[entry.sculptorId],
+                  let poi = poisByEntry[entry.id]?.only,
+                  let point = poi.illustratedMapXY,
+                  let category = legendByKey[entry.division]?.label else {
+                throw AppDataError.invalidSculptorRoster
+            }
+            let biography = [sculptor.bio, entry.statement]
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n\n")
+            let ordinal = index + 1
+            return Sculpture(
+                id: ordinal,
+                x: point.x,
+                y: point.y,
+                sculptor: sculptor.name,
+                country: sculptor.hometown,
+                title: entry.title,
+                category: category,
+                crowd: .light,
+                state: entry.status,
+                bio: biography,
+                audioMinutes: "",
+                timelapseHours: "",
+                photoURL: "",
+                entryId: entry.id,
+                passportCode: "tsf:entry:\(entry.id)",
+                crowdStatusVerified: false
+            )
         }
     }
 
@@ -704,6 +874,11 @@ final class AppDataStore: ObservableObject {
             .appendingPathComponent("public-bootstrap-v1.json", isDirectory: false)
     }
 
+    private static func sculptorCacheURL(for bootstrapCacheURL: URL?) -> URL? {
+        bootstrapCacheURL?.deletingLastPathComponent()
+            .appendingPathComponent("public-sculptors-v1.json", isDirectory: false)
+    }
+
     private static func cacheScope(for apiBase: URL) -> String {
         guard var components = URLComponents(url: apiBase, resolvingAgainstBaseURL: false) else {
             return apiBase.absoluteString
@@ -757,6 +932,54 @@ final class AppDataStore: ObservableObject {
         }
     }
 
+    private static func loadCachedSculptorRoster(
+        from cacheURL: URL?,
+        apiBase: URL,
+        expectedEventID: String,
+        allowSample: Bool
+    ) -> (publicationStatus: String, sculptures: [Sculpture])? {
+        guard let cacheURL,
+              let data = try? Data(contentsOf: cacheURL),
+              let cached = try? decoder.decode(PublicSculptorRosterCache.self, from: data),
+              cached.schemaVersion == 1,
+              cached.apiScope == cacheScope(for: apiBase),
+              cached.eventID == expectedEventID else {
+            return nil
+        }
+        guard let sculptures = try? resolveSculptors(
+            cached.payload,
+            expectedEventID: expectedEventID,
+            allowSample: allowSample
+        ) else {
+            return nil
+        }
+        return (cached.payload.meta.publicationStatus, sculptures)
+    }
+
+    private static func persistSculptorRoster(
+        _ payload: PublicSculptorRoster,
+        to cacheURL: URL?,
+        apiBase: URL
+    ) {
+        guard let cacheURL else { return }
+        let cache = PublicSculptorRosterCache(
+            schemaVersion: 1,
+            apiScope: cacheScope(for: apiBase),
+            eventID: payload.meta.eventId,
+            savedAt: Date(),
+            payload: payload
+        )
+        do {
+            try FileManager.default.createDirectory(
+                at: cacheURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try encoder.encode(cache).write(to: cacheURL, options: .atomic)
+        } catch {
+            // A cache write failure must not discard already-validated live data.
+        }
+    }
+
     private static func loadSeedPayload() throws -> SandFestPayload {
         guard let url = Bundle.main.url(forResource: "sandfest-seed", withExtension: "json") else {
             throw AppDataError.missingSeed
@@ -776,6 +999,13 @@ enum AppDataError: Error {
     case invalidQuestion
     case invalidConciergeResponse
     case invalidAdminBootstrap
+    case invalidSculptorRoster
+}
+
+private extension Array {
+    var only: Element? {
+        count == 1 ? first : nil
+    }
 }
 
 enum SyncState: Equatable {

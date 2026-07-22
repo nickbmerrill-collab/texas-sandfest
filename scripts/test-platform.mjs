@@ -905,6 +905,12 @@ console.log("\n=== Pure library suite ===\n");
       guidance: Array.from({ length: 6 }, (_, index) => ({ id: `guidance-${index + 1}`, question: `Question ${index + 1}`, answer: `Reviewed visitor answer ${index + 1}`, sourceUrl: "https://www.texassandfest.org/faq" })),
       runtime: { mode: "board_demo" }
     },
+    sculptors: {
+      meta: { eventId: "texas-sandfest-2027", publicationStatus: "sample" },
+      sculptors: Array.from({ length: 6 }, (_, index) => ({ id: `sculptor-${index + 1}`, entryId: `entry-${index + 1}` })),
+      entries: Array.from({ length: 6 }, (_, index) => ({ id: `entry-${index + 1}`, sculptorId: `sculptor-${index + 1}` })),
+      pois: Array.from({ length: 6 }, (_, index) => ({ id: `poi-${index + 1}`, type: "sculpture", entryId: `entry-${index + 1}` }))
+    },
     tickets: {
       checkoutEnvironment: "board_sandbox",
       products: Array.from({ length: 4 }, (_, index) => ({ id: `demo_ticket_${index + 1}`, availableForCheckout: true }))
@@ -1103,7 +1109,7 @@ console.log("\n=== Pure library suite ===\n");
   const readyBoardCameraCheck = readyBoardReport.checks.find(item => item.id === "camera_fleet");
   ok("board demo readiness accepts the complete local stack", readyBoardReport.ok
     && readyBoardReport.passed === readyBoardReport.total
-    && readyBoardReport.total === 10
+    && readyBoardReport.total === 11
     && readyBoardCameraCheck?.detail.includes("synthetic playback")
     && readyBoardCameraCheck?.detail.includes("current")
     && !readyBoardCameraCheck?.detail.includes("live"));
@@ -1166,6 +1172,12 @@ console.log("\n=== Pure library suite ===\n");
   const missingSponsorBrandReport = evaluateBoardDemoReadiness({ ...readyBoardState, sponsors: { sponsors: [] }, sponsorLogo: { ok: false, status: 404 } });
   ok("board demo readiness requires rendered sponsor branding", !missingSponsorBrandReport.ok
     && missingSponsorBrandReport.checks.find(item => item.id === "operations")?.ok === false);
+  const missingSculptorRosterReport = evaluateBoardDemoReadiness({
+    ...readyBoardState,
+    sculptors: { meta: { eventId: "texas-sandfest-2027", publicationStatus: "unpublished" }, sculptors: [], entries: [], pois: [] }
+  });
+  ok("board demo readiness requires the governed sculptor publication", !missingSculptorRosterReport.ok
+    && missingSculptorRosterReport.checks.find(item => item.id === "sculptor_roster")?.ok === false);
   const missingWorkflowReports = [
     state => { state.partners.payments = []; },
     state => { state.budget.summary.counts.pendingApprovals = 0; },

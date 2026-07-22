@@ -1,6 +1,6 @@
 # Sculptor roster publication
 
-The Operations workspace is the controlled publishing path for the current SandFest sculptor roster. A published revision becomes the single source for the public roster, corridor-map pins, Sculpture Passport checkpoints, and People's Choice entries.
+The Operations workspace is the controlled publishing path for the current SandFest sculptor roster. A published revision becomes the single source for the web and native iOS roster, corridor-map pins, Sculpture Passport checkpoints, and People's Choice entries. The iOS cache is bound to the API origin and event ID; an unpublished or held response clears the native roster, while a network failure may retain only a previously validated publication.
 
 ## Staff workflow
 
@@ -44,3 +44,5 @@ The active document is `sculptorRoster` in the configured platform data plane. I
 - `POST /api/admin/sculptors/hold`
 
 Passport and voting clients continue to use their existing public routes. Their eligible records are derived server-side from the published roster revision.
+
+The board supervisor treats the synthetic roster as a required preflight item. Advancing the board runtime schema automatically rebuilds an older isolated runtime before startup, and a missing or cross-linked roster prevents the presentation stack from reporting ready.

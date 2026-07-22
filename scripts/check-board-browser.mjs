@@ -4,6 +4,7 @@ import { chromium, firefox, webkit } from "@playwright/test";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
+import { BOARD_DEMO_PREFLIGHT_CHECK_COUNT } from "../lib/board-demo-readiness.mjs";
 import {
   BOARD_DEMO_SESSION_SCHEMA_VERSION,
   assessBoardDemoSourceRevision,
@@ -272,10 +273,10 @@ await inspect(
     if (!webBase || !apiBase) throw new Error("The board session is missing its web or API endpoint.");
     visitorUrl = exactBoardLink(session.links?.visitor, { webBase, apiBase, kind: "Visitor" });
     operationsUrl = exactBoardLink(session.links?.operations, { webBase, apiBase, kind: "Operations" });
-    if (session.lastPreflight?.passed !== 11 || session.lastPreflight?.total !== 11) {
-      throw new Error("The supervisor has not recorded a complete 11-of-11 service and source preflight.");
+    if (session.lastPreflight?.passed !== BOARD_DEMO_PREFLIGHT_CHECK_COUNT || session.lastPreflight?.total !== BOARD_DEMO_PREFLIGHT_CHECK_COUNT) {
+      throw new Error(`The supervisor has not recorded a complete ${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}-of-${BOARD_DEMO_PREFLIGHT_CHECK_COUNT} service and source preflight.`);
     }
-    return `Ready supervisor ${session.pid}; ${sourceAssessment.detail} Links match the 11-of-11 session.`;
+    return `Ready supervisor ${session.pid}; ${sourceAssessment.detail} Links match the ${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}-of-${BOARD_DEMO_PREFLIGHT_CHECK_COUNT} session.`;
   }
 );
 
