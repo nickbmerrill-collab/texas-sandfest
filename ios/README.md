@@ -48,6 +48,13 @@ delegated-work, and Fleet data with authenticated snapshots from the same board
 API used by the web operations workspace. Native production Admin remains
 disabled until OIDC sign-in and role enforcement are wired.
 
+The Partners tab opens the shared Work Board for authenticated board sessions.
+Staff can create, reassign, prioritize, schedule, advance, complete, or cancel
+governed staff, volunteer, and team tasks, and can prepare the same secure
+assignment notice used by the web operations workspace. Every change is applied
+only from an accepted API response and then refreshed from the shared ledger;
+offline or unauthenticated requests never create local task state.
+
 ## Public deep links
 
 The app registers the `sandfest:` URL scheme for public customer navigation.

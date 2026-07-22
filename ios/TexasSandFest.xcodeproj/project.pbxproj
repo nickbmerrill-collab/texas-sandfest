@@ -12,6 +12,7 @@
 		1775818503EFAFFF2CC2BC15 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8A17B986F097F115828A9018 /* Assets.xcassets */; };
 		1F24D12EB45E476233EE799E /* SandFestTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 806C8EDE8EE727731CC8DF59 /* SandFestTheme.swift */; };
 		2A6CD665FC99358DA420F09A /* AdminPartnersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F3A7CEC1DB60CE0816CCE15 /* AdminPartnersView.swift */; };
+		B20000000000000000000001 /* TaskBoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* TaskBoardView.swift */; };
 		45A248205EF7F4A3A7EFD762 /* OpsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71666C616CAB0478CF9E0DBD /* OpsView.swift */; };
 		62ED55E5F91CFE6F6DB71E07 /* ConciergeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4527D8728096BF89BE1EA3FD /* ConciergeView.swift */; };
 		6B2A9DBB72133C30946A1850 /* LiveBeachView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53F78C64F4BD9FA6190D18D5 /* LiveBeachView.swift */; };
@@ -65,6 +66,7 @@
 		5C6D726F8724C21BFFDAB314 /* MapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapView.swift; sourceTree = "<group>"; };
 		5ECB1545CEE34485C489CBAD /* NowPlayingBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingBanner.swift; sourceTree = "<group>"; };
 		6F3A7CEC1DB60CE0816CCE15 /* AdminPartnersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminPartnersView.swift; sourceTree = "<group>"; };
+		B20000000000000000000002 /* TaskBoardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskBoardView.swift; sourceTree = "<group>"; };
 		71666C616CAB0478CF9E0DBD /* OpsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpsView.swift; sourceTree = "<group>"; };
 		7C1DC0766A4A90E00ACE8C0F /* UserTicketsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserTicketsStore.swift; sourceTree = "<group>"; };
 		7E93E5F8B3D5C0703A1883D4 /* FavoritesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesStore.swift; sourceTree = "<group>"; };
@@ -127,6 +129,7 @@
 				8D2D2F7158CB5526A5008504 /* AdminDashboardView.swift */,
 				88A2BE4EDB3F7DE07E019A64 /* AdminFinanceView.swift */,
 				6F3A7CEC1DB60CE0816CCE15 /* AdminPartnersView.swift */,
+				B20000000000000000000002 /* TaskBoardView.swift */,
 				35FA2B9DDE9ACE64C9208A4F /* AdminSettingsView.swift */,
 				F7A4D6B7050CE53483611B82 /* AppDataStore.swift */,
 				8A17B986F097F115828A9018 /* Assets.xcassets */,
@@ -277,6 +280,7 @@
 				8AD1C210E31D4AC09A2AB081 /* AdminDashboardView.swift in Sources */,
 				A929CFE330A850CFD4F7B9EE /* AdminFinanceView.swift in Sources */,
 				2A6CD665FC99358DA420F09A /* AdminPartnersView.swift in Sources */,
+				B20000000000000000000001 /* TaskBoardView.swift in Sources */,
 				FD939155C5210E2D22B680BB /* AdminSettingsView.swift in Sources */,
 				7271794860C93AEFFB958A92 /* AppDataStore.swift in Sources */,
 				62ED55E5F91CFE6F6DB71E07 /* ConciergeView.swift in Sources */,

@@ -515,6 +515,310 @@ final class IncidentStoreTests: XCTestCase {
     }
 }
 
+final class NativeTaskBoardStoreTests: XCTestCase {
+    @MainActor
+    func testAuthenticatedTaskWorkflowAppliesOnlyServerTruth() async throws {
+        let workspace = Data(#"""
+        {
+          "tasks": [
+            {
+              "id": "task-existing",
+              "title": "Check north gate",
+              "description": "Confirm the opening checklist.",
+              "status": "open",
+              "priority": "high",
+              "assigneeType": "team",
+              "assigneeId": "operations",
+              "assigneeName": "Operations team",
+              "assigneeRole": "ops_admin",
+              "relatedEntityType": null,
+              "relatedEntityId": null,
+              "dueAt": "2027-04-16T13:00:00.000Z",
+              "createdAt": "2026-07-22T01:00:00.000Z",
+              "updatedAt": "2026-07-22T01:00:00.000Z",
+              "completedAt": null,
+              "assignmentVersion": 1,
+              "assignmentNoticeVersion": 0,
+              "scheduleVersion": 1,
+              "acknowledgedAt": null,
+              "notificationSummary": {
+                "count": 0,
+                "latestStatus": null,
+                "assignmentLabel": "Assignment notices - none issued",
+                "followupLabel": null
+              }
+            }
+          ],
+          "taskBoard": {
+            "generatedAt": "2026-07-22T01:00:00.000Z",
+            "totals": {
+              "total": 1,
+              "active": 1,
+              "open": 1,
+              "inProgress": 0,
+              "blocked": 0,
+              "overdue": 0,
+              "dueToday": 0,
+              "unassigned": 0,
+              "completed": 0,
+              "cancelled": 0
+            }
+          },
+          "assignmentDirectory": {
+            "teams": [
+              { "id": "operations", "name": "Operations team", "notificationReady": true }
+            ],
+            "staff": [
+              { "id": "staff-1", "name": "Jamie Torres", "status": "active", "roles": ["ops_admin"], "emailAvailable": true }
+            ],
+            "volunteers": [
+              { "id": "vol-1", "name": "Alex Rivera", "status": "confirmed", "roles": ["gate"] }
+            ]
+          }
+        }
+        """#.utf8)
+        let created = Data(#"""
+        {
+          "task": {
+            "id": "task-created",
+            "title": "Brief volunteer lead",
+            "description": "Confirm radio channel.",
+            "status": "open",
+            "priority": "urgent",
+            "assigneeType": "volunteer",
+            "assigneeId": "vol-1",
+            "assigneeName": "Alex Rivera",
+            "assigneeRole": null,
+            "relatedEntityType": null,
+            "relatedEntityId": null,
+            "dueAt": "2027-04-16T14:00:00.000Z",
+            "createdAt": "2026-07-22T01:01:00.000Z",
+            "updatedAt": "2026-07-22T01:01:00.000Z",
+            "completedAt": null,
+            "assignmentVersion": 1,
+            "assignmentNoticeVersion": 0,
+            "scheduleVersion": 1,
+            "acknowledgedAt": null,
+            "notificationSummary": null
+          }
+        }
+        """#.utf8)
+        let updated = Data(#"""
+        {
+          "task": {
+            "id": "task-created",
+            "title": "Brief volunteer lead",
+            "description": "Confirm radio channel.",
+            "status": "in_progress",
+            "priority": "high",
+            "assigneeType": "staff",
+            "assigneeId": "staff-1",
+            "assigneeName": "Jamie Torres",
+            "assigneeRole": "ops_admin",
+            "relatedEntityType": null,
+            "relatedEntityId": null,
+            "dueAt": null,
+            "createdAt": "2026-07-22T01:01:00.000Z",
+            "updatedAt": "2026-07-22T01:02:00.000Z",
+            "completedAt": null,
+            "assignmentVersion": 2,
+            "assignmentNoticeVersion": 0,
+            "scheduleVersion": 2,
+            "acknowledgedAt": null,
+            "notificationSummary": null
+          }
+        }
+        """#.utf8)
+        let noticed = Data(#"""
+        {
+          "replay": false,
+          "task": {
+            "id": "task-created",
+            "title": "Brief volunteer lead",
+            "description": "Confirm radio channel.",
+            "status": "in_progress",
+            "priority": "high",
+            "assigneeType": "staff",
+            "assigneeId": "staff-1",
+            "assigneeName": "Jamie Torres",
+            "assigneeRole": "ops_admin",
+            "relatedEntityType": null,
+            "relatedEntityId": null,
+            "dueAt": null,
+            "createdAt": "2026-07-22T01:01:00.000Z",
+            "updatedAt": "2026-07-22T01:03:00.000Z",
+            "completedAt": null,
+            "assignmentVersion": 2,
+            "assignmentNoticeVersion": 1,
+            "scheduleVersion": 2,
+            "acknowledgedAt": null,
+            "notificationSummary": {
+              "count": 1,
+              "latestStatus": "draft_ready",
+              "assignmentLabel": "Assignment notices - 1 issued - latest draft ready",
+              "followupLabel": null
+            }
+          },
+          "notice": { "id": "notice-1", "status": "draft_ready", "sourceVersion": "assignment:2:notice:1" }
+        }
+        """#.utf8)
+        let recorder = AppDataRequestRecorder()
+        let store = NativeTaskBoardStore(transport: AppDataTransport { request in
+            await recorder.record(request)
+            let path = request.url?.path ?? ""
+            switch (request.httpMethod ?? "GET", path) {
+            case ("GET", "/api/admin/partners"):
+                return AppDataHTTPResponse(data: workspace, statusCode: 200)
+            case ("POST", "/api/admin/partners/tasks"):
+                return AppDataHTTPResponse(data: created, statusCode: 201)
+            case ("PATCH", "/api/admin/partners/tasks/task-created"):
+                return AppDataHTTPResponse(data: updated, statusCode: 200)
+            case ("POST", "/api/admin/partners/tasks/task-created/assignment-notice"):
+                return AppDataHTTPResponse(data: noticed, statusCode: 202)
+            default:
+                return AppDataHTTPResponse(data: Data(#"{"error":"Unexpected request"}"#.utf8), statusCode: 404)
+            }
+        })
+
+        await store.refresh(request: taskRequest(path: "/api/admin/partners"))
+        XCTAssertEqual(store.tasks.map(\.id), ["task-existing"])
+        XCTAssertNotNil(store.tasks.first?.dueDate)
+        XCTAssertEqual(store.totals?.active, 1)
+        XCTAssertEqual(store.assignmentDirectory.volunteers.map(\.name), ["Alex Rivera"])
+
+        let createdTask = await store.createTask(
+            StaffTaskSubmission(
+                title: "Brief volunteer lead",
+                description: "Confirm radio channel.",
+                status: "open",
+                priority: "urgent",
+                assigneeType: "volunteer",
+                assigneeId: "vol-1",
+                dueAt: Date(timeIntervalSince1970: 1_807_880_400)
+            ),
+            request: taskRequest(path: "/api/admin/partners/tasks", method: "POST"),
+            refreshRequest: nil
+        )
+        XCTAssertEqual(createdTask?.assigneeName, "Alex Rivera")
+        XCTAssertEqual(store.tasks.first(where: { $0.id == "task-created" })?.priority, "urgent")
+
+        let updateSucceeded = await store.updateTask(
+            StaffTaskSubmission(
+                title: "Brief volunteer lead",
+                description: "Confirm radio channel.",
+                status: "in_progress",
+                priority: "high",
+                assigneeType: "staff",
+                assigneeId: "staff-1",
+                dueAt: nil
+            ),
+            request: taskRequest(path: "/api/admin/partners/tasks/task-created", method: "PATCH"),
+            refreshRequest: nil
+        )
+        XCTAssertTrue(updateSucceeded)
+        XCTAssertEqual(store.tasks.first(where: { $0.id == "task-created" })?.assigneeName, "Jamie Torres")
+
+        let noticeSucceeded = await store.requestAssignmentNotice(
+            request: taskRequest(path: "/api/admin/partners/tasks/task-created/assignment-notice", method: "POST"),
+            refreshRequest: nil
+        )
+        XCTAssertTrue(noticeSucceeded)
+        XCTAssertEqual(store.tasks.first(where: { $0.id == "task-created" })?.assignmentNoticeVersion, 1)
+
+        let requests = await recorder.values()
+        XCTAssertEqual(requests.map(\.method), ["GET", "POST", "PATCH", "POST"])
+        XCTAssertTrue(requests.allSatisfy { $0.authorization == "Bearer local-board-secret" })
+        let createBody = try XCTUnwrap(JSONSerialization.jsonObject(with: requests[1].body) as? [String: Any])
+        XCTAssertEqual(createBody["assigneeType"] as? String, "volunteer")
+        XCTAssertEqual(createBody["assigneeId"] as? String, "vol-1")
+        let updateBody = try XCTUnwrap(JSONSerialization.jsonObject(with: requests[2].body) as? [String: Any])
+        XCTAssertEqual(updateBody["status"] as? String, "in_progress")
+        XCTAssertEqual(updateBody["assigneeType"] as? String, "staff")
+        let noticeBody = try XCTUnwrap(JSONSerialization.jsonObject(with: requests[3].body) as? [String: Any])
+        XCTAssertTrue((noticeBody["requestId"] as? String)?.hasPrefix("ios-") == true)
+    }
+
+    @MainActor
+    func testMissingBoardSessionNeverCreatesLocalTaskState() async {
+        let store = NativeTaskBoardStore()
+
+        await store.refresh(request: nil)
+        let task = await store.createTask(
+            StaffTaskSubmission(
+                title: "Must not persist",
+                description: "No board session exists.",
+                status: "open",
+                priority: "urgent",
+                assigneeType: "team",
+                assigneeId: "operations",
+                dueAt: nil
+            ),
+            request: nil,
+            refreshRequest: nil
+        )
+
+        XCTAssertNil(task)
+        XCTAssertTrue(store.tasks.isEmpty)
+        XCTAssertEqual(store.source, "Board session required")
+        XCTAssertTrue(store.lastError?.contains("no task was created") == true)
+    }
+
+    @MainActor
+    func testRejectedMutationPreservesExistingServerTask() async {
+        let existing = Data(#"""
+        {
+          "tasks": [{
+            "id": "task-1", "title": "Keep server truth", "description": "",
+            "status": "open", "priority": "normal", "assigneeType": "team",
+            "assigneeId": "operations", "assigneeName": "Operations team", "assigneeRole": "ops_admin",
+            "relatedEntityType": null, "relatedEntityId": null, "dueAt": null,
+            "createdAt": "2026-07-22T01:00:00.000Z", "updatedAt": "2026-07-22T01:00:00.000Z",
+            "completedAt": null, "assignmentVersion": 1, "assignmentNoticeVersion": 0,
+            "scheduleVersion": 1, "acknowledgedAt": null, "notificationSummary": null
+          }],
+          "taskBoard": { "generatedAt": "2026-07-22T01:00:00.000Z", "totals": {
+            "total": 1, "active": 1, "open": 1, "inProgress": 0, "blocked": 0,
+            "overdue": 0, "dueToday": 0, "unassigned": 0, "completed": 0, "cancelled": 0
+          }},
+          "assignmentDirectory": { "teams": [], "staff": [], "volunteers": [] }
+        }
+        """#.utf8)
+        let store = NativeTaskBoardStore(transport: AppDataTransport { request in
+            if request.httpMethod == "GET" {
+                return AppDataHTTPResponse(data: existing, statusCode: 200)
+            }
+            return AppDataHTTPResponse(data: Data(#"{"error":"Assignment is no longer current."}"#.utf8), statusCode: 409)
+        })
+        await store.refresh(request: taskRequest(path: "/api/admin/partners"))
+
+        let updated = await store.updateTask(
+            StaffTaskSubmission(
+                title: "Overwrite locally",
+                description: "",
+                status: "done",
+                priority: "urgent",
+                assigneeType: "team",
+                assigneeId: "operations",
+                dueAt: nil
+            ),
+            request: taskRequest(path: "/api/admin/partners/tasks/task-1", method: "PATCH"),
+            refreshRequest: nil
+        )
+
+        XCTAssertFalse(updated)
+        XCTAssertEqual(store.tasks.first?.title, "Keep server truth")
+        XCTAssertEqual(store.tasks.first?.status, "open")
+        XCTAssertEqual(store.lastError, "Assignment is no longer current.")
+    }
+
+    private func taskRequest(path: String, method: String = "GET") -> URLRequest {
+        var request = URLRequest(url: URL(string: "http://127.0.0.1:8806\(path)")!)
+        request.httpMethod = method
+        request.setValue("Bearer local-board-secret", forHTTPHeaderField: "Authorization")
+        return request
+    }
+}
+
 final class AppDataStoreTests: XCTestCase {
     @MainActor
     func testLiveBootstrapPersistsAndRestoresOnlyForMatchingAPIOrigin() async throws {
