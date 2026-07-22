@@ -211,6 +211,22 @@ final class AppDataStore: ObservableObject {
         #endif
     }
 
+    func makeBoardAdminRequest(path: String, method: String = "GET") -> URLRequest? {
+        guard staffAccessMode == .boardDemo,
+              Self.isLoopback(resolvedAPIBase),
+              let boardAdminToken,
+              path.hasPrefix("/api/admin/") else {
+            return nil
+        }
+        var request = URLRequest(url: resolvedAPIBase.appending(path: path))
+        request.httpMethod = method
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.timeoutInterval = 12
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Bearer \(boardAdminToken)", forHTTPHeaderField: "Authorization")
+        return request
+    }
+
     func refreshPublicData(apiBase: URL? = nil) async {
         guard syncState != .refreshing else { return }
 

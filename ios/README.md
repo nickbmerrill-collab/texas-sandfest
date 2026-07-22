@@ -42,9 +42,11 @@ loopback origin. A normal, failed, or remote refresh leaves the app in Customer
 mode. The `-startMode admin` simulator argument selects the board screen only
 after that runtime check; it cannot grant access by itself.
 
-Admin currently presents bundled synthetic demonstration collections. It is
-not a production staff session. Native production Admin remains disabled until
-OIDC sign-in, role enforcement, and the authenticated app bootstrap are wired.
+Admin starts with bundled synthetic demonstration collections. In a supervised
+loopback board session, the app replaces sponsor, vendor, volunteer, finance,
+delegated-work, and Fleet data with authenticated snapshots from the same board
+API used by the web operations workspace. Native production Admin remains
+disabled until OIDC sign-in and role enforcement are wired.
 
 ## Public deep links
 
@@ -107,6 +109,12 @@ after a loopback API proves it is the supervised `board_demo` runtime and a
 local bearer token was supplied at launch. A missing, rejected, or malformed
 snapshot leaves the bundled admin demonstration data in place. Remote and
 production API origins remain visitor-only until native OIDC is implemented.
+
+Fleet follows the same loopback-only board session boundary. Reads use
+`GET /api/admin/fleet`; checkout and check-in changes use their role-governed
+admin endpoints and update the screen only from the server response. Failed or
+unauthenticated mutations never fall back to local state, so the device cannot
+show a checkout that the shared fleet ledger did not record.
 
 ## Ask Sandy
 
