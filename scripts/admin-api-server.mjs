@@ -376,6 +376,7 @@ import {
   guestServicesIntakeFingerprint,
   normalizeGuestServices,
   publicGuestServicesCase,
+  publicGuestServicesReadiness,
   updateGuestServicesCase
 } from "../lib/guest-services.mjs";
 import {
@@ -883,6 +884,7 @@ const DEPLOYMENT_CHECK_PRESENTATION = Object.freeze({
   rateLimits: ["Request limits", "Platform"],
   rateLimitBackend: ["Shared rate limiter", "Platform"],
   partnerIntakeBotProtection: ["Partner intake protection", "Partners"],
+  guestServices: ["Guest Services intake", "Partners"],
   partnerPortal: ["Private partner portal", "Partners"],
   taskPortal: ["Private task portal", "Partners"],
   outreachPreferences: ["Outreach preferences", "Partners"],
@@ -2369,6 +2371,13 @@ async function deploymentProfile(options = {}) {
       TURNSTILE.ready,
       TURNSTILE.reason,
       production || TURNSTILE.enabled ? "error" : "warning"
+    ),
+    guestServices: checkStatus(
+      GUEST_SERVICES_SECRET.length >= 32 && TURNSTILE.ready,
+      GUEST_SERVICES_SECRET.length >= 32 && TURNSTILE.ready
+        ? "Guest Services intake can issue private request capabilities and verify public submissions."
+        : "Guest Services intake requires a 32-character capability secret and ready Turnstile verification.",
+      production ? "error" : "warning"
     ),
     partnerPortal: (() => {
       const portal = partnerPortalConfig();
@@ -5049,6 +5058,14 @@ async function handleRequest(request, response) {
       const safety = publicConciergeResponseSafety(payload);
       if (!answered || !safety.ready) throw new Error("Public concierge response failed its safety policy.");
       sendJson(request, response, 200, payload, { "cache-control": "no-store" });
+      return;
+    }
+
+    if (method === "GET" && pathname === "/api/public/guest-services") {
+      sendJson(request, response, 200, publicGuestServicesReadiness({
+        eventId: CURRENT_EVENT_ID,
+        available: GUEST_SERVICES_SECRET.length >= 32 && TURNSTILE.ready
+      }), { "cache-control": "no-store" });
       return;
     }
 

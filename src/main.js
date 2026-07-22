@@ -10123,14 +10123,14 @@ document.querySelector("#refresh-island-conditions")?.addEventListener("click", 
 let guestServicesUiPromise = null;
 function loadGuestServicesUi() {
   if (ADMIN_ENTRY) return Promise.resolve(null);
-  guestServicesUiPromise ||= import("./guest-services-ui.js").then(module => {
+  guestServicesUiPromise ||= import("./guest-services-ui.js").then(async module => {
     const controller = module.createGuestServicesUi({
       apiBase: publicApiBase,
       eventPhone: event.phone,
       intakeReady: PUBLIC_PARTNER_INTAKE.ready,
       turnstileSiteKey: TURNSTILE_SITE_KEY
     });
-    controller.mount();
+    await controller.mount();
     return controller;
   });
   return guestServicesUiPromise;

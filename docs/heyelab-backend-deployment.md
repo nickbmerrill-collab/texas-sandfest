@@ -70,9 +70,12 @@ Routes:
 | `GET` | `/api/public/tickets` | Public | Current ticket catalog |
 | `GET` | `/api/public/sponsors` | Public | Publication state, exact reviewed sponsor packages, and approved sponsor showcase |
 | `GET` | `/api/public/vendors` | Public | Publication state and exact reviewed vendor offerings |
+| `GET` | `/api/public/guest-services` | Public | No-store intake availability, consent version, and approved public request categories |
 | `POST` | `/api/public/concierge` | Public, rate-limited | Source-cited Ask Sandy answer over governed public data; question text is not persisted |
 | `POST` | `/api/public/vendor-applications` | Public + optional `Idempotency-Key` | Create one vendor workflow and replay it safely on network retry |
 | `POST` | `/api/public/sponsor-inquiries` | Public + optional `Idempotency-Key` | Create one sponsor workflow using a server-authoritative active tier |
+| `POST` | `/api/public/guest-services` | Public + Turnstile + `Idempotency-Key` | Create one private Guest Services request and return its capability once |
+| `POST` | `/api/public/guest-services/status` | Capability token | Return the privacy-minimized status of one Guest Services request |
 | `POST` | `/api/public/partner-status` | Capability token | Return a privacy-minimized application, payment, invoice, and milestone status |
 | `GET` | `/api/public/island-conditions` | Public | Governed stored conditions, with NWS and TxDOT refresh only when explicitly enabled |
 | `POST` | `/api/ingest/cameras/:id/observations` | HMAC signature | Ingest bounded, idempotent, metrics-only local camera observations |
@@ -95,6 +98,8 @@ Routes:
 | `PATCH` | `/api/admin/sponsor-packages/:id` | Bearer token | Update sponsor pricing, benefits, Stripe IDs, and QuickBooks mapping |
 | `POST` | `/api/admin/partner-catalog-publication` | `sponsor:write` or `finance:write` | Publish or hold the exact current sponsor/vendor catalog with official source proof |
 | `GET` | `/api/admin/partners` | Bearer token | Applications, invoices, payments, dates, follow-ups, tasks, vendor readiness, and provider readiness |
+| `GET` | `/api/admin/guest-services` | `guest_services:read` | Current-event Guest Services queue, routing, and private response details |
+| `PATCH` | `/api/admin/guest-services/cases/:id` | `guest_services:write` | Route a case, update priority or status, and record public or internal notes |
 | `GET` | `/api/admin/integrations/quickbooks` | `partners:read` | Secret-free accounting connection and sync readiness |
 | `POST` | `/api/admin/integrations/quickbooks/authorize` | `finance:write` | Create a one-time Intuit authorization request |
 | `POST` | `/api/admin/integrations/quickbooks/disconnect` | `finance:write` | Remove the encrypted SandFest credential after explicit confirmation |
@@ -395,7 +400,7 @@ SANDFEST_PARTNER_STATUS_RATE_LIMIT=30
 
 The API and worker must receive the same secret. `render.yaml` generates it on the API and binds the worker to that exact environment value; other deployments must provide an equivalent shared-secret mechanism. The worker uses it only to place a valid portal URL into reviewable acknowledgment and milestone-reminder drafts; tokens are not written to audit records or returned by partner-list APIs.
 
-Guest Services request status reuses `SANDFEST_PARTNER_PORTAL_SECRET` with its own domain-separated HMAC input by default. Set `SANDFEST_GUEST_SERVICES_SECRET` to a distinct 32-or-more-character value on the API when separate rotation is required. The API stores only the resulting SHA-256 capability hash with the case, returns the deterministic token only to the successful intake or exact idempotent replay, rate-limits status lookups, and gives invalid references and tokens the same generic `404`. Staff responses omit capability and idempotency hashes; public status omits contact details, request details, internal notes, and staff identity.
+Guest Services request status reuses `SANDFEST_PARTNER_PORTAL_SECRET` with its own domain-separated HMAC input by default. Set `SANDFEST_GUEST_SERVICES_SECRET` to a distinct 32-or-more-character value on the API when separate rotation is required. `GET /api/public/guest-services` is the no-store, server-authoritative intake contract: it exposes only the current event, availability, consent version, and approved public category labels. The visitor form remains disabled until that endpoint confirms both capability issuance and Turnstile readiness; `/ready` and the live deployment verifier fail closed when the contract is unavailable, stale, or exposes routing or secret state. The API stores only the resulting SHA-256 capability hash with the case, returns the deterministic token only to the successful intake or exact idempotent replay, rate-limits status lookups, and gives invalid references and tokens the same generic `404`. Staff responses omit capability and idempotency hashes; public status omits contact details, request details, internal notes, and staff identity.
 
 Governed staff, volunteer, and team assignment notices also contain a fragment-protected task link. Its HMAC binds the task ID, current assignee, assignee type, and assignment version, so reassignment revokes a previously delivered link without storing the token. The assignee may acknowledge, start, report a blocker, or complete the task; the API revalidates the capability inside the same transaction as the lifecycle update, returns no contact identity, and records capability- and note-minimized audit evidence. Set the same optional `SANDFEST_TASK_PORTAL_SECRET` on API and worker to use a dedicated 32+ character root. When it is empty, both processes reuse `SANDFEST_PARTNER_PORTAL_SECRET` with domain separation, so the Render Blueprint requires no additional operator secret.
 
