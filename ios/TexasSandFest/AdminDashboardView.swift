@@ -37,10 +37,13 @@ struct AdminDashboardView: View {
                 Text("Staff-only view for crowd status, volunteer coverage, incidents, partner readiness, and finance signals.")
                     .foregroundStyle(.secondary)
                 HStack {
-                    statusPill("Public web", "Live")
-                    statusPill("iOS", dataStore.syncState.label)
-                    statusPill("QBO", "Deferred")
+                    statusPill("Public guide", dataStore.syncState.label)
+                    statusPill("Operations", dataStore.adminSyncState.label)
+                    statusPill("Open work", String(dataStore.adminTaskSummary?.active ?? 0))
                 }
+                Label(dataStore.adminSource, systemImage: dataStore.adminSyncState == .live ? "checkmark.circle.fill" : "externaldrive")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(dataStore.adminSyncState == .live ? Color.sandFestGulf : .secondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -116,6 +119,8 @@ struct AdminDashboardView: View {
         VStack(alignment: .leading) {
             Text(label).font(.caption).foregroundStyle(.secondary)
             Text(value).font(.caption.weight(.bold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
         }
         .padding(10)
         .background(Color.sandFestGulf.opacity(0.12))

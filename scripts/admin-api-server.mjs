@@ -1612,6 +1612,134 @@ function adminPartnerTaskView(task, followups = []) {
   return { ...safe, notificationSummary: summarizeTaskNotifications(task, followups) };
 }
 
+function boardAppPartnerSnapshot(doc, now) {
+  const receivables = summarizePartnerReceivables(doc, now);
+  const accounts = new Map(receivables.accounts.map(account => [account.applicationId, account]));
+  const vendorReadiness = summarizeVendorReadiness(doc, now);
+  const vendors = new Map(vendorReadiness.vendors.map(vendor => [vendor.applicationId, vendor]));
+  const activeTasks = doc.tasks
+    .filter(task => ["open", "in_progress", "blocked"].includes(task.status))
+    .slice()
+    .sort((left, right) => String(left.dueAt || "9999").localeCompare(String(right.dueAt || "9999")));
+
+  return {
+    lastUpdated: doc.lastUpdated,
+    summary: summarizePartnerOperations(doc, now),
+    taskSummary: summarizeTaskBoard(doc, now).totals,
+    sponsors: doc.applications
+      .filter(application => application.type === "sponsor")
+      .slice(0, 500)
+      .map(application => {
+        const account = accounts.get(application.id);
+        const deliverables = doc.deliverables.filter(item => item.applicationId === application.id);
+        const completeDeliverables = deliverables.filter(item => item.status === "complete").length;
+        const openTask = activeTasks.find(task => task.relatedEntityId === application.id);
+        const milestone = doc.milestones
+          .filter(item => item.applicationId === application.id && !["completed", "cancelled"].includes(item.status))
+          .slice()
+          .sort((left, right) => String(left.dueAt || "9999").localeCompare(String(right.dueAt || "9999")))[0];
+        return {
+          id: application.id,
+          name: application.organizationName,
+          tier: application.packageName || "Unassigned",
+          applicationStatus: application.status,
+          expectedCents: account?.expectedAmountCents || application.expectedAmountCents || 0,
+          paidCents: account?.paidAmountCents || 0,
+          balanceCents: account?.balanceCents || 0,
+          invoiceStatus: account?.invoice?.status || null,
+          deliverablesTotal: deliverables.length,
+          deliverablesComplete: completeDeliverables,
+          nextAction: openTask?.title || milestone?.title || "No open action"
+        };
+      }),
+    vendors: doc.applications
+      .filter(application => application.type === "vendor" && application.intakeMode !== "interest")
+      .slice(0, 500)
+      .map(application => {
+        const readiness = vendors.get(application.id);
+        return {
+          id: application.id,
+          name: application.organizationName,
+          category: application.category || application.offeringName || "Vendor",
+          applicationStatus: application.status,
+          readinessStatus: readiness?.status || "pending",
+          missingRequirements: readiness?.compliance?.missing || 0,
+          assignmentStatus: readiness?.assignmentStatus || "unassigned",
+          boothNumber: readiness?.boothNumber || null
+        };
+      })
+  };
+}
+
+async function boardAppBootstrapPayload(session) {
+  const now = new Date().toISOString();
+  const access = {
+    partners: hasPermission(session, "partners:read"),
+    volunteers: hasPermission(session, "volunteers:read"),
+    revenue: hasPermission(session, "revenue:read"),
+    budget: hasPermission(session, "budget:read")
+  };
+  const [partnerOperations, volunteerMirror, budgetControl, revenueLedger, ticketOrders, quickbooks] = await Promise.all([
+    access.partners ? readPartnerOperations() : null,
+    access.volunteers ? readVolunteerMirror() : null,
+    access.budget ? readBudgetControl() : null,
+    access.revenue ? readRevenueLedger() : null,
+    access.revenue ? storage.orders.listByEvent(CURRENT_EVENT_ID, 5_000) : [],
+    access.partners ? readQuickBooksCredentialStatus(ROOT) : null
+  ]);
+  const partners = partnerOperations ? boardAppPartnerSnapshot(partnerOperations, now) : null;
+  const volunteerDashboard = volunteerMirror ? volunteerDashboardPayload(volunteerMirror) : null;
+  const budget = budgetControl ? summarizeBudgetControl(budgetControl) : null;
+  const revenueView = revenueLedger
+    ? buildRevenueLedgerView(revenueLedger, partnerOperations || emptyPartnerOperations(CURRENT_EVENT_ID), {
+        eventId: CURRENT_EVENT_ID,
+        ticketOrders
+      })
+    : null;
+  const revenue = revenueView
+    ? summarizeLedger(revenueView.entries, {
+        currency: revenueView.currency,
+        expectedAttendance: revenueView.expectedAttendance,
+        ticketCapacity: revenueView.ticketCapacity,
+        generatedAt: revenueView.lastUpdated
+      })
+    : null;
+
+  return {
+    eventId: CURRENT_EVENT_ID,
+    generatedAt: now,
+    access,
+    partners,
+    volunteers: volunteerDashboard ? {
+      lastUpdated: volunteerDashboard.lastUpdated,
+      source: volunteerDashboard.source,
+      totals: volunteerDashboard.summary.totals,
+      coverage: volunteerDashboard.coverage
+    } : null,
+    finance: {
+      quickbooks: quickbooks ? {
+        connected: quickbooks.connected,
+        environment: quickbooks.environment,
+        invoiceSyncEnabled: quickbooks.invoiceSyncEnabled,
+        canSyncPartnerInvoices: quickbooks.canSyncPartnerInvoices,
+        reason: quickbooks.reason
+      } : null,
+      receivables: partners?.summary?.finance || null,
+      budget: budget ? {
+        lastUpdated: budget.lastUpdated,
+        totals: budget.totals,
+        counts: budget.counts
+      } : null,
+      revenue: revenue ? {
+        lastUpdated: revenue.generatedAt,
+        totals: revenue.totals,
+        reconciliation: revenue.reconciliation,
+        tickets: revenue.tickets
+      } : null
+    }
+  };
+}
+
 async function readWorkerStatus() {
   const status = await readPlatformDoc(ROOT, "workerStatus", null);
   const ageMs = status?.heartbeatAt ? Date.now() - new Date(status.heartbeatAt).getTime() : Number.POSITIVE_INFINITY;
@@ -6043,6 +6171,13 @@ async function handleRequest(request, response) {
             && hasPermission(session, "board-demo:reset")
         }
       });
+      return;
+    }
+
+    if (method === "GET" && pathname === "/api/admin/app-bootstrap") {
+      const session = await requirePermission(request, response, "snapshot:read");
+      if (!session) return;
+      sendJson(request, response, 200, await boardAppBootstrapPayload(session));
       return;
     }
 

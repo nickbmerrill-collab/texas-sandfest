@@ -100,10 +100,13 @@ IDs, or an unexpected runtime mode is rejected rather than mixed into the app.
 The richer sample schedule remains enabled only when the server explicitly
 labels itself as `board_demo`; production uses the governed public schedule.
 
-Staff-only sponsor, vendor, volunteer, finance, and zone-status collections are
-not written into the public cache. They remain bundled demonstration data until
-the native staff surface has an authenticated session and consumes the
-role-governed app bootstrap.
+Staff-only sponsor, vendor, volunteer, finance, and delegated-work collections
+are never written into the public cache. The native app requests the
+privacy-minimized, role-governed `GET /api/admin/app-bootstrap` snapshot only
+after a loopback API proves it is the supervised `board_demo` runtime and a
+local bearer token was supplied at launch. A missing, rejected, or malformed
+snapshot leaves the bundled admin demonstration data in place. Remote and
+production API origins remain visitor-only until native OIDC is implemented.
 
 ## Ask Sandy
 
@@ -133,6 +136,7 @@ board API and request the mode at launch:
 ```bash
 xcrun simctl launch booted com.portalcodex.texassandfest \
   -apiBase http://127.0.0.1:8806 \
+  -boardAdminToken board-demo-local-admin-token-change-me \
   -startMode admin
 ```
 

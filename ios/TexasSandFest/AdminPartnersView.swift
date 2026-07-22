@@ -6,6 +6,12 @@ struct AdminPartnersView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    Label(dataStore.adminSource, systemImage: dataStore.adminSyncState == .live ? "checkmark.circle.fill" : "externaldrive")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(dataStore.adminSyncState == .live ? Color.sandFestGulf : .secondary)
+                }
+
                 Section("Sponsors") {
                     ForEach(dataStore.payload.sponsors) { sponsor in
                         VStack(alignment: .leading, spacing: 6) {
@@ -43,6 +49,9 @@ struct AdminPartnersView: View {
                 }
             }
             .navigationTitle("Partners")
+            .refreshable {
+                await dataStore.refreshPublicData()
+            }
         }
     }
 }

@@ -12,8 +12,11 @@ struct AdminFinanceView: View {
                             Text("Finance")
                                 .font(.largeTitle.weight(.bold))
                                 .foregroundStyle(Color.sandFestDeep)
-                            Text("QuickBooks will own invoices, payments, vendors, bills, sales receipts, and reports. SandFest mirrors status into sponsor, vendor, raffle, and impact workflows.")
+                            Text("Receivables, budget, revenue reconciliation, and accounting readiness from the current operations snapshot.")
                                 .foregroundStyle(.secondary)
+                            Label(dataStore.adminSource, systemImage: dataStore.adminSyncState == .live ? "checkmark.circle.fill" : "externaldrive")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(dataStore.adminSyncState == .live ? Color.sandFestGulf : .secondary)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }

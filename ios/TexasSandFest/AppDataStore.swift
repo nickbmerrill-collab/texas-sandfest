@@ -29,6 +29,103 @@ private struct ConciergeQuestion: Encodable {
     let question: String
 }
 
+private struct BoardOperationsBootstrap: Decodable {
+    let eventId: String
+    let partners: BoardPartnerSnapshot?
+    let volunteers: BoardVolunteerSnapshot?
+    let finance: BoardFinanceSnapshot
+}
+
+private struct BoardPartnerSnapshot: Decodable {
+    let taskSummary: BoardTaskSummary
+    let sponsors: [BoardSponsorSnapshot]
+    let vendors: [BoardVendorSnapshot]
+}
+
+private struct BoardTaskSummary: Decodable {
+    let active: Int
+    let overdue: Int
+    let blocked: Int
+    let unassigned: Int
+}
+
+private struct BoardSponsorSnapshot: Decodable {
+    let id: String
+    let name: String
+    let tier: String
+    let expectedCents: Int
+    let paidCents: Int
+    let balanceCents: Int
+    let invoiceStatus: String?
+    let deliverablesTotal: Int
+    let deliverablesComplete: Int
+    let nextAction: String
+}
+
+private struct BoardVendorSnapshot: Decodable {
+    let id: String
+    let name: String
+    let category: String
+    let readinessStatus: String
+    let missingRequirements: Int
+    let boothNumber: String?
+}
+
+private struct BoardVolunteerSnapshot: Decodable {
+    let coverage: [VolunteerCoverage]
+}
+
+private struct BoardFinanceSnapshot: Decodable {
+    let quickbooks: BoardQuickBooksSnapshot?
+    let receivables: BoardReceivablesSnapshot?
+    let budget: BoardBudgetSnapshot?
+    let revenue: BoardRevenueSnapshot?
+}
+
+private struct BoardQuickBooksSnapshot: Decodable {
+    let connected: Bool
+    let environment: String
+    let invoiceSyncEnabled: Bool
+    let canSyncPartnerInvoices: Bool
+    let reason: String?
+}
+
+private struct BoardReceivablesSnapshot: Decodable {
+    let amountExpectedCents: Int
+    let amountPaidCents: Int
+    let balanceCents: Int
+    let overdueCents: Int
+}
+
+private struct BoardBudgetSnapshot: Decodable {
+    let totals: BoardBudgetTotals
+    let counts: BoardBudgetCounts
+}
+
+private struct BoardBudgetTotals: Decodable {
+    let budgetCents: Int
+    let committedCents: Int
+    let remainingCents: Int
+}
+
+private struct BoardBudgetCounts: Decodable {
+    let pendingApprovals: Int
+}
+
+private struct BoardRevenueSnapshot: Decodable {
+    let totals: BoardRevenueTotals
+    let reconciliation: BoardRevenueReconciliation
+}
+
+private struct BoardRevenueTotals: Decodable {
+    let grossCents: Int
+    let netCents: Int
+}
+
+private struct BoardRevenueReconciliation: Decodable {
+    let pctReconciled: Double
+}
+
 @MainActor
 final class AppDataStore: ObservableObject {
     @Published private(set) var payload: SandFestPayload
@@ -36,16 +133,21 @@ final class AppDataStore: ObservableObject {
     @Published private(set) var source: String
     @Published private(set) var syncState: SyncState = .cached
     @Published private(set) var staffAccessMode: StaffAccessMode
+    @Published private(set) var adminSource = "Bundled admin demo"
+    @Published private(set) var adminSyncState: SyncState = .cached
+    @Published private(set) var adminTaskSummary: AdminTaskSummary?
 
     private let bundledPayload: SandFestPayload
     private let resolvedAPIBase: URL
     private let cacheURL: URL?
     private let transport: AppDataTransport
+    private let boardAdminToken: String?
 
     init(
         seedPayload: SandFestPayload? = nil,
         apiBase: URL? = nil,
         cacheURL: URL? = nil,
+        boardAdminToken: String? = nil,
         transport: AppDataTransport = .live
     ) {
         let seedResult = Self.seedResult(seedPayload: seedPayload)
@@ -56,6 +158,7 @@ final class AppDataStore: ObservableObject {
         self.resolvedAPIBase = resolvedAPIBase
         self.cacheURL = resolvedCacheURL
         self.transport = transport
+        self.boardAdminToken = Self.nonEmpty(boardAdminToken ?? Self.boardAdminToken)
 
         if let cached = Self.loadCachedBootstrap(
             from: resolvedCacheURL,
@@ -96,6 +199,18 @@ final class AppDataStore: ObservableObject {
         #endif
     }
 
+    private static var boardAdminToken: String? {
+        let args = CommandLine.arguments
+        if let i = args.firstIndex(of: "-boardAdminToken"), i + 1 < args.count {
+            return args[i + 1]
+        }
+        #if DEBUG
+        return ProcessInfo.processInfo.environment["SANDFEST_ADMIN_API_TOKEN"]
+        #else
+        return nil
+        #endif
+    }
+
     func refreshPublicData(apiBase: URL? = nil) async {
         guard syncState != .refreshing else { return }
 
@@ -123,8 +238,45 @@ final class AppDataStore: ObservableObject {
             staffAccessMode = Self.staffAccessMode(for: publicPayload, apiBase: targetBase)
             syncState = .live
             Self.persist(publicPayload, to: cacheURL, apiBase: targetBase)
+            if staffAccessMode == .boardDemo {
+                await refreshBoardOperations(apiBase: targetBase)
+            } else {
+                restoreBundledAdminData(source: "Bundled admin demo")
+            }
         } catch {
             syncState = .offline
+        }
+    }
+
+    private func refreshBoardOperations(apiBase: URL) async {
+        guard staffAccessMode == .boardDemo, Self.isLoopback(apiBase) else {
+            restoreBundledAdminData(source: "Bundled admin demo")
+            return
+        }
+        guard let boardAdminToken else {
+            restoreBundledAdminData(source: "Bundled admin demo - token required", state: .offline)
+            return
+        }
+
+        adminSyncState = .refreshing
+        do {
+            var request = URLRequest(url: Self.publicURL(apiBase: apiBase, path: ["api", "admin", "app-bootstrap"]))
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            request.timeoutInterval = 12
+            request.setValue("application/json", forHTTPHeaderField: "Accept")
+            request.setValue("Bearer \(boardAdminToken)", forHTTPHeaderField: "Authorization")
+
+            let response = try await transport.load(request)
+            guard response.statusCode == 200 else {
+                throw AppDataError.httpStatus(response.statusCode)
+            }
+            let snapshot = try Self.decoder.decode(BoardOperationsBootstrap.self, from: response.data)
+            try Self.validate(snapshot, expectedEventID: bundledPayload.guide.id)
+            apply(snapshot)
+            adminSource = "Live board operations"
+            adminSyncState = .live
+        } catch {
+            restoreBundledAdminData(source: "Bundled admin demo - operations offline", state: .offline)
         }
     }
 
@@ -253,6 +405,26 @@ final class AppDataStore: ObservableObject {
         }
     }
 
+    private static func validate(_ snapshot: BoardOperationsBootstrap, expectedEventID: String) throws {
+        guard snapshot.eventId == expectedEventID else {
+            throw AppDataError.eventMismatch(expected: expectedEventID, received: snapshot.eventId)
+        }
+        let sponsors = snapshot.partners?.sponsors ?? []
+        let vendors = snapshot.partners?.vendors ?? []
+        let coverage = snapshot.volunteers?.coverage ?? []
+        guard sponsors.count <= 500,
+              vendors.count <= 500,
+              coverage.count <= 100,
+              Set(sponsors.map(\.id)).count == sponsors.count,
+              Set(vendors.map(\.id)).count == vendors.count,
+              Set(coverage.map(\.id)).count == coverage.count,
+              sponsors.allSatisfy({ !$0.id.isEmpty && !$0.name.isEmpty && $0.expectedCents >= 0 && $0.paidCents >= 0 }),
+              vendors.allSatisfy({ !$0.id.isEmpty && !$0.name.isEmpty }),
+              coverage.allSatisfy({ !$0.id.isEmpty && !$0.zone.isEmpty && $0.filled >= 0 && $0.needed >= 0 }) else {
+            throw AppDataError.invalidAdminBootstrap
+        }
+    }
+
     private static func validConciergeHref(_ href: String) -> Bool {
         if href.range(of: #"^#[A-Za-z][A-Za-z0-9_-]*$"#, options: .regularExpression) != nil {
             return true
@@ -290,6 +462,154 @@ final class AppDataStore: ObservableObject {
             financeSignals: bundled.financeSignals,
             myTickets: bundled.myTickets
         )
+    }
+
+    private func apply(_ snapshot: BoardOperationsBootstrap) {
+        let sponsors = snapshot.partners?.sponsors.map { sponsor in
+            SponsorAccount(
+                id: sponsor.id,
+                name: sponsor.name,
+                tier: sponsor.tier,
+                invoiceStatus: Self.sponsorInvoiceStatus(sponsor),
+                fulfillmentStatus: Self.sponsorFulfillmentStatus(sponsor),
+                nextAction: sponsor.nextAction
+            )
+        } ?? bundledPayload.sponsors
+        let vendors = snapshot.partners?.vendors.map { vendor in
+            VendorApplication(
+                id: vendor.id,
+                name: vendor.name,
+                category: Self.statusLabel(vendor.category),
+                status: Self.vendorStatus(vendor),
+                booth: vendor.boothNumber ?? "Unassigned"
+            )
+        } ?? bundledPayload.vendors
+        let coverage = snapshot.volunteers?.coverage ?? bundledPayload.coverage
+        let financeSignals = Self.financeSignals(snapshot.finance)
+
+        payload = SandFestPayload(
+            guide: payload.guide,
+            alert: payload.alert,
+            schedule: payload.schedule,
+            zones: payload.zones,
+            ticketOptions: payload.ticketOptions,
+            sponsors: sponsors,
+            vendors: vendors,
+            coverage: coverage,
+            financeSignals: financeSignals.isEmpty ? bundledPayload.financeSignals : financeSignals,
+            myTickets: payload.myTickets
+        )
+        if let tasks = snapshot.partners?.taskSummary {
+            adminTaskSummary = AdminTaskSummary(
+                active: tasks.active,
+                overdue: tasks.overdue,
+                blocked: tasks.blocked,
+                unassigned: tasks.unassigned
+            )
+        } else {
+            adminTaskSummary = nil
+        }
+    }
+
+    private func restoreBundledAdminData(source: String, state: SyncState = .cached) {
+        payload = SandFestPayload(
+            guide: payload.guide,
+            alert: payload.alert,
+            schedule: payload.schedule,
+            zones: payload.zones,
+            ticketOptions: payload.ticketOptions,
+            sponsors: bundledPayload.sponsors,
+            vendors: bundledPayload.vendors,
+            coverage: bundledPayload.coverage,
+            financeSignals: bundledPayload.financeSignals,
+            myTickets: payload.myTickets
+        )
+        adminSource = source
+        adminSyncState = state
+        adminTaskSummary = nil
+    }
+
+    private static func sponsorInvoiceStatus(_ sponsor: BoardSponsorSnapshot) -> String {
+        if sponsor.expectedCents > 0 && sponsor.paidCents >= sponsor.expectedCents {
+            return "Paid"
+        }
+        let balance = currency(sponsor.balanceCents)
+        if let status = sponsor.invoiceStatus {
+            return "\(statusLabel(status)) - \(balance) due"
+        }
+        return "Not invoiced - \(currency(sponsor.expectedCents)) expected"
+    }
+
+    private static func sponsorFulfillmentStatus(_ sponsor: BoardSponsorSnapshot) -> String {
+        guard sponsor.deliverablesTotal > 0 else { return "Not started" }
+        if sponsor.deliverablesComplete >= sponsor.deliverablesTotal { return "Complete" }
+        return "\(sponsor.deliverablesComplete)/\(sponsor.deliverablesTotal) deliverables"
+    }
+
+    private static func vendorStatus(_ vendor: BoardVendorSnapshot) -> String {
+        let status = statusLabel(vendor.readinessStatus)
+        guard vendor.missingRequirements > 0 else { return status }
+        return "\(status) - \(vendor.missingRequirements) requirements missing"
+    }
+
+    private static func financeSignals(_ finance: BoardFinanceSnapshot) -> [FinanceSignal] {
+        var signals: [FinanceSignal] = []
+        if let quickbooks = finance.quickbooks {
+            signals.append(FinanceSignal(
+                id: "quickbooks",
+                label: "QuickBooks",
+                value: quickbooks.connected && quickbooks.canSyncPartnerInvoices ? "Connected" : "Deferred",
+                detail: quickbooks.connected
+                    ? "\(statusLabel(quickbooks.environment)) account connected; invoice sync \(quickbooks.invoiceSyncEnabled ? "enabled" : "disabled")."
+                    : quickbooks.reason ?? "QuickBooks is not connected."
+            ))
+        }
+        if let receivables = finance.receivables {
+            signals.append(FinanceSignal(
+                id: "receivables",
+                label: "Partner receivables",
+                value: "\(currency(receivables.amountPaidCents)) collected",
+                detail: "\(currency(receivables.balanceCents)) outstanding of \(currency(receivables.amountExpectedCents)); \(currency(receivables.overdueCents)) overdue."
+            ))
+        }
+        if let revenue = finance.revenue {
+            signals.append(FinanceSignal(
+                id: "revenue",
+                label: "Event revenue",
+                value: currency(revenue.totals.netCents),
+                detail: "\(currency(revenue.totals.grossCents)) gross; \(Self.percent(revenue.reconciliation.pctReconciled)) reconciled."
+            ))
+        }
+        if let budget = finance.budget {
+            signals.append(FinanceSignal(
+                id: "budget",
+                label: "Event budget",
+                value: "\(currency(budget.totals.committedCents)) committed",
+                detail: "\(currency(budget.totals.remainingCents)) remaining of \(currency(budget.totals.budgetCents)); \(budget.counts.pendingApprovals) approvals pending."
+            ))
+        }
+        return signals
+    }
+
+    private static func currency(_ cents: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencyCode = "USD"
+        formatter.maximumFractionDigits = 0
+        return formatter.string(from: NSNumber(value: Double(cents) / 100)) ?? "$0"
+    }
+
+    private static func percent(_ value: Double) -> String {
+        value.formatted(.number.precision(.fractionLength(0...1))) + "%"
+    }
+
+    private static func statusLabel(_ value: String) -> String {
+        value.replacingOccurrences(of: "_", with: " ").capitalized
+    }
+
+    private static func nonEmpty(_ value: String?) -> String? {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     private static func mergeBoardSchedule(_ live: [ScheduleItem], fallback: [ScheduleItem]) -> [ScheduleItem] {
@@ -422,6 +742,7 @@ enum AppDataError: Error {
     case eventMismatch(expected: String, received: String)
     case invalidQuestion
     case invalidConciergeResponse
+    case invalidAdminBootstrap
 }
 
 enum SyncState: Equatable {

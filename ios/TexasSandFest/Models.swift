@@ -206,6 +206,13 @@ struct FinanceSignal: Identifiable, Codable {
     let detail: String
 }
 
+struct AdminTaskSummary: Equatable {
+    let active: Int
+    let overdue: Int
+    let blocked: Int
+    let unassigned: Int
+}
+
 struct TicketOption: Identifiable, Codable {
     let id: String
     let name: String
