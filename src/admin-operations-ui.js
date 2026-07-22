@@ -4,7 +4,6 @@ import {
   EVENT_SCHEDULE_DAYS
 } from "../lib/event-schedule.mjs";
 import { REQUIRED_TICKET_POLICY_NOTICES } from "../lib/ticket-policy-schema.mjs";
-import "./admin-volunteer-attendance.css";
 
 const PENDING_NOTICE_STATUSES = new Set(["pending", "draft_ready", "approved", "queued", "sending"]);
 
