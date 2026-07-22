@@ -135,7 +135,7 @@ async function browserRehearsal(sessionFile, environment = {}) {
   } catch {
     throw new Error(`Board browser rehearsal returned invalid JSON:\n${result.stderr}\n${result.stdout}`);
   }
-  if (result.code !== 0 || !report.ok || report.passed !== 13 || report.total !== 13) {
+  if (result.code !== 0 || !report.ok || report.passed !== 14 || report.total !== 14) {
     throw new Error(`Board browser rehearsal failed ${report.passed}/${report.total}:\n${JSON.stringify(report, null, 2)}`);
   }
   return report;
