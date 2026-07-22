@@ -76,7 +76,7 @@
 .admin-guest-services-case > footer { color: var(--muted); font-size: 10px; margin-top: 12px; }
 
 @media (max-width: 760px) {
-  .admin-guest-services { padding: 18px; scroll-margin-top: 244px; }
+  .admin-guest-services { padding: 18px; scroll-margin-top: 292px; }
   .admin-guest-services-heading { align-items: stretch; flex-direction: column; }
   .admin-guest-services-actions { justify-content: space-between; }
   .admin-guest-services-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }

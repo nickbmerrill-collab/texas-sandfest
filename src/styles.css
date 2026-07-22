@@ -207,7 +207,7 @@ nav a,
   transform: translateY(-6px) rotate(-45deg);
 }
 
-@media (max-width: 1320px) {
+@media (max-width: 1490px) {
   .topbar { gap: 16px; padding-inline: 20px; }
   nav { gap: 14px; }
   .nav-cta { display: none; }
@@ -3325,7 +3325,7 @@ time {
   text-underline-offset: 4px;
 }
 
-@media (max-width: 1240px) {
+@media (max-width: 1320px) {
   .topbar .primary-nav {
     display: none;
   }
@@ -3839,6 +3839,9 @@ time {
 .guest-services-fields textarea {
   min-height: 110px;
   resize: vertical;
+}
+.guest-services-fields select {
+  height: 44px;
 }
 .guest-services-wide {
   grid-column: 1 / -1;
@@ -5607,7 +5610,7 @@ body.mode-ops header nav a[data-audience="public"] {
   .admin-shell-body #admin-config .section-heading { flex-direction: column; }
   .admin-shell-body #admin-config .section-heading h1 { font-size: 32px; }
   .admin-shell-body .admin-workspace-nav { gap: 0; }
-  .admin-shell-body .admin-workspace-nav a { font-size: 12px; padding-inline: 8px; }
+  .admin-shell-body .admin-workspace-nav a { font-size: 12px; padding-inline: 6px; }
   .admin-launch-readiness-heading { align-items: stretch; flex-direction: column; }
   .admin-launch-readiness-actions { width: 100%; }
 }
@@ -5781,7 +5784,7 @@ body.mode-ops header nav a[data-audience="public"] {
 .sponsor-invitation span { color: var(--muted); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
 .sponsor-invitation[data-state="ok"] { background: #eef6f5; border-left-color: var(--gulf); }
 .sponsor-invitation[data-state="error"] { background: #fff0ee; border-left-color: #a62929; }
-.partner-consent { align-items: flex-start; color: var(--muted); display: flex; font-size: 12px; gap: 8px; line-height: 1.45; }
+.partner-consent { align-items: flex-start; color: var(--muted); display: flex; font-size: 12px; gap: 8px; line-height: 1.45; min-height: 24px; }
 .partner-consent input { margin-top: 2px; }
 .partner-verification { max-width: 100%; min-height: 65px; overflow: hidden; }
 .partner-verification[hidden] { display: none; }
@@ -6944,7 +6947,7 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
   .admin-shell-body #admin-sponsor-fulfillment,
   .admin-shell-body #admin-vendor-readiness,
   .admin-shell-body #admin-outreach-prospects {
-    scroll-margin-top: 244px;
+    scroll-margin-top: 292px;
   }
 }
 @media (max-width: 360px) {
