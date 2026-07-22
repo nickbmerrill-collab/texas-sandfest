@@ -299,6 +299,67 @@ async function sponsorJourneyProofRehearsal(sessionFile) {
   return report;
 }
 
+async function outreachJourneyProofRehearsal(sessionFile) {
+  const result = await run(
+    process.execPath,
+    ["scripts/prove-board-outreach-journey.mjs", "--json"],
+    commandEnvironment(sessionFile),
+    180_000
+  );
+  let report = null;
+  try {
+    report = JSON.parse(result.stdout);
+  } catch {
+    throw new Error(`Board outreach journey proof returned invalid JSON:\n${result.stderr}\n${result.stdout}`);
+  }
+  if (
+    result.code !== 0
+    || report.ok !== true
+    || report.discovery?.provider !== "fixture"
+    || report.discovery?.source !== "board_demo_discovery"
+    || report.discovery?.researchRequired !== true
+    || report.qualification?.status !== "contact_ready"
+    || report.qualification?.fitScore < 60
+    || report.qualification?.ownerId !== "sponsor"
+    || report.qualification?.nextActionScheduled !== true
+    || report.invitation?.packageId !== "tarpon"
+    || report.campaign?.status !== "active"
+    || report.campaign?.matched !== 1
+    || report.campaign?.radiusMiles !== 2
+    || report.campaign?.dailySendLimit !== 1
+    || report.delivery?.status !== "sent"
+    || report.delivery?.deliveryStatus !== "delivered"
+    || report.delivery?.provider !== "brevo"
+    || report.delivery?.attempts !== 1
+    || report.delivery?.sandboxAuthenticated !== true
+    || report.delivery?.invitationDelivered !== true
+    || report.delivery?.preferenceDelivered !== true
+    || report.preference?.invalidCapabilityDenied !== true
+    || report.preference?.capabilityConcealed !== true
+    || report.preference?.status !== "unsubscribed"
+    || report.preference?.replayed !== true
+    || report.operations?.prospects !== 3
+    || report.operations?.qualified !== 2
+    || report.operations?.suppressed !== 1
+    || report.operations?.campaigns !== 3
+    || report.operations?.activeCampaigns !== 3
+    || report.operations?.messagesSent !== 2
+    || report.operations?.followups !== 25
+    || report.audit?.records !== 7
+    || report.reset?.prospects !== 2
+    || report.reset?.qualified !== 2
+    || report.reset?.suppressed !== 0
+    || report.reset?.campaigns !== 2
+    || report.reset?.activeCampaigns !== 2
+    || report.reset?.messagesSent !== 1
+    || report.reset?.followups !== 24
+    || report.reset?.preflight !== `${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}/${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}`
+  ) {
+    throw new Error(`Board outreach journey proof failed:\n${JSON.stringify(report, null, 2)}`);
+  }
+  return report;
+}
+
 async function ticketLifecycleProofRehearsal(sessionFile) {
   const result = await run(
     process.execPath,
@@ -852,6 +913,11 @@ try {
   rememberServicePids(sponsorJourneyProofSession);
   console.log(`  ok sponsor journey converts a ${sponsorJourneyProof.invitation.packageId} invitation, approves branding, byte-verifies ${sponsorJourneyProof.showcase.logoBytes} public logo bytes, records ${sponsorJourneyProof.audit.records} audits, and restores ${sponsorJourneyProof.reset.preflight} readiness`);
 
+  const outreachJourneyProof = await outreachJourneyProofRehearsal(sessionFile);
+  const outreachJourneyProofSession = await readBoardDemoSession(sessionFile);
+  rememberServicePids(outreachJourneyProofSession);
+  console.log(`  ok outreach journey discovers and qualifies one ${outreachJourneyProof.discovery.provider} business, delivers one ${outreachJourneyProof.campaign.radiusMiles}-mile campaign, proves recipient suppression and ${outreachJourneyProof.audit.records} privacy-safe audits, and restores ${outreachJourneyProof.reset.preflight} readiness`);
+
   const ticketLifecycleProof = await ticketLifecycleProofRehearsal(sessionFile);
   const ticketLifecycleProofSession = await readBoardDemoSession(sessionFile);
   rememberServicePids(ticketLifecycleProofSession);
@@ -924,7 +990,7 @@ try {
   const lingering = [...observedPids].filter(processAlive);
   if (lingering.length) throw new Error(`Board child processes remained alive after shutdown: ${lingering.join(", ")}`);
   console.log(`  ok second stop shuts down every process observed across both supervisor lifecycles`);
-  console.log("\nBoard demo supervisor: 26/26 checks passed.\n");
+  console.log("\nBoard demo supervisor: 27/27 checks passed.\n");
 } catch (error) {
   console.error(`\nBoard demo supervisor test failed: ${error.message}`);
   process.exitCode = 1;

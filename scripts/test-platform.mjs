@@ -5587,6 +5587,7 @@ Research First,construction,Corpus Christi,,78401,,,,Find decision maker,`;
   const preview = issueOutreachDiscoveryPreview(discovery, { config: fixtureConfig, now: issuedAt });
   const tamperedToken = `${preview.previewToken.slice(0, -1)}${preview.previewToken.endsWith("a") ? "b" : "a"}`;
   ok("outreach discovery signed preview", discovery.ok && discovery.candidates.length === 3 && preview.ok && verifyOutreachDiscoveryPreview(preview.previewToken, { config: fixtureConfig, now: issuedAt + 1_000 }).ok && !verifyOutreachDiscoveryPreview(tamperedToken, { config: fixtureConfig, now: issuedAt + 1_000 }).ok && verifyOutreachDiscoveryPreview(preview.previewToken, { config: fixtureConfig, now: issuedAt + 16 * 60 * 1000 }).expired);
+  ok("outreach discovery fixtures are board-mail deliverable", discovery.candidates.filter(candidate => candidate.contactEmail).every(candidate => boardEmailSandboxRecipientAllowed(candidate.contactEmail)));
   const imported = applyOutreachDiscoveryImport(emptyPartnerOperations(), preview.payload, [discovery.candidates[0].sourceRef], {
     actorId: "outreach_admin",
     idFactory,
@@ -9419,6 +9420,8 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
   ok("Eventeny booth import audit is aggregate-only", boothImportAuditApi.some(item => item.record?.after?.fileName === "eventeny-booths-api.csv" && item.record?.after?.summary?.booths?.valid === 1) && !JSON.stringify(boothImportAuditApi).includes("API Private Vendor"));
   const discoveryAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("outreach.discovery."));
   ok("outreach discovery audit is aggregate-only", discoveryAuditApi.some(item => item.record?.action === "outreach.discovery.preview") && discoveryAuditApi.some(item => item.record?.action === "outreach.discovery.import") && !JSON.stringify(discoveryAuditApi).includes(selectedDiscoveryCandidateApi?.organizationName));
+  const outreachProspectAuditApi = (auditApi.data.audit || []).filter(item => ["outreach.prospect.create", "outreach.prospect.update", "outreach.prospect.suppress"].includes(item.record?.action));
+  ok("outreach prospect audit omits business contacts", outreachProspectAuditApi.some(item => item.record?.after?.contactEmailAvailable === true) && !JSON.stringify(outreachProspectAuditApi).includes("geo-api@example.com") && !JSON.stringify(outreachProspectAuditApi).includes("morgan@api-coastal-bank.example"));
   const sponsorInvitationAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("outreach.sponsor_invitation."));
   const serializedSponsorInvitationAuditApi = JSON.stringify(sponsorInvitationAuditApi);
   ok("sponsor invitation audit is aggregate-only", sponsorInvitationAuditApi.some(item => item.record?.action === "outreach.sponsor_invitation.issue") && sponsorInvitationAuditApi.some(item => item.record?.action === "outreach.sponsor_invitation.copy") && sponsorInvitationAuditApi.some(item => item.record?.action === "outreach.sponsor_invitation.revoke") && !serializedSponsorInvitationAuditApi.includes("tsfi1.") && !serializedSponsorInvitationAuditApi.includes("morgan@api-coastal-bank.example"));
