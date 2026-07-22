@@ -201,6 +201,38 @@ async function operationsProofRehearsal(sessionFile) {
   return report;
 }
 
+async function documentProofRehearsal(sessionFile) {
+  const result = await run(
+    process.execPath,
+    ["scripts/prove-board-documents.mjs", "--json"],
+    commandEnvironment(sessionFile),
+    180_000
+  );
+  let report = null;
+  try {
+    report = JSON.parse(result.stdout);
+  } catch {
+    throw new Error(`Board document-ingestion proof returned invalid JSON:\n${result.stderr}\n${result.stdout}`);
+  }
+  if (
+    result.code !== 0
+    || report.ok !== true
+    || report.document?.reviewTaskStatus !== "done"
+    || report.document?.extractedCharacterCount < 5_000
+    || report.document?.extractedChunkCount < 1
+    || report.document?.extractionJobStatus !== "done"
+    || !/^[a-f0-9]{64}$/i.test(String(report.document?.checksumSha256 || ""))
+    || report.audit?.records < 4
+    || report.reset?.total !== 4
+    || report.reset?.openTasks !== 10
+    || report.reset?.jobsTotal !== 21
+    || report.reset?.preflight !== `${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}/${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}`
+  ) {
+    throw new Error(`Board document-ingestion proof failed:\n${JSON.stringify(report, null, 2)}`);
+  }
+  return report;
+}
+
 function rememberServicePids(session) {
   for (const service of Object.values(session?.services || {})) {
     if (Number.isInteger(Number(service.pid)) && Number(service.pid) > 0) observedPids.add(Number(service.pid));
@@ -590,6 +622,11 @@ try {
   rememberServicePids(operationsProofSession);
   console.log(`  ok Operations proof pays an expense, records $${(operationsProof.payment.amountCents / 100).toFixed(2)}, delegates a ${operationsProof.delegation.assigneeType} task, delivers ${operationsProof.deliveries.delivered} messages, and restores ${operationsProof.reset.preflight} readiness`);
 
+  const documentProof = await documentProofRehearsal(sessionFile);
+  const documentProofSession = await readBoardDemoSession(sessionFile);
+  rememberServicePids(documentProofSession);
+  console.log(`  ok document proof extracts ${documentProof.document.extractedCharacterCount} characters, completes delegated review, byte-verifies the download, records ${documentProof.audit.records} audits, and restores ${documentProof.reset.preflight} readiness`);
+
   const stopped = await run(process.execPath, ["scripts/stop-board-demo.mjs", "--session-file", sessionFile], process.env, 25_000);
   if (stopped.code !== 0) throw new Error(`Board stop command failed:\n${stopped.stderr}\n${stopped.stdout}`);
   await waitFor(async () => supervisor.exitCode != null, 10_000, "Supervisor exit");
@@ -642,7 +679,7 @@ try {
   const lingering = [...observedPids].filter(processAlive);
   if (lingering.length) throw new Error(`Board child processes remained alive after shutdown: ${lingering.join(", ")}`);
   console.log(`  ok second stop shuts down every process observed across both supervisor lifecycles`);
-  console.log("\nBoard demo supervisor: 20/20 checks passed.\n");
+  console.log("\nBoard demo supervisor: 21/21 checks passed.\n");
 } catch (error) {
   console.error(`\nBoard demo supervisor test failed: ${error.message}`);
   process.exitCode = 1;
