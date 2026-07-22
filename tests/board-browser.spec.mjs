@@ -907,6 +907,20 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   const messagingKpi = partnerKpis.locator("article").filter({ hasText: "Messaging" });
   await expect(messagingKpi).toContainText("Review first");
   await expect(messagingKpi).toContainText(/\d+ drafts? awaiting staff review/);
+  const impactReport = page.locator("#admin-impact-report");
+  await expect(impactReport.locator("#admin-impact-highlights > article")).toHaveCount(6);
+  await expect(impactReport.locator("#admin-impact-sections > article")).toHaveCount(8);
+  await expect(impactReport).toContainText("Revenue and stewardship");
+  await expect(impactReport).toContainText("Volunteer impact");
+  await expect(impactReport).toContainText("Sponsor benefits complete");
+  await expect(impactReport).toContainText("People's Choice votes");
+  await expect(impactReport).not.toContainText("@");
+  await expect(page.locator('#admin-export-type option[value="impact.csv"]')).toHaveCount(1);
+  const [impactDownload] = await Promise.all([
+    page.waitForEvent("download"),
+    page.locator("#admin-download-impact").click()
+  ]);
+  expect(impactDownload.suggestedFilename()).toBe(`${DEFAULT_EVENT_ID}-board-impact.csv`);
   const attendanceList = page.locator("#admin-volunteer-attendance");
   await expect(attendanceList.locator("[data-volunteer-assignment]")).toHaveCount(38);
   const activeAttendance = attendanceList.locator('[data-attendance-status="checked_in"]').first();
@@ -2966,9 +2980,10 @@ test("critical public and operations views fit a mobile viewport", async ({ page
   await expect.poll(() => mobileCampaignOutcomes.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
   const workspaceNav = page.locator(".admin-workspace-nav");
   const workspaceLinks = workspaceNav.locator("a");
-  await expect(workspaceLinks).toHaveCount(7);
+  await expect(workspaceLinks).toHaveCount(8);
   await expect(workspaceLinks).toHaveText([
     "Overview",
+    "Impact",
     "Documents",
     "Partners",
     "Accounting",

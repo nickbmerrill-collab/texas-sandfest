@@ -148,7 +148,7 @@ async function responsiveLayoutObservation(page, { surface, url, width, height }
     await page.waitForFunction(() => document.querySelectorAll("#public-sponsor-tiers [data-package-id]").length === 11, null, { timeout: timeoutMs });
   } else {
     await waitForAdminWorkspace(page);
-    await page.waitForFunction(() => document.querySelectorAll(".admin-workspace-nav a").length === 7, null, { timeout: timeoutMs });
+    await page.waitForFunction(() => document.querySelectorAll(".admin-workspace-nav a").length === 8, null, { timeout: timeoutMs });
   }
 
   return page.evaluate(({ surface, width, height }) => {
@@ -584,6 +584,13 @@ if (visitorUrl && operationsUrl) {
         budgetAllocationEdits: document.querySelectorAll("#admin-budget-lines [data-budget-line-update]").length,
         budgetExports: document.querySelectorAll('#admin-export-type option[value="budget.csv"], #admin-export-type option[value="expenses.csv"]').length,
         budgetExportText: [...document.querySelectorAll('#admin-export-type option[value="budget.csv"], #admin-export-type option[value="expenses.csv"]')].map(option => option.textContent?.trim()).join(" "),
+        impactHighlights: document.querySelectorAll("#admin-impact-highlights > article:not(.empty-state)").length,
+        impactSections: document.querySelectorAll("#admin-impact-sections > [data-impact-section]").length,
+        impactAttentionRows: document.querySelectorAll('#admin-impact-report [data-impact-state="attention"]').length,
+        impactSourceRows: document.querySelectorAll("#admin-impact-sources li").length,
+        impactStatus: document.querySelector("#admin-impact-status")?.textContent?.replace(/\s+/g, " ").trim(),
+        impactText: document.querySelector("#admin-impact-report")?.textContent?.replace(/\s+/g, " ").trim(),
+        impactExportReady: Boolean(document.querySelector('#admin-export-type option[value="impact.csv"]') && !document.querySelector("#admin-download-impact")?.disabled),
         budgetExpenses: document.querySelectorAll("#admin-expense-list [data-budget-expense]").length,
         submittedExpenses: document.querySelectorAll('#admin-expense-list [data-expense-status="submitted"]').length,
         approvedExpenses: document.querySelectorAll('#admin-expense-list [data-expense-status="approved"]').length,
@@ -675,10 +682,22 @@ if (visitorUrl && operationsUrl) {
         || /job_|followup_|@/.test(item?.automationText || "")
         || item?.transactionRecordPathBlocks !== 0
         || item?.transactionMonitorLeaksStoragePath !== false
+        || item?.impactHighlights !== 6
+        || item?.impactSections !== 8
+        || item?.impactAttentionRows < 1
+        || item?.impactSourceRows < 6
+        || !item?.impactStatus?.includes("texas-sandfest-2027")
+        || !item?.impactStatus?.includes("attention signal")
+        || !item?.impactText?.includes("Revenue and stewardship")
+        || !item?.impactText?.includes("Volunteer impact")
+        || !item?.impactText?.includes("Sponsor benefits complete")
+        || !item?.impactText?.includes("People's Choice votes")
+        || /@|portalAccess|storageKey/.test(item?.impactText || "")
+        || item?.impactExportReady !== true
       ) {
         throw new Error("One or more board workflow queues did not render their prepared records.");
       }
-      return `${item.partnerApplications} applications and ${item.partnerActivity} grouped updates render every operating category without internal record IDs; Systems groups ${item.automationJobs} completed automation records into ${item.completedAutomationGroups} workflow digest${item.completedAutomationGroups === 1 ? "" : "s"} beside ${item.auditEntries} readable audit entries, without private payloads or storage paths.`;
+      return `${item.partnerApplications} applications and ${item.partnerActivity} grouped updates render every operating category without internal record IDs; the impact snapshot adds ${item.impactHighlights} board highlights and ${item.impactSections} aggregate reporting sections; Systems groups ${item.automationJobs} completed automation records into ${item.completedAutomationGroups} workflow digest${item.completedAutomationGroups === 1 ? "" : "s"} beside ${item.auditEntries} readable audit entries, without private payloads or storage paths.`;
     });
     await inspect("finance_dates", "Payment and key-date tracking", "Inspect receivables, payment totals, and partner milestone controls.", async () => {
       const item = observations.operations;
@@ -839,7 +858,7 @@ if (visitorUrl && operationsUrl) {
     await inspect("responsive_layout", "Phone and tablet presentation layout", "Inspect the active Visitor and Operations links at 320px and 768px.", async () => {
       const snapshots = observations.responsive;
       if (!snapshots) throw new Error(observations.responsiveError || "Responsive presentation checks did not run.");
-      const expectedWorkspaceLabels = ["Overview", "Documents", "Partners", "Accounting", "Staffing", "Island conditions", "Systems"];
+      const expectedWorkspaceLabels = ["Overview", "Impact", "Documents", "Partners", "Accounting", "Staffing", "Island conditions", "Systems"];
       const required = [snapshots.visitor320, snapshots.visitor1024, snapshots.operations320, snapshots.operations768];
       const issue = required.find(item => (
         !item

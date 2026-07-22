@@ -367,6 +367,7 @@ import {
   verifyCameraModelPayload
 } from "../lib/camera-model-approval.mjs";
 import { boardDemoSyntheticConditions } from "../lib/board-conditions.mjs";
+import { buildBoardImpactSnapshot } from "../lib/board-impact.mjs";
 import {
   createStripePartnerCheckoutSession,
   publicStripePartnerPaymentsReadiness,
@@ -396,6 +397,7 @@ import {
 import {
   budgetAllocationsExport,
   expenseRegisterExport,
+  impactReportExport,
   milestonesCalendarExport,
   outreachProspectsExport,
   partnerDirectoryExport,
@@ -758,6 +760,7 @@ const rolePermissions = {
     "fulfillment:update",
     "jobs:write",
     "audit:read",
+    "impact:read",
     "snapshot:read"
   ],
   ticketing_admin: [
@@ -806,6 +809,7 @@ const rolePermissions = {
     "conditions:read",
     "fulfillment:read",
     "audit:read",
+    "impact:read",
     "snapshot:read"
   ],
   viewer: [
@@ -825,6 +829,7 @@ const rolePermissions = {
     "conditions:read",
     "fulfillment:read",
     "audit:read",
+    "impact:read",
     "snapshot:read"
   ]
 };
@@ -1558,6 +1563,78 @@ async function readPartnerOperations() {
   );
 }
 
+function newestTimestamp(values) {
+  return values
+    .filter(value => value && Number.isFinite(new Date(value).getTime()))
+    .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0] ?? null;
+}
+
+async function boardImpactSnapshot(now = new Date().toISOString()) {
+  const passportHuntPromise = readPassportHunt();
+  const [
+    ledger,
+    partnerOperations,
+    ticketOrders,
+    budgetControl,
+    volunteerMirror,
+    passportHunt,
+    passportCompletions,
+    peoplesChoice,
+    boothMap,
+    incomingDocumentData
+  ] = await Promise.all([
+    readRevenueLedger(),
+    readPartnerOperations(),
+    storage.orders.listByEvent(CURRENT_EVENT_ID, 5_000),
+    readBudgetControl(),
+    readVolunteerMirror(),
+    passportHuntPromise,
+    passportHuntPromise.then(doc => readPassportCompletions(doc.hunt.id)),
+    readPeoplesChoice(),
+    readBoothMap(),
+    readPlatformDoc(ROOT, "incomingDocuments", emptyIncomingDocumentIntake(CURRENT_EVENT_ID))
+  ]);
+  const revenueView = buildRevenueLedgerView(ledger, partnerOperations, { eventId: CURRENT_EVENT_ID, ticketOrders });
+  const incomingDocuments = normalizeIncomingDocumentIntake(incomingDocumentData, { eventId: CURRENT_EVENT_ID });
+  return buildBoardImpactSnapshot({
+    eventId: CURRENT_EVENT_ID,
+    generatedAt: now,
+    sourceUpdatedAt: {
+      revenue: revenueView.lastUpdated,
+      partners: partnerOperations.lastUpdated,
+      budget: budgetControl.lastUpdated,
+      volunteers: volunteerMirror.lastUpdated,
+      passport: newestTimestamp([passportHunt.lastUpdated, ...passportCompletions.completions.map(item => item.at)]),
+      voting: peoplesChoice.lastUpdated,
+      booths: boothMap.lastUpdated,
+      documents: incomingDocuments.lastUpdated
+    },
+    revenue: summarizeLedger(revenueView.entries, {
+      currency: revenueView.currency,
+      expectedAttendance: revenueView.expectedAttendance,
+      ticketCapacity: revenueView.ticketCapacity,
+      generatedAt: revenueView.lastUpdated
+    }),
+    partners: summarizePartnerOperations(partnerOperations, now),
+    tasks: summarizeTaskBoard(partnerOperations, now),
+    budget: summarizeBudgetControl(budgetControl),
+    volunteers: summarizeVolunteers(volunteerMirror.volunteers, volunteerMirror.shifts, volunteerMirror.hourLogs, {
+      eventId: volunteerMirror.eventId,
+      source: volunteerMirror.source,
+      generatedAt: volunteerMirror.lastUpdated,
+      zoneLabels: volunteerMirror.zoneLabels
+    }),
+    passport: summarizePassport(passportHunt.checkpoints, passportCompletions.completions, passportHunt.hunt, { generatedAt: now }),
+    voting: summarizeVoting(peoplesChoice.entries, peoplesChoice.votes, {
+      eventId: CURRENT_EVENT_ID,
+      votingOpen: peoplesChoice.votingOpen,
+      generatedAt: now
+    }),
+    booths: summarizeBooths(boothMap.booths, boothMap.vendors),
+    documents: summarizeIncomingDocuments(incomingDocuments, { eventId: CURRENT_EVENT_ID, now })
+  });
+}
+
 function buildOperationsExport(name, docs, now = new Date().toISOString()) {
   switch (name) {
     case "partners.csv":
@@ -1574,6 +1651,8 @@ function buildOperationsExport(name, docs, now = new Date().toISOString()) {
       return tasksExport(docs.partnerOperations, CURRENT_EVENT_ID);
     case "outreach.csv":
       return outreachProspectsExport(docs.partnerOperations, CURRENT_EVENT_ID);
+    case "impact.csv":
+      return impactReportExport(docs.boardImpact, CURRENT_EVENT_ID);
     case "milestones.ics":
       return milestonesCalendarExport(docs.partnerOperations, CURRENT_EVENT_ID, now);
     default:
@@ -1582,6 +1661,7 @@ function buildOperationsExport(name, docs, now = new Date().toISOString()) {
 }
 
 function operationsExportPermission(name) {
+  if (name === "impact.csv") return "impact:read";
   if (["budget.csv", "expenses.csv"].includes(name)) return "budget:read";
   if (["receivables.csv", "payments.csv"].includes(name)) return "payments:read";
   if (name === "outreach.csv") return "outreach:read";
@@ -6574,6 +6654,12 @@ async function handleRequest(request, response) {
       return;
     }
 
+    if (method === "GET" && pathname === "/api/admin/impact") {
+      if (!(await requirePermission(request, response, "impact:read"))) return;
+      sendJson(request, response, 200, { snapshot: await boardImpactSnapshot() });
+      return;
+    }
+
     if (method === "GET" && pathname === "/api/admin/revenue") {
       if (!(await requirePermission(request, response, "revenue:read"))) return;
       const [ledger, partnerOperations, ticketOrders] = await Promise.all([
@@ -7571,15 +7657,18 @@ async function handleRequest(request, response) {
       return;
     }
 
-    const operationsExportMatch = pathname.match(/^\/api\/admin\/exports\/(partners\.csv|receivables\.csv|payments\.csv|budget\.csv|expenses\.csv|tasks\.csv|outreach\.csv|milestones\.ics)$/);
+    const operationsExportMatch = pathname.match(/^\/api\/admin\/exports\/(partners\.csv|receivables\.csv|payments\.csv|budget\.csv|expenses\.csv|tasks\.csv|outreach\.csv|impact\.csv|milestones\.ics)$/);
     if (method === "GET" && operationsExportMatch) {
       const name = operationsExportMatch[1];
       const session = await requirePermission(request, response, operationsExportPermission(name));
       if (!session) return;
-      const docs = ["budget.csv", "expenses.csv"].includes(name)
-        ? { budgetControl: await readBudgetControl() }
-        : { partnerOperations: await readPartnerOperations() };
-      const exported = buildOperationsExport(name, docs);
+      const now = new Date().toISOString();
+      const docs = name === "impact.csv"
+        ? { boardImpact: await boardImpactSnapshot(now) }
+        : ["budget.csv", "expenses.csv"].includes(name)
+          ? { budgetControl: await readBudgetControl() }
+          : { partnerOperations: await readPartnerOperations() };
+      const exported = buildOperationsExport(name, docs, now);
       await writeAuditRecord(request, "operations.export.download", { type: "operationsExport", id: name }, null, null, {
         format: exported.format,
         rowCount: exported.rowCount

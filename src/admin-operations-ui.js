@@ -7,6 +7,141 @@ import { REQUIRED_TICKET_POLICY_NOTICES } from "../lib/ticket-policy-schema.mjs"
 
 const PENDING_NOTICE_STATUSES = new Set(["pending", "draft_ready", "approved", "queued", "sending"]);
 
+export function operationsNavigationLinks({ islandLabel = "Island conditions" } = {}) {
+  return `<a href="#admin-config">Overview</a>
+    <a href="#admin-impact-report">Impact</a>
+    <a href="#admin-documents">Documents</a>
+    <a href="#admin-partners">Partners</a>
+    <a href="#admin-budget">Accounting</a>
+    <a href="#admin-volunteers">Staffing</a>
+    <a href="#admin-island-conditions">${escapeHtml(islandLabel)}</a>
+    <a href="#admin-system-monitor">Systems</a>`;
+}
+
+export function boardImpactReportMarkup() {
+  return `<section class="admin-impact-report" id="admin-impact-report" aria-labelledby="admin-impact-title">
+    <div class="admin-impact-heading">
+      <div>
+        <p class="eyebrow">Board and post-event reporting</p>
+        <h2 id="admin-impact-title">Impact snapshot</h2>
+        <p id="admin-impact-status">Waiting for current-event totals.</p>
+      </div>
+      <div class="admin-impact-actions">
+        <button id="admin-load-impact" class="button secondary" data-requires-permission="impact:read" type="button">Refresh</button>
+        <button id="admin-download-impact" class="button primary" data-requires-permission="impact:read" type="button">Download CSV</button>
+      </div>
+    </div>
+    <div id="admin-impact-highlights" class="admin-impact-highlights" aria-live="polite" aria-busy="true">
+      <article class="empty-state"><span>No impact totals loaded.</span></article>
+    </div>
+    <div id="admin-impact-sections" class="admin-impact-sections"></div>
+    <div id="admin-impact-sources" class="admin-impact-sources"></div>
+  </section>`;
+}
+
+function impactValue(metric, adminMoney) {
+  const value = Number(metric?.value || 0);
+  if (metric?.unit === "cents") return adminMoney(value);
+  if (metric?.unit === "percent") return `${value.toLocaleString("en-US", { maximumFractionDigits: 1 })}%`;
+  if (metric?.unit === "hours") return `${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} h`;
+  return Math.round(value).toLocaleString("en-US");
+}
+
+function renderBoardImpactSnapshot(snapshot, { adminMoney, conditionLabel }) {
+  const highlights = document.querySelector("#admin-impact-highlights");
+  const sections = document.querySelector("#admin-impact-sections");
+  const sources = document.querySelector("#admin-impact-sources");
+  const status = document.querySelector("#admin-impact-status");
+  if (!highlights || !sections || !sources || !status) return;
+
+  highlights.innerHTML = (snapshot?.highlights || []).map(item => `<article data-impact-state="${escapeAttr(item.status)}">
+    <span>${escapeHtml(item.label)}</span>
+    <strong>${escapeHtml(impactValue(item, adminMoney))}</strong>
+    <small>${escapeHtml(item.context || conditionLabel(item.status))}</small>
+  </article>`).join("") || '<article class="empty-state"><span>No impact totals loaded.</span></article>';
+  highlights.setAttribute("aria-busy", "false");
+
+  sections.innerHTML = (snapshot?.sections || []).map(section => `<article class="admin-impact-section" data-impact-section="${escapeAttr(section.id)}">
+    <h3>${escapeHtml(section.label)}</h3>
+    <dl>${(section.metrics || []).map(item => `<div data-impact-state="${escapeAttr(item.status)}">
+      <dt>${escapeHtml(item.label)}${item.context ? `<small>${escapeHtml(item.context)}</small>` : ""}</dt>
+      <dd>${escapeHtml(impactValue(item, adminMoney))}</dd>
+    </div>`).join("")}</dl>
+  </article>`).join("");
+
+  const sourceRows = snapshot?.sources || [];
+  sources.innerHTML = sourceRows.length ? `<strong>Source freshness</strong><ul>${sourceRows.map(item => `<li><span>${escapeHtml(item.label)}</span>${item.updatedAt ? `<time datetime="${escapeAttr(item.updatedAt)}">${escapeHtml(new Date(item.updatedAt).toLocaleString())}</time>` : "<small>No update recorded</small>"}</li>`).join("")}</ul>` : "";
+  const generated = snapshot?.generatedAt ? new Date(snapshot.generatedAt).toLocaleString() : "just now";
+  const attention = Number(snapshot?.headline?.attentionSignals || 0);
+  status.textContent = `${snapshot?.eventId || "Current event"} · generated ${generated} · ${attention} attention signal${attention === 1 ? "" : "s"}`;
+  status.dataset.state = attention ? "attention" : "ok";
+}
+
+export function createBoardImpactUi({
+  adminCan,
+  adminFetch,
+  adminMoney,
+  conditionLabel,
+  downloadAdminExport,
+  setAdminStatus
+}) {
+  let mounted = false;
+
+  async function load({ quiet = false } = {}) {
+    if (!adminCan("impact:read")) return null;
+    const button = document.querySelector("#admin-load-impact");
+    if (button) button.disabled = true;
+    try {
+      const data = await adminFetch("/api/admin/impact");
+      renderBoardImpactSnapshot(data.snapshot, { adminMoney, conditionLabel });
+      if (!quiet) {
+        const attention = Number(data.snapshot?.headline?.attentionSignals || 0);
+        setAdminStatus(`Loaded the board impact snapshot with ${attention} attention signal${attention === 1 ? "" : "s"}.`, attention ? "warning" : "ok");
+      }
+      return data;
+    } catch (error) {
+      const status = document.querySelector("#admin-impact-status");
+      if (status) {
+        status.textContent = error.message;
+        status.dataset.state = "error";
+      }
+      if (!quiet) setAdminStatus(error.message, "error");
+      throw error;
+    } finally {
+      if (button) button.disabled = !adminCan("impact:read");
+    }
+  }
+
+  function mount() {
+    if (mounted) return;
+    mounted = true;
+    const exportType = document.querySelector("#admin-export-type");
+    if (exportType && !exportType.querySelector('[value="impact.csv"]')) {
+      const option = document.createElement("option");
+      option.value = "impact.csv";
+      option.textContent = "Board impact snapshot";
+      exportType.insertBefore(option, exportType.querySelector('[value="milestones.ics"]'));
+    }
+    document.querySelector("#admin-load-impact")?.addEventListener("click", () => {
+      load().catch(() => {});
+    });
+    document.querySelector("#admin-download-impact")?.addEventListener("click", async event => {
+      const button = event.currentTarget;
+      button.disabled = true;
+      try {
+        const fileName = await downloadAdminExport("impact.csv");
+        setAdminStatus(`${fileName} is ready.`, "ok");
+      } catch (error) {
+        setAdminStatus(error.message, "error");
+      } finally {
+        button.disabled = !adminCan("impact:read");
+      }
+    });
+  }
+
+  return { load, mount };
+}
+
 export function renderVolunteerAttendance(attendanceEl, payload, dependencies) {
   const {
     adminCan,

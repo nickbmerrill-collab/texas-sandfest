@@ -406,6 +406,7 @@ import {
   stripePartnerPaymentsConfig
 } from "../lib/stripe-partner-payments.mjs";
 import { stripeHostedCheckoutUrl } from "../lib/stripe-checkout-url.mjs";
+import { buildBoardImpactSnapshot } from "../lib/board-impact.mjs";
 import { escapeHtml } from "../lib/html-escape.mjs";
 import { updateJsonFile } from "../lib/safe-json-store.mjs";
 import { normalizeRequestId, redactAuditValue, safeErrorResponse } from "../lib/security.mjs";
@@ -420,6 +421,7 @@ import {
   budgetAllocationsExport,
   csvCell,
   expenseRegisterExport,
+  impactReportExport,
   milestonesCalendarExport,
   outreachProspectsExport,
   partnerDirectoryExport,
@@ -1964,10 +1966,33 @@ console.log("\n=== Pure library suite ===\n");
   };
   const budget = budgetAllocationsExport(budgetDoc, eventId);
   const expenses = expenseRegisterExport(budgetDoc, eventId);
+  const impactSnapshot = buildBoardImpactSnapshot({
+    eventId,
+    generatedAt: "2026-07-16T14:00:00.000Z",
+    sourceUpdatedAt: { revenue: "2026-07-16T13:00:00.000Z", partners: "2026-07-16T13:30:00.000Z" },
+    revenue: { totals: { grossCents: 125_000, netCents: 120_000 }, reconciliation: { pctReconciled: 75 }, tickets: { sold: 42 } },
+    partners: {
+      applications: { total: 5, sponsors: 2, vendors: 3 },
+      finance: { amountExpectedCents: 280_000, amountPaidCents: 100_000, balanceCents: 180_000, reconciliationExceptions: 1, contactEmail: "private-impact@example.com" },
+      operations: { overdueMilestones: 1 },
+      fulfillment: { assets: { total: 3, approved: 2, awaitingReview: 1 }, deliverables: { total: 4, complete: 2 } },
+      vendorReadiness: { vendors: 3, ready: 2, blocked: 1 },
+      outreach: { prospects: 8, qualified: 4, won: 1, messagesSent: 3, activeCampaigns: 2, draftsAwaitingReview: 1 }
+    },
+    tasks: { totals: { total: 7, active: 4, blocked: 1, overdue: 2, completed: 3 } },
+    budget: { totals: { budgetCents: 500_000, committedCents: 200_000, paidCents: 120_000, remainingCents: 300_000 }, counts: { pendingApprovals: 2, overBudgetLines: 0, pipelineOverBudgetLines: 0 } },
+    volunteers: { totals: { volunteers: 15, confirmed: 9, checkedIn: 1, totalHours: 12.5, openHourLogs: 1, fillPct: 75.5, openGaps: 4 } },
+    passport: { totals: { stamps: 20, uniqueAttendees: 8, finishers: 2 } },
+    voting: { totals: { totalVotes: 11, uniqueVoters: 10 } },
+    booths: { totals: { booths: 9, assigned: 8, open: 1, publicPins: 7 } },
+    documents: { total: 4, overdue: 0, extractionNeedsReview: 0, byStatus: { approved: 1 }, storageKey: "private-storage-key" }
+  });
+  const impact = impactReportExport(impactSnapshot, eventId);
   const partnerCsv = partners.body.toString("utf8");
   const calendarText = calendar.body.toString("utf8");
   const budgetCsv = budget.body.toString("utf8");
   const expenseCsv = expenses.body.toString("utf8");
+  const impactCsv = impact.body.toString("utf8");
   ok("CSV exports neutralize spreadsheet formulas", csvCell("=2+2") === '"\'=2+2"' && partnerCsv.includes('"\'=SUM(A1:A2) Coastal Bank"') && tasks.body.toString("utf8").includes('"\'+Do not execute this cell"'));
   ok("task export includes notification state without recipient", tasks.body.toString("utf8").includes("Notification status") && tasks.body.toString("utf8").includes("delivered") && !tasks.body.toString("utf8").includes("private-volunteer@example.com"));
   ok("partner export excludes capability and idempotency secrets", partners.rowCount === 1 && partnerCsv.includes("avery.export@example.com") && !partnerCsv.includes("must-not-export") && !partnerCsv.includes("portalAccess"));
@@ -1975,6 +2000,8 @@ console.log("\n=== Pure library suite ===\n");
   ok("accounting exports preserve allocation and expense evidence", budget.rowCount === 1 && budget.fileName === `${eventId}-budget-allocations.csv` && budgetCsv.includes('"1000.00"') && budgetCsv.includes('"400.00"') && budgetCsv.includes('"650.00"') && expenses.rowCount === 2 && expenses.fileName === `${eventId}-expense-register.csv` && expenseCsv.includes("ACH-EXPENSE-1") && expenseCsv.includes("Over-budget override"));
   ok("accounting exports are current-event and spreadsheet safe", budgetCsv.includes('"\'=Beach operations"') && expenseCsv.includes('"\'+Do not execute this description"') && !budgetCsv.includes("Prior event allocation") && !expenseCsv.includes("Prior Event Vendor"));
   ok("outreach export preserves suppression-ready pipeline fields", outreach.rowCount === 1 && outreach.body.toString("utf8").includes("Contact basis") && outreach.body.toString("utf8").includes("Next action due at") && outreach.body.toString("utf8").includes("2026-07-20T15:00:00.000Z") && outreach.body.toString("utf8").includes('"\'@Regional Business"'));
+  ok("board impact snapshot is aggregate and attention-aware", impactSnapshot.sections.length === 8 && impactSnapshot.headline.attentionSignals === 5 && impactSnapshot.highlights.find(item => item.id === "volunteer_hours")?.value === 12.5 && impactSnapshot.sections.find(item => item.id === "attention")?.metrics.find(item => item.id === "blocked_vendors")?.status === "attention" && impactSnapshot.sections.find(item => item.id === "attention")?.metrics.find(item => item.id === "messages_requiring_action")?.status === "attention");
+  ok("board impact export is privacy-safe and source-dated", impact.rowCount === 47 && impact.fileName === `${eventId}-board-impact.csv` && impactCsv.includes("Hours logged") && impactCsv.includes("Messages requiring action") && impactCsv.includes("2026-07-16T13:00:00.000Z") && !impactCsv.includes("private-impact@example.com") && !impactCsv.includes("private-storage-key"));
   ok("key-date calendar is importable and contact-minimized", calendar.rowCount === 1 && calendarText.includes("BEGIN:VCALENDAR") && calendarText.includes("BEGIN:VEVENT") && calendarText.includes("SEQUENCE:1") && !calendarText.includes("avery.export@example.com") && calendarText.split("\r\n").every(line => Buffer.byteLength(line, "utf8") <= 75));
 }
 
@@ -6860,6 +6887,7 @@ try {
     ["GET", "/api/public/voting", false],
     ["GET", "/api/public/booths", false],
     ["GET", "/api/public/island-conditions", false],
+    ["GET", "/api/admin/impact", true],
     ["GET", "/api/admin/revenue", true],
     ["GET", "/api/admin/budget", true],
     ["GET", "/api/admin/fleet", true],
@@ -6879,7 +6907,9 @@ try {
   }
 
   const unauth = await hit("GET", "/api/admin/fleet", null, false);
+  const unauthImpact = await hit("GET", "/api/admin/impact", null, false);
   ok("admin 401 without token", unauth.status === 401);
+  ok("board impact snapshot requires staff authentication", unauthImpact.status === 401);
 
   const volunteerRosterCsvApi = `volunteer_id,event_id,name,email,status,waiver_signed,sms_consent,roles
 VL-API-1,${DEFAULT_EVENT_ID},API Volunteer Lead,api-volunteer@example.com,active,yes,no,gate|traffic
@@ -8640,7 +8670,8 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
   ok("partner email opt-out is immediate and idempotent", pausedContactPreference.status === 200 && pausedContactPreference.data.application?.contactPreference?.allowed === false && pausedContactPreference.data.application?.contactPreference?.version === 2 && pausedContactPreference.data.dismissedFollowups >= 1 && replayedContactPreference.status === 200 && replayedContactPreference.data.replay === true && replayedContactPreference.data.dismissedFollowups === 0);
   ok("partner email re-enrollment is conflict safe", staleContactPreference.status === 409 && unversionedContactPreference.status === 400 && resumedContactPreference.status === 200 && resumedContactPreference.data.application?.contactPreference?.allowed === true && resumedContactPreference.data.application?.contactPreference?.version === 3 && resumedContactStatus.data.application?.contactPreference?.allowed === true && storedContactPreference?.consentNoticeVersion === apiInterestNotice.version && dismissedContactMessages.length >= 1);
   const unauthenticatedExportApi = await hitRaw("GET", "/api/admin/exports/partners.csv");
-  const [partnerExportApi, receivablesExportApi, paymentsExportApi, budgetExportApi, expensesExportApi, tasksExportApi, outreachExportApi, calendarExportApi] = await Promise.all([
+  const impactApi = await hit("GET", "/api/admin/impact", null, true);
+  const [partnerExportApi, receivablesExportApi, paymentsExportApi, budgetExportApi, expensesExportApi, tasksExportApi, outreachExportApi, impactExportApi, calendarExportApi] = await Promise.all([
     hitRaw("GET", "/api/admin/exports/partners.csv", undefined, { origin: "http://127.0.0.1:5173" }, true),
     hitRaw("GET", "/api/admin/exports/receivables.csv", undefined, {}, true),
     hitRaw("GET", "/api/admin/exports/payments.csv", undefined, {}, true),
@@ -8648,6 +8679,7 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
     hitRaw("GET", "/api/admin/exports/expenses.csv", undefined, {}, true),
     hitRaw("GET", "/api/admin/exports/tasks.csv", undefined, {}, true),
     hitRaw("GET", "/api/admin/exports/outreach.csv", undefined, {}, true),
+    hitRaw("GET", "/api/admin/exports/impact.csv", undefined, {}, true),
     hitRaw("GET", "/api/admin/exports/milestones.ics", undefined, {}, true)
   ]);
   const partnerExportTextApi = partnerExportApi.data.toString("utf8");
@@ -8655,12 +8687,17 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
   const paymentsExportTextApi = paymentsExportApi.data.toString("utf8");
   const budgetExportTextApi = budgetExportApi.data.toString("utf8");
   const expensesExportTextApi = expensesExportApi.data.toString("utf8");
+  const impactExportTextApi = impactExportApi.data.toString("utf8");
   const calendarExportTextApi = calendarExportApi.data.toString("utf8");
   ok("operations exports require staff authentication", unauthenticatedExportApi.status === 401);
   ok("partner, task, and outreach CSV exports download", partnerExportApi.status === 200 && tasksExportApi.status === 200 && outreachExportApi.status === 200 && partnerExportApi.headers.get("content-type")?.startsWith("text/csv") && partnerExportApi.headers.get("content-disposition")?.includes(`${DEFAULT_EVENT_ID}-partners.csv`) && partnerExportApi.headers.get("access-control-expose-headers")?.includes("content-disposition") && partnerExportTextApi.includes("Organization") && !partnerExportTextApi.includes("portalAccessId") && !partnerExportTextApi.includes("intakeIdempotencyKeyHash"));
   ok("receivables export uses server records", receivablesExportApi.status === 200 && receivablesExportTextApi.includes("Outstanding amount") && receivablesExportTextApi.includes("Platform API Portal Test"), `status=${receivablesExportApi.status} account=${receivablesExportTextApi.includes("Platform API Portal Test")}`);
   ok("payment ledger export preserves provider references", paymentsExportApi.status === 200 && paymentsExportTextApi.includes("Payment intent ID") && paymentsExportTextApi.includes("pi_partner_api_001"), `status=${paymentsExportApi.status} paymentIntent=${paymentsExportTextApi.includes("pi_partner_api_001")}`);
   ok("accounting exports use current budget records", budgetExportApi.status === 200 && expensesExportApi.status === 200 && budgetExportApi.headers.get("content-disposition")?.includes(`${DEFAULT_EVENT_ID}-budget-allocations.csv`) && expensesExportApi.headers.get("content-disposition")?.includes(`${DEFAULT_EVENT_ID}-expense-register.csv`) && budgetExportTextApi.includes("Annual budget") && budgetExportTextApi.includes("Remaining after pipeline") && expensesExportTextApi.includes("API Private Staging Vendor") && expensesExportTextApi.includes("PRIVATE-ACH-API-1001"));
+  const serializedImpactApi = JSON.stringify(impactApi.data.snapshot || {});
+  ok("board impact API returns aggregate current-event reporting", impactApi.status === 200 && impactApi.data.snapshot?.eventId === DEFAULT_EVENT_ID && impactApi.data.snapshot?.sections?.length === 8 && impactApi.data.snapshot?.highlights?.some(item => item.id === "volunteer_hours") && impactApi.data.snapshot?.sources?.length === 8);
+  ok("board impact API withholds private workflow records", !serializedImpactApi.includes("contactEmail") && !serializedImpactApi.includes("storageKey") && !serializedImpactApi.includes("portalAccess") && !serializedImpactApi.includes("@"));
+  ok("board impact CSV is downloadable and aggregate-only", impactExportApi.status === 200 && impactExportApi.headers.get("content-type")?.startsWith("text/csv") && impactExportApi.headers.get("content-disposition")?.includes(`${DEFAULT_EVENT_ID}-board-impact.csv`) && impactExportTextApi.includes("Volunteer impact") && impactExportTextApi.includes("Sponsor benefits complete") && !impactExportTextApi.includes("contactEmail") && !impactExportTextApi.includes("@"));
   ok("key date calendar export is importable", calendarExportApi.status === 200 && calendarExportApi.headers.get("content-type")?.startsWith("text/calendar") && calendarExportApi.headers.get("content-disposition")?.includes(`${DEFAULT_EVENT_ID}-partner-key-dates.ics`) && calendarExportTextApi.includes("BEGIN:VCALENDAR") && calendarExportTextApi.includes("BEGIN:VEVENT"));
   const [ordersMonitorApi, paymentEventsMonitorApi, fulfillmentMonitorApi, auditApi, snapshotsMonitorApi] = await Promise.all([
     hit("GET", "/api/admin/orders?limit=500", null, true),
@@ -8721,7 +8758,7 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
   const sponsorInvitationAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("outreach.sponsor_invitation."));
   const serializedSponsorInvitationAuditApi = JSON.stringify(sponsorInvitationAuditApi);
   ok("sponsor invitation audit is aggregate-only", sponsorInvitationAuditApi.some(item => item.record?.action === "outreach.sponsor_invitation.issue") && sponsorInvitationAuditApi.some(item => item.record?.action === "outreach.sponsor_invitation.copy") && sponsorInvitationAuditApi.some(item => item.record?.action === "outreach.sponsor_invitation.revoke") && !serializedSponsorInvitationAuditApi.includes("tsfi1.") && !serializedSponsorInvitationAuditApi.includes("morgan@api-coastal-bank.example"));
-  ok("operations export downloads are audited", auditApi.data.audit?.filter(item => item.record?.action === "operations.export.download").length >= 8);
+  ok("operations export downloads are audited", auditApi.data.audit?.filter(item => item.record?.action === "operations.export.download").length >= 9);
   ok("new admin audit records use current event context", auditApi.data.audit?.filter(item => item.record?.createdAt?.startsWith(new Date().toISOString().slice(0, 10))).every(item => item.record?.eventId === DEFAULT_EVENT_ID));
 } finally {
   if (child) {
