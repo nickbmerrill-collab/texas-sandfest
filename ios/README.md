@@ -103,9 +103,12 @@ remains a production requirement after native OIDC and conflict handling exist.
 
 `AppDataStore` loads the bundled seed immediately, then requests
 `GET /api/public/bootstrap` when the app root appears. A validated response
-updates only the public guide, schedule, zone metadata, and alert. The app
-stores that privacy-minimized response in Application Support and restores it
-on the next offline launch.
+updates only the public guide, schedule, zone metadata, and alert. The app also
+loads `GET /api/public/sculptors` into the Sculptors screen, validates the
+current event plus every sculptor, entry, division, and map-point relationship,
+and stores that privacy-minimized roster in a separate origin-bound cache. An
+unpublished or held roster clears the native roster instead of exposing the
+bundled prototype lineup. Both public caches restore on the next offline launch.
 
 The cache is bound to the exact API origin and bundled event ID. A localhost
 board response, a different annual event, malformed collections, duplicate

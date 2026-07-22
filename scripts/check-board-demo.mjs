@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import {
+  BOARD_DEMO_PREFLIGHT_CHECK_COUNT,
   boardDemoCheckEndpoints,
   boardDemoPresentationLinks,
   evaluateBoardDemoReadiness
@@ -86,11 +87,12 @@ async function request(url, { json = true, headers = {}, readBody = true } = {})
 }
 
 const authorization = { authorization: `Bearer ${adminToken}` };
-const [web, health, ready, bootstrap, tickets, emailSandbox, smsSandbox, conditions, partners, volunteers, budget, budgetExport, expenseExport, documents, sponsors] = await Promise.all([
+const [web, health, ready, bootstrap, sculptors, tickets, emailSandbox, smsSandbox, conditions, partners, volunteers, budget, budgetExport, expenseExport, documents, sponsors] = await Promise.all([
   request(webUrl, { json: false }),
   request(`${apiBase}/health`),
   request(`${apiBase}/ready`),
   request(`${apiBase}/api/public/bootstrap`),
+  request(`${apiBase}/api/public/sculptors`),
   request(`${apiBase}/api/public/tickets`),
   request(`${emailBase}/health`),
   request(`${smsBase}/health`),
@@ -115,6 +117,7 @@ const readiness = evaluateBoardDemoReadiness({
     health: health.body,
     ready: ready.body,
     bootstrap: bootstrap.body,
+    sculptors: sculptors.body,
     tickets: tickets.body,
     emailSandbox: emailSandbox.body,
     smsSandbox: smsSandbox.body,
@@ -129,6 +132,9 @@ const readiness = evaluateBoardDemoReadiness({
     sponsorLogo
   });
 const checks = [await sourceRevisionCheck(), ...readiness.checks];
+if (checks.length !== BOARD_DEMO_PREFLIGHT_CHECK_COUNT) {
+  throw new Error(`Board preflight contract expected ${BOARD_DEMO_PREFLIGHT_CHECK_COUNT} checks but produced ${checks.length}.`);
+}
 const passed = checks.filter(item => item.ok).length;
 const ok = passed === checks.length;
 const report = {

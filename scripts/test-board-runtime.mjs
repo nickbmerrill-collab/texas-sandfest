@@ -301,6 +301,7 @@ try {
   check("health identifies isolated runtime data", health.data.runtimeDataMode === "isolated" && health.data.cameraIngestReady === true && health.data.safetySmsReady === true && health.data.ticketCheckoutEnvironment === "board_sandbox" && health.data.partnerPaymentCheckoutEnvironment === "board_sandbox");
   check("health exposes the generated capability-link origin", health.data.publicSiteUrl === child.processEnv.SANDFEST_PUBLIC_SITE_URL);
   const bootstrap = await request(base, "GET", "/api/public/bootstrap");
+  const publicSculptors = await request(base, "GET", "/api/public/sculptors");
   const publicPassport = await request(base, "GET", "/api/public/passport");
   const publicVoting = await request(base, "GET", "/api/public/voting");
   const publicVendorCatalog = await request(base, "GET", "/api/public/vendors");
@@ -321,6 +322,12 @@ try {
     && bootstrap.data.zones?.every(item => !Object.hasOwn(item, "status"))
     && !/(sponsors|vendors|coverage|financeSignals|ticketOptions)/.test(JSON.stringify(bootstrap.data)));
   check("board runtime derives a complete synthetic sculpture passport", publicPassport.status === 200 && publicPassport.data.hunt?.active === true && publicPassport.data.checkpoints?.length === 6 && publicPassport.data.checkpoints?.every(item => item.entryId));
+  check("board runtime publishes one linked synthetic sculptor roster", publicSculptors.status === 200
+    && publicSculptors.data.meta?.eventId === DEFAULT_EVENT_ID
+    && publicSculptors.data.meta?.publicationStatus === "sample"
+    && publicSculptors.data.sculptors?.length === 6
+    && publicSculptors.data.entries?.length === 6
+    && publicSculptors.data.sculptors.every(sculptor => publicSculptors.data.entries.some(entry => entry.id === sculptor.entryId && entry.sculptorId === sculptor.id)));
   check("board runtime publishes its synthetic ballot only in demo mode", publicVoting.status === 200 && publicVoting.data.votingOpen === true && publicVoting.data.entries?.length === 6 && publicVoting.data.leaderboard?.length === 6);
   check("board runtime publishes synthetic application offerings", publicVendorCatalog.status === 200 && publicVendorCatalog.data.publication?.available === true && publicVendorCatalog.data.publication?.status === "board_demo" && publicVendorCatalog.data.vendorOfferings?.length === 3 && publicVendorCatalog.data.vendorOfferings?.every(item => item.intakeMode === "application" && item.description.includes("Synthetic board-demo")) && publicVendorCatalog.data.vendorOfferings?.some(item => item.id === "marketplace-booth" && item.amount === 125000));
   check("board runtime publishes the current sponsor program", publicSponsorCatalog.status === 200 && publicSponsorCatalog.data.publication?.available === true && publicSponsorCatalog.data.publication?.status === "board_demo" && publicSponsorCatalog.data.sponsorPackages?.length === 11 && publicSponsorCatalog.data.sponsorPackages?.find(item => item.id === "marlin")?.amount === 1500000 && publicSponsorCatalog.data.sponsorPackages?.find(item => item.id === "whale")?.amount === 5000000 && publicSponsorCatalog.data.sponsorPackages?.find(item => item.id === "the-kraken")?.amount === 25000000);

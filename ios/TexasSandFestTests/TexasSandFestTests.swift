@@ -1067,6 +1067,114 @@ final class AppDataStoreTests: XCTestCase {
     }
 
     @MainActor
+    func testPublishedSculptorRosterIsValidatedCachedAndOriginBound() async throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cacheURL = directory.appendingPathComponent("public-bootstrap.json")
+        let apiBase = try XCTUnwrap(URL(string: "https://api.texassandfest.example"))
+        let bootstrap = try encoded(publicPayload(
+            guide: guide(dateRange: SampleData.guide.dateRange),
+            schedule: [scheduleItem(id: "roster-live")]
+        ))
+        let roster = try encoded(publicSculptorRoster())
+        let recorder = AppDataRequestRecorder()
+        let store = AppDataStore(
+            seedPayload: .sample,
+            apiBase: apiBase,
+            cacheURL: cacheURL,
+            transport: AppDataTransport { request in
+                await recorder.record(request)
+                switch request.url?.path {
+                case "/api/public/bootstrap":
+                    return AppDataHTTPResponse(data: bootstrap, statusCode: 200)
+                case "/api/public/sculptors":
+                    return AppDataHTTPResponse(data: roster, statusCode: 200)
+                default:
+                    throw TestFailure.offline
+                }
+            }
+        )
+
+        XCTAssertTrue(store.sculptures.isEmpty)
+        await store.refreshPublicData()
+
+        XCTAssertEqual(store.syncState, .live)
+        XCTAssertEqual(store.sculptorSyncState, .live)
+        XCTAssertEqual(store.sculptorSource, "Live sculptor roster")
+        XCTAssertEqual(store.sculptures.map(\.sculptor), ["River Delgado"])
+        XCTAssertEqual(store.sculptures.first?.entryId, "entry-tide")
+        XCTAssertEqual(store.sculptures.first?.passportKey, "entry-tide")
+        XCTAssertEqual(store.sculptures.first?.canonicalPassportCode, "tsf:entry:entry-tide")
+        XCTAssertEqual(store.sculptures.first?.category, "Master Solo")
+        XCTAssertEqual(store.sculptures.first?.country, "San Diego, CA")
+        XCTAssertEqual(store.sculptures.first?.crowdStatusVerified, false)
+        let requests = await recorder.values()
+        XCTAssertEqual(requests.map(\.path), ["/api/public/bootstrap", "/api/public/sculptors"])
+
+        let cached = AppDataStore(
+            seedPayload: .sample,
+            apiBase: apiBase,
+            cacheURL: cacheURL,
+            transport: AppDataTransport { _ in throw TestFailure.offline }
+        )
+        XCTAssertEqual(cached.sculptorSource, "Cached sculptor roster")
+        XCTAssertEqual(cached.sculptures.map(\.entryId), ["entry-tide"])
+
+        let otherOrigin = AppDataStore(
+            seedPayload: .sample,
+            apiBase: try XCTUnwrap(URL(string: "https://other.texassandfest.example")),
+            cacheURL: cacheURL,
+            transport: AppDataTransport { _ in throw TestFailure.offline }
+        )
+        XCTAssertTrue(otherOrigin.sculptures.isEmpty)
+        XCTAssertEqual(otherOrigin.sculptorSource, "Awaiting current roster")
+    }
+
+    @MainActor
+    func testUnpublishedAndBrokenSculptorRostersFailClosed() async throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let bootstrap = try encoded(publicPayload(
+            guide: guide(dateRange: SampleData.guide.dateRange),
+            schedule: [scheduleItem(id: "roster-state")]
+        ))
+        let unpublished = try encoded(publicSculptorRoster(status: "unpublished"))
+        let unpublishedStore = AppDataStore(
+            seedPayload: .sample,
+            apiBase: try XCTUnwrap(URL(string: "https://api.texassandfest.example")),
+            cacheURL: directory.appendingPathComponent("unpublished-bootstrap.json"),
+            transport: AppDataTransport { request in
+                AppDataHTTPResponse(
+                    data: request.url?.path == "/api/public/sculptors" ? unpublished : bootstrap,
+                    statusCode: 200
+                )
+            }
+        )
+        await unpublishedStore.refreshPublicData()
+        XCTAssertEqual(unpublishedStore.sculptorSyncState, .live)
+        XCTAssertEqual(unpublishedStore.sculptorSource, "Roster awaiting publication")
+        XCTAssertTrue(unpublishedStore.sculptures.isEmpty)
+
+        let broken = try encoded(publicSculptorRoster(brokenLink: true))
+        let brokenStore = AppDataStore(
+            seedPayload: .sample,
+            apiBase: try XCTUnwrap(URL(string: "https://api.texassandfest.example")),
+            cacheURL: directory.appendingPathComponent("broken-bootstrap.json"),
+            transport: AppDataTransport { request in
+                AppDataHTTPResponse(
+                    data: request.url?.path == "/api/public/sculptors" ? broken : bootstrap,
+                    statusCode: 200
+                )
+            }
+        )
+        await brokenStore.refreshPublicData()
+        XCTAssertEqual(brokenStore.syncState, .live)
+        XCTAssertEqual(brokenStore.sculptorSyncState, .offline)
+        XCTAssertEqual(brokenStore.sculptorSource, "Sculptor roster unavailable")
+        XCTAssertTrue(brokenStore.sculptures.isEmpty)
+    }
+
+    @MainActor
     func testBoardRuntimeKeepsRichSyntheticScheduleWithLiveOverrides() async throws {
         let directory = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -1090,12 +1198,16 @@ final class AppDataStoreTests: XCTestCase {
             runtime: PublicRuntime(mode: "board_demo", label: "Synthetic board data")
         )
         let responseData = try encoded(responsePayload)
+        let rosterData = try encoded(publicSculptorRoster(status: "sample"))
         let store = AppDataStore(
             seedPayload: .sample,
             apiBase: try XCTUnwrap(URL(string: "http://127.0.0.1:8806")),
             cacheURL: directory.appendingPathComponent("public-bootstrap.json"),
-            transport: AppDataTransport { _ in
-                AppDataHTTPResponse(data: responseData, statusCode: 200)
+            transport: AppDataTransport { request in
+                AppDataHTTPResponse(
+                    data: request.url?.path == "/api/public/sculptors" ? rosterData : responseData,
+                    statusCode: 200
+                )
             }
         )
 
@@ -1108,6 +1220,8 @@ final class AppDataStoreTests: XCTestCase {
         XCTAssertEqual(store.payload.schedule.first(where: { $0.id == "fri-gates" })?.time, "9:15 AM")
         XCTAssertTrue(store.payload.schedule.contains(where: { $0.id == "board-only" }))
         XCTAssertTrue(store.payload.schedule.contains(where: { $0.id == "sat-headliner" }))
+        XCTAssertEqual(store.sculptorSource, "Live board sculptor roster")
+        XCTAssertEqual(store.sculptures.map(\.entryId), ["entry-tide"])
 
         let cachedStore = AppDataStore(
             seedPayload: .sample,
@@ -1116,6 +1230,37 @@ final class AppDataStoreTests: XCTestCase {
             transport: AppDataTransport { _ in throw TestFailure.offline }
         )
         XCTAssertEqual(cachedStore.staffAccessMode, .boardDemo)
+        XCTAssertEqual(cachedStore.sculptures.map(\.entryId), ["entry-tide"])
+
+        let ordinaryBootstrap = try encoded(publicPayload(
+            guide: guide(dateRange: SampleData.guide.dateRange),
+            schedule: [scheduleItem(id: "ordinary-local")]
+        ))
+        let ordinaryStore = AppDataStore(
+            seedPayload: .sample,
+            apiBase: try XCTUnwrap(URL(string: "http://127.0.0.1:8806")),
+            cacheURL: directory.appendingPathComponent("public-bootstrap.json"),
+            transport: AppDataTransport { request in
+                AppDataHTTPResponse(
+                    data: request.url?.path == "/api/public/sculptors" ? rosterData : ordinaryBootstrap,
+                    statusCode: 200
+                )
+            }
+        )
+        XCTAssertEqual(ordinaryStore.staffAccessMode, .boardDemo)
+        XCTAssertEqual(ordinaryStore.sculptures.map(\.entryId), ["entry-tide"])
+        await ordinaryStore.refreshPublicData()
+        XCTAssertEqual(ordinaryStore.staffAccessMode, .visitorOnly)
+        XCTAssertTrue(ordinaryStore.sculptures.isEmpty)
+
+        let reopenedOrdinaryStore = AppDataStore(
+            seedPayload: .sample,
+            apiBase: try XCTUnwrap(URL(string: "http://127.0.0.1:8806")),
+            cacheURL: directory.appendingPathComponent("public-bootstrap.json"),
+            transport: AppDataTransport { _ in throw TestFailure.offline }
+        )
+        XCTAssertEqual(reopenedOrdinaryStore.staffAccessMode, .visitorOnly)
+        XCTAssertTrue(reopenedOrdinaryStore.sculptures.isEmpty)
 
         let remoteStore = AppDataStore(
             seedPayload: .sample,
@@ -1194,6 +1339,7 @@ final class AppDataStoreTests: XCTestCase {
           }
         }
         """#.utf8)
+        let boardRosterResponse = try encoded(publicSculptorRoster(status: "sample"))
         let recorder = AppDataRequestRecorder()
         let store = AppDataStore(
             seedPayload: .sample,
@@ -1205,6 +1351,8 @@ final class AppDataStoreTests: XCTestCase {
                 switch request.url?.path {
                 case "/api/public/bootstrap":
                     return AppDataHTTPResponse(data: publicResponse, statusCode: 200)
+                case "/api/public/sculptors":
+                    return AppDataHTTPResponse(data: boardRosterResponse, statusCode: 200)
                 case "/api/admin/app-bootstrap":
                     return AppDataHTTPResponse(data: adminResponse, statusCode: 200)
                 default:
@@ -1232,9 +1380,10 @@ final class AppDataStoreTests: XCTestCase {
         XCTAssertNil(store.makeBoardAdminRequest(path: "/api/public/bootstrap"))
 
         let requests = await recorder.values()
-        XCTAssertEqual(requests.map(\.path), ["/api/public/bootstrap", "/api/admin/app-bootstrap"])
+        XCTAssertEqual(requests.map(\.path), ["/api/public/bootstrap", "/api/public/sculptors", "/api/admin/app-bootstrap"])
         XCTAssertNil(requests[0].authorization)
-        XCTAssertEqual(requests[1].authorization, "Bearer local-board-secret")
+        XCTAssertNil(requests[1].authorization)
+        XCTAssertEqual(requests[2].authorization, "Bearer local-board-secret")
         let cachedText = try String(contentsOf: cacheURL, encoding: .utf8)
         XCTAssertFalse(cachedText.contains("local-board-secret"))
         XCTAssertFalse(cachedText.contains("Live Sponsor"))
@@ -1265,7 +1414,7 @@ final class AppDataStoreTests: XCTestCase {
         XCTAssertEqual(store.staffAccessMode, .visitorOnly)
         XCTAssertEqual(store.adminSource, "Bundled admin demo")
         XCTAssertNil(store.makeBoardAdminRequest(path: "/api/admin/fleet"))
-        XCTAssertEqual(requests.map(\.path), ["/api/public/bootstrap"])
+        XCTAssertEqual(requests.map(\.path), ["/api/public/bootstrap", "/api/public/sculptors"])
         XCTAssertTrue(requests.allSatisfy { $0.authorization == nil })
     }
 
@@ -1393,6 +1542,55 @@ final class AppDataStoreTests: XCTestCase {
                 )
             ],
             runtime: runtime
+        )
+    }
+
+    private func publicSculptorRoster(
+        status: String = "published",
+        brokenLink: Bool = false
+    ) -> PublicSculptorRoster {
+        let available = status == "published" || status == "sample"
+        return PublicSculptorRoster(
+            meta: PublicSculptorRosterMeta(
+                eventId: SampleData.guide.id,
+                publicationStatus: status,
+                sourceUrl: status == "published" ? "https://www.texassandfest.org/sculptors" : nil,
+                publishedAt: available ? "2026-07-22T12:00:00.000Z" : nil
+            ),
+            legend: available ? [
+                PublicSculptorLegend(colorKey: "master_solo", label: "Master Solo", colorHex: "#006D77")
+            ] : [],
+            sculptors: available ? [
+                PublicSculptor(
+                    id: "sculptor-river",
+                    name: "River Delgado",
+                    division: "master_solo",
+                    hometown: "San Diego, CA",
+                    returning: true,
+                    bio: "Master carver.",
+                    entryId: "entry-tide"
+                )
+            ] : [],
+            entries: available ? [
+                PublicSculptureEntry(
+                    id: "entry-tide",
+                    title: "Tidal Guardian",
+                    sculptorId: brokenLink ? "sculptor-missing" : "sculptor-river",
+                    division: "master_solo",
+                    status: "sculpting",
+                    beachMarker: "13",
+                    poiId: "poi-tide",
+                    statement: "A sea guardian rising from the surf."
+                )
+            ] : [],
+            pois: available ? [
+                PublicSculpturePOI(
+                    id: "poi-tide",
+                    type: "sculpture",
+                    entryId: "entry-tide",
+                    illustratedMapXY: PublicSculptureMapPoint(x: 0.42, y: 0.44)
+                )
+            ] : []
         )
     }
 

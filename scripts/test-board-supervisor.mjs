@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { BOARD_RUNTIME_LABEL, BOARD_RUNTIME_SCHEMA_VERSION, prepareBoardRuntime } from "../lib/board-runtime.mjs";
+import { BOARD_DEMO_PREFLIGHT_CHECK_COUNT } from "../lib/board-demo-readiness.mjs";
 import { BOARD_DEMO_SESSION_SCHEMA_VERSION, readBoardDemoSession } from "../lib/board-demo-session.mjs";
 import { DEFAULT_EVENT_ID } from "../lib/event-context.mjs";
 import { emptyPartnerOperations } from "../lib/partner-ops.mjs";
@@ -118,7 +119,7 @@ async function preflight(sessionFile) {
   } catch {
     throw new Error(`Board preflight returned invalid JSON:\n${result.stderr}\n${result.stdout}`);
   }
-  if (result.code !== 0 || !report.ok || report.passed !== 11 || report.total !== 11) {
+  if (result.code !== 0 || !report.ok || report.passed !== BOARD_DEMO_PREFLIGHT_CHECK_COUNT || report.total !== BOARD_DEMO_PREFLIGHT_CHECK_COUNT) {
     throw new Error(`Board preflight failed ${report.passed}/${report.total}:\n${JSON.stringify(report, null, 2)}`);
   }
   return report;
@@ -246,11 +247,11 @@ try {
 
   const initial = await waitFor(async () => {
     const session = await readBoardDemoSession(sessionFile);
-    if (session?.status !== "ready" || session?.lastPreflight?.passed !== 11) return null;
+    if (session?.status !== "ready" || session?.lastPreflight?.passed !== BOARD_DEMO_PREFLIGHT_CHECK_COUNT) return null;
     rememberServicePids(session);
     return session;
   }, 90_000, "Initial board demo readiness");
-  if (!output.includes("Board presentation stack is ready (11/11 checks).")) {
+  if (!output.includes(`Board presentation stack is ready (${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}/${BOARD_DEMO_PREFLIGHT_CHECK_COUNT} checks).`)) {
     throw new Error(`Supervisor startup banner does not match the current readiness report:\n${output.slice(-4_000)}`);
   }
   if (Number(new URL(initial.endpoints.webBase).port) === webPort || !occupiedPortServer.listening) {
@@ -475,7 +476,7 @@ try {
   }
   const resetSession = await waitFor(async () => {
     const session = await readBoardDemoSession(sessionFile);
-    if (session?.status !== "ready" || session?.resetCount !== 1 || !session?.lastResetAt || session?.lastPreflight?.passed !== 11) return null;
+    if (session?.status !== "ready" || session?.resetCount !== 1 || !session?.lastResetAt || session?.lastPreflight?.passed !== BOARD_DEMO_PREFLIGHT_CHECK_COUNT) return null;
     const servicesReplaced = Object.entries(session.services || {}).every(([name, service]) => {
       const pid = Number(service.pid);
       return pid > 0 && pid !== preResetPids[name] && processAlive(pid);
@@ -543,7 +544,7 @@ try {
   ], supervisorEnvironment);
   const restarted = await waitFor(async () => {
     const session = await readBoardDemoSession(sessionFile);
-    if (session?.status !== "ready" || session?.lastPreflight?.passed !== 11) return null;
+    if (session?.status !== "ready" || session?.lastPreflight?.passed !== BOARD_DEMO_PREFLIGHT_CHECK_COUNT) return null;
     rememberServicePids(session);
     return session;
   }, 90_000, "Board supervisor restart");

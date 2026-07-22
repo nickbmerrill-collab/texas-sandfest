@@ -108,7 +108,7 @@ npm run board:rehearse:webkit
 Use the reset icon in the Operations header when you want to discard
 demonstration changes and restore the synthetic starting state. After
 confirmation, the supervisor stops every local component, replaces the runtime,
-starts fresh services, waits for a new 11-of-11 generation, and reloads Operations.
+starts fresh services, waits for a new 12-of-12 generation, and reloads Operations.
 The control appears only when an authenticated board session is connected
 directly to its loopback supervisor; ordinary development and production APIs
 return no reset capability. A reset requested while startup or component
@@ -125,7 +125,7 @@ npm run board:rehearse
 
 The credential-free session record lives at
 `.sandfest-runtime/board-demo-session.json`. The supervisor restarts a failed
-component with bounded backoff and returns to ready only after another 11-of-11
+component with bounded backoff and returns to ready only after another 12-of-12
 preflight. It stops instead of looping forever when a component repeatedly
 fails. External Stripe ticketing, sponsor checkout, and QuickBooks sync are
 explicitly disabled in this synthetic stack even if the parent shell contains
