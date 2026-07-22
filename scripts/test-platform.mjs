@@ -6328,6 +6328,24 @@ Research First,construction,Corpus Christi,,78401,,,,Find decision maker,`;
     estimatedWaitMinutes: 36
   }, { idFactory, now: "2026-07-16T12:01:00.000Z" });
   ok("active camera incident is deduplicated", repeatedCritical.doc.incidents.filter(item => item.sourceType === "camera_condition" && item.sourceId === "north-gate").length === 1);
+  const publishedCritical = updateOperationsIncident(repeatedCritical.doc, repeatedCritical.incident.id, {
+    publicImpact: true
+  }, { actorId: "ops_1", now: "2026-07-16T12:01:15.000Z" });
+  const temporaryModerate = evaluateCameraObservationIncident(publishedCritical.doc, "north-gate", {
+    observedAt: "2026-07-16T12:01:30.000Z",
+    level: "moderate",
+    occupancyPct: 38,
+    queueLength: 6,
+    estimatedWaitMinutes: 4
+  }, { idFactory, now: "2026-07-16T12:01:30.000Z" });
+  ok("lower camera signal preserves active incident warning", temporaryModerate.incident.severity === "critical"
+    && temporaryModerate.incident.summary.includes("critical crowd conditions")
+    && temporaryModerate.incident.latestLevel === "moderate"
+    && temporaryModerate.incident.latestMetrics.queueLength === 6);
+  const publicWarning = publicIslandConditions(temporaryModerate.doc, "2026-07-16T12:01:30.000Z").notices[0];
+  ok("public incident warning remains severity coherent", publicWarning.severity === "critical"
+    && publicWarning.summary.includes("critical crowd conditions")
+    && !publicWarning.summary.includes("moderate crowd conditions"));
 
   const firstHigh = evaluateCameraObservationIncident(seed, "food-court", {
     observedAt: "2026-07-16T12:00:00.000Z", level: "high", occupancyPct: 70, queueLength: 10
