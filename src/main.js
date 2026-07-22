@@ -6206,28 +6206,13 @@ function renderAdminVolunteers(payload) {
   `).join("") || '<article class="empty-state"><span>All shifts filled.</span></article>';
 
   if (attendanceEl) {
-    const assignments = [...(payload.attendance?.assignments || [])].sort((left, right) => {
-      const rank = { checked_in: 0, scheduled: 1, checked_in_elsewhere: 2, no_show: 3, cancelled: 4, checked_out: 5 };
-      const statusDifference = (rank[left.attendanceStatus] ?? 9) - (rank[right.attendanceStatus] ?? 9);
-      if (statusDifference) return statusDifference;
-      return String(left.startsAt || "").localeCompare(String(right.startsAt || "")) || left.volunteerName.localeCompare(right.volunteerName);
+    adminOperationsUi.renderVolunteerAttendance(attendanceEl, payload.attendance, {
+      adminCan,
+      adminFetch,
+      conditionLabel,
+      loadAdminVolunteers,
+      setAdminStatus
     });
-    attendanceEl.innerHTML = assignments.map(item => {
-      const starts = item.startsAt ? new Date(item.startsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "Time pending";
-      const ends = item.endsAt ? new Date(item.endsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : null;
-      const action = item.canCheckOut ? "check_out" : item.canCheckIn ? "check_in" : "";
-      const actionLabel = item.canCheckOut ? "Check out" : item.canCheckIn ? "Check in" : "Recorded";
-      return `<article data-volunteer-assignment="${escapeAttr(item.id)}" data-attendance-status="${escapeAttr(item.attendanceStatus)}">
-        <div>
-          <strong>${escapeHtml(item.volunteerName)}${item.captain ? " · Captain" : ""}</strong>
-          <span>${escapeHtml(item.day || "Scheduled")} · ${escapeHtml(item.zoneLabel)} · ${escapeHtml(conditionLabel(item.roleId))}</span>
-          <small>${escapeHtml(`${starts}${ends ? ` - ${ends}` : ""}`)}${item.checkInAt ? ` · In ${escapeHtml(new Date(item.checkInAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }))}` : ""}${item.checkOutAt ? ` · Out ${escapeHtml(new Date(item.checkOutAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }))}` : ""}</small>
-        </div>
-        <b data-status="${escapeAttr(item.attendanceStatus)}">${escapeHtml(conditionLabel(item.attendanceStatus))}</b>
-        <button class="button ${item.canCheckOut ? "primary" : "secondary"}" type="button" data-volunteer-attendance-action="${escapeAttr(action)}" data-volunteer-id="${escapeAttr(item.volunteerId)}" data-shift-id="${escapeAttr(item.shiftId)}" data-attendance-id="${escapeAttr(item.attendanceId || "")}" ${action && adminCan("volunteers:write") ? "" : "disabled"}>${actionLabel}</button>
-      </article>`;
-    }).join("") || '<article class="empty-state"><span>No assigned volunteer shifts.</span></article>';
-    bindVolunteerAttendanceButtons();
   }
 
   if (importHistory) {
@@ -6247,34 +6232,6 @@ function renderAdminVolunteers(payload) {
   updated.textContent = payload.lastUpdated
     ? `Mirror updated ${new Date(payload.lastUpdated).toLocaleString()} · source ${payload.source || "seed"} · ${s.totals.shifts} shifts.`
     : "Volunteer coverage loaded.";
-}
-
-function bindVolunteerAttendanceButtons() {
-  document.querySelectorAll("[data-volunteer-attendance-action]").forEach(button => {
-    if (!button.dataset.volunteerAttendanceAction) return;
-    button.addEventListener("click", async () => {
-      const action = button.dataset.volunteerAttendanceAction;
-      button.disabled = true;
-      try {
-        const result = await adminFetch("/api/admin/volunteers/attendance", {
-          method: "POST",
-          body: JSON.stringify({
-            action,
-            volunteerId: button.dataset.volunteerId,
-            shiftId: button.dataset.shiftId,
-            attendanceId: button.dataset.attendanceId || null,
-            method: "captain"
-          })
-        });
-        await loadAdminVolunteers({ quiet: true });
-        const verb = action === "check_in" ? "Checked in" : "Checked out";
-        setAdminStatus(`${verb} ${result.volunteer.name}${result.replay ? "; the attendance record was already current" : ""}.`, "ok");
-      } catch (error) {
-        setAdminStatus(error.message, "error");
-        button.disabled = !adminCan("volunteers:write");
-      }
-    });
-  });
 }
 
 async function loadAdminVolunteers({ quiet = false } = {}) {
