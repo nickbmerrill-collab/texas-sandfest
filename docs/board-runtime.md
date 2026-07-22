@@ -235,6 +235,25 @@ the blocker and completion while four capability-attributed audits omit the
 private link and note text. The supervisor then restores the exact 11-task,
 10-active-task, ten-assignment-notice baseline at 12/12 readiness.
 
+To prove the synthetic camera-to-Incident Command response journey, run:
+
+```bash
+npm run board:prove:incident
+```
+
+The proof posts an HMAC-signed critical North Gate metric through the same
+privacy-minimized ingest route used by edge agents and requires an exact retry
+to return the original observation. Operations assigns the alert to Traffic,
+approves its public impact, and the visitor Island Conditions view must render
+only the title, summary, severity, and update time. Staff create a routed team
+dispatch, review its generated email, deliver it through the authenticated
+loopback Brevo sandbox, and track acknowledgement, travel, on-scene response,
+and completed closeout. Three signed recovery signals must move the incident to
+monitoring before a noted manual resolution removes the visitor notice. Eleven
+incident and dispatch audits must omit recipient and delivery ownership values.
+The supervisor then restores zero incidents, dispatches, and public notices at
+12/12 readiness. No footage is read or stored and no live provider is called.
+
 To prove the private document-ingestion workflow against the active stack, run:
 
 ```bash

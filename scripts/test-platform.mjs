@@ -8230,10 +8230,19 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     const disabledDispatchSend = await hit("POST", `${dispatchPath}/${dispatchId}/send`, {}, true);
     const dispatchWorkspace = await hit("GET", "/api/admin/island-conditions", null, true);
     const persistedDispatch = dispatchWorkspace.data.dispatches?.find(item => item.id === dispatchId);
+    const dispatchAudit = await hit("GET", "/api/admin/audit?limit=100", null, true);
+    const dispatchAuditRecords = dispatchAudit.data.audit?.map(item => item.record).filter(record => record?.target?.type === "incident_dispatch" && record.target.id === dispatchId) || [];
     ok("incident dispatch routes enforce auth and idempotency", unauthorizedDispatch.status === 401 && createdDispatch.status === 201 && repeatedDispatch.status === 200 && repeatedDispatch.data.duplicate === true && dispatchWorkspace.data.dispatches?.filter(item => item.id === dispatchId).length === 1);
     ok("incident dispatch review and readiness gate", editedDispatch.status === 200 && editedDispatch.data.dispatch?.notification?.status === "draft_ready" && approvedDispatch.data.dispatch?.notification?.status === "approved" && disabledDispatchSend.status === 409);
     ok("incident dispatch uses governed team route", createdDispatch.data.dispatch?.assigneeName === "Traffic and parking" && createdDispatch.data.dispatch?.notification?.recipientAvailable === true);
     ok("incident dispatch response minimizes contacts", persistedDispatch?.notification?.recipientAvailable === true && !("recipient" in (persistedDispatch?.notification || {})) && !dispatchWorkspace.data.assignmentDirectory?.staff?.some(item => "email" in item) && !dispatchWorkspace.data.assignmentDirectory?.volunteers?.some(item => "email" in item));
+    ok("incident dispatch audits minimize contacts and delivery ownership", dispatchAuditRecords.length === 3 && dispatchAuditRecords.every(record => {
+      const serialized = JSON.stringify(record);
+      return !serialized.includes("@")
+        && !serialized.includes('"recipient":')
+        && !serialized.includes("deliveryIdempotencyKey")
+        && !serialized.includes("deliveryClaimId");
+    }));
 
     const forcedUnknownDispatch = await forceUnknownIncidentDelivery(isolatedRuntimeRoot, dispatchId, { deliveryClaimId: "job_api_unknown_dispatch" });
     const reconciliationPath = `${dispatchPath}/${dispatchId}/delivery-reconciliation`;

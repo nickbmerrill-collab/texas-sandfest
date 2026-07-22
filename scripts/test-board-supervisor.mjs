@@ -482,6 +482,54 @@ async function delegationJourneyProofRehearsal(sessionFile) {
   return report;
 }
 
+async function incidentJourneyProofRehearsal(sessionFile) {
+  const result = await run(
+    process.execPath,
+    ["scripts/prove-board-incident-journey.mjs", "--json"],
+    commandEnvironment(sessionFile),
+    180_000
+  );
+  let report = null;
+  try {
+    report = JSON.parse(result.stdout);
+  } catch {
+    throw new Error(`Board camera incident journey proof returned invalid JSON:\n${result.stderr}\n${result.stdout}`);
+  }
+  if (
+    result.code !== 0
+    || report.ok !== true
+    || report.camera?.cameraId !== "north-gate"
+    || report.camera?.severity !== "critical"
+    || report.camera?.replayed !== true
+    || report.incident?.ownerTeam !== "traffic"
+    || report.incident?.publicImpact !== true
+    || report.notice?.visible !== true
+    || report.notice?.privateProjection !== true
+    || report.dispatch?.assigneeType !== "team"
+    || report.dispatch?.assigneeName !== "Traffic and parking"
+    || report.dispatch?.status !== "completed"
+    || report.delivery?.status !== "sent"
+    || report.delivery?.provider !== "brevo"
+    || report.delivery?.sandboxAuthenticated !== true
+    || report.delivery?.recipientConcealed !== true
+    || report.recovery?.status !== "monitoring"
+    || report.recovery?.automatic !== true
+    || report.resolution?.status !== "resolved"
+    || report.resolution?.publicNoticeRemoved !== true
+    || report.audit?.records !== 11
+    || report.audit?.private !== true
+    || report.reset?.incidents !== 0
+    || report.reset?.activeIncidents !== 0
+    || report.reset?.dispatches !== 0
+    || report.reset?.activeDispatches !== 0
+    || report.reset?.publicNotices !== 0
+    || report.reset?.preflight !== `${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}/${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}`
+  ) {
+    throw new Error(`Board camera incident journey proof failed:\n${JSON.stringify(report, null, 2)}`);
+  }
+  return report;
+}
+
 async function documentProofRehearsal(sessionFile) {
   const result = await run(
     process.execPath,
@@ -933,6 +981,11 @@ try {
   rememberServicePids(delegationJourneyProofSession);
   console.log(`  ok delegation journey delivers one private ${delegationJourneyProof.delegation.assigneeType} assignment, records ${delegationJourneyProof.portal.updates} assignee updates and ${delegationJourneyProof.audit.records} privacy-safe audits, and restores ${delegationJourneyProof.reset.preflight} readiness`);
 
+  const incidentJourneyProof = await incidentJourneyProofRehearsal(sessionFile);
+  const incidentJourneyProofSession = await readBoardDemoSession(sessionFile);
+  rememberServicePids(incidentJourneyProofSession);
+  console.log(`  ok camera incident journey opens a retry-safe ${incidentJourneyProof.camera.severity} alert, dispatches ${incidentJourneyProof.dispatch.assigneeName}, delivers through local ${incidentJourneyProof.delivery.provider}, records ${incidentJourneyProof.audit.records} privacy-safe audits, and restores ${incidentJourneyProof.reset.preflight} readiness`);
+
   const documentProof = await documentProofRehearsal(sessionFile);
   const documentProofSession = await readBoardDemoSession(sessionFile);
   rememberServicePids(documentProofSession);
@@ -990,7 +1043,7 @@ try {
   const lingering = [...observedPids].filter(processAlive);
   if (lingering.length) throw new Error(`Board child processes remained alive after shutdown: ${lingering.join(", ")}`);
   console.log(`  ok second stop shuts down every process observed across both supervisor lifecycles`);
-  console.log("\nBoard demo supervisor: 27/27 checks passed.\n");
+  console.log("\nBoard demo supervisor: 28/28 checks passed.\n");
 } catch (error) {
   console.error(`\nBoard demo supervisor test failed: ${error.message}`);
   process.exitCode = 1;
