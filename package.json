@@ -77,6 +77,7 @@
     "board:prove:vendor": "node scripts/prove-board-vendor-journey.mjs",
     "board:prove:operations": "node scripts/prove-board-operations.mjs",
     "board:prove:documents": "node scripts/prove-board-documents.mjs",
+    "board:prove:outreach": "node scripts/prove-board-outreach-journey.mjs",
     "board:prove:sponsor": "node scripts/prove-board-sponsor-journey.mjs",
     "board:prove:tickets": "node scripts/prove-board-ticket-lifecycle.mjs",
     "board:ios": "node scripts/board-ios-demo.mjs",

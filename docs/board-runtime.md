@@ -146,7 +146,28 @@ vendor reaches ready status, checks privacy-minimized lifecycle audits, and
 restores the exact prepared vendor baseline at 12/12 readiness. No external
 message, payment, or provider call is made.
 
-To prove the targeted sponsor outreach and branding journey, run:
+To prove regional sponsor discovery and outreach delivery, run:
+
+```bash
+npm run board:prove:outreach
+```
+
+This proof starts in the visible regional business discovery form and requires
+the fixture provider to return the expected synthetic Port Aransas candidate.
+The imported business remains identified and invitation-ineligible until staff
+verify its decision maker, business email, contact basis, owner, and next action.
+Operations then issues a Tarpon invitation, previews an exact one-business,
+two-mile campaign without exposing the recipient address, and explicitly
+approves its one-message-per-day sequence. The message must reach authenticated
+loopback Brevo delivery with both invitation and preference links. An invalid
+preference capability is denied, the valid capability is concealed from the
+browser address, and the recipient opt-out is durable and replay-safe. Seven
+lifecycle audits must omit recipient addresses and private capabilities. The
+supervisor finally restores the exact two-prospect, two-campaign, one delivered
+message baseline at 12/12 readiness. No external discovery or email provider is
+called.
+
+To prove the targeted sponsor conversion and branding journey, run:
 
 ```bash
 npm run board:prove:sponsor

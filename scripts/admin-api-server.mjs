@@ -1896,6 +1896,16 @@ function adminPartnerApplicationAuditView(application) {
   };
 }
 
+function adminOutreachProspectAuditView(prospect) {
+  if (!prospect) return prospect;
+  const { contactName, contactEmail, ...safe } = prospect;
+  return {
+    ...safe,
+    contactNameAvailable: Boolean(contactName),
+    contactEmailAvailable: Boolean(contactEmail)
+  };
+}
+
 function adminPartnerFollowupView(followup) {
   if (!followup) return followup;
   const { deliveryClaimId, deliveryIdempotencyKey, ...deliverySafe } = followup;
@@ -8606,7 +8616,7 @@ async function handleRequest(request, response) {
         sendJson(request, response, 400, { error: result?.error || "Prospect could not be created." });
         return;
       }
-      await writeAuditRecord(request, "outreach.prospect.create", { type: "prospect", id: result.prospect.id }, null, result.prospect);
+      await writeAuditRecord(request, "outreach.prospect.create", { type: "prospect", id: result.prospect.id }, null, adminOutreachProspectAuditView(result.prospect));
       sendJson(request, response, 201, { prospect: result.prospect });
       return;
     }
@@ -8628,7 +8638,13 @@ async function handleRequest(request, response) {
         sendJson(request, response, result?.error === "Prospect not found." ? 404 : 400, { error: result?.error || "Prospect could not be updated." });
         return;
       }
-      await writeAuditRecord(request, result.prospect.suppressedAt ? "outreach.prospect.suppress" : "outreach.prospect.update", { type: "prospect", id: prospectId }, before, result.prospect);
+      await writeAuditRecord(
+        request,
+        result.prospect.suppressedAt ? "outreach.prospect.suppress" : "outreach.prospect.update",
+        { type: "prospect", id: prospectId },
+        adminOutreachProspectAuditView(before),
+        adminOutreachProspectAuditView(result.prospect)
+      );
       sendJson(request, response, 200, { prospect: result.prospect });
       return;
     }
