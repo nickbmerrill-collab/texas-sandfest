@@ -307,7 +307,11 @@ async function updateIncidentFromOperations(page, incident, runId) {
     || payload.incident?.ownerName !== "Board traffic desk"
     || payload.incident?.publicImpact !== true
   ) {
-    throw new Error("Operations did not approve and assign the camera incident correctly.");
+    throw new Error(`Operations did not approve and assign the camera incident correctly: ${JSON.stringify({
+      status: response.status(),
+      error: payload.error || null,
+      incident: payload.incident || null
+    })}.`);
   }
   await expect(incidentCard(page, incident.id)).toContainText("Public notice approved");
   return payload.incident;
@@ -624,7 +628,10 @@ try {
   const operationsUrl = new URL(endpoints.operations);
   operationsUrl.hash = "admin-incident-command";
   await operationsPage.goto(operationsUrl.toString(), { waitUntil: "domcontentloaded", timeout: timeoutMs });
-  await expect(operationsPage.locator("#admin-api-status")).toContainText("Loaded", { timeout: timeoutMs });
+  await operationsPage.waitForFunction(() => {
+    const status = document.querySelector("#admin-api-status");
+    return status?.dataset.workspaceState === "ready" && status.getAttribute("aria-busy") === "false";
+  }, null, { timeout: timeoutMs });
   await expect(operationsPage.locator("#network-status")).toHaveText("Demo");
   await expect(operationsPage.locator("#runtime-data-notice")).toContainText("No external messages, charges, or live-provider calls");
   await refreshConditions(operationsPage);
