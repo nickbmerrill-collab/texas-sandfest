@@ -3482,3 +3482,93 @@ test("partner portal recovery is private, delivered, and mobile-safe", async ({ 
   await assertNoHorizontalOverflow(page);
   await assertNoAccessibilityViolations(page, "Partner portal recovery");
 });
+
+test("staff publishes and holds one roster revision across visitor engagement", async ({ page }) => {
+  test.skip(
+    process.env.SANDFEST_WEBKIT_COMPAT_ONLY === "true",
+    "The full roster mutation runs in Chromium CI and the local full WebKit rehearsal."
+  );
+  const pageErrors = [];
+  page.on("pageerror", error => pageErrors.push(error.message));
+  await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#admin-sculptors`);
+  await expect(page.locator("#admin-api-status")).toContainText("Loaded", { timeout: 25_000 });
+  await expect(page.locator("#admin-sculptor-roster-status")).toContainText("synthetic sculptors");
+
+  const csv = [
+    "event_id,sculptor_id,sculptor_name,division,hometown,returning,bio,instagram,entry_id,entry_title,statement,status,beach_marker,map_x,map_y",
+    `${DEFAULT_EVENT_ID},board-river,Board River,master_solo,Port Aransas TX,yes,Reviewed browser artist,,board-tide,Board Tide,A reviewed Gulf sculpture,complete,13,0.42,0.44`,
+    `${DEFAULT_EVENT_ID},board-kade,Board Kade,master_duo,Corpus Christi TX,no,Reviewed browser artist,,board-coral,Board Coral,A reviewed coral sculpture,sculpting,13.5,0.56,0.39`
+  ].join("\n");
+  const importForm = page.locator("#admin-import-sculptors");
+  await importForm.locator('[name="rosterFile"]').setInputFiles({
+    name: "reviewed-board-roster.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(csv)
+  });
+  await importForm.locator('[name="sourceUrl"]').fill("https://www.texassandfest.org/sculptors");
+  const now = new Date();
+  const localSourceCheckedAt = new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+  await importForm.locator('[name="sourceCheckedAt"]').fill(localSourceCheckedAt);
+  await importForm.locator('[name="currentEventConfirmed"]').check();
+  const previewResponsePromise = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/sculptors/import" && response.request().method() === "POST");
+  await importForm.locator('button[type="submit"]').click();
+  const previewResponse = await previewResponsePromise;
+  expect(previewResponse.status()).toBe(200);
+  await expect(page.locator("#admin-sculptor-import-result")).toContainText("2 valid");
+  await expect(page.locator("#admin-commit-sculptor-import")).toBeEnabled();
+
+  const publishResponsePromise = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/sculptors/import" && response.request().method() === "POST");
+  await page.locator("#admin-commit-sculptor-import").click();
+  const publishResponse = await publishResponsePromise;
+  expect(publishResponse.status()).toBe(200);
+  await expect(page.locator("#admin-sculptor-roster-status")).toContainText("2 sculptors are source-reviewed and published");
+
+  const engagementForm = page.locator("#admin-sculptor-engagement");
+  await engagementForm.locator('[name="passportActive"]').check();
+  await engagementForm.locator('[name="votingOpen"]').check();
+  const engagementResponsePromise = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/sculptors/engagement" && response.request().method() === "PATCH");
+  await engagementForm.locator('button[type="submit"]').click();
+  expect((await engagementResponsePromise).status()).toBe(200);
+  await expect(page.locator("#admin-sculptor-roster-kpis")).toContainText("Active");
+  await expect(page.locator("#admin-sculptor-roster-kpis")).toContainText("Open");
+
+  const visitor = await page.context().newPage();
+  const visitorErrors = [];
+  visitor.on("pageerror", error => visitorErrors.push(error.message));
+  await visitor.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor&contentMode=api#sculptors-showcase`);
+  await expect(visitor.locator("#sculptor-roster .sculptor-card")).toHaveCount(2);
+  await expect(visitor.locator("#corridor-map .corridor-pin[data-sculptor]")).toHaveCount(2);
+  await expect(visitor.locator("#passport-stamps .passport-stamp")).toHaveCount(2);
+  await expect(visitor.locator("#voting-ballot .voting-card")).toHaveCount(2);
+  await expect(visitor.locator(".sculptors-section .sculptor-count")).toHaveText("2 sculptors");
+  await assertNoHorizontalOverflow(visitor);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator("#admin-sculptors").scrollIntoViewIfNeeded();
+  await assertNoHorizontalOverflow(page);
+  const holdForm = page.locator("#admin-hold-sculptors");
+  await holdForm.locator('[name="reason"]').fill("Official marker assignments changed after review.");
+  const holdResponsePromise = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/sculptors/hold" && response.request().method() === "POST");
+  await holdForm.locator('button[type="submit"]').click();
+  expect((await holdResponsePromise).status()).toBe(200);
+  await expect(page.locator("#admin-sculptor-roster-status")).toContainText("not published");
+
+  await visitor.reload();
+  await expect(visitor.locator(".sculptor-publication-pending")).toBeVisible();
+  await expect(visitor.locator("#sculptor-roster")).toBeHidden();
+  await expect(visitor.locator("#passport-panel")).toBeHidden();
+  await expect(visitor.locator("#voting-panel")).toBeHidden();
+  const [publicRoster, publicPassport, publicVoting] = await Promise.all([
+    fetch(`${apiBase}/api/public/sculptors`).then(response => response.json()),
+    fetch(`${apiBase}/api/public/passport`).then(response => response.json()),
+    fetch(`${apiBase}/api/public/voting`).then(response => response.json())
+  ]);
+  expect(publicRoster.sculptors).toHaveLength(0);
+  expect(publicPassport.hunt.active).toBe(false);
+  expect(publicPassport.checkpoints).toHaveLength(0);
+  expect(publicVoting.votingOpen).toBe(false);
+  expect(publicVoting.entries).toHaveLength(0);
+  expect(pageErrors).toEqual([]);
+  expect(visitorErrors).toEqual([]);
+  await visitor.close();
+});

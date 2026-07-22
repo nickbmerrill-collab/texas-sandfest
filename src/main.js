@@ -139,10 +139,21 @@ const loadPublicJson = path => ADMIN_ENTRY
   .then(response => response.ok ? response.json() : null)
   .catch(() => null);
 
-const localBoardContentEnabled = !ADMIN_ENTRY && import.meta.env.DEV;
+const loadPublicApiJson = path => ADMIN_ENTRY
+  ? Promise.resolve(null)
+  : fetchWithTimeout(`${defaultPublicApiBase()}${path}`, { cache: "no-store" })
+  .then(response => response.ok ? response.json() : null)
+  .catch(() => null);
+
+const localBoardContentEnabled = !ADMIN_ENTRY
+  && import.meta.env.DEV
+  && new URLSearchParams(window.location.search).get("contentMode") !== "api";
 const sculptorDataPromise = localBoardContentEnabled
   ? import("./board-demo/sculptors-demo.json").then(module => module.default)
-  : loadPublicJson("data/sculptors.json");
+  : loadPublicApiJson("/api/public/sculptors")
+      .then(data => publicSculptorRosterPublication(data, { eventId: DEFAULT_EVENT_ID }).visible
+        ? data
+        : loadPublicJson("data/sculptors.json"));
 const liveBeachDemoPromise = localBoardContentEnabled
   ? import("./board-demo/live-beach-demo.json").then(module => module.default)
   : Promise.resolve(null);
@@ -1487,6 +1498,7 @@ app.innerHTML = `
           <div id="admin-sms-campaigns" class="admin-fleet-rows keyboard-scroll-region" role="region" aria-label="Safety SMS delivery campaigns" tabindex="0"></div>
         </div>
       </div>
+      ${ADMIN_ENTRY ? document.querySelector("#admin-sculptor-roster-template")?.innerHTML ?? "" : ""}
       <div class="admin-passport-panel">
         <div class="editor-heading">
           <p class="eyebrow">Sculpture Passport</p>
@@ -9105,6 +9117,24 @@ function bindAdminSaveButtons() {
   });
 }
 
+let adminSculptorRosterUiPromise = null;
+
+async function loadAdminSculptorRosterUi() {
+  if (!ADMIN_ENTRY) return null;
+  adminSculptorRosterUiPromise ??= import("./admin-sculptor-roster-ui.js");
+  const ui = await adminSculptorRosterUiPromise;
+  ui.bind({
+    adminFetch,
+    adminCan,
+    setAdminStatus,
+    isoToLocalDateTime,
+    localDateTimeToIso,
+    loadAdminPassport,
+    loadAdminVoting
+  });
+  return ui;
+}
+
 async function loadAdminWorkspace() {
   const button = document.querySelector("#admin-load-config");
   button.disabled = true;
@@ -9142,6 +9172,10 @@ async function loadAdminWorkspace() {
     }
     if (adminCan("consent:read")) {
       await loadAdminConsent({ quiet: true }).catch(() => {});
+    }
+    if (adminCan("admin:read")) {
+      const sculptorRosterUi = await loadAdminSculptorRosterUi();
+      await sculptorRosterUi?.load({ quiet: true }).catch(() => {});
     }
     if (adminCan("passport:read")) {
       await loadAdminPassport({ quiet: true }).catch(() => {});

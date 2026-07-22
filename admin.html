@@ -24,6 +24,45 @@
         </div>
       </form>
     </template>
+    <template id="admin-sculptor-roster-template">
+      <div class="admin-voting-panel" id="admin-sculptors">
+        <div class="editor-heading">
+          <p class="eyebrow">Public festival content</p>
+          <h2>Sculptor roster publication</h2>
+        </div>
+        <div class="admin-import-actions">
+          <button id="admin-load-sculptors" class="button secondary" data-requires-permission="admin:read" type="button">Refresh roster</button>
+          <button id="admin-download-sculptor-template" class="button secondary" type="button">Download CSV template</button>
+        </div>
+        <p id="admin-sculptor-roster-status" class="admin-revenue-updated" role="status" aria-live="polite">Roster publication has not been checked.</p>
+        <div id="admin-sculptor-roster-kpis" class="admin-revenue-kpis">
+          <article class="empty-state"><span>No roster loaded.</span></article>
+        </div>
+        <form id="admin-import-sculptors" class="admin-inline-form admin-revenue-import" data-requires-permission="content:write">
+          <strong>Reviewed roster CSV</strong>
+          <label class="admin-import-file"><span>Roster file</span><input name="rosterFile" type="file" accept=".csv,text/csv" required /></label>
+          <label><span>Official source</span><input name="sourceUrl" type="url" inputmode="url" placeholder="https://" required /></label>
+          <label><span>Source checked</span><input name="sourceCheckedAt" type="datetime-local" required /></label>
+          <label class="admin-check admin-import-wide"><input name="currentEventConfirmed" type="checkbox" /><span>I verified this roster and every beach marker belong to the current SandFest event.</span></label>
+          <div id="admin-sculptor-import-result" class="admin-import-result admin-import-wide" aria-live="polite"></div>
+          <div class="admin-import-actions admin-import-wide">
+            <button class="button secondary" type="submit">Preview publication</button>
+            <button id="admin-commit-sculptor-import" class="button primary" type="button" hidden disabled>Publish roster</button>
+          </div>
+        </form>
+        <form id="admin-sculptor-engagement" class="admin-inline-form" data-requires-permission="content:write">
+          <strong>Visitor engagement</strong>
+          <label class="admin-check"><input name="passportActive" type="checkbox" /><span>Passport active</span></label>
+          <label class="admin-check"><input name="votingOpen" type="checkbox" /><span>People's Choice open</span></label>
+          <button class="button secondary" type="submit">Save engagement</button>
+        </form>
+        <form id="admin-hold-sculptors" class="admin-inline-form" data-requires-permission="content:write">
+          <strong>Publication hold</strong>
+          <label><span>Reason</span><input name="reason" minlength="8" maxlength="500" required /></label>
+          <button class="button secondary" type="submit">Hold roster</button>
+        </form>
+      </div>
+    </template>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
