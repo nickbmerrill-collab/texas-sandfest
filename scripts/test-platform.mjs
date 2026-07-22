@@ -15,6 +15,16 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { boardDemoAccessConfig } from "../lib/board-demo-access.mjs";
 import {
+  assessBoardIOSScreenshot,
+  boardIOSLaunchArguments,
+  boardIOSProcessIsActive,
+  exactBoardIOSAPIBase,
+  normalizeBoardIOSMode,
+  parseBoardIOSLaunch,
+  parseBoardIOSUserDomain,
+  selectBoardIOSSimulator
+} from "../lib/board-ios-rehearsal.mjs";
+import {
   BOARD_DEMO_LOCAL_GENERATION_KEY,
   BOARD_DEMO_SESSION_GENERATION_KEY,
   synchronizeBoardDemoBrowserState
@@ -837,6 +847,66 @@ console.log("\n=== Pure library suite ===\n");
     && !boardDemoAccessConfig({ development: true, authMode: "oidc", apiBase: "http://127.0.0.1:8806", token: boardDemoAccess.token }).enabled
     && !boardDemoAccessConfig({ development: true, authMode: "token", apiBase: "https://sandfest-api.heyelab.com", token: boardDemoAccess.token }).enabled
     && !boardDemoAccessConfig({ development: true, authMode: "token", apiBase: "http://127.0.0.1.evil.example:8806", token: boardDemoAccess.token }).enabled);
+  const simulators = [
+    { udid: "shutdown-pro", name: "iPhone 17 Pro", state: "Shutdown", isAvailable: true, deviceTypeIdentifier: "com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro" },
+    { udid: "booted-air", name: "iPhone Air", state: "Booted", isAvailable: true, deviceTypeIdentifier: "com.apple.CoreSimulator.SimDeviceType.iPhone-Air" },
+    { udid: "unavailable", name: "iPhone 17 Pro Max", state: "Shutdown", isAvailable: false, deviceTypeIdentifier: "com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro-Max" }
+  ];
+  let remoteIOSBoardAPIRejected = false;
+  let missingIOSSimulatorRejected = false;
+  let invalidIOSModeRejected = false;
+  try {
+    exactBoardIOSAPIBase("https://sandfest-api.heyelab.com");
+  } catch {
+    remoteIOSBoardAPIRejected = true;
+  }
+  try {
+    selectBoardIOSSimulator(simulators, "missing-device");
+  } catch {
+    missingIOSSimulatorRejected = true;
+  }
+  try {
+    normalizeBoardIOSMode("production-admin");
+  } catch {
+    invalidIOSModeRejected = true;
+  }
+  const adminIOSLaunch = boardIOSLaunchArguments({
+    apiBase: "http://127.0.0.1:8806",
+    mode: "admin",
+    adminToken: boardDemoAccess.token
+  });
+  const visitorIOSLaunch = boardIOSLaunchArguments({
+    apiBase: "http://127.0.0.1:8806",
+    mode: "customer"
+  });
+  ok("iOS board rehearsal stays exact-loopback and selects deterministically", selectBoardIOSSimulator(simulators)?.udid === "booted-air"
+    && selectBoardIOSSimulator(simulators, "shutdown-pro")?.udid === "shutdown-pro"
+    && normalizeBoardIOSMode() === "admin"
+    && normalizeBoardIOSMode("customer") === "visitor"
+    && exactBoardIOSAPIBase("http://127.0.0.1:8806") === "http://127.0.0.1:8806"
+    && remoteIOSBoardAPIRejected
+    && missingIOSSimulatorRejected
+    && invalidIOSModeRejected);
+  ok("iOS board launch grants local admin only in explicit admin mode", adminIOSLaunch.join(" ").includes(`-boardAdminToken ${boardDemoAccess.token} -startMode admin`)
+    && visitorIOSLaunch.join(" ") === "-apiBase http://127.0.0.1:8806"
+    && !visitorIOSLaunch.includes(boardDemoAccess.token));
+  const iosLaunchPID = parseBoardIOSLaunch("com.portalcodex.texassandfest: 62934", "com.portalcodex.texassandfest");
+  const iosUserDomain = parseBoardIOSUserDomain("subdomains = {\n\t\tpid/62934\n\t\tuser/501\n\t}");
+  const iosProcessState = "   62934      -  UIKitApplication:com.portalcodex.texassandfest[b5b6][rb-legacy]";
+  const healthyIOSCapture = assessBoardIOSScreenshot(
+    { format: "png", width: 1206, height: 2622 },
+    [{ stdev: 50 }, { stdev: 48 }, { stdev: 49 }, { stdev: 0 }]
+  );
+  const blankIOSCapture = assessBoardIOSScreenshot(
+    { format: "png", width: 1206, height: 2622 },
+    [{ stdev: 0 }, { stdev: 0 }, { stdev: 0 }, { stdev: 0 }]
+  );
+  ok("iOS board rehearsal proves a live process and nonblank capture", iosLaunchPID === 62934
+    && iosUserDomain === "user/501"
+    && boardIOSProcessIsActive(iosProcessState, "com.portalcodex.texassandfest", iosLaunchPID)
+    && !boardIOSProcessIsActive(iosProcessState, "com.portalcodex.texassandfest", 62935)
+    && healthyIOSCapture.ok
+    && !blankIOSCapture.ok);
   const storage = () => {
     const values = new Map();
     return {

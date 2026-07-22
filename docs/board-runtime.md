@@ -81,7 +81,7 @@ against that exact active session:
 npm run board:rehearse
 ```
 
-The command first repeats the ten source, service, and data checks, then opens the
+The command first repeats the 12 source, service, and data checks, then opens the
 session's credential-free Visitor and Operations links in local headless
 Chromium. It rejects remote or mismatched URLs and verifies the rendered signup
 catalogs, local ticket-payment readiness, approved sponsor branding, eight-camera conditions grid, all eight command
@@ -104,6 +104,19 @@ session, install Playwright WebKit once and run:
 npx playwright install webkit
 npm run board:rehearse:webkit
 ```
+
+To rehearse the native companion against the same supervised session, run:
+
+```bash
+npm run board:ios
+```
+
+The command refuses a stale, changed, remote, or non-loopback board session. It
+selects and boots an available iPhone simulator, builds and installs the Release
+app, opens the synthetic Admin mode with the local board session, proves that the
+app process remains active, and captures a nonblank screen under
+`.sandfest-runtime/board-ios/admin.png`. Pass `--mode=visitor` to rehearse the
+public native experience instead.
 
 Use the reset icon in the Operations header when you want to discard
 demonstration changes and restore the synthetic starting state. After
