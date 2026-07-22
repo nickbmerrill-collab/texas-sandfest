@@ -109,6 +109,10 @@ Use the reset icon in the Operations header when you want to discard
 demonstration changes and restore the synthetic starting state. After
 confirmation, the supervisor stops every local component, replaces the runtime,
 starts fresh services, waits for a new 12-of-12 generation, and reloads Operations.
+Visitor tabs recognize that new generation on reload, discard stale private
+portal capabilities, and reset browser-only Passport and voting state before
+rendering, so a prior walkthrough cannot leave an invalid-link alert in the
+prepared presentation.
 The control appears only when an authenticated board session is connected
 directly to its loopback supervisor; ordinary development and production APIs
 return no reset capability. A reset requested while startup or component

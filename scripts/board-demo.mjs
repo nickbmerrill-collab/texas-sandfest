@@ -175,7 +175,7 @@ async function prepareRuntime(runtimeRoot, options, runtimeOwnerId) {
   });
 }
 
-function processEnvironment(runtimeRoot, endpoints, runtimeOwnerId) {
+function processEnvironment(runtimeRoot, endpoints, runtimeOwnerId, runtimeGeneration) {
   const shared = {
     ...process.env,
     SANDFEST_DATABASE_URL: "",
@@ -250,7 +250,8 @@ function processEnvironment(runtimeRoot, endpoints, runtimeOwnerId) {
     },
     web: {
       ...shared,
-      SANDFEST_BOARD_DEMO_ADMIN_TOKEN: ADMIN_TOKEN
+      SANDFEST_BOARD_DEMO_ADMIN_TOKEN: ADMIN_TOKEN,
+      SANDFEST_BOARD_DEMO_GENERATION: runtimeGeneration
     },
     worker: {
       ...shared,
@@ -353,7 +354,7 @@ const runtime = await prepareRuntime(options.runtimeRoot, {
   publicSiteUrl: endpoints.webBase,
   partnerPortalSecret: PARTNER_PORTAL_SECRET
 }, runtimeOwnerId);
-const environments = processEnvironment(options.runtimeRoot, endpoints, runtimeOwnerId);
+const environments = processEnvironment(options.runtimeRoot, endpoints, runtimeOwnerId, runtime.generatedAt);
 const definitions = serviceDefinitions(environments, ports);
 const preflightEnv = {
   ...process.env,
@@ -572,6 +573,7 @@ async function resetBoardRuntime() {
     state.runtimeRefreshReasons = [];
     state.runtimeSchemaVersion = BOARD_RUNTIME_SCHEMA_VERSION;
     state.runtimeGeneratedAt = refreshedRuntime.generatedAt;
+    environments.web.SANDFEST_BOARD_DEMO_GENERATION = refreshedRuntime.generatedAt;
     restartHistory.clear();
     for (const name of SERVICE_ORDER) {
       state.services[name] = {

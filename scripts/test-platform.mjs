@@ -15,6 +15,11 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { boardDemoAccessConfig } from "../lib/board-demo-access.mjs";
 import {
+  BOARD_DEMO_LOCAL_GENERATION_KEY,
+  BOARD_DEMO_SESSION_GENERATION_KEY,
+  synchronizeBoardDemoBrowserState
+} from "../lib/board-demo-browser-state.mjs";
+import {
   boardDemoCheckEndpoints,
   boardDemoLoopbackUrl,
   boardDemoPresentationLinks,
@@ -832,6 +837,54 @@ console.log("\n=== Pure library suite ===\n");
     && !boardDemoAccessConfig({ development: true, authMode: "oidc", apiBase: "http://127.0.0.1:8806", token: boardDemoAccess.token }).enabled
     && !boardDemoAccessConfig({ development: true, authMode: "token", apiBase: "https://sandfest-api.heyelab.com", token: boardDemoAccess.token }).enabled
     && !boardDemoAccessConfig({ development: true, authMode: "token", apiBase: "http://127.0.0.1.evil.example:8806", token: boardDemoAccess.token }).enabled);
+  const storage = () => {
+    const values = new Map();
+    return {
+      values,
+      getItem: key => values.get(key) ?? null,
+      setItem: (key, value) => values.set(key, String(value)),
+      removeItem: key => values.delete(key)
+    };
+  };
+  const boardSessionStorage = storage();
+  const boardLocalStorage = storage();
+  boardSessionStorage.setItem("partner", "stale-private-access");
+  boardSessionStorage.setItem("unrelated", "keep");
+  boardLocalStorage.setItem("passport", "stale-checkpoints");
+  const firstBrowserSync = synchronizeBoardDemoBrowserState({
+    generation: "2026-07-22T12:00:00.000Z",
+    sessionStorage: boardSessionStorage,
+    localStorage: boardLocalStorage,
+    sessionKeys: ["partner"],
+    localKeys: ["passport"]
+  });
+  boardSessionStorage.setItem("partner", "current-private-access");
+  boardLocalStorage.setItem("passport", "current-checkpoints");
+  const sameGenerationSync = synchronizeBoardDemoBrowserState({
+    generation: "2026-07-22T12:00:00.000Z",
+    sessionStorage: boardSessionStorage,
+    localStorage: boardLocalStorage,
+    sessionKeys: ["partner"],
+    localKeys: ["passport"]
+  });
+  const nextGenerationSync = synchronizeBoardDemoBrowserState({
+    generation: "2026-07-22T13:00:00.000Z",
+    sessionStorage: boardSessionStorage,
+    localStorage: boardLocalStorage,
+    sessionKeys: ["partner"],
+    localKeys: ["passport"]
+  });
+  ok("board reset generations clear only stale browser demo state", firstBrowserSync.sessionReset
+    && firstBrowserSync.localReset
+    && !sameGenerationSync.sessionReset
+    && !sameGenerationSync.localReset
+    && nextGenerationSync.sessionReset
+    && nextGenerationSync.localReset
+    && boardSessionStorage.getItem("partner") == null
+    && boardLocalStorage.getItem("passport") == null
+    && boardSessionStorage.getItem("unrelated") === "keep"
+    && boardSessionStorage.getItem(BOARD_DEMO_SESSION_GENERATION_KEY) === "2026-07-22T13:00:00.000Z"
+    && boardLocalStorage.getItem(BOARD_DEMO_LOCAL_GENERATION_KEY) === "2026-07-22T13:00:00.000Z");
   const sponsorPreset = boardPartnerFormPreset("sponsor", "preset-1234");
   const vendorPreset = boardPartnerFormPreset("vendor", "preset-5678");
   let invalidPresetRejected = false;
@@ -851,7 +904,11 @@ console.log("\n=== Pure library suite ===\n");
     && !Object.hasOwn(sponsorPreset.fields, "consentToContact")
     && !Object.hasOwn(vendorPreset.fields, "consentToContact")
     && invalidPresetRejected);
-  const boardDemoPlugin = boardDemoAccessPlugin({ SANDFEST_BOARD_DEMO_ADMIN_TOKEN: boardDemoAccess.token });
+  const boardDemoGeneration = "2026-07-22T12:00:00.000Z";
+  const boardDemoPlugin = boardDemoAccessPlugin({
+    SANDFEST_BOARD_DEMO_ADMIN_TOKEN: boardDemoAccess.token,
+    SANDFEST_BOARD_DEMO_GENERATION: boardDemoGeneration
+  });
   const injectedBoardDemoHtml = boardDemoPlugin.transformIndexHtml();
   let remoteBindRejected = false;
   try {
@@ -861,6 +918,7 @@ console.log("\n=== Pure library suite ===\n");
   }
   ok("board demo web injection is serve-only and loopback-bound", boardDemoPlugin.apply === "serve"
     && injectedBoardDemoHtml[0]?.children.includes(boardDemoAccess.token)
+    && injectedBoardDemoHtml[0]?.children.includes(boardDemoGeneration)
     && remoteBindRejected
     && boardDemoAccessPlugin({}) === null);
   const boardPackageScripts = JSON.parse(await readFile(path.join(ROOT, "package.json"), "utf8")).scripts;
