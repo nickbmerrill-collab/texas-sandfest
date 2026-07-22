@@ -443,13 +443,25 @@ async function updateDispatchStatus(page, incidentId, dispatchId, status, note) 
     new URL(response.url()).pathname === pathname
     && response.request().method() === "PATCH"
   ), { timeout: timeoutMs });
+  const refreshPromise = page.waitForResponse(response => (
+    new URL(response.url()).pathname === "/api/admin/island-conditions"
+    && response.request().method() === "GET"
+  ), { timeout: timeoutMs });
   await row.locator(`[data-save-dispatch="${dispatchId}"]`).click();
   const response = await responsePromise;
   const payload = await response.json().catch(() => ({}));
   if (!response.ok() || payload.dispatch?.status !== status || !responseIsPrivate(payload)) {
-    throw new Error(`The dispatch did not move to ${status} with a private response.`);
+    throw new Error(`The dispatch did not move to ${status} with a private response: ${JSON.stringify({
+      status: response.status(),
+      error: payload.error || null,
+      dispatchStatus: payload.dispatch?.status || null,
+      private: responseIsPrivate(payload)
+    })}.`);
   }
+  const refresh = await refreshPromise;
+  if (!refresh.ok()) throw new Error(`The ${status} dispatch refresh returned ${refresh.status()}.`);
   await expect(dispatchRow(page, dispatchId).locator('[name="dispatchStatus"]')).toHaveValue(status);
+  await expect(dispatchRow(page, dispatchId).locator(`[data-save-dispatch="${dispatchId}"]`)).toBeEnabled();
   return payload.dispatch;
 }
 

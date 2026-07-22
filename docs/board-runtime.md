@@ -275,6 +275,37 @@ and restore the exact four-document,
 ten-open-task, 21-completed-job baseline at 12/12 readiness. Run it during
 rehearsal and wait for the final reset before the live walkthrough.
 
+To certify the complete operating-platform story in one pre-presentation run,
+use:
+
+```bash
+npm run board:certify
+```
+
+The certification pins the active supervisor to clean `main` at local
+`origin/main`, starts at 12/12 readiness, and runs all ten public, private, and
+Operations journeys in sequence: vendor/sponsor signup, Guest Services, vendor
+onboarding, regional outreach, sponsor branding, ticketing, finance/key dates,
+volunteer delegation, camera incident response, and document ingestion. Every
+journey must return its synthetic records to the prepared baseline and pass a
+fresh 12/12 preflight before the next begins. A single failure stops the run and
+names the capability that needs attention; the failing proof still gets its
+normal restoration opportunity and the certification records final readiness.
+After the stateful journeys, the command also requires the same read-only 14/14
+responsive and browser-health contract in both Chromium and WebKit.
+
+The successful machine-readable certificate is written to
+`.sandfest-runtime/board-capability-certification.json`. It contains the pinned
+source revision, durations, aggregate journey evidence, cross-browser results,
+and reset readiness, but no contacts, private capabilities, record IDs, notes,
+payment references, uploaded filenames, document contents, or provider
+credentials. `npm run board:certify -- --json` prints the same report for
+another local tool. `--only=signups,operations --skip-browsers` provides a
+focused diagnostic run but is labeled focused and is not a full certificate.
+The certificate proves the isolated board platform only; it explicitly does not
+claim external messages, charges, live feeds, managed recovery, or public
+production publishing.
+
 For Safari-compatible rendering proof against the same active, read-only
 session, install Playwright WebKit once and run:
 
