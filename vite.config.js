@@ -112,6 +112,29 @@ function publicProductionSecurityPlugin(env, target = buildTarget) {
   };
 }
 
+function adminCssPrunePlugin(target = buildTarget) {
+  if (target !== "admin") return null;
+  return {
+    postcssPlugin: "sandfest-admin-css-prune",
+    Once(root) {
+      let pruning = false;
+      root.each(node => {
+        if (node.type === "comment" && node.text.trim().startsWith("admin-prune:start ")) {
+          pruning = true;
+          node.remove();
+          return;
+        }
+        if (node.type === "comment" && node.text.trim().startsWith("admin-prune:end ")) {
+          pruning = false;
+          node.remove();
+          return;
+        }
+        if (pruning) node.remove();
+      });
+    }
+  };
+}
+
 const BOARD_DEMO_WEB_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
 
 export function boardDemoAccessPlugin(env) {
@@ -148,6 +171,11 @@ export default defineConfig(({ mode }) => {
   return {
     base,
     plugins: [publicProductionSecurityPlugin(env), boardDemoAccessPlugin(env)].filter(Boolean),
+    css: {
+      postcss: {
+        plugins: [adminCssPrunePlugin()].filter(Boolean)
+      }
+    },
     publicDir: buildTarget === "admin" ? false : "public",
     server: {
       host: "127.0.0.1",

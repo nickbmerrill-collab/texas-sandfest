@@ -1,0 +1,30 @@
+{
+  "_note": "Governed sculptor roster. Public surfaces remain empty until a reviewed current-event roster is published.",
+  "meta": {
+    "eventId": "texas-sandfest-2027",
+    "event": "Texas SandFest 2027",
+    "venue": "Port Aransas Beach, TX",
+    "schemaVersion": "1.1",
+    "publicationStatus": "unpublished",
+    "source": "awaiting_official_roster",
+    "sourceUrl": "https://www.texassandfest.org/sculptors",
+    "sourceCheckedAt": null,
+    "reviewedAt": null,
+    "reviewedBy": null,
+    "publishedAt": null,
+    "heldAt": null,
+    "heldBy": null,
+    "holdReason": null
+  },
+  "engagement": {
+    "passportActive": false,
+    "votingOpen": false
+  },
+  "legend": [],
+  "markerIndex": {},
+  "sculptors": [],
+  "entries": [],
+  "pois": [],
+  "imports": [],
+  "lastUpdated": null
+}

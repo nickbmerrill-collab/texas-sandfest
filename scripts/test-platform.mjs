@@ -102,8 +102,8 @@ import {
   smsOperationsAdminPayload,
   suppressSmsCampaignsForAlert
 } from "../lib/sms-operations.mjs";
-import { applyStamp, DEFAULT_HUNT_ID, normalizeHunt, parsePassportPayload, summarizePassport } from "../lib/passport.mjs";
-import { applyVote, tallyVotes, summarizeVoting, normalizeTicketRef, publicVotingPublication } from "../lib/voting.mjs";
+import { applyStamp, checkpointsFromSculptors, DEFAULT_HUNT_ID, normalizeHunt, parsePassportPayload, summarizePassport } from "../lib/passport.mjs";
+import { applyVote, ballotFromSculptors, tallyVotes, summarizeVoting, normalizeTicketRef, publicVotingPublication } from "../lib/voting.mjs";
 import { claimNextJobs, completeJob, enqueueJob, getQueueHealth, listJobs, markTerminalJobHandled } from "../lib/job-queue.mjs";
 import { updatePlatformDoc } from "../lib/platform-data.mjs";
 import {
@@ -466,6 +466,17 @@ import {
 import { publicMediaManifest, publicMediaManifestSafety } from "../lib/public-media-manifest.mjs";
 import { DEFAULT_EVENT_ID, eventContextConfig, eventContextReadiness } from "../lib/event-context.mjs";
 import { publicSculptorRosterPublication } from "../lib/public-roster.mjs";
+import {
+  emptySculptorRoster,
+  holdSculptorRoster,
+  parseSculptorRosterCsv,
+  publicSculptorRoster,
+  publishSculptorRoster,
+  sculptorRosterFingerprint,
+  sculptorRosterPreviewHash,
+  sculptorRosterReadiness,
+  updateSculptorRosterEngagement
+} from "../lib/sculptor-roster.mjs";
 import { boardDemoEngagement } from "../lib/board-runtime.mjs";
 import { boardDemoSyntheticConditions } from "../lib/board-conditions.mjs";
 import { boardPartnerFormPreset } from "../src/board-demo/partner-form-presets.js";
@@ -1470,6 +1481,68 @@ console.log("\n=== Pure library suite ===\n");
   ok("published sculptor roster validates record references", !brokenReference.visible && brokenReference.issues.some(issue => issue.includes("missing sculptor")));
 }
 
+// Preview-gated sculptor roster operations
+{
+  const csv = [
+    "event_id,sculptor_id,sculptor_name,division,hometown,returning,bio,instagram,entry_id,entry_title,statement,status,beach_marker,map_x,map_y",
+    `${DEFAULT_EVENT_ID},river-delgado,River Delgado,Master Solo,San Diego CA,yes,Reviewed artist,@river,tidal-guardian,Tidal Guardian,A Gulf guardian,planning,13,0.42,0.44`,
+    `${DEFAULT_EVENT_ID},marisol-kade,Marisol and Kade,master_duo,Galveston TX,no,Reviewed duo,,coral-cathedral,Coral Cathedral,Coral arches,complete,13.5,0.55,0.38`
+  ].join("\n");
+  const source = {
+    csv,
+    fileName: "official-roster.csv",
+    sourceUrl: "https://www.texassandfest.org/sculptors",
+    sourceCheckedAt: "2026-07-22T12:00:00.000Z"
+  };
+  const empty = emptySculptorRoster(DEFAULT_EVENT_ID);
+  const parsed = parseSculptorRosterCsv(csv, { eventId: DEFAULT_EVENT_ID });
+  const previewHash = sculptorRosterPreviewHash(source, {
+    eventId: DEFAULT_EVENT_ID,
+    currentFingerprint: sculptorRosterFingerprint(empty)
+  });
+  const published = publishSculptorRoster(empty, parsed, { ...source, previewHash }, {
+    eventId: DEFAULT_EVENT_ID,
+    actorId: "content-reviewer",
+    now: "2026-07-22T12:05:00.000Z"
+  });
+  const stale = publishSculptorRoster({ ...empty, lastUpdated: "2026-07-22T12:04:00.000Z" }, parsed, { ...source, previewHash }, {
+    eventId: DEFAULT_EVENT_ID,
+    actorId: "content-reviewer",
+    now: "2026-07-22T12:05:00.000Z"
+  });
+  const engagement = updateSculptorRosterEngagement(published.roster, { passportActive: true, votingOpen: false }, {
+    eventId: DEFAULT_EVENT_ID,
+    now: "2026-07-22T12:06:00.000Z"
+  });
+  const readiness = sculptorRosterReadiness(engagement.roster, {
+    eventId: DEFAULT_EVENT_ID,
+    now: "2026-07-22T13:00:00.000Z",
+    maxSourceAgeDays: 180
+  });
+  const publicRoster = publicSculptorRoster(engagement.roster, {
+    eventId: DEFAULT_EVENT_ID,
+    now: "2026-07-22T13:00:00.000Z",
+    maxSourceAgeDays: 180
+  });
+  const checkpoints = checkpointsFromSculptors(engagement.roster, { huntId: "sculpture-passport-2027" });
+  const ballot = ballotFromSculptors(engagement.roster);
+  const held = holdSculptorRoster(engagement.roster, {
+    eventId: DEFAULT_EVENT_ID,
+    actorId: "content-reviewer",
+    reason: "Official marker assignments changed.",
+    now: "2026-07-22T13:05:00.000Z"
+  });
+  const invalid = parseSculptorRosterCsv(csv.replace(",0.55,0.38", ",1.25,0.38"), { eventId: DEFAULT_EVENT_ID });
+
+  ok("sculptor roster CSV normalizes current-event artists, entries, and map markers", parsed.ok && parsed.validRows === 2 && parsed.errors.length === 0 && parsed.roster.sculptors[0].id === "scl_river_delgado" && parsed.roster.entries[1].id === "ent_coral_cathedral" && parsed.roster.pois[0].illustratedMapXY.x === 0.42);
+  ok("sculptor roster publication is preview-bound and rejects stale replacement", published.ok && published.roster.meta.publicationStatus === "published" && published.roster.imports[0].previewHash === previewHash && !stale.ok && stale.previewMismatch);
+  ok("sculptor roster readiness binds engagement to the reviewed publication", engagement.ok && readiness.ready && readiness.engagement.passportActive && !readiness.engagement.votingOpen);
+  ok("public sculptor roster removes private import and reviewer provenance", publicRoster.sculptors.length === 2 && publicRoster.meta.reviewedBy === "Texas SandFest content team" && !Object.hasOwn(publicRoster, "imports") && !JSON.stringify(publicRoster).includes("content-reviewer"));
+  ok("passport checkpoints and ballot entries derive from the same roster revision", checkpoints.length === 2 && ballot.length === 2 && checkpoints[0].entryId === ballot[0].id && checkpoints[1].sculptorName === ballot[1].sculptorName);
+  ok("holding the roster closes public engagement without deleting review data", held.ok && held.roster.meta.publicationStatus === "unpublished" && held.roster.sculptors.length === 2 && !held.roster.engagement.passportActive && !publicSculptorRosterPublication(held.roster).visible);
+  ok("sculptor roster publication rejects invalid corridor coordinates", invalid.ok && invalid.errors.length === 1 && invalid.errors[0].error.includes("Map X"));
+}
+
 // Governed public event guide
 {
   const guide = {
@@ -1969,6 +2042,12 @@ const visitorGuidanceFixture = [{
     volunteers: { eventId: from, volunteers: [{ id: "vol-1", eventId: from, status: "confirmed" }], shifts: [{ id: "shift-1" }], hourLogs: [{ id: "hours-1" }] },
     staffDirectory: { eventId: from, source: "manual_verified", staff: [{ id: "staff-1", eventId: from, status: "active", name: "Staff One", email: "staff@example.com" }], teamRoutes: [] },
     consent: { eventId: from, records: [{ id: "consent-1" }] },
+    sculptorRoster: {
+      ...emptySculptorRoster(from),
+      meta: { ...emptySculptorRoster(from).meta, eventId: from, publicationStatus: "published" },
+      sculptors: [{ id: "scl-1" }],
+      entries: [{ id: "ent-1" }]
+    },
     passportHunt: { hunt: { id: "sculpture-passport-2026", eventId: from }, checkpoints: [{ id: "cp-1", huntId: "sculpture-passport-2026" }] },
     passportCompletions: { completions: [{ id: "hc-1" }] },
     voting: { eventId: from, votingOpen: true, entries: [{ id: "entry-1" }], votes: [{ id: "vote-1" }] },
@@ -1997,7 +2076,7 @@ const visitorGuidanceFixture = [{
   ok("current event context reports stale and missing operational documents", !mismatched.ready && mismatched.mismatchedDocs.length === 2 && !invalidConfig.valid);
   ok("event rollover covers every governed operational document", rollover.ok && Object.keys(rollover.documents).length === ROLLOVER_DOCUMENT_KEYS.length && /^[a-f0-9]{64}$/.test(rollover.archiveDigest));
   ok("event archive digest is stable across object key order", eventArchiveDigest({ b: 2, a: { d: 4, c: 3 } }) === eventArchiveDigest({ a: { c: 3, d: 4 }, b: 2 }));
-  ok("event rollover carries reusable setup and resets season activity", rollover.documents.budgetControl.budgetLines.length === 0 && rollover.documents.budgetControl.expenses.length === 0 && rollover.documents.fleet.assets[0].status === "available" && rollover.documents.fleet.checkouts.length === 0 && rollover.documents.volunteers.shifts.length === 0 && rollover.documents.consent.records.length === 0 && rollover.documents.passportHunt.hunt.id === "sculpture-passport-2027" && rollover.documents.passportHunt.hunt.active === false && rollover.documents.voting.votes.length === 0 && rollover.documents.partnerOps.eventId === DEFAULT_EVENT_ID && rollover.documents.incomingDocuments.documents.length === 0 && rollover.documents.islandConditions.incidents.length === 0 && rollover.documents.guestServices.cases.length === 0 && rollover.documents.smsOperations.campaigns.length === 0);
+  ok("event rollover carries reusable setup and resets season activity", rollover.documents.budgetControl.budgetLines.length === 0 && rollover.documents.budgetControl.expenses.length === 0 && rollover.documents.fleet.assets[0].status === "available" && rollover.documents.fleet.checkouts.length === 0 && rollover.documents.volunteers.shifts.length === 0 && rollover.documents.consent.records.length === 0 && rollover.documents.sculptorRoster.meta.publicationStatus === "unpublished" && rollover.documents.sculptorRoster.sculptors.length === 0 && rollover.documents.passportHunt.hunt.id === "sculpture-passport-2027" && rollover.documents.passportHunt.hunt.active === false && rollover.documents.voting.votes.length === 0 && rollover.documents.partnerOps.eventId === DEFAULT_EVENT_ID && rollover.documents.incomingDocuments.documents.length === 0 && rollover.documents.islandConditions.incidents.length === 0 && rollover.documents.guestServices.cases.length === 0 && rollover.documents.smsOperations.campaigns.length === 0);
   ok("event rollover refuses mixed source context", !rejectedRollover.ok && rejectedRollover.mismatches?.[0]?.key === "fleet");
 }
 
@@ -6416,6 +6495,7 @@ if (!API_BASE) {
   const isolatedPassportPath = path.join(isolatedRuntimeRoot, "data", "processed", "sculpture-passport.json");
   const isolatedPassportCompletionsPath = path.join(isolatedRuntimeRoot, "data", "processed", "passport-completions.json");
   const isolatedVotingPath = path.join(isolatedRuntimeRoot, "data", "processed", "peoples-choice.json");
+  const isolatedSculptorRosterPath = path.join(isolatedRuntimeRoot, "data", "processed", "sculptor-roster.json");
   const isolatedConsent = JSON.parse(await readFile(isolatedConsentPath, "utf8"));
   const isolatedVolunteers = JSON.parse(await readFile(isolatedVolunteerPath, "utf8"));
   const isolatedBooths = JSON.parse(await readFile(isolatedBoothPath, "utf8"));
@@ -6455,6 +6535,22 @@ if (!API_BASE) {
       imports: []
     }, null, 2)}\n`, "utf8"),
     writeFile(isolatedIncomingDocumentPath, `${JSON.stringify(emptyIncomingDocumentIntake(DEFAULT_EVENT_ID), null, 2)}\n`, "utf8"),
+    writeFile(isolatedSculptorRosterPath, `${JSON.stringify({
+      ...apiDemoRoster,
+      meta: {
+        ...apiDemoRoster.meta,
+        publicationStatus: "published",
+        source: "reviewed_current_roster",
+        sourceUrl: "https://www.texassandfest.org/sculptors",
+        sourceCheckedAt: "2026-07-18T00:00:00.000Z",
+        reviewedAt: "2026-07-18T00:05:00.000Z",
+        reviewedBy: "platform-api-fixture",
+        publishedAt: "2026-07-18T00:05:00.000Z"
+      },
+      engagement: { passportActive: true, votingOpen: true },
+      imports: [],
+      lastUpdated: "2026-07-18T00:05:00.000Z"
+    }, null, 2)}\n`, "utf8"),
     writeFile(isolatedPassportPath, `${JSON.stringify(apiEngagement.passportHunt, null, 2)}\n`, "utf8"),
     writeFile(isolatedPassportCompletionsPath, `${JSON.stringify({ ...apiEngagement.passportCompletions, completions: [] }, null, 2)}\n`, "utf8"),
     writeFile(isolatedVotingPath, `${JSON.stringify({
@@ -7172,6 +7268,7 @@ try {
   }
 
   const routes = [
+    ["GET", "/api/public/sculptors", false],
     ["GET", "/api/public/passport", false],
     ["GET", "/api/public/voting", false],
     ["GET", "/api/public/booths", false],
@@ -7183,6 +7280,7 @@ try {
     ["GET", "/api/admin/volunteers", true],
     ["GET", "/api/admin/consent", true],
     ["GET", "/api/admin/sms", true],
+    ["GET", "/api/admin/sculptors", true],
     ["GET", "/api/admin/passport", true],
     ["GET", "/api/admin/voting", true],
     ["GET", "/api/admin/booths", true],
@@ -7197,8 +7295,56 @@ try {
 
   const unauth = await hit("GET", "/api/admin/fleet", null, false);
   const unauthImpact = await hit("GET", "/api/admin/impact", null, false);
+  const unauthRosterImport = await hit("POST", "/api/admin/sculptors/import", { mode: "preview" }, false);
   ok("admin 401 without token", unauth.status === 401);
   ok("board impact snapshot requires staff authentication", unauthImpact.status === 401);
+
+  const rosterCsvApi = [
+    "event_id,sculptor_id,sculptor_name,division,hometown,returning,bio,instagram,entry_id,entry_title,statement,status,beach_marker,map_x,map_y",
+    `${DEFAULT_EVENT_ID},theo-brand,Theo Brand,semi_pro,Austin TX,yes,Reviewed API artist,,dune-dragon,Dune Dragon,A friendly dune dragon,complete,12.5,0.28,0.50`,
+    `${DEFAULT_EVENT_ID},lena-portis,Lena Portis,semi_pro,Corpus Christi TX,no,Reviewed API artist,,lace-tide,Lace Tide,Intricate sand lace,sculpting,14.5,0.80,0.40`
+  ].join("\n");
+  const rosterImportBodyApi = {
+    csv: rosterCsvApi,
+    fileName: "official-sculptor-roster-api.csv",
+    sourceUrl: "https://www.texassandfest.org/sculptors",
+    sourceCheckedAt: new Date().toISOString(),
+    currentEventConfirmed: true
+  };
+  const initialPublicRosterApi = await hit("GET", "/api/public/sculptors");
+  const futureRosterPreviewApi = await hit("POST", "/api/admin/sculptors/import", {
+    ...rosterImportBodyApi,
+    sourceCheckedAt: new Date(Date.now() + 86_400_000).toISOString(),
+    mode: "preview"
+  }, true);
+  const rosterPreviewApi = await hit("POST", "/api/admin/sculptors/import", { ...rosterImportBodyApi, mode: "preview" }, true);
+  const staleRosterCommitApi = await hit("POST", "/api/admin/sculptors/import", {
+    ...rosterImportBodyApi,
+    csv: `${rosterCsvApi}\n`,
+    mode: "commit",
+    previewHash: rosterPreviewApi.data.previewHash
+  }, true);
+  const rosterCommitApi = await hit("POST", "/api/admin/sculptors/import", {
+    ...rosterImportBodyApi,
+    mode: "commit",
+    previewHash: rosterPreviewApi.data.previewHash
+  }, true);
+  const publicRosterApi = await hit("GET", "/api/public/sculptors");
+  const pausedRosterEngagementApi = await hit("PATCH", "/api/admin/sculptors/engagement", {
+    passportActive: false,
+    votingOpen: false
+  }, true);
+  const activeRosterEngagementApi = await hit("PATCH", "/api/admin/sculptors/engagement", {
+    passportActive: true,
+    votingOpen: true
+  }, true);
+  const derivedPassportApi = await hit("GET", "/api/public/passport");
+  const derivedVotingApi = await hit("GET", "/api/public/voting");
+  ok("sculptor roster API requires staff publication authority", unauthRosterImport.status === 401 && initialPublicRosterApi.status === 200 && initialPublicRosterApi.data.sculptors?.length === 6);
+  ok("sculptor roster API preview rejects future source evidence", futureRosterPreviewApi.status === 400 && futureRosterPreviewApi.data.error?.includes("future"));
+  ok("sculptor roster API preview is exact-revision bound", rosterPreviewApi.status === 200 && rosterPreviewApi.data.summary?.valid === 2 && rosterPreviewApi.data.summary?.invalid === 0 && /^[a-f0-9]{64}$/.test(rosterPreviewApi.data.previewHash || "") && staleRosterCommitApi.status === 409);
+  ok("sculptor roster API publishes only reviewed public fields", rosterCommitApi.status === 200 && publicRosterApi.data.sculptors?.length === 2 && publicRosterApi.data.entries?.length === 2 && publicRosterApi.data.meta?.reviewedBy === "Texas SandFest content team" && !Object.hasOwn(publicRosterApi.data, "imports") && !JSON.stringify(publicRosterApi.data).includes("local-admin"));
+  ok("sculptor engagement controls derive passport and ballot from one revision", pausedRosterEngagementApi.status === 200 && !pausedRosterEngagementApi.data.readiness?.engagement?.passportActive && activeRosterEngagementApi.status === 200 && derivedPassportApi.data.hunt?.active === true && derivedPassportApi.data.checkpoints?.length === 2 && derivedVotingApi.data.votingOpen === true && derivedVotingApi.data.entries?.length === 2 && derivedPassportApi.data.checkpoints?.every(checkpoint => derivedVotingApi.data.entries.some(entry => entry.id === checkpoint.entryId)));
 
   const volunteerRosterCsvApi = `volunteer_id,event_id,name,email,status,waiver_signed,sms_consent,roles
 VL-API-1,${DEFAULT_EVENT_ID},API Volunteer Lead,api-volunteer@example.com,active,yes,no,gate|traffic
@@ -8049,6 +8195,27 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     channel: "web"
   });
   ok("POST voting", vote.status === 200 || vote.status === 201, `status ${vote.status}`);
+
+  const heldRosterApi = await hit("POST", "/api/admin/sculptors/hold", {
+    reason: "Official beach marker assignments are under review."
+  }, true);
+  const heldPublicRosterApi = await hit("GET", "/api/public/sculptors");
+  const heldPassportApi = await hit("GET", "/api/public/passport");
+  const heldVotingApi = await hit("GET", "/api/public/voting");
+  const republishPreviewApi = await hit("POST", "/api/admin/sculptors/import", { ...rosterImportBodyApi, mode: "preview" }, true);
+  const republishCommitApi = await hit("POST", "/api/admin/sculptors/import", {
+    ...rosterImportBodyApi,
+    mode: "commit",
+    previewHash: republishPreviewApi.data.previewHash
+  }, true);
+  const reactivatedRosterApi = await hit("PATCH", "/api/admin/sculptors/engagement", {
+    passportActive: true,
+    votingOpen: true
+  }, true);
+  const restoredPassportProgressApi = await hit("GET", "/api/public/passport/progress?attendeeRef=suite_api_device");
+  const restoredVoteApi = await hit("GET", "/api/public/voting/me?attendeeRef=suite_api_voter");
+  ok("sculptor roster hold closes roster, passport, and ballot together", heldRosterApi.status === 200 && heldPublicRosterApi.data.sculptors?.length === 0 && heldPassportApi.data.hunt?.active === false && heldPassportApi.data.checkpoints?.length === 0 && heldVotingApi.data.votingOpen === false && heldVotingApi.data.entries?.length === 0);
+  ok("sculptor roster republish restores compatible stamp and vote history", republishPreviewApi.status === 200 && republishCommitApi.status === 200 && reactivatedRosterApi.status === 200 && restoredPassportProgressApi.data.progress?.collected === 1 && restoredVoteApi.data.vote?.entryId === "ent_lace_tide");
 
   const publicSponsorCatalogApi = await hit("GET", "/api/public/sponsors");
   const publicTarponPackage = publicSponsorCatalogApi.data.sponsorPackages?.find(item => item.id === "tarpon");
@@ -9023,6 +9190,8 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
   const smsAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("sms."));
   ok("Twilio webhook audit is aggregate-only", smsAuditApi.some(item => item.record?.action === "sms.delivery.webhook") && smsAuditApi.some(item => item.record?.action === "sms.preference.webhook") && !JSON.stringify(smsAuditApi).includes("+13615550188") && !JSON.stringify(smsAuditApi).includes("platform-twilio-auth-secret"));
   ok("event guide publish is audited", auditApi.data.audit?.some(item => item.record?.action === "content.event-guide.publish"));
+  const rosterAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("content.sculptor-roster."));
+  ok("sculptor roster publication, engagement, and hold are audited", rosterAuditApi.some(item => item.record?.action === "content.sculptor-roster.publish") && rosterAuditApi.some(item => item.record?.action === "content.sculptor-roster.engagement") && rosterAuditApi.some(item => item.record?.action === "content.sculptor-roster.hold") && !JSON.stringify(rosterAuditApi).includes("Reviewed API artist"));
   ok("event schedule publish and hold are audited", auditApi.data.audit?.some(item => item.record?.action === "content.event-schedule.publish") && auditApi.data.audit?.some(item => item.record?.action === "content.event-schedule.hold"));
   ok("visitor guidance publish and hold are audited", auditApi.data.audit?.some(item => item.record?.action === "content.visitor-guidance.publish") && auditApi.data.audit?.some(item => item.record?.action === "content.visitor-guidance.hold"));
   ok("partner catalog publish and hold actions are audited", auditApi.data.audit?.some(item => item.record?.action === "sponsor-package.catalog.publish") && auditApi.data.audit?.some(item => item.record?.action === "vendor-offering.catalog.publish") && auditApi.data.audit?.some(item => item.record?.action === "vendor-offering.catalog.hold"));

@@ -1458,6 +1458,7 @@ time {
   .admin-board-sms-preference { grid-template-columns: 1fr; }
 }
 
+/* admin-prune:start visitor-engagement */
 /* People's Choice */
 .voting-panel {
   margin-top: 28px;
@@ -1583,6 +1584,7 @@ time {
   font-size: 13px;
   color: var(--ink);
 }
+/* admin-prune:end visitor-engagement */
 .admin-voting-panel,
 .admin-booths-panel,
 .admin-passport-panel {
@@ -5440,6 +5442,7 @@ time {
   }
 }
 
+/* admin-prune:start sculptor-experience */
 /* Sculptors section + corridor map */
 .sculptors-section .sculptor-count {
   align-self: center;
@@ -5737,6 +5740,7 @@ time {
 }
 .passport-reward strong { font-size: 16px; }
 
+/* admin-prune:end sculptor-experience */
 /* Public / Operations mode split */
 .site-mode-toggle {
   display: inline-flex;

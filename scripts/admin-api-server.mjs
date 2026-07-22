@@ -125,6 +125,7 @@ import {
 } from "../lib/sms-operations.mjs";
 import {
   applyStamp,
+  checkpointsFromSculptors,
   normalizeCheckpoint,
   normalizeCompletion,
   normalizeHunt,
@@ -134,6 +135,7 @@ import {
 } from "../lib/passport.mjs";
 import {
   applyVote,
+  ballotFromSculptors,
   normalizeBallotEntry,
   normalizeVote,
   publicVotingPublication,
@@ -141,6 +143,17 @@ import {
   tallyVotes,
   voteForAttendee
 } from "../lib/voting.mjs";
+import {
+  emptySculptorRoster,
+  holdSculptorRoster,
+  parseSculptorRosterCsv,
+  publicSculptorRoster,
+  publishSculptorRoster,
+  sculptorRosterFingerprint,
+  sculptorRosterPreviewHash,
+  sculptorRosterReadiness,
+  updateSculptorRosterEngagement
+} from "../lib/sculptor-roster.mjs";
 import {
   enrichBooths,
   normalizeBooth,
@@ -553,12 +566,14 @@ const SMS_MAX_RECIPIENTS = Number.isFinite(configuredSmsMaxRecipients)
   : 500;
 const EVENT_GUIDE_SOURCE_MAX_AGE_DAYS = Math.max(1, Number(process.env.SANDFEST_EVENT_GUIDE_SOURCE_MAX_AGE_DAYS || 90));
 const PARTNER_CATALOG_SOURCE_MAX_AGE_DAYS = Math.max(1, Number(process.env.SANDFEST_PARTNER_CATALOG_SOURCE_MAX_AGE_DAYS || 180));
+const SCULPTOR_ROSTER_SOURCE_MAX_AGE_DAYS = Math.max(1, Number(process.env.SANDFEST_SCULPTOR_ROSTER_SOURCE_MAX_AGE_DAYS || 180));
 const OPERATIONAL_EVENT_DOCUMENT_KEYS = [
   "fleet",
   "budgetControl",
   "volunteers",
   "staffDirectory",
   "consent",
+  "sculptorRoster",
   "passportHunt",
   "voting",
   "booths",
@@ -884,6 +899,7 @@ const DEPLOYMENT_CHECK_PRESENTATION = Object.freeze({
   eventGuide: ["Published event guide", "Program data"],
   visitorGuidance: ["Published visitor guidance", "Program data"],
   eventSchedule: ["Published daily schedule", "Program data"],
+  sculptorRoster: ["Published sculptor roster", "Program data"],
   currentEvent: ["Current event context", "Program data"],
   staffDirectory: ["Staff directory and routing", "Program data"],
   sponsorPackages: ["Sponsor package catalog", "Program data"],
@@ -1494,8 +1510,86 @@ async function appendConsentRecord(record) {
   return record;
 }
 
+async function readSculptorRoster() {
+  return readPlatformDoc(ROOT, "sculptorRoster", emptySculptorRoster(CURRENT_EVENT_ID));
+}
+
+function sculptorRosterAdminPayload(roster) {
+  const readiness = sculptorRosterReadiness(roster, {
+    eventId: CURRENT_EVENT_ID,
+    maxSourceAgeDays: SCULPTOR_ROSTER_SOURCE_MAX_AGE_DAYS,
+    allowSample: BOARD_DEMO_RUNTIME
+  });
+  return {
+    roster,
+    readiness,
+    fingerprint: sculptorRosterFingerprint(roster),
+    summary: {
+      sculptors: Array.isArray(roster?.sculptors) ? roster.sculptors.length : 0,
+      entries: Array.isArray(roster?.entries) ? roster.entries.length : 0,
+      imports: Array.isArray(roster?.imports) ? roster.imports.length : 0,
+      passportActive: readiness.engagement.passportActive,
+      votingOpen: readiness.engagement.votingOpen
+    }
+  };
+}
+
+function sculptorRosterAuditState(roster) {
+  return {
+    eventId: roster?.meta?.eventId ?? null,
+    publicationStatus: roster?.meta?.publicationStatus ?? "unpublished",
+    sourceUrl: roster?.meta?.sourceUrl ?? null,
+    sourceCheckedAt: roster?.meta?.sourceCheckedAt ?? null,
+    sculptors: Array.isArray(roster?.sculptors) ? roster.sculptors.length : 0,
+    entries: Array.isArray(roster?.entries) ? roster.entries.length : 0,
+    engagement: {
+      passportActive: roster?.engagement?.passportActive === true,
+      votingOpen: roster?.engagement?.votingOpen === true
+    }
+  };
+}
+
+function usesBoardDemoEngagementFallback(roster) {
+  return BOARD_DEMO_RUNTIME
+    && roster?.meta?.publicationStatus === "sample"
+    && (!Array.isArray(roster?.imports) || roster.imports.length === 0);
+}
+
 async function readPassportHunt() {
-  const doc = await readPlatformDoc(ROOT, "passportHunt", null);
+  const [doc, roster] = await Promise.all([
+    readPlatformDoc(ROOT, "passportHunt", null),
+    readSculptorRoster()
+  ]);
+  const rosterReadiness = sculptorRosterReadiness(roster, {
+    eventId: CURRENT_EVENT_ID,
+    maxSourceAgeDays: SCULPTOR_ROSTER_SOURCE_MAX_AGE_DAYS,
+    allowSample: BOARD_DEMO_RUNTIME
+  });
+  if (rosterReadiness.ready && rosterReadiness.publication.mode === "published") {
+    const huntId = CURRENT_EVENT_ID.replace("texas-sandfest-", "sculpture-passport-");
+    return {
+      lastUpdated: roster.lastUpdated ?? roster.meta?.publishedAt ?? null,
+      hunt: normalizeHunt({
+        ...(doc?.hunt || {}),
+        id: huntId,
+        eventId: CURRENT_EVENT_ID,
+        active: rosterReadiness.engagement.passportActive
+      }),
+      checkpoints: checkpointsFromSculptors(roster, { huntId })
+    };
+  }
+  if (!usesBoardDemoEngagementFallback(roster)) {
+    return {
+      lastUpdated: roster.lastUpdated ?? null,
+      hunt: normalizeHunt({
+        ...(doc?.hunt || {}),
+        id: CURRENT_EVENT_ID.replace("texas-sandfest-", "sculpture-passport-"),
+        eventId: CURRENT_EVENT_ID,
+        active: false
+      }),
+      checkpoints: []
+    };
+  }
   if (!doc) {
     return {
       lastUpdated: null,
@@ -1530,7 +1624,43 @@ async function writePassportCompletions(completions) {
 }
 
 async function readPeoplesChoice() {
-  const doc = await readVotingBallot(ROOT);
+  const [doc, roster] = await Promise.all([
+    readVotingBallot(ROOT),
+    readSculptorRoster()
+  ]);
+  const rosterReadiness = sculptorRosterReadiness(roster, {
+    eventId: CURRENT_EVENT_ID,
+    maxSourceAgeDays: SCULPTOR_ROSTER_SOURCE_MAX_AGE_DAYS,
+    allowSample: BOARD_DEMO_RUNTIME
+  });
+  if (rosterReadiness.ready && rosterReadiness.publication.mode === "published") {
+    const entries = ballotFromSculptors(roster);
+    const entryIds = new Set(entries.map(entry => entry.id));
+    return {
+      lastUpdated: roster.lastUpdated ?? roster.meta?.publishedAt ?? null,
+      eventId: CURRENT_EVENT_ID,
+      publicationStatus: "published",
+      source: roster.meta?.source ?? "official_roster_csv",
+      votingOpen: rosterReadiness.engagement.votingOpen,
+      title: doc.title ?? "People's Choice",
+      description: doc.description ?? "",
+      entries,
+      votes: (Array.isArray(doc.votes) ? doc.votes : []).map(normalizeVote).filter(vote => entryIds.has(vote.entryId))
+    };
+  }
+  if (!usesBoardDemoEngagementFallback(roster)) {
+    return {
+      lastUpdated: roster.lastUpdated ?? null,
+      eventId: CURRENT_EVENT_ID,
+      publicationStatus: "unpublished",
+      source: "awaiting_current_roster",
+      votingOpen: false,
+      title: doc.title ?? "People's Choice",
+      description: doc.description ?? "",
+      entries: [],
+      votes: []
+    };
+  }
   return {
     lastUpdated: doc.lastUpdated ?? null,
     eventId: doc.eventId ?? CURRENT_EVENT_ID,
@@ -2151,7 +2281,9 @@ async function deploymentProfile(options = {}) {
     key,
     eventId: key === "passportHunt"
       ? operationalDocValues[index]?.hunt?.eventId ?? null
-      : operationalDocValues[index]?.eventId ?? null
+      : key === "sculptorRoster"
+        ? operationalDocValues[index]?.meta?.eventId ?? null
+        : operationalDocValues[index]?.eventId ?? null
   }));
   const quickbooks = await readQuickBooksCredentialStatus(ROOT);
   const guideReadiness = eventGuideReadiness(eventBootstrap.guide, {
@@ -2172,6 +2304,12 @@ async function deploymentProfile(options = {}) {
   }, {
     maxSourceAgeDays: EVENT_GUIDE_SOURCE_MAX_AGE_DAYS,
     allowBoardDemo: BOARD_DEMO_RUNTIME
+  });
+  const sculptorRosterDocument = operationalDocValues[OPERATIONAL_EVENT_DOCUMENT_KEYS.indexOf("sculptorRoster")];
+  const rosterReadiness = sculptorRosterReadiness(sculptorRosterDocument, {
+    eventId: CURRENT_EVENT_ID,
+    maxSourceAgeDays: SCULPTOR_ROSTER_SOURCE_MAX_AGE_DAYS,
+    allowSample: BOARD_DEMO_RUNTIME
   });
   const currentEventReadiness = eventContextReadiness({
     config: EVENT_CONTEXT,
@@ -2298,6 +2436,11 @@ async function deploymentProfile(options = {}) {
     eventSchedule: checkStatus(
       scheduleReadiness.ready,
       scheduleReadiness.reason,
+      "warning"
+    ),
+    sculptorRoster: checkStatus(
+      rosterReadiness.ready,
+      rosterReadiness.reason,
       "warning"
     ),
     currentEvent: checkStatus(
@@ -4722,6 +4865,166 @@ async function handleAdminPartnerCatalogPublication(request, response) {
   });
 }
 
+async function handleAdminSculptorRosterImport(request, response) {
+  const session = await requirePermission(request, response, "content:write");
+  if (!session) return;
+  const body = await readBody(request, LARGE_CSV_IMPORT_BODY_BYTES);
+  const mode = String(body.mode || "").trim().toLowerCase();
+  if (!new Set(["preview", "commit"]).has(mode)) {
+    sendJson(request, response, 400, { error: "Choose preview or commit for the sculptor roster import." });
+    return;
+  }
+  if (body.currentEventConfirmed !== true) {
+    sendJson(request, response, 400, { error: `Confirm that this roster belongs to ${CURRENT_EVENT_ID}.` });
+    return;
+  }
+  const parsed = parseSculptorRosterCsv(body.csv, { eventId: CURRENT_EVENT_ID });
+  if (!parsed.ok) {
+    sendJson(request, response, 400, { error: parsed.error });
+    return;
+  }
+  const current = await readSculptorRoster();
+  const previewHash = sculptorRosterPreviewHash(body, {
+    eventId: CURRENT_EVENT_ID,
+    currentFingerprint: sculptorRosterFingerprint(current)
+  });
+  const responsePayload = {
+    previewHash,
+    summary: {
+      rows: parsed.totalRows,
+      valid: parsed.validRows,
+      invalid: parsed.errors.length
+    },
+    errors: parsed.errors,
+    divisions: Object.fromEntries(parsed.roster.legend.map(item => [item.colorKey, parsed.roster.sculptors.filter(sculptor => sculptor.division === item.colorKey).length]))
+  };
+  if (mode === "preview") {
+    if (!parsed.errors.length) {
+      const publicationCheck = publishSculptorRoster(current, parsed, { ...body, previewHash }, {
+        eventId: CURRENT_EVENT_ID,
+        actorId: session.id,
+        now: new Date().toISOString()
+      });
+      if (!publicationCheck.ok) {
+        sendJson(request, response, publicationCheck.previewMismatch ? 409 : 400, {
+          error: publicationCheck.error,
+          errors: publicationCheck.errors ?? [publicationCheck.error]
+        });
+        return;
+      }
+    }
+    sendJson(request, response, 200, responsePayload);
+    return;
+  }
+  if (parsed.errors.length) {
+    sendJson(request, response, 400, { error: "Resolve every roster row issue before publication.", ...responsePayload });
+    return;
+  }
+  let before;
+  let result;
+  await updatePlatformDoc(ROOT, "sculptorRoster", async stored => {
+    before = stored && typeof stored === "object" ? stored : emptySculptorRoster(CURRENT_EVENT_ID);
+    result = publishSculptorRoster(before, parsed, body, {
+      eventId: CURRENT_EVENT_ID,
+      actorId: session.id,
+      now: new Date().toISOString()
+    });
+    if (!result.ok) return undefined;
+    await writeConfigSnapshot(request, { type: "sculptorRoster", id: CURRENT_EVENT_ID }, before, "Before sculptor roster publication");
+    return result.roster;
+  }, { fallback: emptySculptorRoster(CURRENT_EVENT_ID) });
+  if (!result?.ok) {
+    sendJson(request, response, result?.previewMismatch ? 409 : 400, {
+      error: result?.error || "Sculptor roster could not be published.",
+      errors: result?.errors ?? [result?.error]
+    });
+    return;
+  }
+  await writeAuditRecord(
+    request,
+    "content.sculptor-roster.publish",
+    { type: "sculptorRoster", id: CURRENT_EVENT_ID },
+    sculptorRosterAuditState(before),
+    sculptorRosterAuditState(result.roster),
+    {
+      previewHash: result.previewHash.slice(0, 16),
+      fileName: result.importRecord.fileName,
+      sourceUrl: result.roster.meta.sourceUrl,
+      sourceCheckedAt: result.roster.meta.sourceCheckedAt,
+      sculptors: result.roster.sculptors.length
+    }
+  );
+  sendJson(request, response, 200, {
+    ...responsePayload,
+    importSummary: responsePayload.summary,
+    ...sculptorRosterAdminPayload(result.roster)
+  });
+}
+
+async function handleAdminSculptorRosterHold(request, response) {
+  const session = await requirePermission(request, response, "content:write");
+  if (!session) return;
+  const body = await readBody(request);
+  let before;
+  let result;
+  await updatePlatformDoc(ROOT, "sculptorRoster", async stored => {
+    before = stored && typeof stored === "object" ? stored : emptySculptorRoster(CURRENT_EVENT_ID);
+    result = holdSculptorRoster(before, {
+      eventId: CURRENT_EVENT_ID,
+      actorId: session.id,
+      reason: body.reason,
+      now: new Date().toISOString()
+    });
+    if (!result.ok) return undefined;
+    await writeConfigSnapshot(request, { type: "sculptorRoster", id: CURRENT_EVENT_ID }, before, "Before sculptor roster publication hold");
+    return result.roster;
+  }, { fallback: emptySculptorRoster(CURRENT_EVENT_ID) });
+  if (!result?.ok) {
+    sendJson(request, response, 400, { error: result?.error || "Sculptor roster could not be held." });
+    return;
+  }
+  await writeAuditRecord(
+    request,
+    "content.sculptor-roster.hold",
+    { type: "sculptorRoster", id: CURRENT_EVENT_ID },
+    sculptorRosterAuditState(before),
+    sculptorRosterAuditState(result.roster),
+    { reason: result.roster.meta.holdReason }
+  );
+  sendJson(request, response, 200, sculptorRosterAdminPayload(result.roster));
+}
+
+async function handleAdminSculptorRosterEngagement(request, response) {
+  const session = await requirePermission(request, response, "content:write");
+  if (!session) return;
+  const body = await readBody(request);
+  let before;
+  let result;
+  await updatePlatformDoc(ROOT, "sculptorRoster", async stored => {
+    before = stored && typeof stored === "object" ? stored : emptySculptorRoster(CURRENT_EVENT_ID);
+    result = updateSculptorRosterEngagement(before, body, {
+      eventId: CURRENT_EVENT_ID,
+      now: new Date().toISOString()
+    });
+    if (!result.ok) return undefined;
+    await writeConfigSnapshot(request, { type: "sculptorRoster", id: CURRENT_EVENT_ID }, before, "Before sculptor engagement controls change");
+    return result.roster;
+  }, { fallback: emptySculptorRoster(CURRENT_EVENT_ID) });
+  if (!result?.ok) {
+    sendJson(request, response, 400, { error: result?.error || "Sculptor engagement controls could not be updated." });
+    return;
+  }
+  await writeAuditRecord(
+    request,
+    "content.sculptor-roster.engagement",
+    { type: "sculptorRoster", id: CURRENT_EVENT_ID },
+    before?.engagement ?? null,
+    result.roster.engagement,
+    { actorId: session.id }
+  );
+  sendJson(request, response, 200, sculptorRosterAdminPayload(result.roster));
+}
+
 async function handleAdminEventGuidePublish(request, response) {
   const session = await requirePermission(request, response, "content:write");
   if (!session) return;
@@ -5326,6 +5629,16 @@ async function handleRequest(request, response) {
 
     if (method === "GET" && pathname === "/api/public/alert") {
       sendJson(request, response, 200, publicAlertPayload(await storage.config.read("emergency-alert")), publicCacheHeaders(15));
+      return;
+    }
+
+    if (method === "GET" && pathname === "/api/public/sculptors") {
+      const roster = await readSculptorRoster();
+      sendJson(request, response, 200, publicSculptorRoster(roster, {
+        eventId: CURRENT_EVENT_ID,
+        maxSourceAgeDays: SCULPTOR_ROSTER_SOURCE_MAX_AGE_DAYS,
+        allowSample: BOARD_DEMO_RUNTIME
+      }), publicCacheHeaders(120));
       return;
     }
 
@@ -7686,6 +7999,12 @@ async function handleRequest(request, response) {
       return;
     }
 
+    if (method === "GET" && pathname === "/api/admin/sculptors") {
+      if (!(await requirePermission(request, response, "admin:read"))) return;
+      sendJson(request, response, 200, sculptorRosterAdminPayload(await readSculptorRoster()));
+      return;
+    }
+
     if (method === "GET" && pathname === "/api/admin/passport") {
       if (!(await requirePermission(request, response, "passport:read"))) return;
       const huntDoc = await readPassportHunt();
@@ -9700,6 +10019,17 @@ async function handleRequest(request, response) {
         return;
       }
       const snapshot = snapshotEnvelope.record;
+      if (snapshot.target?.type === "sculptorRoster") {
+        const before = await readSculptorRoster();
+        await writeConfigSnapshot(request, snapshot.target, before, `Before restoring snapshot ${snapshot.id}`);
+        await writePlatformDoc(ROOT, "sculptorRoster", snapshot.data);
+        await writeAuditRecord(request, "config.rollback", snapshot.target, before, snapshot.data, {
+          snapshotId: snapshot.id,
+          snapshotRef
+        });
+        sendJson(request, response, 200, { restored: true, snapshotId: snapshot.id, target: snapshot.target });
+        return;
+      }
       const targetKey = snapshotTargetKey(snapshot.target);
       if (!targetKey) {
         sendJson(request, response, 400, { error: `Snapshot target cannot be restored: ${snapshot.target?.type}` });
@@ -9781,6 +10111,21 @@ async function handleRequest(request, response) {
 
     if (method === "POST" && pathname === "/api/admin/partner-catalog-publication") {
       await handleAdminPartnerCatalogPublication(request, response);
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/admin/sculptors/import") {
+      await handleAdminSculptorRosterImport(request, response);
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/admin/sculptors/hold") {
+      await handleAdminSculptorRosterHold(request, response);
+      return;
+    }
+
+    if (method === "PATCH" && pathname === "/api/admin/sculptors/engagement") {
+      await handleAdminSculptorRosterEngagement(request, response);
       return;
     }
 

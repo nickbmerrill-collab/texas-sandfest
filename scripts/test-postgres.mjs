@@ -14,6 +14,13 @@ import { emptyBudgetControl } from "../lib/budget-control.mjs";
 import { REQUIRED_TICKET_POLICY_NOTICES } from "../lib/ticket-policy-schema.mjs";
 import { partnerCatalogDigest } from "../lib/partner-catalog-publication.mjs";
 import { publicSponsorPackage, sponsorPackageCatalog } from "../lib/sponsor-packages.mjs";
+import {
+  emptySculptorRoster,
+  parseSculptorRosterCsv,
+  publishSculptorRoster,
+  sculptorRosterFingerprint,
+  sculptorRosterPreviewHash
+} from "../lib/sculptor-roster.mjs";
 import { BOARD_DEMO_VENDOR_OFFERINGS, publicVendorOffering, vendorOfferingCatalog } from "../lib/vendor-offerings.mjs";
 import { issueTaskPortalToken, taskPortalConfig } from "../lib/task-portal.mjs";
 
@@ -575,6 +582,30 @@ async function main() {
   await writePlatformDoc(ROOT, "incomingDocuments", emptyIncomingDocumentIntake(EVENT_ID));
   const { emptySmsOperations } = await import("../lib/sms-operations.mjs");
   await writePlatformDoc(ROOT, "smsOperations", emptySmsOperations(EVENT_ID));
+  const rosterBase = emptySculptorRoster(EVENT_ID);
+  const rosterCsv = [
+    "event_id,sculptor_id,sculptor_name,division,entry_id,entry_title,status,beach_marker,map_x,map_y",
+    `${EVENT_ID},pg-dune,Postgres Artist One,semi_pro,dune_dragon,Dune Dragon,complete,12.5,0.25,0.45`,
+    `${EVENT_ID},pg-lace,Postgres Artist Two,semi_pro,lace_tide,Lace Tide,complete,14.5,0.50,0.45`,
+    `${EVENT_ID},pg-tidal,Postgres Artist Three,master_solo,tidal_guardian,Tidal Guardian,complete,13,0.75,0.45`
+  ].join("\n");
+  const rosterInput = {
+    csv: rosterCsv,
+    fileName: "postgres-reviewed-roster.csv",
+    sourceUrl: "https://www.texassandfest.org/sculptors",
+    sourceCheckedAt: new Date().toISOString()
+  };
+  rosterInput.previewHash = sculptorRosterPreviewHash(rosterInput, {
+    eventId: EVENT_ID,
+    currentFingerprint: sculptorRosterFingerprint(rosterBase)
+  });
+  const publishedRoster = publishSculptorRoster(rosterBase, parseSculptorRosterCsv(rosterCsv, { eventId: EVENT_ID }), rosterInput, {
+    eventId: EVENT_ID,
+    actorId: "postgres-test-content-reviewer"
+  });
+  if (!publishedRoster.ok) throw new Error(publishedRoster.error);
+  publishedRoster.roster.engagement = { passportActive: true, votingOpen: true };
+  await writePlatformDoc(ROOT, "sculptorRoster", publishedRoster.roster);
   await writePlatformDoc(ROOT, "passportHunt", {
     lastUpdated: new Date().toISOString(),
     hunt: {
