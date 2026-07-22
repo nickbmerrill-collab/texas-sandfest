@@ -74,6 +74,7 @@
     "board:prove:signups": "node scripts/prove-board-signups.mjs",
     "board:prove:operations": "node scripts/prove-board-operations.mjs",
     "board:prove:documents": "node scripts/prove-board-documents.mjs",
+    "board:prove:sponsor-branding": "node scripts/prove-board-sponsor-branding.mjs",
     "board:ios": "node scripts/board-ios-demo.mjs",
     "board:web": "SANDFEST_BOARD_DEMO_ADMIN_TOKEN=board-demo-local-admin-token-change-me vite --host 127.0.0.1",
     "board:mailbox": "SANDFEST_BOARD_EMAIL_SANDBOX=true SANDFEST_BOARD_EMAIL_PORT=8807 BOARD_BREVO_API_KEY=board-demo-local-brevo-api-key-change-me BREVO_WEBHOOK_TOKEN=board-demo-local-brevo-webhook-token-change-me SANDFEST_BOARD_EMAIL_WEBHOOK_URL=http://127.0.0.1:8806/api/webhooks/brevo node scripts/board-email-sandbox.mjs",

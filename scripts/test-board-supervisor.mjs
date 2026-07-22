@@ -233,6 +233,41 @@ async function documentProofRehearsal(sessionFile) {
   return report;
 }
 
+async function sponsorBrandingProofRehearsal(sessionFile) {
+  const result = await run(
+    process.execPath,
+    ["scripts/prove-board-sponsor-branding.mjs", "--json"],
+    commandEnvironment(sessionFile),
+    180_000
+  );
+  let report = null;
+  try {
+    report = JSON.parse(result.stdout);
+  } catch {
+    throw new Error(`Board sponsor-branding proof returned invalid JSON:\n${result.stderr}\n${result.stdout}`);
+  }
+  if (
+    result.code !== 0
+    || report.ok !== true
+    || report.sponsor?.packageId !== "tarpon"
+    || report.publication?.applicationStatus !== "approved"
+    || report.publication?.profileStatus !== "approved"
+    || report.publication?.assetStatus !== "approved"
+    || report.publication?.publicCard !== report.sponsor?.organizationName
+    || report.publication?.privacySafe !== true
+    || report.publication?.publicLogoChecksumSha256 !== report.brandKit?.asset?.checksumSha256
+    || report.reset?.applications !== 5
+    || report.reset?.profiles !== 2
+    || report.reset?.assets !== 2
+    || report.reset?.deliverables !== 12
+    || JSON.stringify(report.reset?.publicSponsors) !== JSON.stringify(["Gulf Shore Credit Union"])
+    || report.reset?.preflight !== `${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}/${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}`
+  ) {
+    throw new Error(`Board sponsor-branding proof failed:\n${JSON.stringify(report, null, 2)}`);
+  }
+  return report;
+}
+
 function rememberServicePids(session) {
   for (const service of Object.values(session?.services || {})) {
     if (Number.isInteger(Number(service.pid)) && Number(service.pid) > 0) observedPids.add(Number(service.pid));
@@ -627,6 +662,11 @@ try {
   rememberServicePids(documentProofSession);
   console.log(`  ok document proof extracts ${documentProof.document.extractedCharacterCount} characters, completes delegated review, byte-verifies the download, records ${documentProof.audit.records} audits, and restores ${documentProof.reset.preflight} readiness`);
 
+  const sponsorBrandingProof = await sponsorBrandingProofRehearsal(sessionFile);
+  const sponsorBrandingProofSession = await readBoardDemoSession(sessionFile);
+  rememberServicePids(sponsorBrandingProofSession);
+  console.log(`  ok sponsor branding proof publishes ${sponsorBrandingProof.publication.publicCard}, byte-verifies its approved logo, protects private fields, and restores ${sponsorBrandingProof.reset.preflight} readiness`);
+
   const stopped = await run(process.execPath, ["scripts/stop-board-demo.mjs", "--session-file", sessionFile], process.env, 25_000);
   if (stopped.code !== 0) throw new Error(`Board stop command failed:\n${stopped.stderr}\n${stopped.stdout}`);
   await waitFor(async () => supervisor.exitCode != null, 10_000, "Supervisor exit");
@@ -679,7 +719,7 @@ try {
   const lingering = [...observedPids].filter(processAlive);
   if (lingering.length) throw new Error(`Board child processes remained alive after shutdown: ${lingering.join(", ")}`);
   console.log(`  ok second stop shuts down every process observed across both supervisor lifecycles`);
-  console.log("\nBoard demo supervisor: 21/21 checks passed.\n");
+  console.log("\nBoard demo supervisor: 22/22 checks passed.\n");
 } catch (error) {
   console.error(`\nBoard demo supervisor test failed: ${error.message}`);
   process.exitCode = 1;

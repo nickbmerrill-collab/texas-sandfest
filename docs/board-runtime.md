@@ -145,6 +145,24 @@ and restore the exact four-document,
 ten-open-task, 21-completed-job baseline at 12/12 readiness. Run it during
 rehearsal and wait for the final reset before the live walkthrough.
 
+To prove the sponsor branding journey against the active stack, run:
+
+```bash
+npm run board:prove:sponsor-branding
+```
+
+The proof submits a synthetic Tarpon sponsor through the public form, opens its
+private capability portal, saves a brand profile, and uploads a PNG logo. It
+then approves the application, profile, and asset through the visible
+Operations workspace. The public Sponsors view must render the newly approved
+card and self-hosted logo with the submitted tagline and colors; the proof also
+downloads that public logo, verifies its SHA-256 checksum against the upload,
+and rejects private application, contact, storage, review, or checksum fields
+in the public projection. Finally, it asks the supervisor to replace every
+service and restore the exact five-application, two-profile, two-asset,
+12-deliverable, one-public-sponsor baseline at 12/12 readiness. Run it only
+during rehearsal and wait for the final reset before the live walkthrough.
+
 For Safari-compatible rendering proof against the same active, read-only
 session, install Playwright WebKit once and run:
 
