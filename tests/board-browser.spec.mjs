@@ -3184,7 +3184,11 @@ test("partner portal recovery is private, delivered, and mobile-safe", async ({ 
   await vendor.locator('[name="consentToContact"]').check();
   const intake = await submitAndCapture(page, vendor, "/api/public/vendor-applications");
 
+  await expect(page.locator('#partner-status-form [name="reference"]')).toHaveValue(intake.application.reference);
+  await expect(page.locator("#partner-status-form .partner-form-status")).toContainText("Secure status loaded");
+
   const recovery = page.locator("#partner-portal-recovery-form");
+  await expect(recovery.locator('button[type="submit"]')).toBeEnabled();
   await recovery.locator('[name="reference"]').fill(intake.application.reference);
   await recovery.locator('[name="contactEmail"]').fill(contactEmail);
   const matchedResponsePromise = page.waitForResponse(response => new URL(response.url()).pathname === "/api/public/partner-portal-recovery" && response.request().method() === "POST");
