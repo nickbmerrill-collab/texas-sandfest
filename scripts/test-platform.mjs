@@ -450,6 +450,12 @@ import {
   holdEventSchedule,
   publishEventSchedule
 } from "../lib/event-schedule.mjs";
+import {
+  holdVisitorGuidance,
+  publishVisitorGuidance,
+  publicVisitorGuidance,
+  visitorGuidanceReadiness
+} from "../lib/visitor-guidance.mjs";
 import { publicAppBootstrap, publicAppBootstrapSafety } from "../lib/public-bootstrap.mjs";
 import {
   answerPublicConcierge,
@@ -883,7 +889,11 @@ console.log("\n=== Pure library suite ===\n");
       partnerPaymentCheckoutReady: true,
       partnerPaymentCheckoutEnvironment: "board_sandbox"
     },
-    bootstrap: { guide: { id: "texas-sandfest-2027" }, runtime: { mode: "board_demo" } },
+    bootstrap: {
+      guide: { id: "texas-sandfest-2027" },
+      guidance: Array.from({ length: 6 }, (_, index) => ({ id: `guidance-${index + 1}`, question: `Question ${index + 1}`, answer: `Reviewed visitor answer ${index + 1}`, sourceUrl: "https://www.texassandfest.org/faq" })),
+      runtime: { mode: "board_demo" }
+    },
     tickets: {
       checkoutEnvironment: "board_sandbox",
       products: Array.from({ length: 4 }, (_, index) => ({ id: `demo_ticket_${index + 1}`, availableForCheckout: true }))
@@ -1082,7 +1092,7 @@ console.log("\n=== Pure library suite ===\n");
   const readyBoardCameraCheck = readyBoardReport.checks.find(item => item.id === "camera_fleet");
   ok("board demo readiness accepts the complete local stack", readyBoardReport.ok
     && readyBoardReport.passed === readyBoardReport.total
-    && readyBoardReport.total === 9
+    && readyBoardReport.total === 10
     && readyBoardCameraCheck?.detail.includes("synthetic playback")
     && readyBoardCameraCheck?.detail.includes("current")
     && !readyBoardCameraCheck?.detail.includes("live"));
@@ -1528,6 +1538,96 @@ console.log("\n=== Pure library suite ===\n");
   ok("public event guide hides publishing identity", !("publishedBy" in publicGuide) && !("status" in publicGuide) && publicGuide.sourceUrl === guide.sourceUrl);
 }
 
+const visitorGuidanceFixture = [{
+  id: "accessibility-guide",
+  category: "Accessibility",
+  question: "What accessibility support is available?",
+  answer: "Accessible parking and a limited number of beach wheelchairs are available. Advance wheelchair reservation is recommended.",
+  keywords: ["accessibility", "accessible", "wheelchair", "ada"],
+  sourceLabel: "Official Accessibility Guide",
+  sourceUrl: "https://www.texassandfest.org/accessibility",
+  sourceCheckedAt: "2026-07-17T12:00:00.000Z",
+  effectiveAt: "2026-06-01T00:00:00.000Z",
+  expiresAt: "2027-04-19T23:59:59.000Z",
+  audience: "public",
+  riskLevel: "high",
+  ownerTeam: "guest-services",
+  escalationContact: "info@texassandfest.org",
+  status: "active"
+}, {
+  id: "parking-guide",
+  category: "Arrival",
+  question: "Where should I park and are shuttles available?",
+  answer: "Beach parking requires a city permit. Remote parking and the dedicated SandFest shuttle are free; review the official route before traveling.",
+  keywords: ["parking", "park", "shuttle", "beach permit"],
+  sourceLabel: "Official Parking and Shuttles",
+  sourceUrl: "https://www.texassandfest.org/parking-shuttles",
+  sourceCheckedAt: "2026-07-17T12:00:00.000Z",
+  effectiveAt: "2026-06-01T00:00:00.000Z",
+  expiresAt: "2027-04-19T23:59:59.000Z",
+  audience: "public",
+  riskLevel: "high",
+  ownerTeam: "traffic",
+  escalationContact: "info@texassandfest.org",
+  status: "active"
+}, {
+  id: "pet-policy",
+  category: "Policies",
+  question: "What is the pet policy?",
+  answer: "Texas SandFest is a service-animals-only event. Pets and emotional-support animals are not admitted inside the festival grounds.",
+  keywords: ["pet", "pets", "dog", "service animal", "emotional support"],
+  sourceLabel: "Official Pet Policy",
+  sourceUrl: "https://www.texassandfest.org/petpolicy",
+  sourceCheckedAt: "2026-07-17T12:00:00.000Z",
+  effectiveAt: "2026-02-02T00:00:00.000Z",
+  expiresAt: "2027-04-19T23:59:59.000Z",
+  audience: "public",
+  riskLevel: "high",
+  ownerTeam: "guest-services",
+  escalationContact: "info@texassandfest.org",
+  status: "active"
+}, {
+  id: "allowed-items",
+  category: "At the festival",
+  question: "What should I bring and what is not allowed?",
+  answer: "Folding chairs are allowed. Coolers, outside alcohol, umbrellas, shade structures, drones, and glass containers are not allowed.",
+  keywords: ["what should i bring", "cooler", "umbrella", "drone", "allowed items"],
+  sourceLabel: "Official Know Before You Go",
+  sourceUrl: "https://www.texassandfest.org/knowbeforeyougo",
+  sourceCheckedAt: "2026-07-17T12:00:00.000Z",
+  effectiveAt: "2026-06-01T00:00:00.000Z",
+  expiresAt: "2027-04-19T23:59:59.000Z",
+  audience: "public",
+  riskLevel: "medium",
+  ownerTeam: "guest-services",
+  escalationContact: "info@texassandfest.org",
+  status: "active"
+}];
+
+// Governed visitor guidance
+{
+  const now = "2026-07-18T12:00:00.000Z";
+  const published = publishVisitorGuidance({}, {
+    guidance: visitorGuidanceFixture,
+    sourceUrl: "https://www.texassandfest.org/faq",
+    sourceCheckedAt: "2026-07-17T12:00:00.000Z"
+  }, { eventId: "texas-sandfest-2027", actorId: "content-test", now });
+  const ready = visitorGuidanceReadiness({ eventId: "texas-sandfest-2027", guidance: published.guidance, publication: published.publication }, { now });
+  const held = holdVisitorGuidance({ guidance: published.guidance, publication: published.publication }, { eventId: "texas-sandfest-2027", actorId: "content-test", reason: "Official policy review is underway.", now });
+  const stale = visitorGuidanceReadiness({ eventId: "texas-sandfest-2027", guidance: published.guidance, publication: { ...published.publication, sourceCheckedAt: "2025-01-01T00:00:00.000Z" } }, { now, maxSourceAgeDays: 90 });
+  const expired = visitorGuidanceReadiness({ eventId: "texas-sandfest-2027", guidance: published.guidance.map(item => ({ ...item, expiresAt: "2026-07-17T00:00:00.000Z" })), publication: published.publication }, { now });
+  const invalid = publishVisitorGuidance({}, {
+    guidance: [{ ...visitorGuidanceFixture[0], id: "bad id", sourceUrl: "http://example.com", sourceCheckedAt: "2026-07-19T00:00:00.000Z", audience: "staff", escalationContact: "invalid" }],
+    sourceUrl: "http://example.com",
+    sourceCheckedAt: "2026-07-19T00:00:00.000Z"
+  }, { eventId: "texas-sandfest-2027", actorId: "content-test", now });
+  const publicGuidance = publicVisitorGuidance(published.guidance, { now });
+  ok("visitor guidance publication records source authority and accountable ownership", published.ok && published.publication.publishedBy === "content-test" && ready.ready && ready.current.length === 4);
+  ok("visitor guidance rejects unsafe, private, future, and incomplete records", !invalid.ok && invalid.errors.some(error => error.includes("safe identifier")) && invalid.errors.some(error => error.includes("HTTPS")) && invalid.errors.some(error => error.includes("future")) && invalid.errors.some(error => error.includes("public audience")) && invalid.errors.some(error => error.includes("escalation email")));
+  ok("visitor guidance fails closed when held, stale, or expired", held.ok && held.publication.status === "pending" && !stale.ready && stale.missing.includes("source") && !expired.ready && expired.missing.includes("guidance"));
+  ok("public visitor guidance exposes current answers without owner, risk, or escalation fields", publicGuidance.length === 4 && publicGuidance[0].keywords.includes("accessibility") && !/(ownerTeam|riskLevel|escalationContact|publishedBy)/.test(JSON.stringify(publicGuidance)));
+}
+
 // Public bootstrap projection
 {
   const internalBootstrap = {
@@ -1542,6 +1642,15 @@ console.log("\n=== Pure library suite ===\n");
       status: "published",
       eventId: "texas-sandfest-2027",
       sourceUrl: "https://www.texassandfest.org/daily-schedule",
+      sourceCheckedAt: "2026-07-17T12:00:00.000Z",
+      publishedAt: "2026-07-17T12:05:00.000Z",
+      publishedBy: "staff-private-id"
+    },
+    guidance: visitorGuidanceFixture,
+    guidancePublication: {
+      status: "published",
+      eventId: "texas-sandfest-2027",
+      sourceUrl: "https://www.texassandfest.org/faq",
       sourceCheckedAt: "2026-07-17T12:00:00.000Z",
       publishedAt: "2026-07-17T12:05:00.000Z",
       publishedBy: "staff-private-id"
@@ -1561,8 +1670,9 @@ console.log("\n=== Pure library suite ===\n");
   }, { includeBoardRuntime: true, now: "2026-07-18T12:00:00.000Z" });
   const serialized = JSON.stringify(projected);
 
-  ok("public bootstrap exposes only approved root collections", JSON.stringify(Object.keys(projected).sort()) === JSON.stringify(["alert", "guide", "schedule", "zones"]));
+  ok("public bootstrap exposes only approved root collections", JSON.stringify(Object.keys(projected).sort()) === JSON.stringify(["alert", "guidance", "guide", "schedule", "zones"]));
   ok("public bootstrap exposes only validated published schedule and public zone fields", projected.schedule.length === 1 && projected.schedule[0].title === "Beach gates open" && !Object.hasOwn(projected.zones[0], "status"));
+  ok("public bootstrap exposes only current privacy-safe guidance", projected.guidance.length === 4 && projected.guidance.every(item => !Object.hasOwn(item, "ownerTeam") && !Object.hasOwn(item, "escalationContact")));
   ok("public bootstrap excludes publishing identity and private operations", !Object.hasOwn(projected.guide, "publishedBy") && !/(sponsors|vendors|coverage|financeSignals|invoiceStatus|quickBooksStatus)/.test(serialized));
   ok("public bootstrap policy rejects unprojected internal data", !publicAppBootstrapSafety(internalBootstrap).ready && publicAppBootstrapSafety(internalBootstrap).errors.some(error => error.includes("Unexpected public bootstrap keys")));
   ok("public bootstrap rejects a volunteer provider URL outside open registration", !publicAppBootstrapSafety({ ...projected, guide: { ...projected.guide, volunteer: { ...projected.guide.volunteer, registrationStatus: "upcoming", registrationUrl: "https://stale.example.test/signup" } } }).ready);
@@ -1678,6 +1788,7 @@ console.log("\n=== Pure library suite ===\n");
         }
       },
       schedule: [{ day: "Friday", time: "9:00 AM", title: "Beach gates open" }],
+      guidance: publicVisitorGuidance(visitorGuidanceFixture, { now: "2026-07-18T12:00:00.000Z" }),
       zones: [
         { id: "north-gate", name: "North Gate", marker: "12.5", summary: "Guest Relations, ticket scan, ADA parking, wristbands." },
         { id: "south-gate", name: "South Entrance", marker: "Access Road 1A", summary: "Shuttle drop-off, south beer tent, food and vendor access." }
@@ -1712,12 +1823,12 @@ console.log("\n=== Pure library suite ===\n");
   const accessibilityResult = answerPublicConcierge("What accessibility guidance is available?", context);
   const missingAccessibilityResult = answerPublicConcierge("What accessibility guidance is available?", {
     ...context,
-    bootstrap: { ...context.bootstrap, zones: [] }
+    bootstrap: { ...context.bootstrap, guidance: [], zones: [] }
   });
   const parkingResult = answerPublicConcierge("Is parking information available?", context);
   const missingParkingResult = answerPublicConcierge("Is parking information available?", {
     ...context,
-    bootstrap: { ...context.bootstrap, zones: [] }
+    bootstrap: { ...context.bootstrap, guidance: [], zones: [] }
   });
   const vendorResult = answerPublicConcierge("How do vendors apply?", context);
   const volunteerResult = answerPublicConcierge("How do I volunteer?", context);
@@ -1753,6 +1864,8 @@ console.log("\n=== Pure library suite ===\n");
     }
   });
   const emergencyResult = answerPublicConcierge("My child is missing. Is this an emergency?", context);
+  const petResult = answerPublicConcierge("Can I bring my pet?", context);
+  const coolerResult = answerPublicConcierge("Can I bring a cooler?", context);
   const unknownResult = answerPublicConcierge("Can I bring a telescope? private@example.com", context);
   const { ok: ticketOk, ...ticketPayload } = ticketResult;
   const { ok: unknownOk, ...unknownPayload } = unknownResult;
@@ -1761,14 +1874,15 @@ console.log("\n=== Pure library suite ===\n");
   ok("public concierge answers ticket questions from current catalog", ticketOk && ticketPayload.topic === "tickets" && ticketPayload.answer.includes("Adult day pass ($15)") && ticketPayload.answer.includes("VIP day pass (price pending)") && !ticketPayload.answer.includes("Stripe") && ticketPayload.sources.some(item => item.href === "#tickets"));
   ok("public concierge answers ferry questions from current public conditions", ferryResult.ok && ferryResult.topic === "ferry" && ferryResult.answer.includes("about 12 minutes") && ferryResult.sources.some(item => item.href.startsWith("https://www.txdot.gov/")));
   ok("public concierge replaces internal sponsor roadmap claims with public packages", sponsorResult.ok && sponsorResult.topic === "sponsor" && sponsorResult.answer.includes("Gulf Partner ($5,000)") && !sponsorResult.answer.toLowerCase().includes("dashboard"));
-  ok("public concierge answers accessibility from approved public zones", accessibilityResult.ok && accessibilityResult.topic === "accessibility" && accessibilityResult.confidence === "high" && !accessibilityResult.escalated && accessibilityResult.answer.includes("North Gate at marker 12.5") && accessibilityResult.answer.includes("ADA parking") && !accessibilityResult.answer.includes(".).") && accessibilityResult.sources.some(item => item.href === "#operations"));
+  ok("public concierge answers accessibility from governed visitor guidance", accessibilityResult.ok && accessibilityResult.topic === "accessibility" && accessibilityResult.confidence === "high" && !accessibilityResult.escalated && accessibilityResult.answer.includes("beach wheelchairs") && accessibilityResult.sources.some(item => item.href === "https://www.texassandfest.org/accessibility"));
   ok("public concierge escalates accessibility without approved locations", missingAccessibilityResult.ok && missingAccessibilityResult.topic === "accessibility" && missingAccessibilityResult.confidence === "low" && missingAccessibilityResult.escalated && !missingAccessibilityResult.answer.includes("North Gate"));
-  ok("public concierge answers parking from approved arrival zones", parkingResult.ok && parkingResult.topic === "parking" && parkingResult.confidence === "medium" && parkingResult.escalated && parkingResult.answer.includes("North Gate at marker 12.5") && parkingResult.answer.includes("South Entrance at marker Access Road 1A") && parkingResult.answer.includes("not included in this feed") && parkingResult.sources.some(item => item.href === "#operations"));
+  ok("public concierge answers parking from governed visitor guidance", parkingResult.ok && parkingResult.topic === "parking" && parkingResult.confidence === "high" && !parkingResult.escalated && parkingResult.answer.includes("city permit") && parkingResult.sources.some(item => item.href === "https://www.texassandfest.org/parking-shuttles"));
   ok("public concierge escalates parking without approved locations", missingParkingResult.ok && missingParkingResult.topic === "parking" && missingParkingResult.confidence === "low" && missingParkingResult.escalated && !missingParkingResult.answer.includes("North Gate"));
   ok("public concierge follows application-open vendor catalog wording", vendorResult.ok && vendorResult.topic === "vendor" && vendorResult.answer.includes("vendor application") && !vendorResult.answer.includes("interest list"));
   ok("public concierge follows interest-only vendor catalog wording", vendorInterestResult.ok && vendorInterestResult.topic === "vendor" && vendorInterestResult.answer.includes("join the interest list") && vendorInterestResult.answer.includes("when applications open") && !vendorInterestResult.answer.includes("use the vendor application"));
   ok("public concierge explains mixed vendor intake without overpromising", mixedVendorResult.ok && mixedVendorResult.topic === "vendor" && mixedVendorResult.answer.includes("Some programs are accepting applications while others are collecting interest") && mixedVendorResult.answer.includes("see the current path"));
   ok("public concierge follows governed volunteer registration state", volunteerResult.ok && volunteerResult.topic === "volunteer" && volunteerResult.answer.includes("has not opened") && volunteerResult.sources.some(item => item.href === "https://www.texassandfest.org/volunteer") && openVolunteerResult.answer.includes("registration is open") && openVolunteerResult.sources.some(item => item.href.includes("volunteerlocal.com")));
+  ok("public concierge answers pet and allowed-item questions from governed guidance", petResult.ok && petResult.topic === "family" && petResult.answer.includes("service-animals-only") && petResult.sources.some(item => item.href.endsWith("/petpolicy")) && coolerResult.ok && coolerResult.answer.includes("Coolers") && coolerResult.sources.some(item => item.href.endsWith("/knowbeforeyougo")));
   ok("public concierge routes urgent safety questions to emergency help", emergencyResult.ok && emergencyResult.topic === "emergency" && emergencyResult.escalated && emergencyResult.answer.includes("Call 911") && emergencyResult.answer.includes("cannot dispatch"));
   ok("public concierge escalates unsupported questions without echoing input", unknownOk && unknownPayload.escalated && !JSON.stringify(unknownPayload).includes("private@example.com") && publicConciergeResponseSafety(unknownPayload).ready);
   ok("public concierge safety rejects private implementation fields", !publicConciergeResponseSafety({ ...ticketPayload, storageRoot: "/private/runtime" }).ready);
@@ -6683,6 +6797,7 @@ try {
     }
   }
   ok("deployment exposes current event guide gate", health.data.eventGuideReady === true && deployment.data.deployment?.checks?.eventGuide?.ok === true);
+  ok("deployment exposes current visitor guidance gate", health.data.visitorGuidanceReady === true && deployment.data.deployment?.checks?.visitorGuidance?.ok === true);
   ok("deployment reports unpublished detailed programming as a non-blocking launch warning", deployment.data.deployment?.checks?.eventSchedule?.ok === false && deployment.data.deployment?.checks?.eventSchedule?.severity === "warning");
   ok("deployment identifies operational documents awaiting 2027 rollover", health.data.currentEventId === DEFAULT_EVENT_ID && health.data.currentEventReady === false && deployment.data.deployment?.checks?.currentEvent?.severity === "warning" && deployment.data.deployment?.checks?.currentEvent?.message.includes("fleet=texas-sandfest-2026"));
 
@@ -6735,7 +6850,8 @@ try {
   ok("public bootstrap exposes only governed visitor data", initialPublicBootstrap.status === 200
     && initialPublicBootstrap.data.guide?.dateRange === "April 16-18, 2027"
     && publicAppBootstrapSafety(initialPublicBootstrap.data).ready
-    && JSON.stringify(Object.keys(initialPublicBootstrap.data).sort()) === JSON.stringify(["alert", "guide", "schedule", "zones"])
+    && JSON.stringify(Object.keys(initialPublicBootstrap.data).sort()) === JSON.stringify(["alert", "guidance", "guide", "schedule", "zones"])
+    && initialPublicBootstrap.data.guidance?.length >= 6
     && initialPublicBootstrap.data.schedule?.length === 0
     && initialPublicBootstrap.data.schedule?.every(item => item.category !== "Staff")
     && initialPublicBootstrap.data.zones?.every(item => !Object.hasOwn(item, "status")));
@@ -6777,10 +6893,35 @@ try {
   ok("event schedule publication updates web and admin readiness", validSchedulePublish.status === 200 && validSchedulePublish.data.readiness?.ready === true && schedulePublishedPublicBootstrap.data.schedule?.length === 2 && schedulePublishedPublicBootstrap.data.schedule[0]?.time === "9:00 AM" && schedulePublishedAdminConfig.data.eventScheduleReadiness?.ready === true);
   ok("event schedule hold requires a reason and immediately clears public programming", invalidScheduleHold.status === 400 && validScheduleHold.status === 200 && validScheduleHold.data.publication?.heldBy && scheduleHeldPublicBootstrap.data.schedule?.length === 0 && scheduleHeldAdminConfig.data.eventScheduleReadiness?.publication?.holdReason === "Official program is being revised.");
 
+  const unauthenticatedGuidancePublish = await hit("POST", "/api/admin/visitor-guidance/publish", { publish: true, guidance: [] });
+  const invalidGuidancePublish = await hit("POST", "/api/admin/visitor-guidance/publish", {
+    publish: true,
+    guidance: [{ ...initialAdminConfig.data.bootstrap.guidance[0], sourceUrl: "http://example.com", audience: "staff" }],
+    sourceUrl: "http://example.com",
+    sourceCheckedAt: new Date(Date.now() + 86_400_000).toISOString()
+  }, true);
+  const guidancePublishBody = {
+    publish: true,
+    guidance: initialAdminConfig.data.bootstrap.guidance,
+    sourceUrl: "https://www.texassandfest.org/faq",
+    sourceCheckedAt
+  };
+  const validGuidancePublish = await hit("POST", "/api/admin/visitor-guidance/publish", guidancePublishBody, true);
+  const guidancePublishedPublicBootstrap = await hit("GET", "/api/public/bootstrap");
+  const invalidGuidanceHold = await hit("POST", "/api/admin/visitor-guidance/publish", { publish: false, reason: "short" }, true);
+  const validGuidanceHold = await hit("POST", "/api/admin/visitor-guidance/publish", { publish: false, reason: "Official visitor policies are being reviewed." }, true);
+  const guidanceHeldPublicBootstrap = await hit("GET", "/api/public/bootstrap");
+  const republishedGuidance = await hit("POST", "/api/admin/visitor-guidance/publish", guidancePublishBody, true);
+  const guidanceRepublishedAdminConfig = await hit("GET", "/api/admin/config", null, true);
+  ok("visitor guidance publication requires staff authentication and governed records", unauthenticatedGuidancePublish.status === 401 && invalidGuidancePublish.status === 400 && invalidGuidancePublish.data.errors?.some(error => error.includes("HTTPS")));
+  ok("visitor guidance publication updates public and admin readiness", validGuidancePublish.status === 200 && validGuidancePublish.data.readiness?.ready === true && guidancePublishedPublicBootstrap.data.guidance?.length >= 6 && republishedGuidance.status === 200 && guidanceRepublishedAdminConfig.data.visitorGuidanceReadiness?.ready === true);
+  ok("visitor guidance hold requires a reason and immediately clears public answers", invalidGuidanceHold.status === 400 && validGuidanceHold.status === 200 && validGuidanceHold.data.publication?.heldBy && guidanceHeldPublicBootstrap.data.guidance?.length === 0);
+
   const conciergeTicketApi = await hitRaw("POST", "/api/public/concierge", JSON.stringify({ question: "Where can I buy tickets?" }), { "content-type": "application/json" });
   const conciergeSponsorApi = await hit("POST", "/api/public/concierge", { question: "What sponsorship packages are open?" });
   const conciergeAccessibilityApi = await hit("POST", "/api/public/concierge", { question: "What accessibility guidance is available?" });
   const conciergeParkingApi = await hit("POST", "/api/public/concierge", { question: "Is parking information available?" });
+  const conciergePetApi = await hit("POST", "/api/public/concierge", { question: "Can I bring my pet?" });
   const conciergeUnsupportedApi = await hit("POST", "/api/public/concierge", { question: "Can I bring a telescope? private@example.com" });
   const conciergeInvalidApi = await hit("POST", "/api/public/concierge", { question: "x".repeat(281) });
   ok("public concierge API returns source-cited current ticket data", conciergeTicketApi.status === 200
@@ -6793,22 +6934,21 @@ try {
     && conciergeSponsorApi.data.topic === "sponsor"
     && conciergeSponsorApi.data.sources?.some(item => item.href === "#sponsors")
     && !/invoiceStatus|quickBooksItemId|stripePriceId/i.test(JSON.stringify(conciergeSponsorApi.data)));
-  ok("public concierge API cites approved accessibility locations", conciergeAccessibilityApi.status === 200
+  ok("public concierge API cites governed accessibility guidance", conciergeAccessibilityApi.status === 200
     && conciergeAccessibilityApi.data.topic === "accessibility"
     && conciergeAccessibilityApi.data.confidence === "high"
     && conciergeAccessibilityApi.data.escalated === false
-    && conciergeAccessibilityApi.data.answer?.includes("North Gate at marker 12.5")
-    && conciergeAccessibilityApi.data.answer?.includes("ADA parking")
-    && conciergeAccessibilityApi.data.sources?.some(item => item.href === "#operations")
+    && conciergeAccessibilityApi.data.answer?.includes("beach wheelchairs")
+    && conciergeAccessibilityApi.data.sources?.some(item => item.href === "https://www.texassandfest.org/accessibility")
     && publicConciergeResponseSafety(conciergeAccessibilityApi.data).ready);
-  ok("public concierge API cites approved parking and shuttle locations", conciergeParkingApi.status === 200
+  ok("public concierge API cites governed parking and shuttle guidance", conciergeParkingApi.status === 200
     && conciergeParkingApi.data.topic === "parking"
-    && conciergeParkingApi.data.confidence === "medium"
-    && conciergeParkingApi.data.escalated === true
-    && conciergeParkingApi.data.answer?.includes("North Gate at marker 12.5")
-    && conciergeParkingApi.data.answer?.includes("South Entrance at marker Access Road 1A")
-    && conciergeParkingApi.data.sources?.some(item => item.href === "#operations")
+    && conciergeParkingApi.data.confidence === "high"
+    && conciergeParkingApi.data.escalated === false
+    && conciergeParkingApi.data.answer?.includes("beach parking permit")
+    && conciergeParkingApi.data.sources?.some(item => item.href === "https://www.texassandfest.org/parking-shuttles")
     && publicConciergeResponseSafety(conciergeParkingApi.data).ready);
+  ok("public concierge API cites the governed pet policy", conciergePetApi.status === 200 && conciergePetApi.data.topic === "family" && conciergePetApi.data.answer?.includes("service-animals-only") && conciergePetApi.data.sources?.some(item => item.href === "https://www.texassandfest.org/petpolicy") && publicConciergeResponseSafety(conciergePetApi.data).ready);
   ok("public concierge API neither stores nor echoes unsupported questions", conciergeUnsupportedApi.status === 200
     && conciergeUnsupportedApi.data.escalated === true
     && !JSON.stringify(conciergeUnsupportedApi.data).includes("private@example.com"));
@@ -8884,6 +9024,7 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
   ok("Twilio webhook audit is aggregate-only", smsAuditApi.some(item => item.record?.action === "sms.delivery.webhook") && smsAuditApi.some(item => item.record?.action === "sms.preference.webhook") && !JSON.stringify(smsAuditApi).includes("+13615550188") && !JSON.stringify(smsAuditApi).includes("platform-twilio-auth-secret"));
   ok("event guide publish is audited", auditApi.data.audit?.some(item => item.record?.action === "content.event-guide.publish"));
   ok("event schedule publish and hold are audited", auditApi.data.audit?.some(item => item.record?.action === "content.event-schedule.publish") && auditApi.data.audit?.some(item => item.record?.action === "content.event-schedule.hold"));
+  ok("visitor guidance publish and hold are audited", auditApi.data.audit?.some(item => item.record?.action === "content.visitor-guidance.publish") && auditApi.data.audit?.some(item => item.record?.action === "content.visitor-guidance.hold"));
   ok("partner catalog publish and hold actions are audited", auditApi.data.audit?.some(item => item.record?.action === "sponsor-package.catalog.publish") && auditApi.data.audit?.some(item => item.record?.action === "vendor-offering.catalog.publish") && auditApi.data.audit?.some(item => item.record?.action === "vendor-offering.catalog.hold"));
   ok("launch task synchronization is aggregate audited", auditApi.data.audit?.some(item => item.record?.action === "deployment.tasks.sync" && item.record?.after?.active === failingDeploymentChecks.length));
   ok("automatic launch task audit identifies the system actor", auditApi.data.audit?.some(item => item.record?.action === "deployment.tasks.sync" && item.record?.actor?.type === "system" && item.record?.actor?.id === "deployment-readiness" && item.record?.metadata?.automated === true && item.record?.after?.created === failingDeploymentChecks.length));

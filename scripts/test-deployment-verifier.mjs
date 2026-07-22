@@ -102,16 +102,28 @@ const liveConditionsBody = {
     healthyPipelines: 8
   }
 };
+const publicGuidance = [{
+  id: "parking",
+  category: "Arrival",
+  question: "Where should I park?",
+  answer: "Review the current official parking and shuttle guidance before traveling.",
+  keywords: ["parking"],
+  sourceLabel: "Official Parking and Shuttles",
+  sourceUrl: "https://www.texassandfest.org/parking-shuttles",
+  sourceCheckedAt: "2026-07-17T12:40:00.000Z",
+  effectiveAt: "2026-06-01T00:00:00.000Z",
+  expiresAt: "2027-04-19T23:59:59.000Z"
+}];
 const routes = new Map([
   [config.publicUrl, () => textResponse(publicHtml)],
   [new URL("sw.js", config.publicUrl).toString(), () => textResponse(publicWorker)],
-  [new URL("data/app-bootstrap.json", config.publicUrl).toString(), () => jsonResponse({ guide: { id: "texas-sandfest-2027" } })],
+  [new URL("data/app-bootstrap.json", config.publicUrl).toString(), () => jsonResponse({ guide: { id: "texas-sandfest-2027" }, guidance: publicGuidance })],
   [new URL("assets/sandfest-media/media-manifest.json", config.publicUrl).toString(), () => jsonResponse({ assets: [] })],
   [new URL("/.well-known/apple-app-site-association", config.publicUrl).toString(), () => jsonResponse(publicAppleAssociation)],
   [config.adminUrl, () => textResponse(adminHtml)],
   [new URL("health", config.apiUrl).toString(), () => jsonResponse(healthBody)],
   [new URL("ready", config.apiUrl).toString(), () => jsonResponse(readyBody)],
-  [new URL("api/public/bootstrap", config.apiUrl).toString(), options => jsonResponse({ guide: { id: "texas-sandfest-2027" } }, options?.headers?.origin ? { "access-control-allow-origin": options.headers.origin } : {})],
+  [new URL("api/public/bootstrap", config.apiUrl).toString(), options => jsonResponse({ guide: { id: "texas-sandfest-2027" }, guidance: publicGuidance }, options?.headers?.origin ? { "access-control-allow-origin": options.headers.origin } : {})],
   [new URL("api/public/tickets", config.apiUrl).toString(), () => jsonResponse({ products: [{ availableForCheckout: true }] })],
   [new URL("api/public/sponsors", config.apiUrl).toString(), () => jsonResponse({ sponsorPackages: [{ id: "whale", name: "Whale", amount: 2500000, currency: "usd", publicLabel: "$25k+", active: true, requiresApproval: true, benefits: ["Main-stage recognition"] }] })],
   [new URL("api/public/vendors", config.apiUrl).toString(), () => jsonResponse({ vendorOfferings: [{ id: "food" }] })],

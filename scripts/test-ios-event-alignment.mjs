@@ -36,7 +36,10 @@ assert.match(canonical.guide.startDate, /^\d{4}-\d{2}-\d{2}$/);
 assert.match(canonical.guide.endDate, /^\d{4}-\d{2}-\d{2}$/);
 assert.ok(canonical.guide.timeZone, "The canonical guide must publish an event time zone.");
 assert.deepEqual(canonical.schedule, [], "The canonical seed must not expose detailed 2027 programming before publication.");
+assert.ok(canonical.guidance.length >= 6, "The canonical seed must include reviewed visitor guidance.");
+assert.ok(canonical.guidance.every(item => item.sourceUrl.startsWith("https://www.texassandfest.org/") && item.ownerTeam && item.escalationContact), "Canonical visitor guidance must preserve source and ownership governance.");
 assert.equal(appDataStore.includes("loaded.schedule.count < 10"), false, "The iOS app must not fill a governed public schedule with sample programming.");
+assert.match(appDataStore, /guidance: publicPayload\.guidance \?\? bundled\.guidance/, "The iOS app must preserve validated public guidance across refreshes.");
 assert.match(appDataStore, /runtime\?\.mode == "board_demo"/, "Sample iOS programming must require explicit board runtime metadata.");
 
 const timeline = await read("ios/TexasSandFest/LiveTimeline.swift");

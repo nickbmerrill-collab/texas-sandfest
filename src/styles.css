@@ -683,6 +683,7 @@ h3 {
 .admin-order-monitor,
 .admin-event-guide-panel,
 .admin-event-schedule-panel,
+.admin-visitor-guidance-panel,
 .admin-alert-panel,
 .admin-record-card,
 .admin-edit-card,
@@ -832,6 +833,109 @@ h3 {
   min-width: 0;
   padding: 0 14px;
 }
+
+.visitor-guidance-section {
+  border-bottom: 1px solid var(--line);
+  border-top: 1px solid var(--line);
+}
+
+.visitor-guidance-heading > span {
+  color: var(--gulf);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.visitor-guidance-tools {
+  align-items: end;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(240px, 1fr) minmax(180px, 280px);
+  margin: 22px 0 12px;
+}
+
+.visitor-guidance-tools label {
+  display: grid;
+  gap: 6px;
+}
+
+.visitor-guidance-tools label > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.visitor-guidance-tools input,
+.visitor-guidance-tools select {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--ink);
+  font: inherit;
+  min-height: 44px;
+  padding: 9px 12px;
+  width: 100%;
+}
+
+.visitor-guidance-list {
+  border-top: 1px solid var(--line);
+}
+
+.visitor-guidance-answer {
+  border-bottom: 1px solid var(--line);
+}
+
+.visitor-guidance-answer summary {
+  align-items: center;
+  color: var(--deep);
+  cursor: pointer;
+  display: flex;
+  font-size: 17px;
+  font-weight: 800;
+  gap: 18px;
+  justify-content: space-between;
+  list-style: none;
+  min-height: 62px;
+  padding: 12px 2px;
+}
+
+.visitor-guidance-answer summary::-webkit-details-marker { display: none; }
+
+.visitor-guidance-answer summary b {
+  color: var(--coral);
+  font-size: 24px;
+  font-weight: 500;
+}
+
+.visitor-guidance-answer[open] summary b { transform: rotate(45deg); }
+
+.visitor-guidance-answer > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  padding: 0 42px 20px 2px;
+}
+
+.visitor-guidance-answer p {
+  flex-basis: 100%;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.visitor-guidance-answer a,
+.visitor-guidance-answer > div > span {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.visitor-guidance-answer a {
+  align-items: center;
+  color: var(--gulf);
+  display: inline-flex;
+  min-height: 24px;
+}
+.visitor-guidance-answer > div > span { color: var(--muted); }
+.visitor-guidance-empty { color: var(--muted); padding: 22px 2px; }
 
 .section-heading {
   justify-content: space-between;
@@ -2080,7 +2184,8 @@ time {
 }
 
 .admin-event-guide-panel,
-.admin-event-schedule-panel {
+.admin-event-schedule-panel,
+.admin-visitor-guidance-panel {
   display: grid;
   gap: 14px;
   margin-top: 22px;
@@ -2421,6 +2526,71 @@ time {
   min-height: 42px;
   padding: 0;
   width: 44px;
+}
+
+.admin-visitor-guidance-heading { flex-wrap: wrap; }
+
+.admin-visitor-guidance-form,
+.admin-visitor-guidance-rows {
+  display: grid;
+  gap: 14px;
+}
+
+.admin-visitor-guidance-row {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 12px;
+  padding-top: 14px;
+}
+
+.admin-visitor-guidance-row label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.admin-visitor-guidance-row label > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.admin-visitor-guidance-row input,
+.admin-visitor-guidance-row select,
+.admin-visitor-guidance-row textarea {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--ink);
+  font: inherit;
+  min-height: 42px;
+  min-width: 0;
+  padding: 9px 11px;
+  width: 100%;
+}
+
+.admin-visitor-guidance-primary {
+  grid-template-columns: minmax(260px, 1fr) minmax(160px, 0.35fr) auto;
+}
+
+.admin-visitor-guidance-remove {
+  color: var(--coral);
+  font-size: 24px;
+  height: 42px;
+  min-height: 42px;
+  padding: 0;
+  width: 44px;
+}
+
+.admin-visitor-guidance-publication,
+.admin-visitor-guidance-actions { margin-top: 2px; }
+
+@media (max-width: 760px) {
+  .visitor-guidance-heading { align-items: flex-start; flex-direction: column; }
+  .visitor-guidance-tools { grid-template-columns: 1fr; }
+  .admin-visitor-guidance-primary { grid-template-columns: 1fr; }
+  .admin-visitor-guidance-remove { justify-self: start; }
 }
 
 .admin-alert-panel {
@@ -3329,7 +3499,7 @@ time {
   text-underline-offset: 4px;
 }
 
-@media (max-width: 1400px) {
+@media (max-width: 1440px) {
   .topbar .primary-nav {
     display: none;
   }

@@ -318,7 +318,8 @@ npm run ios:seed
 Do not replace `data/processed/app-bootstrap.json` with the public API response;
 the internal document also carries staff-only collections required by the seed
 builder. At runtime, `AppDataStore` fetches `GET /api/public/bootstrap`, validates
-the event and public collections, and atomically caches only that projection.
+the event and public collections, including current source-reviewed visitor
+guidance, and atomically caches only that projection.
 The cache is scoped to the exact API origin and event ID. A failed refresh keeps
 the last valid cache or bundled seed available and marks the app offline.
 

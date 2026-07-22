@@ -8,6 +8,7 @@ const targetPath = path.join(ROOT, "ios", "TexasSandFest", "Resources", "sandfes
 
 const requiredKeys = [
   "guide",
+  "guidance",
   "alert",
   "schedule",
   "zones",

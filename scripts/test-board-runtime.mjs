@@ -315,6 +315,8 @@ try {
     && deployment.data.deployment?.checks?.cameraIngest?.message.includes("synthetic metric playback")
     && deployment.data.deployment?.checks?.cameraIngest?.message.includes("webcam edge agents remain post-board"));
   check("board bootstrap preserves the public privacy boundary", publicAppBootstrapSafety(bootstrap.data, { allowBoardRuntime: true }).ready
+    && bootstrap.data.guidance?.length >= 6
+    && bootstrap.data.guidance?.every(item => !Object.hasOwn(item, "ownerTeam") && !Object.hasOwn(item, "escalationContact"))
     && bootstrap.data.schedule?.every(item => item.category !== "Staff")
     && bootstrap.data.zones?.every(item => !Object.hasOwn(item, "status"))
     && !/(sponsors|vendors|coverage|financeSignals|ticketOptions)/.test(JSON.stringify(bootstrap.data)));

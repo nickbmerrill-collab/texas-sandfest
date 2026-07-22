@@ -118,7 +118,7 @@ async function preflight(sessionFile) {
   } catch {
     throw new Error(`Board preflight returned invalid JSON:\n${result.stderr}\n${result.stdout}`);
   }
-  if (result.code !== 0 || !report.ok || report.passed !== 10 || report.total !== 10) {
+  if (result.code !== 0 || !report.ok || report.passed !== 11 || report.total !== 11) {
     throw new Error(`Board preflight failed ${report.passed}/${report.total}:\n${JSON.stringify(report, null, 2)}`);
   }
   return report;
@@ -246,7 +246,7 @@ try {
 
   const initial = await waitFor(async () => {
     const session = await readBoardDemoSession(sessionFile);
-    if (session?.status !== "ready" || session?.lastPreflight?.passed !== 10) return null;
+    if (session?.status !== "ready" || session?.lastPreflight?.passed !== 11) return null;
     rememberServicePids(session);
     return session;
   }, 90_000, "Initial board demo readiness");
@@ -472,7 +472,7 @@ try {
   }
   const resetSession = await waitFor(async () => {
     const session = await readBoardDemoSession(sessionFile);
-    if (session?.status !== "ready" || session?.resetCount !== 1 || !session?.lastResetAt || session?.lastPreflight?.passed !== 10) return null;
+    if (session?.status !== "ready" || session?.resetCount !== 1 || !session?.lastResetAt || session?.lastPreflight?.passed !== 11) return null;
     const servicesReplaced = Object.entries(session.services || {}).every(([name, service]) => {
       const pid = Number(service.pid);
       return pid > 0 && pid !== preResetPids[name] && processAlive(pid);
@@ -540,7 +540,7 @@ try {
   ], supervisorEnvironment);
   const restarted = await waitFor(async () => {
     const session = await readBoardDemoSession(sessionFile);
-    if (session?.status !== "ready" || session?.lastPreflight?.passed !== 10) return null;
+    if (session?.status !== "ready" || session?.lastPreflight?.passed !== 11) return null;
     rememberServicePids(session);
     return session;
   }, 90_000, "Board supervisor restart");

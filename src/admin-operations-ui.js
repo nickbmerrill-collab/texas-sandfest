@@ -3,6 +3,10 @@ import {
   EVENT_SCHEDULE_CATEGORIES,
   EVENT_SCHEDULE_DAYS
 } from "../lib/event-schedule.mjs";
+import {
+  VISITOR_GUIDANCE_CATEGORIES,
+  VISITOR_GUIDANCE_RISK_LEVELS
+} from "../lib/visitor-guidance.mjs";
 import { REQUIRED_TICKET_POLICY_NOTICES } from "../lib/ticket-policy-schema.mjs";
 
 const PENDING_NOTICE_STATUSES = new Set(["pending", "draft_ready", "approved", "queued", "sending"]);
@@ -361,6 +365,154 @@ export function eventScheduleEditorMarkup() {
       </div>
     </form>
   </div>`;
+}
+
+export function visitorGuidanceEditorMarkup() {
+  return `<div class="admin-visitor-guidance-panel">
+    <div class="editor-heading admin-edit-title admin-visitor-guidance-heading">
+      <div>
+        <p class="eyebrow">Plan your visit</p>
+        <h2>Visitor guidance</h2>
+        <p id="admin-visitor-guidance-readiness" class="admin-event-guide-status">Not loaded</p>
+      </div>
+      <button id="admin-add-visitor-guidance" class="button secondary" data-requires-permission="content:write" type="button">Add answer</button>
+    </div>
+    <form id="admin-visitor-guidance-form" class="admin-visitor-guidance-form" data-requires-permission="content:write">
+      <div id="admin-visitor-guidance-rows" class="admin-visitor-guidance-rows"></div>
+      <div class="admin-form-grid admin-visitor-guidance-publication">
+        <label><span>Official source</span><input name="sourceUrl" type="url" inputmode="url" required /></label>
+        <label><span>Source checked</span><input name="sourceCheckedAt" type="datetime-local" required /></label>
+      </div>
+      <div class="admin-form-grid admin-visitor-guidance-actions">
+        <label><span>Hold reason</span><input name="holdReason" maxlength="500" placeholder="Required only when holding publication" /></label>
+        <button id="admin-hold-visitor-guidance" class="button secondary" type="button">Hold guidance</button>
+        <button id="admin-publish-visitor-guidance" class="button primary" type="submit">Publish guidance</button>
+      </div>
+    </form>
+  </div>`;
+}
+
+function visitorGuidanceOptions(values, selected) {
+  return values.map(value => `<option value="${escapeAttr(value)}" ${value === selected ? "selected" : ""}>${escapeHtml(value)}</option>`).join("");
+}
+
+function visitorGuidanceRow(item = {}, isoToLocalDateTime = value => value || "") {
+  return `<article class="admin-visitor-guidance-row">
+    <div class="admin-form-grid admin-visitor-guidance-primary">
+      <label><span>Question</span><input name="question" maxlength="180" value="${escapeAttr(item.question ?? "")}" required /></label>
+      <label><span>Category</span><select name="category" required>${visitorGuidanceOptions(VISITOR_GUIDANCE_CATEGORIES, item.category || VISITOR_GUIDANCE_CATEGORIES[0])}</select></label>
+      <button class="button secondary admin-visitor-guidance-remove" data-remove-visitor-guidance type="button" aria-label="Remove visitor answer">&times;</button>
+    </div>
+    <label><span>Public answer</span><textarea name="answer" rows="3" maxlength="1200" required>${escapeHtml(item.answer ?? "")}</textarea></label>
+    <label><span>Matching words</span><input name="keywords" maxlength="600" value="${escapeAttr((item.keywords ?? []).join(", "))}" required /></label>
+    <div class="admin-form-grid">
+      <label><span>Source label</span><input name="sourceLabel" maxlength="120" value="${escapeAttr(item.sourceLabel ?? "")}" required /></label>
+      <label><span>Source URL</span><input name="itemSourceUrl" type="url" inputmode="url" value="${escapeAttr(item.sourceUrl ?? "")}" required /></label>
+      <label><span>Reviewed</span><input name="itemSourceCheckedAt" type="datetime-local" value="${escapeAttr(isoToLocalDateTime(item.sourceCheckedAt))}" required /></label>
+      <label><span>Effective</span><input name="effectiveAt" type="datetime-local" value="${escapeAttr(isoToLocalDateTime(item.effectiveAt))}" required /></label>
+      <label><span>Expires</span><input name="expiresAt" type="datetime-local" value="${escapeAttr(isoToLocalDateTime(item.expiresAt))}" required /></label>
+      <label><span>Risk</span><select name="riskLevel" required>${visitorGuidanceOptions(VISITOR_GUIDANCE_RISK_LEVELS, item.riskLevel || "medium")}</select></label>
+      <label><span>Owner team</span><input name="ownerTeam" maxlength="80" value="${escapeAttr(item.ownerTeam ?? "guest-services")}" required /></label>
+      <label><span>Escalation email</span><input name="escalationContact" type="email" maxlength="254" value="${escapeAttr(item.escalationContact ?? "info@texassandfest.org")}" required /></label>
+      <label><span>Status</span><select name="status"><option value="active" ${item.status === "active" ? "selected" : ""}>Active</option><option value="draft" ${item.status !== "active" ? "selected" : ""}>Draft</option></select></label>
+    </div>
+    <input name="guidanceId" type="hidden" value="${escapeAttr(item.id ?? "")}" />
+  </article>`;
+}
+
+export function renderVisitorGuidance(bootstrap, readiness, isoToLocalDateTime) {
+  const form = document.querySelector("#admin-visitor-guidance-form");
+  const rows = document.querySelector("#admin-visitor-guidance-rows");
+  if (!form || !rows) return;
+  rows.innerHTML = (Array.isArray(bootstrap?.guidance) ? bootstrap.guidance : []).map(item => visitorGuidanceRow(item, isoToLocalDateTime)).join("");
+  form.elements.sourceUrl.value = bootstrap?.guidancePublication?.sourceUrl ?? "https://www.texassandfest.org/faq";
+  form.elements.sourceCheckedAt.value = isoToLocalDateTime(bootstrap?.guidancePublication?.sourceCheckedAt);
+  form.elements.holdReason.value = "";
+  const status = document.querySelector("#admin-visitor-guidance-readiness");
+  if (status) {
+    const hold = readiness?.publication?.holdReason ? ` Hold: ${readiness.publication.holdReason}` : "";
+    status.textContent = `${readiness?.reason ?? "Visitor guidance readiness has not been checked."}${hold}`;
+    status.dataset.state = readiness?.ready ? "ok" : "warning";
+  }
+}
+
+function serializeVisitorGuidance(form, localDateTimeToIso) {
+  const values = new FormData(form);
+  const fields = ["guidanceId", "category", "question", "answer", "keywords", "sourceLabel", "itemSourceUrl", "itemSourceCheckedAt", "effectiveAt", "expiresAt", "riskLevel", "ownerTeam", "escalationContact", "status"];
+  return values.getAll("question").map((_, index) => {
+    const row = Object.fromEntries(fields.map(field => [field, values.getAll(field)[index]]));
+    const generatedId = String(row.question || "answer")
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 100) || `answer-${index + 1}`;
+    return {
+      id: row.guidanceId || generatedId,
+      category: row.category,
+      question: row.question,
+      answer: row.answer,
+      keywords: row.keywords.split(",").map(value => value.trim()).filter(Boolean),
+      sourceLabel: row.sourceLabel,
+      sourceUrl: row.itemSourceUrl,
+      sourceCheckedAt: localDateTimeToIso(row.itemSourceCheckedAt),
+      effectiveAt: localDateTimeToIso(row.effectiveAt),
+      expiresAt: localDateTimeToIso(row.expiresAt),
+      audience: "public",
+      riskLevel: row.riskLevel,
+      ownerTeam: row.ownerTeam,
+      escalationContact: row.escalationContact,
+      status: row.status
+    };
+  });
+}
+
+export function bindVisitorGuidanceEditor({ adminFetch, localDateTimeToIso, isoToLocalDateTime, refresh, setAdminStatus }) {
+  const form = document.querySelector("#admin-visitor-guidance-form");
+  if (!form) return;
+  const rows = document.querySelector("#admin-visitor-guidance-rows");
+  rows.addEventListener("click", event => event.target.closest("[data-remove-visitor-guidance]")?.closest(".admin-visitor-guidance-row")?.remove());
+  document.querySelector("#admin-add-visitor-guidance")?.addEventListener("click", () => {
+    const now = new Date();
+    const expires = new Date(now.getTime() + 90 * 86_400_000);
+    rows.insertAdjacentHTML("beforeend", visitorGuidanceRow({
+      category: "At the festival",
+      riskLevel: "medium",
+      ownerTeam: "guest-services",
+      escalationContact: "info@texassandfest.org",
+      status: "draft",
+      effectiveAt: now.toISOString(),
+      expiresAt: expires.toISOString(),
+      sourceCheckedAt: now.toISOString()
+    }, isoToLocalDateTime));
+  });
+  const save = async (publish, button) => {
+    button.disabled = true;
+    try {
+      const data = await adminFetch("/api/admin/visitor-guidance/publish", {
+        method: "POST",
+        body: JSON.stringify(publish ? {
+          publish: true,
+          guidance: serializeVisitorGuidance(form, localDateTimeToIso),
+          sourceUrl: form.elements.sourceUrl.value,
+          sourceCheckedAt: localDateTimeToIso(form.elements.sourceCheckedAt.value)
+        } : { publish: false, reason: form.elements.holdReason.value })
+      });
+      await refresh();
+      setAdminStatus(publish
+        ? `Published ${data.readiness.current.length} current visitor answer${data.readiness.current.length === 1 ? "" : "s"}.`
+        : "Visitor guidance is held and no FAQ answers are public.", publish ? "ok" : "warning");
+    } catch (error) {
+      setAdminStatus(error.message, "error");
+    } finally {
+      button.disabled = false;
+    }
+  };
+  form.addEventListener("submit", event => {
+    event.preventDefault();
+    save(true, document.querySelector("#admin-publish-visitor-guidance"));
+  });
+  document.querySelector("#admin-hold-visitor-guidance")?.addEventListener("click", event => save(false, event.currentTarget));
 }
 
 function eventScheduleTimeInput(value) {

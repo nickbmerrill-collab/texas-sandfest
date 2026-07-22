@@ -272,10 +272,10 @@ await inspect(
     if (!webBase || !apiBase) throw new Error("The board session is missing its web or API endpoint.");
     visitorUrl = exactBoardLink(session.links?.visitor, { webBase, apiBase, kind: "Visitor" });
     operationsUrl = exactBoardLink(session.links?.operations, { webBase, apiBase, kind: "Operations" });
-    if (session.lastPreflight?.passed !== 10 || session.lastPreflight?.total !== 10) {
-      throw new Error("The supervisor has not recorded a complete 10-of-10 service and source preflight.");
+    if (session.lastPreflight?.passed !== 11 || session.lastPreflight?.total !== 11) {
+      throw new Error("The supervisor has not recorded a complete 11-of-11 service and source preflight.");
     }
-    return `Ready supervisor ${session.pid}; ${sourceAssessment.detail} Links match the 10-of-10 session.`;
+    return `Ready supervisor ${session.pid}; ${sourceAssessment.detail} Links match the 11-of-11 session.`;
   }
 );
 
@@ -350,6 +350,10 @@ if (visitorUrl && operationsUrl) {
         guestServicesStatusSubmitLabel: document.querySelector('#guest-services-status-form button[type="submit"]')?.textContent?.trim(),
         guestServicesEmergencyText: document.querySelector(".guest-services-emergency")?.textContent?.replace(/\s+/g, " ").trim(),
         guestServicesPrivateEmpty: document.querySelector("#guest-services-status-result")?.textContent?.replace(/\s+/g, " ").trim(),
+        visitorGuidanceAnswers: document.querySelectorAll("#plan-your-visit .visitor-guidance-answer").length,
+        visitorGuidanceSources: document.querySelectorAll('#plan-your-visit .visitor-guidance-answer a[href^="https://www.texassandfest.org/"]').length,
+        visitorGuidanceReviewed: [...document.querySelectorAll("#plan-your-visit .visitor-guidance-answer")]
+          .every(item => item.textContent?.includes("Reviewed")),
         checkoutProducts: document.querySelectorAll('#ticket-product-grid [data-ticket-action="increase"]').length,
         checkoutLabel: document.querySelector("#ticketing-status-pill")?.textContent?.trim(),
         checkoutButton: document.querySelector("#checkout-btn")?.textContent?.trim(),
@@ -419,10 +423,10 @@ if (visitorUrl && operationsUrl) {
     await inspect("public_intake", "Vendor and sponsor intake", "Inspect the public catalog API and signup form controls.", async () => {
       const item = observations.visitor;
       const expectedSponsorPackages = ["flounder", "trout", "tarpon", "sailfish", "marlin", "shark", "vip-tent-sponsor", "whale", "giant-squid", "megalodon", "the-kraken"];
-      if (item?.sponsorTiers !== 11 || item?.sponsorPackageIds?.join(",") !== expectedSponsorPackages.join(",") || item?.sponsorAmounts?.marlin !== "$15,000 sponsorship" || item?.sponsorAmounts?.whale !== "$50,000 sponsorship" || item?.sponsorAmounts?.["the-kraken"] !== "$250,000 sponsorship" || item?.vendorOfferings < 1 || item?.vendorApplicationAction !== "Apply as a vendor" || !item?.sponsorPresetVisible || !item?.vendorPresetVisible || item?.sponsorConsentChecked || item?.vendorConsentChecked || !item?.vendorSubmitEnabled || !item?.sponsorSubmitEnabled || item?.checkoutProducts < 4 || item?.checkoutLabel !== "Local payment sandbox" || item?.checkoutButton !== "Open demo checkout" || !item?.checkoutPolicyVisible || item?.checkoutPolicySummary !== "Review demonstration policies" || item?.checkoutPolicyNotices !== 4 || item?.checkoutPolicyAccepted) {
+      if (item?.sponsorTiers !== 11 || item?.sponsorPackageIds?.join(",") !== expectedSponsorPackages.join(",") || item?.sponsorAmounts?.marlin !== "$15,000 sponsorship" || item?.sponsorAmounts?.whale !== "$50,000 sponsorship" || item?.sponsorAmounts?.["the-kraken"] !== "$250,000 sponsorship" || item?.vendorOfferings < 1 || item?.vendorApplicationAction !== "Apply as a vendor" || !item?.sponsorPresetVisible || !item?.vendorPresetVisible || item?.sponsorConsentChecked || item?.vendorConsentChecked || !item?.vendorSubmitEnabled || !item?.sponsorSubmitEnabled || item?.checkoutProducts < 4 || item?.checkoutLabel !== "Local payment sandbox" || item?.checkoutButton !== "Open demo checkout" || !item?.checkoutPolicyVisible || item?.checkoutPolicySummary !== "Review demonstration policies" || item?.checkoutPolicyNotices !== 4 || item?.checkoutPolicyAccepted || item?.visitorGuidanceAnswers < 6 || item?.visitorGuidanceSources !== item?.visitorGuidanceAnswers || !item?.visitorGuidanceReviewed) {
         throw new Error("The public signup catalogs or submit actions are incomplete.");
       }
-      return `${item.sponsorTiers} sponsor packages, ${item.vendorOfferings} category-compatible vendor offering${item.vendorOfferings === 1 ? "" : "s"}, consent-safe board presets, and ${item.checkoutProducts} policy-gated local-checkout ticket products are actionable.`;
+      return `${item.sponsorTiers} sponsor packages, ${item.vendorOfferings} category-compatible vendor offering${item.vendorOfferings === 1 ? "" : "s"}, consent-safe board presets, ${item.checkoutProducts} policy-gated local-checkout ticket products, and ${item.visitorGuidanceAnswers} source-reviewed visitor answers are actionable.`;
     });
     await inspect("sponsor_brand", "Sponsor branding", "Inspect the approved board sponsor asset and showcase projection.", async () => {
       const item = observations.visitor;
