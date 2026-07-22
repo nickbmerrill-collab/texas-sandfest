@@ -292,6 +292,7 @@ async function sponsorJourneyProofRehearsal(sessionFile) {
     || report.review?.profileStatus !== "approved"
     || report.review?.assetStatus !== "approved"
     || report.showcase?.sponsorCount !== 2
+    || report.showcase?.placeholderDestinationSuppressed !== true
     || report.showcase?.logoBytes < 1
     || !/^[a-f0-9]{64}$/i.test(String(report.showcase?.logoChecksumSha256 || ""))
     || report.audit?.records < 4

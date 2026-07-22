@@ -380,19 +380,18 @@ async function reviewSponsor(page, apiBase, application, branding) {
 async function proveShowcase(page, apiBase, visitorUrl, branding) {
   const payload = await getJson(apiBase, "/api/public/sponsors");
   const sponsor = payload.sponsors?.find(item => item.displayName === TARGET_PROSPECT.organizationName);
-  const publicWebsite = new URL(branding.website).toString();
   if (
     payload.sponsors?.length !== BASELINE.featuredSponsors + 1
     || sponsor?.packageName !== PACKAGE_NAME
     || sponsor?.tagline !== branding.tagline
-    || sponsor?.website !== publicWebsite
+    || sponsor?.website !== null
     || !sponsor?.logo?.path?.includes(branding.assetId)
     || Object.hasOwn(sponsor || {}, "applicationId")
   ) {
     throw new Error(`Approved sponsor branding did not publish through the privacy-safe showcase contract: ${JSON.stringify({
       sponsorCount: payload.sponsors?.length,
       sponsor,
-      expectedWebsite: publicWebsite,
+      expectedWebsite: null,
       expectedAssetId: branding.assetId
     })}.`);
   }
@@ -419,7 +418,8 @@ async function proveShowcase(page, apiBase, visitorUrl, branding) {
   await expect(card).toHaveCount(1);
   await expect(card).toContainText(`${PACKAGE_NAME} partner`);
   await expect(card).toContainText(branding.tagline);
-  await expect(card).toHaveAttribute("href", publicWebsite);
+  await expect(card).not.toContainText("Visit partner");
+  await expect(card).not.toHaveAttribute("href", /.+/);
   const image = card.locator("img");
   await expect(image).toHaveAttribute("src", new RegExp(`/api/public/sponsor-showcase/assets/${branding.assetId}$`));
   await expect.poll(() => image.evaluate(element => element.complete && element.naturalWidth > 0)).toBe(true);
@@ -428,6 +428,7 @@ async function proveShowcase(page, apiBase, visitorUrl, branding) {
     sponsorCount: payload.sponsors.length,
     displayName: sponsor.displayName,
     packageName: sponsor.packageName,
+    placeholderDestinationSuppressed: sponsor.website === null,
     logoBytes: publicLogo.length,
     logoChecksumSha256: publicChecksumSha256
   };
