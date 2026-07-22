@@ -168,6 +168,49 @@ async function signupProofRehearsal(sessionFile) {
   return report;
 }
 
+async function guestServicesProofRehearsal(sessionFile) {
+  const result = await run(
+    process.execPath,
+    ["scripts/prove-board-guest-services.mjs", "--json"],
+    commandEnvironment(sessionFile),
+    180_000
+  );
+  let report = null;
+  try {
+    report = JSON.parse(result.stdout);
+  } catch {
+    throw new Error(`Board Guest Services proof returned invalid JSON:\n${result.stderr}\n${result.stdout}`);
+  }
+  if (
+    result.code !== 0
+    || report.ok !== true
+    || report.request?.category !== "accessibility"
+    || report.request?.priority !== "high"
+    || report.request?.assignedTeam !== "guest-services"
+    || report.request?.replayed !== true
+    || report.request?.invalidCapabilityDenied !== true
+    || report.request?.privateAccessIssued !== true
+    || report.triage?.status !== "in_progress"
+    || report.triage?.publicUpdates !== 2
+    || report.triage?.internalUpdates !== 1
+    || report.resolution?.status !== "resolved"
+    || report.resolution?.resolved !== true
+    || report.resolution?.publicUpdates !== 3
+    || report.resolution?.internalUpdates !== 2
+    || report.dashboard?.total !== 4
+    || report.dashboard?.active !== 2
+    || report.dashboard?.resolved !== 2
+    || report.audit?.records !== 2
+    || report.reset?.total !== 3
+    || report.reset?.active !== 2
+    || report.reset?.resolved !== 1
+    || report.reset?.preflight !== `${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}/${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}`
+  ) {
+    throw new Error(`Board Guest Services proof failed:\n${JSON.stringify(report, null, 2)}`);
+  }
+  return report;
+}
+
 async function vendorJourneyProofRehearsal(sessionFile) {
   const result = await run(
     process.execPath,
@@ -743,6 +786,11 @@ try {
   rememberServicePids(signupProofSession);
   console.log(`  ok public signup proof creates ${signupProof.submissions.length} applications, renders ${signupProof.operations.applicationCount} in Operations, and restores the ${signupProof.reset.applicationCount}-application baseline`);
 
+  const guestServicesProof = await guestServicesProofRehearsal(sessionFile);
+  const guestServicesProofSession = await readBoardDemoSession(sessionFile);
+  rememberServicePids(guestServicesProofSession);
+  console.log(`  ok Guest Services journey denies invalid access, publishes ${guestServicesProof.resolution.publicUpdates} visitor updates, withholds ${guestServicesProof.resolution.internalUpdates} internal notes, records ${guestServicesProof.audit.records} audits, and restores ${guestServicesProof.reset.preflight} readiness`);
+
   const vendorJourneyProof = await vendorJourneyProofRehearsal(sessionFile);
   const vendorJourneyProofSession = await readBoardDemoSession(sessionFile);
   rememberServicePids(vendorJourneyProofSession);
@@ -820,7 +868,7 @@ try {
   const lingering = [...observedPids].filter(processAlive);
   if (lingering.length) throw new Error(`Board child processes remained alive after shutdown: ${lingering.join(", ")}`);
   console.log(`  ok second stop shuts down every process observed across both supervisor lifecycles`);
-  console.log("\nBoard demo supervisor: 24/24 checks passed.\n");
+  console.log("\nBoard demo supervisor: 25/25 checks passed.\n");
 } catch (error) {
   console.error(`\nBoard demo supervisor test failed: ${error.message}`);
   process.exitCode = 1;
