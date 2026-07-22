@@ -9430,6 +9430,27 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
     && !serializedSponsorBrandAssetAuditApi.includes("storageKey")
     && !serializedSponsorBrandAssetAuditApi.includes("checksumSha256")
     && !serializedSponsorBrandAssetAuditApi.includes("platform-brand-logo.png"));
+  const vendorAuditTargetIds = new Set([
+    partnerIntake.data.application?.id,
+    vendorAgreementApi?.id,
+    vendorAssignmentApi.data.assignment?.id
+  ]);
+  const vendorLifecycleAuditApi = (auditApi.data.audit || []).filter(item => vendorAuditTargetIds.has(item.record?.target?.id));
+  const serializedVendorLifecycleAuditApi = JSON.stringify(vendorLifecycleAuditApi);
+  ok("vendor lifecycle decisions are audited", vendorLifecycleAuditApi.some(item => item.record?.action === "partner.application.update")
+    && vendorLifecycleAuditApi.some(item => item.record?.action === "partner.vendor_profile.changes_requested")
+    && vendorLifecycleAuditApi.some(item => item.record?.action === "partner.vendor_profile.approved")
+    && vendorLifecycleAuditApi.some(item => item.record?.action === "partner.vendor_requirement.changes_requested")
+    && vendorLifecycleAuditApi.some(item => item.record?.action === "partner.vendor_requirement.approved")
+    && vendorLifecycleAuditApi.some(item => item.record?.action === "partner.vendor_assignment.update"));
+  ok("vendor lifecycle audit omits private contact, notes, and storage metadata", !serializedVendorLifecycleAuditApi.includes(apiIntakeBody.contactEmail)
+    && !serializedVendorLifecycleAuditApi.includes(apiVendorProfileInput.emergencyContactPhone)
+    && !serializedVendorLifecycleAuditApi.includes(apiVendorProfileInput.operationalNotes)
+    && !serializedVendorLifecycleAuditApi.includes("Clarify trailer placement.")
+    && !serializedVendorLifecycleAuditApi.includes("Add the signer title.")
+    && !serializedVendorLifecycleAuditApi.includes("Check in with the artisan-row captain.")
+    && !serializedVendorLifecycleAuditApi.includes("storageKey")
+    && !serializedVendorLifecycleAuditApi.includes("checksumSha256"));
   ok("operations export downloads are audited", auditApi.data.audit?.filter(item => item.record?.action === "operations.export.download").length >= 9);
   ok("new admin audit records use current event context", auditApi.data.audit?.filter(item => item.record?.createdAt?.startsWith(new Date().toISOString().slice(0, 10))).every(item => item.record?.eventId === DEFAULT_EVENT_ID));
 } finally {

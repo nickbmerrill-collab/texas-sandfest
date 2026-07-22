@@ -113,6 +113,23 @@ replace every service and restore the five-application baseline, even if a
 workflow assertion fails. Do not run this state-mutating proof during the live
 walkthrough; run it during rehearsal and wait for its final 12/12 reset result.
 
+To prove the complete vendor onboarding and readiness journey, run:
+
+```bash
+npm run board:prove:vendor
+```
+
+The proof submits a marketplace application through the visible public form,
+completes its operating profile, and uploads the five private compliance files.
+Operations deliberately requests one profile correction and one compliance
+correction; both notices must reach the loopback mailbox before the vendor
+resubmits. Staff approve the revised profile and complete packet, publish booth
+and load-in details, and the vendor confirms the assignment in the private
+portal. The rehearsal byte-verifies every active private document, confirms the
+vendor reaches ready status, checks privacy-minimized lifecycle audits, and
+restores the exact prepared vendor baseline at 12/12 readiness. No external
+message, payment, or provider call is made.
+
 To prove the targeted sponsor outreach and branding journey, run:
 
 ```bash

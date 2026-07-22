@@ -1874,6 +1874,28 @@ function adminPartnerApplicationView(application) {
   };
 }
 
+function adminPartnerApplicationAuditView(application) {
+  if (!application) return application;
+  return {
+    id: application.id,
+    eventId: application.eventId,
+    reference: application.reference,
+    type: application.type,
+    intakeMode: application.intakeMode,
+    status: application.status,
+    organizationName: application.organizationName,
+    category: application.category || null,
+    source: application.source || null,
+    packageId: application.packageId || null,
+    offeringId: application.offeringId || null,
+    expectedAmountCents: application.expectedAmountCents || 0,
+    consentToContact: application.consentToContact === true,
+    submittedAt: application.submittedAt || null,
+    createdAt: application.createdAt || null,
+    updatedAt: application.updatedAt || null
+  };
+}
+
 function adminPartnerFollowupView(followup) {
   if (!followup) return followup;
   const { deliveryClaimId, deliveryIdempotencyKey, ...deliverySafe } = followup;
@@ -1924,6 +1946,69 @@ function adminPartnerBrandAssetAuditView(asset) {
     createdBy: asset.createdBy || null,
     createdAt: asset.createdAt || null,
     updatedAt: asset.updatedAt || null
+  };
+}
+
+function adminVendorProfileAuditView(profile) {
+  if (!profile) return profile;
+  return {
+    id: profile.id,
+    applicationId: profile.applicationId,
+    status: profile.status,
+    revision: profile.revision,
+    powerNeed: profile.powerNeed,
+    waterRequired: profile.waterRequired === true,
+    cookingMethod: profile.cookingMethod,
+    vehicleLengthFeet: profile.vehicleLengthFeet,
+    reviewNoteLength: String(profile.reviewNotes || "").length,
+    submittedAt: profile.submittedAt || null,
+    approvedAt: profile.approvedAt || null,
+    approvedBy: profile.approvedBy || null,
+    createdAt: profile.createdAt || null,
+    updatedAt: profile.updatedAt || null
+  };
+}
+
+function adminVendorRequirementAuditView(requirement) {
+  if (!requirement) return requirement;
+  return {
+    id: requirement.id,
+    applicationId: requirement.applicationId,
+    code: requirement.code,
+    status: requirement.status,
+    required: requirement.required !== false,
+    currentDocumentId: requirement.currentDocumentId || null,
+    reviewNoteLength: String(requirement.reviewNotes || "").length,
+    dueAt: requirement.dueAt || null,
+    expiresAt: requirement.expiresAt || null,
+    reviewedAt: requirement.reviewedAt || null,
+    reviewedBy: requirement.reviewedBy || null,
+    createdAt: requirement.createdAt || null,
+    updatedAt: requirement.updatedAt || null
+  };
+}
+
+function adminVendorAssignmentAuditView(assignment) {
+  if (!assignment) return assignment;
+  return {
+    id: assignment.id,
+    applicationId: assignment.applicationId,
+    status: assignment.status,
+    scheduleVersion: assignment.scheduleVersion,
+    boothNumber: assignment.boothNumber,
+    zone: assignment.zone,
+    accessGate: assignment.accessGate,
+    loadInStart: assignment.loadInStart,
+    loadInEnd: assignment.loadInEnd,
+    loadOutStart: assignment.loadOutStart,
+    loadOutEnd: assignment.loadOutEnd,
+    parkingPasses: assignment.parkingPasses,
+    staffWristbands: assignment.staffWristbands,
+    instructionsLength: String(assignment.instructions || "").length,
+    partnerConfirmedAt: assignment.partnerConfirmedAt || null,
+    updatedBy: assignment.updatedBy || null,
+    createdAt: assignment.createdAt || null,
+    updatedAt: assignment.updatedAt || null
   };
 }
 
@@ -8781,8 +8866,8 @@ async function handleRequest(request, response) {
         request,
         "partner.application.update",
         { type: "application", id: applicationId },
-        before ? adminPartnerApplicationView(before) : null,
-        adminPartnerApplicationView(result.application),
+        adminPartnerApplicationAuditView(before),
+        adminPartnerApplicationAuditView(result.application),
         {
           decisionNoticeKind: result.followup?.kind ?? null,
           decisionNoticeStatus: result.followup?.status ?? null,
@@ -9040,7 +9125,13 @@ async function handleRequest(request, response) {
         sendJson(request, response, result?.error === "Vendor profile not found." ? 404 : 400, { error: result?.error || "Vendor profile review could not be saved." });
         return;
       }
-      await writeAuditRecord(request, `partner.vendor_profile.${result.profile.status}`, { type: "application", id: applicationId }, before, result.profile);
+      await writeAuditRecord(
+        request,
+        `partner.vendor_profile.${result.profile.status}`,
+        { type: "application", id: applicationId },
+        adminVendorProfileAuditView(before),
+        adminVendorProfileAuditView(result.profile)
+      );
       sendJson(request, response, 200, { profile: result.profile, followup: result.followup, notificationDrafted: result.followupChanged });
       return;
     }
@@ -9067,7 +9158,13 @@ async function handleRequest(request, response) {
         sendJson(request, response, result?.error === "Vendor requirement not found." ? 404 : 400, { error: result?.error || "Vendor requirement review could not be saved." });
         return;
       }
-      await writeAuditRecord(request, `partner.vendor_requirement.${result.requirement.status}`, { type: "vendor_requirement", id: requirementId }, before, result.requirement);
+      await writeAuditRecord(
+        request,
+        `partner.vendor_requirement.${result.requirement.status}`,
+        { type: "vendor_requirement", id: requirementId },
+        adminVendorRequirementAuditView(before),
+        adminVendorRequirementAuditView(result.requirement)
+      );
       sendJson(request, response, 200, { requirement: result.requirement, followup: result.followup, notificationDrafted: result.followupChanged });
       return;
     }
@@ -9112,7 +9209,13 @@ async function handleRequest(request, response) {
         sendJson(request, response, result?.error === "Application not found." ? 404 : 400, { error: result?.error || "Vendor assignment could not be saved." });
         return;
       }
-      await writeAuditRecord(request, "partner.vendor_assignment.update", { type: "vendor_assignment", id: result.assignment.id }, before, result.assignment);
+      await writeAuditRecord(
+        request,
+        "partner.vendor_assignment.update",
+        { type: "vendor_assignment", id: result.assignment.id },
+        adminVendorAssignmentAuditView(before),
+        adminVendorAssignmentAuditView(result.assignment)
+      );
       sendJson(request, response, 200, { assignment: result.assignment, followup: result.followup, notificationDrafted: result.followupChanged });
       return;
     }

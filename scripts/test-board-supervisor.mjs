@@ -168,6 +168,56 @@ async function signupProofRehearsal(sessionFile) {
   return report;
 }
 
+async function vendorJourneyProofRehearsal(sessionFile) {
+  const result = await run(
+    process.execPath,
+    ["scripts/prove-board-vendor-journey.mjs", "--json"],
+    commandEnvironment(sessionFile),
+    240_000
+  );
+  let report = null;
+  try {
+    report = JSON.parse(result.stdout);
+  } catch {
+    throw new Error(`Board vendor journey proof returned invalid JSON:\n${result.stderr}\n${result.stdout}`);
+  }
+  if (
+    result.code !== 0
+    || report.ok !== true
+    || report.application?.type !== "vendor"
+    || report.application?.intakeMode !== "application"
+    || report.application?.offeringId !== "marketplace-booth"
+    || report.profile?.status !== "approved"
+    || report.profile?.revision !== 2
+    || report.compliance?.required !== 5
+    || report.compliance?.approved !== 5
+    || report.compliance?.documents !== 5
+    || report.compliance?.verifiedBytes < 1
+    || report.compliance?.replacementDocument !== true
+    || report.assignment?.status !== "confirmed"
+    || report.assignment?.boothNumber !== "M-27"
+    || report.assignment?.partnerConfirmed !== true
+    || report.notices?.delivered !== 3
+    || report.readiness?.status !== "ready"
+    || report.readiness?.readyVendors !== 2
+    || report.readiness?.totalVendors !== 3
+    || report.audit?.records < 10
+    || report.reset?.applications !== 5
+    || report.reset?.vendorApplications !== 3
+    || report.reset?.vendorProfiles !== 2
+    || report.reset?.vendorRequirements !== 12
+    || report.reset?.vendorDocuments !== 0
+    || report.reset?.vendorAssignments !== 2
+    || report.reset?.ready !== 1
+    || report.reset?.blocked !== 1
+    || report.reset?.interests !== 1
+    || report.reset?.preflight !== `${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}/${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}`
+  ) {
+    throw new Error(`Board vendor journey proof failed:\n${JSON.stringify(report, null, 2)}`);
+  }
+  return report;
+}
+
 async function sponsorJourneyProofRehearsal(sessionFile) {
   const result = await run(
     process.execPath,
@@ -692,6 +742,11 @@ try {
   rememberServicePids(signupProofSession);
   console.log(`  ok public signup proof creates ${signupProof.submissions.length} applications, renders ${signupProof.operations.applicationCount} in Operations, and restores the ${signupProof.reset.applicationCount}-application baseline`);
 
+  const vendorJourneyProof = await vendorJourneyProofRehearsal(sessionFile);
+  const vendorJourneyProofSession = await readBoardDemoSession(sessionFile);
+  rememberServicePids(vendorJourneyProofSession);
+  console.log(`  ok vendor journey approves ${vendorJourneyProof.compliance.approved}/${vendorJourneyProof.compliance.required} private documents, delivers ${vendorJourneyProof.notices.delivered} notices, confirms ${vendorJourneyProof.assignment.boothNumber}, records ${vendorJourneyProof.audit.records} audits, and restores ${vendorJourneyProof.reset.preflight} readiness`);
+
   const sponsorJourneyProof = await sponsorJourneyProofRehearsal(sessionFile);
   const sponsorJourneyProofSession = await readBoardDemoSession(sessionFile);
   rememberServicePids(sponsorJourneyProofSession);
@@ -764,7 +819,7 @@ try {
   const lingering = [...observedPids].filter(processAlive);
   if (lingering.length) throw new Error(`Board child processes remained alive after shutdown: ${lingering.join(", ")}`);
   console.log(`  ok second stop shuts down every process observed across both supervisor lifecycles`);
-  console.log("\nBoard demo supervisor: 23/23 checks passed.\n");
+  console.log("\nBoard demo supervisor: 24/24 checks passed.\n");
 } catch (error) {
   console.error(`\nBoard demo supervisor test failed: ${error.message}`);
   process.exitCode = 1;
