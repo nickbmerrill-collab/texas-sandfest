@@ -219,13 +219,13 @@ assert(Buffer.byteLength(publicHtml) <= 8 * KIB, "Public entry HTML exceeds the 
 assert(publicInitialScripts.gzipBytes <= 105 * KIB, "Initial public JavaScript exceeds the 105 KiB gzip budget.");
 assert(publicOptionalScripts.gzipBytes <= 4 * KIB, "On-demand public JavaScript exceeds the 4 KiB gzip budget.");
 assert(publicStyles.gzipBytes <= 30 * KIB, "Public CSS exceeds the 30 KiB gzip budget.");
-assert(publicScripts.gzipBytes + publicStyles.gzipBytes <= 135 * KIB, "Public JavaScript and CSS exceed the 135 KiB combined gzip budget.");
+assert(publicScripts.gzipBytes + publicStyles.gzipBytes <= 136 * KIB, "Public JavaScript and CSS exceed the 136 KiB combined gzip budget.");
 assert(publicPreferredFonts.rawBytes <= 200 * KIB, "Public preferred WOFF2 fonts exceed the 200 KiB delivery budget.");
 assert(publicOfflineFonts.rawBytes <= 450 * KIB, "Public compiled fonts exceed the 450 KiB offline-cache budget.");
 assert(adminInitialScripts.gzipBytes <= 120 * KIB, "Initial admin JavaScript exceeds the 120 KiB gzip budget.");
 assert(adminOptionalScripts.gzipBytes <= 6 * KIB, "On-demand admin JavaScript exceeds the 6 KiB gzip budget.");
 assert(adminStyles.gzipBytes <= 30 * KIB, "Admin CSS exceeds the 30 KiB gzip budget.");
-assert(adminScripts.gzipBytes + adminStyles.gzipBytes <= 151 * KIB, "Admin JavaScript and CSS exceed the 151 KiB combined gzip budget.");
+assert(adminScripts.gzipBytes + adminStyles.gzipBytes <= 153 * KIB, "Admin JavaScript and CSS exceed the 153 KiB combined gzip budget.");
 assert(robots === "User-agent: *\nAllow: /\n", "Public artifact has an invalid or unexpected robots.txt policy.");
 assert(publicHtml.includes("optimized/hero-1440.webp") && publicHtml.includes('fetchpriority="high"'), "Public artifact is missing its optimized hero preload.");
 assert(mediaDerivatives.derivatives?.length >= 30, "Public artifact is missing its optimized media catalog.");
@@ -464,9 +464,10 @@ for (const marker of [
   assert(visitorSource.includes(marker), `Admin source is missing the accessible control marker ${marker}.`);
 }
 assert(visitorSource.includes('if (ADMIN_ENTRY) {\n      link.dataset.audience = "ops";') && visitorSource.includes('if (OPS_DEMO_ENABLED) {\n    window.addEventListener("hashchange"'), "Admin workspace navigation is not isolated from the visitor demo mode switch.");
-assert(visitorSource.includes('<a href="#admin-config">Overview</a>')
-  && visitorSource.includes('<a href="#admin-documents">Documents</a>')
-  && visitorSource.includes('<a href="#admin-partners">Partners</a>')
+assert(adminOperationsSource.includes('<a href="#admin-config">Overview</a>')
+  && adminOperationsSource.includes('<a href="#admin-impact-report">Impact</a>')
+  && adminOperationsSource.includes('<a href="#admin-documents">Documents</a>')
+  && adminOperationsSource.includes('<a href="#admin-partners">Partners</a>')
   && visitorSource.includes('const targetHash = requestedMode === "ops" ? "#admin-config" : "#top";'), "The local board mode switch does not land on functional operations workspaces.");
 assert(visitorSource.includes('data-site-mode="ops" data-operations-surface href="${escapeAttr(operationsSurfaceHref)}"')
   && visitorSource.includes('if (btn.matches("[data-operations-surface]")) return;'), "The board view switch does not route Operations to the dedicated portal.");

@@ -618,13 +618,7 @@ app.innerHTML = `
         <a href="#port-a">Port A</a>
 
       ${OPS_DEMO_ENABLED ? `
-        <a href="#admin-config">Overview</a>
-        <a href="#admin-documents">Documents</a>
-        <a href="#admin-partners">Partners</a>
-        <a href="#admin-budget">Accounting</a>
-        <a href="#admin-volunteers">Staffing</a>
-        <a href="#admin-island-conditions">Island</a>
-        <a href="#admin-system-monitor">Systems</a>
+        ${adminOperationsUi?.operationsNavigationLinks({ islandLabel: "Island" }) || ""}
       ` : ""}
     </nav>`}
     <div class="app-status-controls">
@@ -1088,13 +1082,7 @@ app.innerHTML = `
         <span id="admin-api-pill" class="checkout-status-pill">API not loaded</span>
       </div>
       <nav class="admin-workspace-nav" aria-label="Operations workspaces">
-        <a href="#admin-config">Overview</a>
-        <a href="#admin-documents">Documents</a>
-        <a href="#admin-partners">Partners</a>
-        <a href="#admin-budget">Accounting</a>
-        <a href="#admin-volunteers">Staffing</a>
-        <a href="#admin-island-conditions">Island conditions</a>
-        <a href="#admin-system-monitor">Systems</a>
+        ${adminOperationsUi?.operationsNavigationLinks() || ""}
       </nav>
       <div class="admin-api-bar" ${BOARD_DEMO_ACCESS.enabled ? "hidden" : ""}>
         <label>
@@ -1135,6 +1123,7 @@ app.innerHTML = `
           <article class="empty-state"><span>Loading workflow signals.</span></article>
         </div>
       </div>
+      ${adminOperationsUi?.boardImpactReportMarkup() || ""}
       <div class="admin-readiness-grid">
         <article>
           <strong>${BOARD_DEMO_ACCESS.enabled ? "API workspace" : "API subdomain"}</strong>
@@ -5963,6 +5952,17 @@ async function loadAdminBudget(options = {}) {
   controller.mount();
   return controller.load(options);
 }
+
+const adminImpactUi = adminOperationsUi?.createBoardImpactUi({
+  adminCan,
+  adminFetch,
+  adminMoney,
+  conditionLabel,
+  downloadAdminExport,
+  setAdminStatus
+});
+adminImpactUi?.mount();
+
 async function loadAdminRevenue({ quiet = false } = {}) {
   const button = document.querySelector("#admin-load-revenue");
   if (button) button.disabled = true;
@@ -9115,6 +9115,7 @@ async function loadAdminWorkspace() {
   try {
     await loadAdminSession();
     await loadAdminDeployment();
+    await adminImpactUi?.load({ quiet: true }).catch(() => {});
     if (adminCan("admin:read")) await loadAdminJobHealth();
     adminConfigState = await adminFetch("/api/admin/config");
     await loadAdminAlert();

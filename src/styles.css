@@ -5466,6 +5466,8 @@ body.mode-ops header nav a[data-audience="public"] {
   .site-mode-toggle a { padding: 6px 9px; }
   .admin-shell-body #admin-config .section-heading { flex-direction: column; }
   .admin-shell-body #admin-config .section-heading h1 { font-size: 32px; }
+  .admin-shell-body .admin-workspace-nav { gap: 0; }
+  .admin-shell-body .admin-workspace-nav a { font-size: 12px; padding-inline: 8px; }
   .admin-launch-readiness-heading { align-items: stretch; flex-direction: column; }
   .admin-launch-readiness-actions { width: 100%; }
 }
