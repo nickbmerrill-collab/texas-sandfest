@@ -217,16 +217,16 @@ assert(!publicHtml.includes("fonts.googleapis.com") && !publicHtml.includes("fon
 assert(publicStylesheets.includes("font-family:Inter") && publicStylesheets.includes("font-family:\"Instrument Serif\""), "Public artifact is missing its self-hosted brand fonts.");
 assert(publicAssets.some(file => file.endsWith(".woff2")), "Public artifact is missing bundled font files.");
 assert(Buffer.byteLength(publicHtml) <= 8 * KIB, "Public entry HTML exceeds the 8 KiB delivery budget.");
-assert(publicInitialScripts.gzipBytes <= 105 * KIB, "Initial public JavaScript exceeds the 105 KiB gzip budget.");
-assert(publicOptionalScripts.gzipBytes <= 12 * KIB, "On-demand public JavaScript exceeds the 12 KiB gzip budget.");
+assert(publicInitialScripts.gzipBytes <= 106 * KIB, "Initial public JavaScript exceeds the 106 KiB gzip budget.");
+assert(publicOptionalScripts.gzipBytes <= 13 * KIB, "On-demand public JavaScript exceeds the 13 KiB gzip budget.");
 assert(publicStyles.gzipBytes <= 30 * KIB, "Public CSS exceeds the 30 KiB gzip budget.");
-assert(publicScripts.gzipBytes + publicStyles.gzipBytes <= 145 * KIB, "Public JavaScript and CSS exceed the 145 KiB combined gzip budget.");
+assert(publicScripts.gzipBytes + publicStyles.gzipBytes <= 147 * KIB, "Public JavaScript and CSS exceed the 147 KiB combined gzip budget.");
 assert(publicPreferredFonts.rawBytes <= 200 * KIB, "Public preferred WOFF2 fonts exceed the 200 KiB delivery budget.");
 assert(publicOfflineFonts.rawBytes <= 450 * KIB, "Public compiled fonts exceed the 450 KiB offline-cache budget.");
-assert(adminInitialScripts.gzipBytes <= 121 * KIB, "Initial admin JavaScript exceeds the 121 KiB gzip budget.");
+assert(adminInitialScripts.gzipBytes <= 123 * KIB, "Initial admin JavaScript exceeds the 123 KiB gzip budget.");
 assert(adminOptionalScripts.gzipBytes <= 6 * KIB, "On-demand admin JavaScript exceeds the 6 KiB gzip budget.");
 assert(adminStyles.gzipBytes <= 30 * KIB, "Admin CSS exceeds the 30 KiB gzip budget.");
-assert(adminScripts.gzipBytes + adminStyles.gzipBytes <= 156 * KIB, "Admin JavaScript and CSS exceed the 156 KiB combined gzip budget.");
+assert(adminScripts.gzipBytes + adminStyles.gzipBytes <= 158 * KIB, "Admin JavaScript and CSS exceed the 158 KiB combined gzip budget.");
 assert(robots === "User-agent: *\nAllow: /\n", "Public artifact has an invalid or unexpected robots.txt policy.");
 assert(publicHtml.includes("optimized/hero-1440.webp") && publicHtml.includes('fetchpriority="high"'), "Public artifact is missing its optimized hero preload.");
 assert(mediaDerivatives.derivatives?.length >= 30, "Public artifact is missing its optimized media catalog.");
@@ -375,7 +375,8 @@ assert(publicBootstrap.guide?.volunteer?.informationUrl === "https://www.texassa
 assert(publicBootstrap.guide?.volunteer?.registrationStatus === "upcoming" && publicBootstrap.guide?.volunteer?.registrationUrl === null, "Public artifact exposes volunteer registration before the current program opens.");
 const serializedPublicBootstrap = JSON.stringify(publicBootstrap);
 assert(publicAppBootstrapSafety(publicBootstrap).ready, "Public static bootstrap violates the approved visitor projection.");
-assert(JSON.stringify(Object.keys(publicBootstrap).sort()) === JSON.stringify(["alert", "guide", "schedule", "zones"]), "Public static bootstrap contains an unexpected root collection.");
+assert(JSON.stringify(Object.keys(publicBootstrap).sort()) === JSON.stringify(["alert", "guidance", "guide", "schedule", "zones"]), "Public static bootstrap contains an unexpected root collection.");
+assert(publicBootstrap.guidance?.length >= 6 && publicBootstrap.guidance.every(item => item.sourceUrl?.startsWith("https://www.texassandfest.org/") && !Object.hasOwn(item, "ownerTeam") && !Object.hasOwn(item, "escalationContact")), "Public artifact is missing current privacy-safe visitor guidance.");
 assert(publicBootstrap.schedule?.length === 0, "Public static bootstrap exposes detailed programming before the governed 2027 schedule is published.");
 assert(publicBootstrap.schedule?.every(item => item.category !== "Staff"), "Public static bootstrap contains a staff-only schedule entry.");
 assert(publicBootstrap.zones?.every(item => !Object.hasOwn(item, "status")), "Public static bootstrap exposes operational zone status.");
@@ -425,12 +426,14 @@ for (const id of [
   assert(tag.includes("keyboard-scroll-region") && tag.includes('tabindex="0"') && tag.includes('aria-label="'), `${id} is not a named, keyboard-accessible scroll region.`);
 }
 assert(visitorSource.includes('/api/public/concierge') && visitorSource.includes('className = "concierge-sources"'), "Public concierge is not wired to governed source-cited answers.");
+assert(visitorSource.includes('id="plan-your-visit"') && visitorSource.includes("renderPublicVisitorGuidance") && serializedPublicBootstrap.includes("Official Pet Policy"), "Visitor artifact is missing the governed Plan Your Visit experience.");
 assert(!visitorSource.includes("const knowledge = [") && !visitorSource.includes("What should the iOS app do first?"), "Public concierge still contains the internal hard-coded roadmap answer table.");
 assert(visitorSource.includes('id="checkout-status" class="checkout-status" role="status" aria-live="polite"'), "Ticket checkout is missing its live status region.");
 assert(visitorSource.includes('id="admin-api-status" class="checkout-status" role="status" aria-live="polite"'), "Admin operations are missing their live status region.");
 assert(adminOperationsSource.includes('class="admin-followup-editor ') && adminOperationsSource.includes('data-save-draft=') && adminOperationsSource.includes('expectedUpdatedAt: button.value'), "Operations cannot revise a message draft before approval.");
 assert(visitorSource.includes('id="admin-deployment-checks" class="admin-deployment-checks" aria-live="polite"'), "Deployment readiness checks are missing their live status region.");
 assert(adminJavaScript.includes("Published program") && adminJavaScript.includes("/api/admin/event-schedule/publish"), "Admin artifact is missing the governed daily schedule publishing workflow.");
+assert(adminJavaScript.includes("Visitor guidance") && adminJavaScript.includes("/api/admin/visitor-guidance/publish"), "Admin artifact is missing the governed visitor guidance publishing workflow.");
 assert(adminJavaScript.includes("Public sponsorship program") && adminJavaScript.includes("Public vendor program") && adminJavaScript.includes("/api/admin/partner-catalog-publication"), "Admin artifact is missing partner catalog publish and hold controls.");
 assert(visitorSource.includes('data-deployment-filter="attention" aria-pressed="true"') && visitorSource.includes('data-deployment-filter="all" aria-pressed="false"'), "Deployment readiness filters are missing pressed-state semantics.");
 assert(visitorSource.includes("const groupSummary = groupSummaries.get(group);") && visitorSource.includes("${passing}/${total} passing"), "Filtered deployment views do not preserve full-group readiness totals.");

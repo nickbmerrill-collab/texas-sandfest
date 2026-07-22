@@ -362,6 +362,7 @@ final class AppDataStore: ObservableObject {
 
         let merged = SandFestPayload(
             guide: loaded.guide,
+            guidance: loaded.guidance,
             alert: loaded.alert,
             schedule: loaded.schedule,
             zones: loaded.zones,
@@ -387,6 +388,19 @@ final class AppDataStore: ObservableObject {
         guard Set(publicPayload.schedule.map(\.id)).count == publicPayload.schedule.count,
               publicPayload.schedule.allSatisfy({ !$0.id.isEmpty && !$0.title.isEmpty }) else {
             throw AppDataError.invalidBootstrap
+        }
+        if let guidance = publicPayload.guidance {
+            guard guidance.count <= 100,
+                  Set(guidance.map(\.id)).count == guidance.count,
+                  guidance.allSatisfy({ item in
+                      !item.id.isEmpty
+                          && !item.question.isEmpty
+                          && !item.answer.isEmpty
+                          && URL(string: item.sourceUrl)?.scheme?.lowercased() == "https"
+                          && item.effectiveAt <= item.expiresAt
+                  }) else {
+                throw AppDataError.invalidBootstrap
+            }
         }
         guard !publicPayload.zones.isEmpty,
               Set(publicPayload.zones.map(\.id)).count == publicPayload.zones.count,
@@ -468,6 +482,7 @@ final class AppDataStore: ObservableObject {
 
         return SandFestPayload(
             guide: publicPayload.guide,
+            guidance: publicPayload.guidance ?? bundled.guidance,
             alert: publicPayload.alert,
             schedule: schedule,
             zones: zones,
@@ -505,6 +520,7 @@ final class AppDataStore: ObservableObject {
 
         payload = SandFestPayload(
             guide: payload.guide,
+            guidance: payload.guidance,
             alert: payload.alert,
             schedule: payload.schedule,
             zones: payload.zones,
@@ -530,6 +546,7 @@ final class AppDataStore: ObservableObject {
     private func restoreBundledAdminData(source: String, state: SyncState = .cached) {
         payload = SandFestPayload(
             guide: payload.guide,
+            guidance: payload.guidance,
             alert: payload.alert,
             schedule: payload.schedule,
             zones: payload.zones,

@@ -103,6 +103,19 @@ struct ScheduleItem: Identifiable, Codable {
     let durationMinutes: Int?
 }
 
+struct VisitorGuidance: Identifiable, Codable {
+    let id: String
+    let category: String
+    let question: String
+    let answer: String
+    let keywords: [String]
+    let sourceLabel: String
+    let sourceUrl: String
+    let sourceCheckedAt: Date
+    let effectiveAt: Date
+    let expiresAt: Date
+}
+
 // MARK: - Tickets
 
 enum TicketEntryStatus: String, Codable {
@@ -212,6 +225,7 @@ struct TicketOption: Identifiable, Codable {
 
 struct SandFestPayload: Codable {
     let guide: EventGuide
+    let guidance: [VisitorGuidance]?
     let alert: EmergencyAlert
     let schedule: [ScheduleItem]
     let zones: [VenueZone]
@@ -223,11 +237,12 @@ struct SandFestPayload: Codable {
     let myTickets: [Ticket]?       // optional so legacy seed JSON still decodes
 
     enum CodingKeys: String, CodingKey {
-        case guide, alert, schedule, zones, ticketOptions, sponsors, vendors, coverage, financeSignals, myTickets
+        case guide, guidance, alert, schedule, zones, ticketOptions, sponsors, vendors, coverage, financeSignals, myTickets
     }
 
-    init(guide: EventGuide, alert: EmergencyAlert, schedule: [ScheduleItem], zones: [VenueZone], ticketOptions: [TicketOption], sponsors: [SponsorAccount], vendors: [VendorApplication], coverage: [VolunteerCoverage], financeSignals: [FinanceSignal], myTickets: [Ticket]? = nil) {
+    init(guide: EventGuide, guidance: [VisitorGuidance]? = nil, alert: EmergencyAlert, schedule: [ScheduleItem], zones: [VenueZone], ticketOptions: [TicketOption], sponsors: [SponsorAccount], vendors: [VendorApplication], coverage: [VolunteerCoverage], financeSignals: [FinanceSignal], myTickets: [Ticket]? = nil) {
         self.guide = guide
+        self.guidance = guidance
         self.alert = alert
         self.schedule = schedule
         self.zones = zones
@@ -267,10 +282,20 @@ struct PublicRuntime: Codable {
 
 struct PublicSandFestPayload: Codable {
     let guide: EventGuide
+    let guidance: [VisitorGuidance]?
     let alert: EmergencyAlert
     let schedule: [ScheduleItem]
     let zones: [PublicVenueZone]
     let runtime: PublicRuntime?
+
+    init(guide: EventGuide, guidance: [VisitorGuidance]? = nil, alert: EmergencyAlert, schedule: [ScheduleItem], zones: [PublicVenueZone], runtime: PublicRuntime?) {
+        self.guide = guide
+        self.guidance = guidance
+        self.alert = alert
+        self.schedule = schedule
+        self.zones = zones
+        self.runtime = runtime
+    }
 }
 
 enum ConciergeConfidence: String, Codable, Equatable {

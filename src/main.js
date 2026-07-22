@@ -611,6 +611,7 @@ app.innerHTML = `
     ${ADMIN_ENTRY ? "" : `<nav id="public-navigation" class="primary-nav" aria-label="Primary navigation" data-open="false">
         <a href="#live-beach">Live Beach</a>
         <a href="#concierge">Concierge</a>
+        <a href="#plan-your-visit">Plan Visit</a>
         <a href="#guest-services">Help</a>
         <a href="#tickets">Tickets</a>
         <a href="#schedule">Schedule</a>
@@ -1222,6 +1223,7 @@ app.innerHTML = `
         </form>
       </div>
       ${adminOperationsUi?.eventScheduleEditorMarkup() ?? ""}
+      ${adminOperationsUi?.visitorGuidanceEditorMarkup() ?? ""}
       <div class="admin-document-panel" id="admin-documents">
         <div class="editor-heading admin-document-heading">
           <div>
@@ -1965,6 +1967,7 @@ app.innerHTML = `
           <button data-prompt="When is SandFest open?">Schedule</button>
           <button data-prompt="What is the current weather?">Weather</button>
           <button data-prompt="What is the current ferry wait?">Ferry</button>
+          <button data-prompt="Is parking information available?">Parking</button>
           <button data-prompt="What sponsorship packages are open?">Sponsors</button>
           <button data-prompt="How do vendors apply?">Vendors</button>
           <button data-prompt="How do I volunteer?">Volunteer</button>
@@ -1986,6 +1989,24 @@ app.innerHTML = `
           <input id="ask-input" name="question" autocomplete="off" maxlength="280" placeholder="Ask a SandFest question..." aria-label="Ask Sandy a question" />
           <button id="ask-submit" class="button primary" type="submit">Ask</button>
         </form>
+      </div>
+    </section>
+
+    <section class="section visitor-guidance-section" id="plan-your-visit" aria-busy="true">
+      <div class="section-heading visitor-guidance-heading">
+        <div>
+          <p class="eyebrow">Plan your visit</p>
+          <h2>Know before you reach the beach.</h2>
+          <p class="section-copy">Current answers reviewed against official Texas SandFest guidance.</p>
+        </div>
+        <span data-visitor-guidance-count aria-live="polite">Loading guidance</span>
+      </div>
+      <div class="visitor-guidance-tools">
+        <label><span>Search</span><input data-visitor-guidance-search type="search" placeholder="Search parking, pets, accessibility..." /></label>
+        <label><span>Topic</span><select data-visitor-guidance-category><option value="">All topics</option></select></label>
+      </div>
+      <div class="visitor-guidance-list" data-visitor-guidance-list>
+        <p class="visitor-guidance-empty">Loading current visitor guidance...</p>
       </div>
     </section>
 
@@ -3447,6 +3468,7 @@ async function loadPublicBootstrap({ applyGuide = true } = {}) {
     if (!response.ok) return false;
     const bootstrap = await response.json();
     applyRuntimeNotice(bootstrap.runtime);
+    if (!ADMIN_ENTRY) await renderPublicVisitorGuidance(bootstrap.guidance);
     return applyGuide ? applyPublicEventGuide(bootstrap.guide) : true;
   } catch {
     return false;
@@ -3764,6 +3786,7 @@ function renderAdminEditors() {
   renderAdminTicketPolicy();
   renderAdminEventGuide(adminConfigState?.bootstrap, adminConfigState?.eventGuideReadiness);
   adminOperationsUi?.renderEventSchedule(adminConfigState?.bootstrap, adminConfigState?.eventScheduleReadiness, isoToLocalDateTime);
+  adminOperationsUi?.renderVisitorGuidance(adminConfigState?.bootstrap, adminConfigState?.visitorGuidanceReadiness, isoToLocalDateTime);
   if (adminSessionState) renderAdminSession(adminSessionState);
   bindAdminSaveButtons();
 }
@@ -4076,7 +4099,7 @@ function initMobileNavigation() {
     }
   });
   window.addEventListener("hashchange", () => setOpen(false));
-  const mobileViewport = window.matchMedia("(max-width: 1400px)");
+  const mobileViewport = window.matchMedia("(max-width: 1440px)");
   mobileViewport.addEventListener?.("change", event => {
     if (!event.matches) setOpen(false);
   });
@@ -9437,6 +9460,18 @@ adminOperationsUi?.bindEventScheduleEditor({
   setAdminStatus
 });
 
+adminOperationsUi?.bindVisitorGuidanceEditor({
+  adminFetch,
+  localDateTimeToIso,
+  isoToLocalDateTime,
+  refresh: async () => {
+    adminConfigState = await adminFetch("/api/admin/config");
+    renderAdminEditors();
+    await loadAdminDeployment();
+  },
+  setAdminStatus
+});
+
 if (ADMIN_AUTH_MODE === "oidc") {
   document.querySelector("#admin-sign-in")?.addEventListener("click", async event => {
     const button = event.currentTarget;
@@ -10099,6 +10134,16 @@ function loadGuestServicesUi() {
   return guestServicesUiPromise;
 }
 
+let visitorGuidanceUiPromise = null;
+function renderPublicVisitorGuidance(guidance) {
+  if (ADMIN_ENTRY) return Promise.resolve();
+  visitorGuidanceUiPromise ||= import("./visitor-guidance-ui.js");
+  return visitorGuidanceUiPromise.then(module => module.mountVisitorGuidance(
+    document.querySelector("#plan-your-visit"),
+    guidance
+  ));
+}
+
 initSiteMode();
 initMobileNavigation();
 if (ADMIN_ENTRY) loadPublicBootstrap({ applyGuide: false }).catch(() => {});
@@ -10106,6 +10151,7 @@ if (!ADMIN_ENTRY) {
   initSculptors();
   const publicSponsorPackagesLoad = loadPublicSponsorPackages();
   const initialPublicLoads = [
+    renderPublicVisitorGuidance(appBootstrap?.guidance),
     loadPublicBootstrap(),
     loadPublicTicketCatalog(),
     loadBooths(),

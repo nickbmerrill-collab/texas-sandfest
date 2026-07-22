@@ -478,7 +478,7 @@ test("board workflows operate through the public and staff interfaces", async ({
   const settlementCsv = `transaction_id,date,category,gross_amount,fee_amount,net_amount,quantity,payout_id,payout_date,reconciled,entry_type
 ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${runId},2027-03-03,yes,receipt`;
 
-  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.setViewportSize({ width: 1441, height: 1000 });
   const partnerReadinessResponsePromise = page.waitForResponse(response => new URL(response.url()).pathname === "/api/public/partner-intake"
     && response.request().method() === "GET");
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#sponsors`);
@@ -2783,13 +2783,13 @@ test("visitor hero and navigation stay ordered across intermediate widths", asyn
     }
   }
 
-  await page.setViewportSize({ width: 1400, height: 720 });
+  await page.setViewportSize({ width: 1440, height: 720 });
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor`);
   await expect(page.locator("#public-navigation")).toBeHidden();
   await expect(page.locator("#mobile-nav-toggle")).toBeVisible();
   await assertNoHorizontalOverflow(page);
 
-  await page.setViewportSize({ width: 1401, height: 720 });
+  await page.setViewportSize({ width: 1441, height: 720 });
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor`);
   await expect(page.locator("#public-navigation")).toBeVisible();
   await expect(page.locator("#mobile-nav-toggle")).toBeHidden();
@@ -3237,6 +3237,54 @@ test("mobile vendor signup anchors remain aligned while public data renders", as
   await expect(page.locator("#vendor-application-form")).toBeInViewport({ ratio: 0.2 });
 });
 
+test("governed visitor guidance is searchable, source-cited, and staff publishable", async ({ page }) => {
+  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#plan-your-visit`);
+  const guidance = page.locator("#plan-your-visit");
+  await expect(guidance).toHaveAttribute("aria-busy", "false");
+  await expect(guidance.locator(".visitor-guidance-answer")).toHaveCount(6);
+  await expect(guidance.locator("[data-visitor-guidance-count]")).toHaveText("6 answers");
+  await guidance.locator("[data-visitor-guidance-search]").fill("pet");
+  await expect(guidance.locator(".visitor-guidance-answer:visible")).toHaveCount(1);
+  await guidance.locator(".visitor-guidance-answer:visible summary").click();
+  await expect(guidance.locator(".visitor-guidance-answer:visible")).toContainText("service-animals-only");
+  await expect(guidance.locator('.visitor-guidance-answer:visible a[href="https://www.texassandfest.org/petpolicy"]')).toHaveText("Official Pet Policy");
+  await guidance.locator("[data-visitor-guidance-search]").fill("");
+  await guidance.locator("[data-visitor-guidance-category]").selectOption("Accessibility");
+  await expect(guidance.locator(".visitor-guidance-answer:visible")).toHaveCount(1);
+  await expect(guidance.locator(".visitor-guidance-answer:visible")).toContainText("beach wheelchairs");
+
+  const petResponsePromise = page.waitForResponse(response => new URL(response.url()).pathname === "/api/public/concierge" && response.request().method() === "POST");
+  await page.locator("#ask-input").fill("Can I bring my pet?");
+  await page.locator("#ask-submit").click();
+  const petResponse = await petResponsePromise;
+  expect(petResponse.status()).toBe(200);
+  const petPayload = await petResponse.json();
+  expect(petPayload.answer).toContain("service-animals-only");
+  expect(petPayload.sources.some(item => item.href === "https://www.texassandfest.org/petpolicy")).toBe(true);
+
+  await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#admin-config`);
+  await expect(page.locator("#admin-api-status")).toContainText("Loaded", { timeout: 25_000 });
+  const adminGuidance = page.locator("#admin-visitor-guidance-form");
+  await expect(adminGuidance.locator(".admin-visitor-guidance-row")).toHaveCount(6);
+  await expect(page.locator("#admin-visitor-guidance-readiness")).toContainText("source-reviewed visitor answers");
+  const firstAnswer = adminGuidance.locator('.admin-visitor-guidance-row textarea[name="answer"]').first();
+  const revisedAnswer = `${await firstAnswer.inputValue()} Board browser publication verified.`;
+  await firstAnswer.fill(revisedAnswer);
+  const publishResponsePromise = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/visitor-guidance/publish" && response.request().method() === "POST");
+  await page.locator("#admin-publish-visitor-guidance").click();
+  const publishResponse = await publishResponsePromise;
+  expect(publishResponse.status()).toBe(200);
+  await expect(page.locator("#admin-api-status")).toContainText("Published 6 current visitor answers");
+
+  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#plan-your-visit`);
+  await expect(page.locator("#plan-your-visit")).toHaveAttribute("aria-busy", "false");
+  await page.locator('[data-visitor-guidance-search]').fill("Board browser publication verified");
+  await expect(page.locator(".visitor-guidance-answer:visible")).toHaveCount(1);
+  await page.locator(".visitor-guidance-answer:visible summary").click();
+  await expect(page.locator(".visitor-guidance-answer:visible")).toContainText("Board browser publication verified");
+  await assertNoHorizontalOverflow(page);
+});
+
 test("WCAG A and AA checks cover public intake, partner status, concierge, and operations", async ({ page }) => {
   const runId = randomUUID().slice(0, 8);
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#sponsors`);
@@ -3254,26 +3302,23 @@ test("WCAG A and AA checks cover public intake, partner status, concierge, and o
   expect(accessibilityPayload.topic).toBe("accessibility");
   expect(accessibilityPayload.confidence).toBe("high");
   expect(accessibilityPayload.escalated).toBe(false);
-  expect(accessibilityPayload.answer).toContain("North Gate at marker 12.5");
-  expect(accessibilityPayload.answer).toContain("ADA parking");
-  expect(accessibilityPayload.answer).not.toContain(".).");
+  expect(accessibilityPayload.answer).toContain("beach wheelchairs");
   await expect(page.locator("#chat .concierge-answer")).toHaveCount(1);
-  await expect(page.locator("#chat .concierge-answer")).toContainText("North Gate at marker 12.5");
-  await expect(page.locator('#chat .concierge-sources a[href="#operations"]')).toHaveText("Published accessibility locations");
+  await expect(page.locator("#chat .concierge-answer")).toContainText("beach wheelchairs");
+  await expect(page.locator('#chat .concierge-sources a[href="https://www.texassandfest.org/accessibility"]')).toHaveText("Official Accessibility Guide");
 
   const parkingResponsePromise = page.waitForResponse(response => new URL(response.url()).pathname === "/api/public/concierge" && response.request().method() === "POST");
-  await page.getByRole("button", { name: "Is parking information available?" }).click();
+  await page.locator('[data-prompt="Is parking information available?"]').click();
   const parkingResponse = await parkingResponsePromise;
   expect(parkingResponse.status()).toBe(200);
   const parkingPayload = await parkingResponse.json();
   expect(parkingPayload.topic).toBe("parking");
-  expect(parkingPayload.confidence).toBe("medium");
-  expect(parkingPayload.escalated).toBe(true);
-  expect(parkingPayload.answer).toContain("North Gate at marker 12.5");
-  expect(parkingPayload.answer).toContain("South Entrance at marker Access Road 1A");
+  expect(parkingPayload.confidence).toBe("high");
+  expect(parkingPayload.escalated).toBe(false);
+  expect(parkingPayload.answer).toContain("beach parking permit");
   await expect(page.locator("#chat .concierge-answer")).toHaveCount(2);
-  await expect(page.locator("#chat .concierge-answer").last()).toContainText("South Entrance at marker Access Road 1A");
-  await expect(page.locator('#chat .concierge-sources a[href="#operations"]').last()).toHaveText("Published parking and shuttle locations");
+  await expect(page.locator("#chat .concierge-answer").last()).toContainText("beach parking permit");
+  await expect(page.locator('#chat .concierge-sources a[href="https://www.texassandfest.org/parking-shuttles"]').last()).toHaveText("Official Parking and Shuttles");
 
   const vendor = page.locator("#vendor-application-form");
   await vendor.locator('[name="organizationName"]').fill(`Accessible Boardwalk Arts ${runId}`);

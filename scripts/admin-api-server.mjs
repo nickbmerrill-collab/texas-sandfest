@@ -40,6 +40,11 @@ import {
   holdEventSchedule,
   publishEventSchedule
 } from "../lib/event-schedule.mjs";
+import {
+  holdVisitorGuidance,
+  publishVisitorGuidance,
+  visitorGuidanceReadiness
+} from "../lib/visitor-guidance.mjs";
 import { eventContextConfig, eventContextReadiness } from "../lib/event-context.mjs";
 import { recoveryReadiness } from "../lib/recovery-readiness.mjs";
 import { enqueueJob, getQueueHealth, listJobs, markTerminalJobHandled } from "../lib/job-queue.mjs";
@@ -877,6 +882,7 @@ const DEPLOYMENT_CHECK_PRESENTATION = Object.freeze({
   publicApiBase: ["Public API address", "Access"],
   adminBase: ["Admin app address", "Access"],
   eventGuide: ["Published event guide", "Program data"],
+  visitorGuidance: ["Published visitor guidance", "Program data"],
   eventSchedule: ["Published daily schedule", "Program data"],
   currentEvent: ["Current event context", "Program data"],
   staffDirectory: ["Staff directory and routing", "Program data"],
@@ -2159,6 +2165,14 @@ async function deploymentProfile(options = {}) {
     maxSourceAgeDays: EVENT_GUIDE_SOURCE_MAX_AGE_DAYS,
     allowBoardDemo: BOARD_DEMO_RUNTIME
   });
+  const guidanceReadiness = visitorGuidanceReadiness({
+    eventId: CURRENT_EVENT_ID,
+    guidance: eventBootstrap.guidance,
+    publication: eventBootstrap.guidancePublication
+  }, {
+    maxSourceAgeDays: EVENT_GUIDE_SOURCE_MAX_AGE_DAYS,
+    allowBoardDemo: BOARD_DEMO_RUNTIME
+  });
   const currentEventReadiness = eventContextReadiness({
     config: EVENT_CONTEXT,
     guide: eventBootstrap.guide,
@@ -2274,6 +2288,11 @@ async function deploymentProfile(options = {}) {
     eventGuide: checkStatus(
       guideReadiness.ready,
       guideReadiness.reason,
+      production ? "error" : "warning"
+    ),
+    visitorGuidance: checkStatus(
+      guidanceReadiness.ready,
+      guidanceReadiness.reason,
       production ? "error" : "warning"
     ),
     eventSchedule: checkStatus(
@@ -4800,6 +4819,72 @@ async function handleAdminEventSchedulePublish(request, response) {
   });
 }
 
+async function handleAdminVisitorGuidancePublish(request, response) {
+  const session = await requirePermission(request, response, "content:write");
+  if (!session) return;
+  const body = await readBody(request);
+  if (typeof body.publish !== "boolean") {
+    sendJson(request, response, 400, { error: "Confirm whether visitor guidance should be published or held." });
+    return;
+  }
+  const bootstrap = await storage.config.read("app-bootstrap");
+  const before = {
+    guidance: bootstrap.guidance ?? [],
+    publication: bootstrap.guidancePublication ?? {}
+  };
+  const now = new Date().toISOString();
+  const result = body.publish
+    ? publishVisitorGuidance(before, {
+        guidance: body.guidance,
+        sourceUrl: body.sourceUrl,
+        sourceCheckedAt: body.sourceCheckedAt
+      }, {
+        actorId: session.actorId,
+        eventId: CURRENT_EVENT_ID,
+        now
+      })
+    : holdVisitorGuidance(before, {
+        actorId: session.actorId,
+        eventId: CURRENT_EVENT_ID,
+        reason: body.reason,
+        now
+      });
+  if (!result.ok) {
+    sendJson(request, response, 400, { error: result.error, errors: result.errors ?? [result.error] });
+    return;
+  }
+  const updated = {
+    ...bootstrap,
+    guidance: result.guidance,
+    guidancePublication: result.publication
+  };
+  await writeConfigSnapshot(request, { type: "appBootstrap", id: "app-bootstrap" }, bootstrap, "Before public visitor guidance change");
+  await storage.config.write("app-bootstrap", updated);
+  const after = { guidance: result.guidance, publication: result.publication };
+  await writeAuditRecord(
+    request,
+    body.publish ? "content.visitor-guidance.publish" : "content.visitor-guidance.hold",
+    { type: "visitorGuidance", id: CURRENT_EVENT_ID },
+    before,
+    after,
+    body.publish
+      ? { sourceUrl: result.publication.sourceUrl, sourceCheckedAt: result.publication.sourceCheckedAt, itemCount: result.guidance.length }
+      : { reason: result.publication.holdReason }
+  );
+  sendJson(request, response, 200, {
+    guidance: result.guidance,
+    publication: result.publication,
+    readiness: visitorGuidanceReadiness({
+      eventId: CURRENT_EVENT_ID,
+      guidance: result.guidance,
+      publication: result.publication
+    }, {
+      maxSourceAgeDays: EVENT_GUIDE_SOURCE_MAX_AGE_DAYS,
+      allowBoardDemo: BOARD_DEMO_RUNTIME
+    })
+  });
+}
+
 async function handleRequest(request, response) {
   request.requestId = normalizeRequestId(request.headers["x-request-id"]);
   if (request.method === "OPTIONS") {
@@ -4864,6 +4949,7 @@ async function handleRequest(request, response) {
     if (method === "GET" && pathname === "/health") {
       const deployment = await deploymentProfile();
       const eventGuideReady = deployment.checks.eventGuide?.ok === true;
+      const visitorGuidanceReady = deployment.checks.visitorGuidance?.ok === true;
       const currentEventReady = deployment.checks.currentEvent?.ok === true;
       sendJson(request, response, 200, {
         ok: true,
@@ -4874,6 +4960,7 @@ async function handleRequest(request, response) {
         deploymentWarnings: deployment.warnings,
         deploymentErrors: deployment.errors,
         eventGuideReady,
+        visitorGuidanceReady,
         currentEventId: CURRENT_EVENT_ID,
         currentEventReady,
         adminRole: authModeIsJwt() ? "jwt-claims" : ADMIN_ROLE,
@@ -6423,6 +6510,14 @@ async function handleRequest(request, response) {
         })(),
         bootstrap,
         eventGuideReadiness: eventGuideReadiness(bootstrap.guide, { maxSourceAgeDays: EVENT_GUIDE_SOURCE_MAX_AGE_DAYS }),
+        visitorGuidanceReadiness: visitorGuidanceReadiness({
+          eventId: CURRENT_EVENT_ID,
+          guidance: bootstrap.guidance,
+          publication: bootstrap.guidancePublication
+        }, {
+          maxSourceAgeDays: EVENT_GUIDE_SOURCE_MAX_AGE_DAYS,
+          allowBoardDemo: BOARD_DEMO_RUNTIME
+        }),
         eventScheduleReadiness: eventScheduleReadiness({
           eventId: CURRENT_EVENT_ID,
           schedule: bootstrap.schedule,
@@ -9702,6 +9797,11 @@ async function handleRequest(request, response) {
 
     if (method === "POST" && pathname === "/api/admin/event-schedule/publish") {
       await handleAdminEventSchedulePublish(request, response);
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/admin/visitor-guidance/publish") {
+      await handleAdminVisitorGuidancePublish(request, response);
       return;
     }
 

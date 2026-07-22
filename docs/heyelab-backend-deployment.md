@@ -66,7 +66,7 @@ Routes:
 | `GET` | `/health` | Public | Runtime health check |
 | `GET` | `/ready` | Public | Readiness check for source payloads and writable order storage |
 | `GET` | `/api/public/alert` | Public | Short-TTL active public alert payload |
-| `GET` | `/api/public/bootstrap` | Public | Shared app bootstrap payload |
+| `GET` | `/api/public/bootstrap` | Public | Shared app bootstrap with current source-reviewed visitor guidance |
 | `GET` | `/api/public/tickets` | Public | Current ticket catalog |
 | `GET` | `/api/public/sponsors` | Public | Publication state, exact reviewed sponsor packages, and approved sponsor showcase |
 | `GET` | `/api/public/vendors` | Public | Publication state and exact reviewed vendor offerings |
@@ -98,6 +98,7 @@ Routes:
 | `PATCH` | `/api/admin/tickets/:id` | Bearer token | Update ticket pricing, Stripe IDs, review gates, and limits |
 | `PATCH` | `/api/admin/sponsor-packages/:id` | Bearer token | Update sponsor pricing, benefits, Stripe IDs, and QuickBooks mapping |
 | `POST` | `/api/admin/partner-catalog-publication` | `sponsor:write` or `finance:write` | Publish or hold the exact current sponsor/vendor catalog with official source proof |
+| `POST` | `/api/admin/visitor-guidance/publish` | `content:write` | Publish or hold the exact current source-reviewed visitor guidance collection |
 | `GET` | `/api/admin/partners` | Bearer token | Applications, invoices, payments, dates, follow-ups, tasks, vendor readiness, and provider readiness |
 | `GET` | `/api/admin/guest-services` | `guest_services:read` | Current-event Guest Services queue, routing, and private response details |
 | `PATCH` | `/api/admin/guest-services/cases/:id` | `guest_services:write` | Route a case, update priority or status, and record public or internal notes |
@@ -351,6 +352,8 @@ Public vendor and sponsor intake is protected by Cloudflare Turnstile in product
 Sponsor and vendor catalogs are separately publication-gated. Staff publish each program against `SANDFEST_EVENT_ID`, an official HTTPS source, a source-review timestamp no older than `SANDFEST_PARTNER_CATALOG_SOURCE_MAX_AGE_DAYS` (default 180), and a digest of the exact public pricing, benefits, categories, fees, descriptions, and inclusions. Editing any public field automatically returns the program to pending; changing only a private Stripe or QuickBooks mapping preserves publication. Held, stale, event-mismatched, invalid, or digest-mismatched catalogs return an empty public collection, are excluded from Ask Sandy and sponsor invitations, and reject intake before Turnstile verification. The production visitor artifact contains no static sponsor-price or vendor-fee fallback. Publish and hold actions capture a config snapshot and an audit record. The local board runtime uses a distinct `board_demo` publication bound to its synthetic catalog and can never satisfy ordinary production readiness.
 
 Public event dates, hours, location, and contact facts are published through the authenticated Event guide editor. Every publish records the staff actor, official HTTPS source, source-check timestamp, snapshot, and audit event. `SANDFEST_EVENT_GUIDE_SOURCE_MAX_AGE_DAYS` defaults to 90; production `/ready` fails closed when the guide is unpublished, past, invalid, or sourced from an older review.
+
+Visitor questions and answers use a separate governed publication. Each record carries its public category, question, answer, search keywords, authoritative HTTPS source, source-review timestamp, effective window, and status, plus private risk, owner-team, and escalation fields. Staff can publish or hold only the exact current collection for `SANDFEST_EVENT_ID`; either action writes a snapshot and audit record. Invalid, stale, held, pending, expired, or event-mismatched guidance projects as an empty public array, is excluded from Ask Sandy, and fails production readiness. Public web and native clients receive no risk, owner, escalation, publication actor, or digest fields.
 
 The production visitor artifact also fails closed for the sculptor roster and Live Beach scene. `public/data/sculptors.json` may expose records only when `meta.publicationStatus` is `published`, `meta.eventId` matches `SANDFEST_EVENT_ID`, the source is an authoritative HTTPS source, review and publication timestamps are present, a reviewer is recorded, and every sculptor, entry, and map reference is internally valid. Fictional roster and Live Beach scenarios live under `src/board-demo`, load only in local development, and are regression-tested to stay out of both production bundles and public data files. Until reviewed event-day content and current privacy-safe metrics are available, production renders explicit publication-pending and monitoring-standby states.
 
