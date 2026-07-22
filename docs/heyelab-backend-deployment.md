@@ -70,6 +70,7 @@ Routes:
 | `GET` | `/api/public/tickets` | Public | Current ticket catalog |
 | `GET` | `/api/public/sponsors` | Public | Publication state, exact reviewed sponsor packages, and approved sponsor showcase |
 | `GET` | `/api/public/vendors` | Public | Publication state and exact reviewed vendor offerings |
+| `GET` | `/api/public/partner-intake` | Public | No-store sponsor/vendor intake and private-access email availability |
 | `GET` | `/api/public/guest-services` | Public | No-store intake availability, consent version, and approved public request categories |
 | `POST` | `/api/public/concierge` | Public, rate-limited | Source-cited Ask Sandy answer over governed public data; question text is not persisted |
 | `POST` | `/api/public/vendor-applications` | Public + optional `Idempotency-Key` | Create one vendor workflow and replay it safely on network retry |
@@ -397,6 +398,8 @@ SANDFEST_PARTNER_PORTAL_SECRET=<32-or-more-random-characters>
 SANDFEST_PUBLIC_SITE_URL=https://sandfest.heyelab.com
 SANDFEST_PARTNER_STATUS_RATE_LIMIT=30
 ```
+
+`GET /api/public/partner-intake` is the no-store, server-authoritative contract for the write controls. It exposes only the current event and explicit intake/recovery booleans. Sponsor and vendor submissions require portal capability issuance plus Turnstile readiness; private-link recovery additionally requires transactional email. The visitor keeps those controls disabled when the endpoint is unavailable, stale, malformed, or exposes any extra field, while the existing capability-based status lookup remains usable. The live deployment verifier requires both actions and rejects privacy expansion before release.
 
 The API and worker must receive the same secret. `render.yaml` generates it on the API and binds the worker to that exact environment value; other deployments must provide an equivalent shared-secret mechanism. The worker uses it only to place a valid portal URL into reviewable acknowledgment and milestone-reminder drafts; tokens are not written to audit records or returned by partner-list APIs.
 

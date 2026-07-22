@@ -9,6 +9,7 @@ import {
   verifyLiveDeployment
 } from "../lib/deployment-verifier.mjs";
 import { publicGuestServicesReadiness } from "../lib/guest-services.mjs";
+import { publicPartnerServerReadiness } from "../lib/public-partner-server-readiness.mjs";
 import { sandfestAppleAppSiteAssociation } from "../lib/public-deep-links.mjs";
 
 let passed = 0;
@@ -114,6 +115,7 @@ const routes = new Map([
   [new URL("api/public/tickets", config.apiUrl).toString(), () => jsonResponse({ products: [{ availableForCheckout: true }] })],
   [new URL("api/public/sponsors", config.apiUrl).toString(), () => jsonResponse({ sponsorPackages: [{ id: "whale", name: "Whale", amount: 2500000, currency: "usd", publicLabel: "$25k+", active: true, requiresApproval: true, benefits: ["Main-stage recognition"] }] })],
   [new URL("api/public/vendors", config.apiUrl).toString(), () => jsonResponse({ vendorOfferings: [{ id: "food" }] })],
+  [new URL("api/public/partner-intake", config.apiUrl).toString(), () => jsonResponse(publicPartnerServerReadiness({ eventId: "texas-sandfest-2027", intakeAvailable: true, recoveryAvailable: true }))],
   [new URL("api/public/guest-services", config.apiUrl).toString(), () => jsonResponse(publicGuestServicesReadiness({ eventId: "texas-sandfest-2027", available: true }))],
   [new URL("api/public/island-conditions", config.apiUrl).toString(), () => jsonResponse(liveConditionsBody)],
   [new URL("api/public/concierge", config.apiUrl).toString(), () => jsonResponse({
@@ -166,6 +168,20 @@ const unsafeSponsors = await verifyLiveDeployment({ config, artifacts, fetchImpl
 check("malformed or provider-exposing sponsor tiers fail closed", !unsafeSponsors.ok
   && unsafeSponsors.checks.some(item => item.id === "api.sponsor_tiers" && !item.ok)
   && unsafeSponsors.checks.some(item => item.id === "api.sponsor_tier_privacy" && !item.ok));
+
+const unsafePartnerIntakeFetch = async (url, options = {}) => {
+  if (String(url) === new URL("api/public/partner-intake", config.apiUrl).toString()) {
+    return jsonResponse({
+      ...publicPartnerServerReadiness({ eventId: "texas-sandfest-2027", intakeAvailable: true, recoveryAvailable: false }),
+      provider: "private-provider"
+    });
+  }
+  return fetchImpl(url, options);
+};
+const unsafePartnerIntake = await verifyLiveDeployment({ config, artifacts, fetchImpl: unsafePartnerIntakeFetch });
+check("unavailable or privacy-expanding partner readiness fails closed", !unsafePartnerIntake.ok
+  && unsafePartnerIntake.checks.some(item => item.id === "api.partner_intake_privacy" && !item.ok)
+  && unsafePartnerIntake.checks.some(item => item.id === "api.partner_recovery" && !item.ok));
 
 const unsafeBootstrapFetch = async (url, options = {}) => {
   const target = String(url);

@@ -281,6 +281,9 @@ let publicVendorProgram = {
   status: "loading",
   message: "Loading the current vendor program."
 };
+let partnerIntakeReadinessUi = null;
+let partnerIntakeReadinessUiPromise = null;
+let partnerIntakeReadinessUiFailed = false;
 const sponsorContactNotice = partnerContactNotice("sponsor");
 const vendorInterestContactNotice = partnerContactNotice("vendor", "interest");
 const taskBoardFilters = { status: "active", assignment: "all", query: "" };
@@ -2195,16 +2198,16 @@ app.innerHTML = `
           </div>
           <p class="partner-form-status" aria-live="polite"></p>
         </form>
-        <form id="partner-portal-recovery-form" class="partner-recovery-form" data-turnstile-action="partner_access_recovery" data-public-intake-state="${PUBLIC_PARTNER_INTAKE.ready ? "ready" : "unavailable"}">
+        <form id="partner-portal-recovery-form" class="partner-recovery-form" data-turnstile-action="partner_access_recovery" data-public-intake-state="checking" aria-busy="true">
           <div class="partner-form-title"><span>Lost your link?</span><h3>Email private access</h3></div>
           <p>Enter the application reference and contact email used to apply. For privacy, every request receives the same confirmation.</p>
-          ${PUBLIC_PARTNER_INTAKE.ready ? "" : '<p class="partner-availability-note" data-public-intake-unavailable>Private-access email is unavailable in this preview. Contact the SandFest team for help with an existing application.</p>'}
+          <p class="partner-availability-note" data-partner-recovery-availability>Checking private-access email availability.</p>
           <div class="partner-status-fields">
             <label>Application reference<input name="reference" required maxlength="80" autocomplete="off" placeholder="TSF-V-000000" /></label>
             <label>Contact email<input name="contactEmail" required type="email" maxlength="254" autocomplete="email" placeholder="name@business.com" /></label>
           </div>
           <div class="partner-verification" data-turnstile-verification hidden><div data-turnstile-widget></div></div>
-          <button class="button secondary" type="submit" ${PUBLIC_PARTNER_INTAKE.ready ? "" : "disabled"}>${PUBLIC_PARTNER_INTAKE.ready ? "Email private access link" : "Private-access email unavailable"}</button>
+          <button class="button secondary" type="submit" disabled>Checking availability...</button>
           <p class="partner-form-status" aria-live="polite"></p>
         </form>
         <div id="partner-status-result" class="partner-status-result" aria-live="polite" tabindex="-1">
@@ -5331,124 +5334,87 @@ async function loadPartnerPortalStatus(access, options = {}) {
 }
 
 async function submitPartnerForm(form, endpoint) {
-  const button = form.querySelector('button[type="submit"]');
   const status = form.querySelector(".partner-form-status");
-  const program = form.id === "sponsor-inquiry-form" ? publicSponsorProgram : publicVendorProgram;
-  if (!program.available) {
-    setFormStatus(status, program.message, "error");
-    return;
-  }
-  if (!PUBLIC_PARTNER_INTAKE.ready) {
-    setFormStatus(status, PUBLIC_PARTNER_INTAKE.message, "error");
-    return;
-  }
-  if (TURNSTILE_SITE_KEY && !partnerBotProtection.enabled) await initPartnerBotProtection();
-  if (TURNSTILE_SITE_KEY && !partnerBotProtection.tokenFor(form)) {
-    setFormStatus(status, "Complete the security check and try again.", "error");
-    return;
-  }
-  const fallbackKey = () => `web_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}_${Math.random().toString(36).slice(2)}`;
-  const idempotencyKey = form.dataset.idempotencyKey || globalThis.crypto?.randomUUID?.() || fallbackKey();
-  form.dataset.idempotencyKey = idempotencyKey;
-  button.disabled = true;
-  setFormStatus(status, "Submitting...", "loading");
   try {
-    const response = await fetchWithTimeout(`${publicApiBase()}${endpoint}`, {
-      method: "POST",
-      headers: { "content-type": "application/json", "idempotency-key": idempotencyKey },
-      body: JSON.stringify(formPayload(form))
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      const submissionError = new Error(data.error || `Submission failed with ${response.status}`);
-      submissionError.status = response.status;
-      submissionError.retryAfter = response.headers.get("retry-after");
-      throw submissionError;
-    }
-    const isVendorInterest = data.application.type === "vendor" && data.application.intakeMode === "interest";
-    const submissionLabel = isVendorInterest ? "Interest" : "Application";
-    setFormStatus(
-      status,
-      `<strong>${data.duplicate ? `${submissionLabel} already received.` : `${submissionLabel} received.`}</strong> Reference ${escapeHtml(data.application.reference)}. ${escapeHtml(data.nextStep)}`,
-      "ok",
-      { html: true }
-    );
-    const portalAccess = { reference: data.application.reference, token: data.portalAccess?.token };
-    if (portalAccess.token) {
-      rememberPartnerPortalAccess(portalAccess);
-      await loadPartnerPortalStatus(portalAccess, { scroll: true });
-    }
-    clearSponsorInvitationForm(form);
-    delete form.dataset.idempotencyKey;
-    form.reset();
-    if (form.id === "vendor-application-form") {
-      form.elements.state.value = "TX";
-      renderVendorOfferingChoices();
-    } else if (form.id === "sponsor-inquiry-form") {
-      renderSponsorPackageChoices();
-    }
-    partnerBotProtection.reset(form);
-  } catch (error) {
-    if ([400, 401, 403, 409, 422].includes(error.status)) delete form.dataset.idempotencyKey;
-    const message = error.status === 409 && /not been published/i.test(error.message)
-      ? error.message
-      : error.status === 409
-        ? "These submission details changed after an earlier attempt. Review them and submit once more."
-      : error.status === 429
-        ? `Too many attempts. Wait${error.retryAfter ? ` ${error.retryAfter} seconds` : " a moment"} and try again; your entries are still here.`
-        : !error.status
-          ? `${friendlyRequestError(error)} Your entries are still here, and retry protection remains active.`
-          : error.message;
-    setFormStatus(status, message, "error");
-    partnerBotProtection.reset(form);
-  } finally {
-    button.disabled = !PUBLIC_PARTNER_INTAKE.ready || !program.available;
+    const ui = await ensurePartnerIntakeReadinessUi();
+    await ui.submitPartner(form, endpoint);
+  } catch {
+    setFormStatus(status, "Online partner applications are temporarily unavailable. Your entries are still here.", "error");
   }
 }
 
 async function submitPartnerPortalRecovery(form) {
-  const button = form.querySelector('button[type="submit"]');
   const status = form.querySelector(".partner-form-status");
-  if (!PUBLIC_PARTNER_INTAKE.ready) {
-    setFormStatus(status, PUBLIC_PARTNER_INTAKE.message, "error");
-    return;
-  }
-  if (TURNSTILE_SITE_KEY && !partnerBotProtection.enabled) await initPartnerBotProtection();
-  if (TURNSTILE_SITE_KEY && !partnerBotProtection.tokenFor(form)) {
-    setFormStatus(status, "Complete the security check and try again.", "error");
-    return;
-  }
-  const fallbackKey = () => `recovery_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
-  const idempotencyKey = form.dataset.idempotencyKey || globalThis.crypto?.randomUUID?.() || fallbackKey();
-  form.dataset.idempotencyKey = idempotencyKey;
-  button.disabled = true;
-  setFormStatus(status, "Requesting access...", "loading");
   try {
-    const response = await fetchWithTimeout(`${publicApiBase()}/api/public/partner-portal-recovery`, {
-      method: "POST",
-      headers: { "content-type": "application/json", "idempotency-key": idempotencyKey },
-      body: JSON.stringify(formPayload(form))
+    const ui = await ensurePartnerIntakeReadinessUi();
+    await ui.submitRecovery(form);
+  } catch {
+    setFormStatus(status, "Private-access email is temporarily unavailable. Use your saved private link or contact the SandFest team.", "error");
+  }
+}
+
+function partnerIntakeAvailable() {
+  return partnerIntakeReadinessUi?.intakeAvailable() === true;
+}
+
+function partnerIntakeUnavailableMessage() {
+  if (partnerIntakeReadinessUi) return partnerIntakeReadinessUi.intakeUnavailableMessage();
+  if (partnerIntakeReadinessUiFailed) return "Online partner applications are temporarily unavailable. View the current programs or contact SandFest for help.";
+  return PUBLIC_PARTNER_INTAKE.ready
+    ? "Checking secure online application availability."
+    : PUBLIC_PARTNER_INTAKE.message;
+}
+
+function ensurePartnerIntakeReadinessUi() {
+  if (import.meta.env.VITE_SANDFEST_SURFACE === "admin") {
+    return Promise.reject(new Error("Partner intake readiness is public-only."));
+  }
+  partnerIntakeReadinessUiPromise ||= import("./partner-intake-readiness-ui.js").then(module => {
+    partnerIntakeReadinessUiFailed = false;
+    partnerIntakeReadinessUi = module.createPartnerIntakeReadinessUi({
+      bundleReadiness: PUBLIC_PARTNER_INTAKE,
+      eventId: DEFAULT_EVENT_ID,
+      apiBase: publicApiBase,
+      fetchWithTimeout,
+      turnstileSiteKey: TURNSTILE_SITE_KEY,
+      getBotProtection: () => partnerBotProtection,
+      initBotProtection: initPartnerBotProtection,
+      formPayload,
+      setFormStatus,
+      friendlyRequestError,
+      escapeHtml,
+      escapeAttr,
+      getProgram: form => form.id === "sponsor-inquiry-form" ? publicSponsorProgram : publicVendorProgram,
+      rememberPortalAccess: rememberPartnerPortalAccess,
+      loadPortalStatus: loadPartnerPortalStatus,
+      clearSponsorInvitation: clearSponsorInvitationForm,
+      renderSponsorChoices: renderSponsorPackageChoices,
+      renderVendorChoices: renderVendorOfferingChoices,
+      onChange: () => {
+        renderSponsorPackageChoices();
+        renderVendorOfferingChoices();
+      }
     });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      const requestError = new Error(data.error || `Access request failed with ${response.status}`);
-      requestError.status = response.status;
-      requestError.retryAfter = response.headers.get("retry-after");
-      throw requestError;
+    return partnerIntakeReadinessUi;
+  });
+  return partnerIntakeReadinessUiPromise;
+}
+
+async function loadPublicPartnerReadiness() {
+  try {
+    return await (await ensurePartnerIntakeReadinessUi()).load();
+  } catch {
+    partnerIntakeReadinessUiFailed = true;
+    const recoveryForm = document.querySelector("#partner-portal-recovery-form");
+    if (recoveryForm) {
+      recoveryForm.dataset.publicIntakeState = "unavailable";
+      recoveryForm.setAttribute("aria-busy", "false");
+      recoveryForm.querySelector("[data-partner-recovery-availability]").textContent = "Private-access email is temporarily unavailable. Use your saved private link or contact the SandFest team.";
+      recoveryForm.querySelector('button[type="submit"]').textContent = "Private-access email unavailable";
     }
-    setFormStatus(status, data.message || "If the reference and email match an application, a private access link will be sent shortly.", "ok");
-    delete form.dataset.idempotencyKey;
-    form.elements.contactEmail.value = "";
-    partnerBotProtection.reset(form);
-  } catch (error) {
-    if ([400, 401, 403, 422].includes(error.status)) delete form.dataset.idempotencyKey;
-    const message = error.status === 429
-      ? `Too many attempts. Wait${error.retryAfter ? ` ${error.retryAfter} seconds` : " a moment"} and try again.`
-      : friendlyRequestError(error, "Private access email is temporarily unavailable. Try again shortly.");
-    setFormStatus(status, message, "error");
-    partnerBotProtection.reset(form);
-  } finally {
-    button.disabled = false;
+    renderSponsorPackageChoices();
+    renderVendorOfferingChoices();
+    return null;
   }
 }
 
@@ -5510,7 +5476,12 @@ function renderSponsorPackageChoices(selectedId = "") {
   const unavailable = form.querySelector("[data-sponsor-program-unavailable]");
   const preferredId = selectedId || select.value;
   const selected = publicSponsorPackages.find(item => item.id === preferredId) || publicSponsorPackages[0];
-  const ready = PUBLIC_PARTNER_INTAKE.ready && publicSponsorProgram.available && Boolean(selected);
+  const programReady = publicSponsorProgram.available && Boolean(selected);
+  const ready = partnerIntakeAvailable() && programReady;
+  const unavailableMessage = programReady ? partnerIntakeUnavailableMessage() : publicSponsorProgram.message;
+  const unavailableState = programReady
+    ? PUBLIC_PARTNER_INTAKE.ready ? partnerIntakeReadinessUi?.status() || (partnerIntakeReadinessUiFailed ? "unavailable" : "checking") : "unavailable"
+    : publicSponsorProgram.status;
   select.innerHTML = sponsorPackageOptions(publicSponsorPackages, selected?.id || "");
   select.disabled = !publicSponsorPackages.length || Boolean(activeSponsorInvitationToken);
   if (tiers) tiers.innerHTML = sponsorPackageCards(publicSponsorPackages, selected?.id || "");
@@ -5520,14 +5491,14 @@ function renderSponsorPackageChoices(selectedId = "") {
     submit.textContent = ready ? "Submit sponsorship inquiry" : "Sponsorship inquiry unavailable";
   }
   if (availability) {
-    availability.dataset.state = ready ? "ready" : publicSponsorProgram.status;
+    availability.dataset.state = ready ? "ready" : unavailableState;
     availability.querySelector("span").textContent = ready
       ? "Package availability and final fulfillment details are confirmed during review."
-      : publicSponsorProgram.message;
+      : unavailableMessage;
   }
   if (unavailable) {
     unavailable.hidden = ready;
-    unavailable.firstChild.textContent = ready ? "" : `${publicSponsorProgram.message} Use the `;
+    unavailable.firstChild.textContent = ready ? "" : `${unavailableMessage} Use the `;
   }
   bindSponsorTierButtons();
   renderSponsorPackageSummary();
@@ -5562,59 +5533,12 @@ function sponsorShowcaseInitials(name) {
     .join("") || "TSF";
 }
 
-function sponsorShowcaseWebsite(value) {
-  try {
-    const url = new URL(String(value || ""));
-    return url.protocol === "https:" && !url.username && !url.password ? url.toString() : "";
-  } catch {
-    return "";
-  }
-}
-
-const PUBLIC_SPONSOR_ASSET_PATH = "/api/public/sponsor-showcase/assets/";
-
-function renderPublicSponsorShowcase(items = []) {
-  const showcase = document.querySelector("#public-sponsor-showcase");
-  const featured = document.querySelector("#public-sponsor-featured");
-  if (!showcase) return;
-  const sponsors = (Array.isArray(items) ? items : []).filter(item => item?.displayName);
-  if (featured) featured.hidden = sponsors.length === 0;
-  showcase.hidden = sponsors.length === 0;
-  showcase.dataset.count = String(sponsors.length);
-  showcase.innerHTML = sponsors.map(item => {
-    const website = sponsorShowcaseWebsite(item.website);
-    const primary = /^#[0-9A-F]{6}$/i.test(item.primaryColor || "") ? item.primaryColor : "#12333A";
-    const secondary = /^#[0-9A-F]{6}$/i.test(item.secondaryColor || "") ? item.secondaryColor : "#F4B942";
-    const candidateLogoPath = String(item.logo?.path || "");
-    const logoAssetId = candidateLogoPath.startsWith(PUBLIC_SPONSOR_ASSET_PATH)
-      ? candidateLogoPath.slice(PUBLIC_SPONSOR_ASSET_PATH.length)
-      : "";
-    const logoPath = /^[A-Za-z0-9._~-]+$/.test(logoAssetId)
-      ? `${PUBLIC_SPONSOR_ASSET_PATH}${logoAssetId}`
-      : "";
-    const logo = logoPath
-      ? `<img src="${escapeAttr(`${publicApiBase()}${logoPath}`)}" alt="${escapeAttr(item.logo?.label || `${item.displayName} logo`)}" loading="lazy" decoding="async" />`
-      : `<span aria-hidden="true">${escapeHtml(sponsorShowcaseInitials(item.displayName))}</span>`;
-    const content = `<span class="public-sponsor-mark">${logo}</span>
-      <span class="public-sponsor-copy">
-        ${item.packageName ? `<small>${escapeHtml(item.packageName)} partner</small>` : ""}
-        <strong>${escapeHtml(item.displayName)}</strong>
-        ${item.tagline ? `<span>${escapeHtml(item.tagline)}</span>` : ""}
-        ${website ? '<span class="public-sponsor-visit">Visit partner <span aria-hidden="true">&#8599;</span></span>' : ""}
-      </span>`;
-    const style = `--sponsor-primary:${primary};--sponsor-secondary:${secondary}`;
-    return website
-      ? `<a class="public-sponsor-card" href="${escapeAttr(website)}" target="_blank" rel="noopener noreferrer" style="${escapeAttr(style)}">${content}</a>`
-      : `<article class="public-sponsor-card" style="${escapeAttr(style)}">${content}</article>`;
-  }).join("");
-}
-
 async function loadPublicSponsorPackages() {
   try {
     const response = await fetchWithTimeout(`${publicApiBase()}/api/public/sponsors`, { cache: "no-store" });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || "The sponsorship program could not be loaded.");
-    renderPublicSponsorShowcase(data.sponsors);
+    ensurePartnerIntakeReadinessUi().then(ui => ui.renderSponsorShowcase(data.sponsors)).catch(() => {});
     publicSponsorProgram = {
       available: data.publication?.available === true,
       status: String(data.publication?.status || "pending"),
@@ -5644,7 +5568,9 @@ function vendorOfferingOptionsForCategory(category, selectedId = "") {
 
 function renderVendorIntakeMode(offering) {
   const isInterest = !offering || offering.intakeMode === "interest";
-  const ready = PUBLIC_PARTNER_INTAKE.ready && publicVendorProgram.available && Boolean(offering);
+  const programReady = publicVendorProgram.available && Boolean(offering);
+  const ready = partnerIntakeAvailable() && programReady;
+  const unavailableMessage = programReady ? partnerIntakeUnavailableMessage() : publicVendorProgram.message;
   const notice = partnerContactNotice("vendor", isInterest ? "interest" : "application");
   const label = document.querySelector("#vendor-intake-label");
   const heading = document.querySelector("#vendor-intake-heading");
@@ -5660,7 +5586,7 @@ function renderVendorIntakeMode(offering) {
       ? isInterest
         ? 'Applications closed. Join the interest list for an opening notice or see the <a href="https://www.texassandfest.org/vendors" target="_blank" rel="noopener noreferrer">official vendor page</a>.'
         : 'Applications open. Fees and placement require approval; see the <a href="https://www.texassandfest.org/vendors" target="_blank" rel="noopener noreferrer">official vendor page</a>.'
-      : `${escapeHtml(publicVendorProgram.message)} View the <a href="https://www.texassandfest.org/vendors" target="_blank" rel="noopener noreferrer">official vendor page</a>.`;
+      : `${escapeHtml(unavailableMessage)} View the <a href="https://www.texassandfest.org/vendors" target="_blank" rel="noopener noreferrer">official vendor page</a>.`;
   }
   if (disclosure) disclosure.textContent = notice.disclosure;
   if (consent) consent.textContent = notice.checkboxLabel;
@@ -5683,7 +5609,7 @@ function renderVendorOfferingChoices() {
   const eligible = publicVendorOfferings.filter(item => item.categories?.includes(category));
   select.disabled = eligible.length === 0;
   const selected = eligible.find(item => item.id === select.value) || eligible[0];
-  form.dataset.publicIntakeState = PUBLIC_PARTNER_INTAKE.ready && publicVendorProgram.available && selected ? "ready" : "unavailable";
+  form.dataset.publicIntakeState = partnerIntakeAvailable() && publicVendorProgram.available && selected ? "ready" : "unavailable";
   const summary = document.querySelector("#vendor-offering-summary");
   if (summary) {
     summary.textContent = selected
@@ -10147,6 +10073,7 @@ if (!ADMIN_ENTRY) {
     loadPublicTicketCatalog(),
     loadBooths(),
     loadIslandConditions(),
+    loadPublicPartnerReadiness(),
     publicSponsorPackagesLoad,
     loadPublicVendorOfferings(),
     loadPublicAlert()
@@ -10219,6 +10146,7 @@ function recoverPublicConnectivity() {
     loadPublicTicketCatalog(),
     loadBooths(),
     loadIslandConditions({ force: true, preserveOnError: true }),
+    loadPublicPartnerReadiness(),
     loadPublicSponsorPackages(),
     loadPublicVendorOfferings(),
     loadPublicAlert()

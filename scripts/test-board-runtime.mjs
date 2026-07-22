@@ -14,6 +14,7 @@ import { boardSmsSandboxConfig, startBoardSmsSandbox } from "../lib/board-sms-sa
 import { DEFAULT_EVENT_ID } from "../lib/event-context.mjs";
 import { platformDocumentFilePath } from "../lib/platform-data.mjs";
 import { publicAppBootstrapSafety } from "../lib/public-bootstrap.mjs";
+import { publicPartnerServerReadinessSafety } from "../lib/public-partner-server-readiness.mjs";
 import { partnerContactNotice } from "../lib/partner-consent.mjs";
 import { RUNTIME_OWNERSHIP_ERROR_CODE, assertRuntimeOwnership, resolveRuntimeRoot, withRuntimeOwnership } from "../lib/runtime-root.mjs";
 
@@ -553,6 +554,7 @@ try {
     && calendarExport.contentType.startsWith("text/calendar")
     && calendarExport.body.toString("utf8").includes("BEGIN:VEVENT"));
 
+  const partnerIntakeReadiness = await request(base, "GET", "/api/public/partner-intake");
   const guestServicesReadiness = await request(base, "GET", "/api/public/guest-services");
   const seededGuestServices = await request(base, "GET", "/api/admin/guest-services", undefined, { auth: true });
   const guestServicesInput = {
@@ -583,6 +585,7 @@ try {
   const guestStatus = await request(base, "POST", "/api/public/guest-services/status", guestRequest.data.access);
   const guestAdminAfter = await request(base, "GET", "/api/admin/guest-services", undefined, { auth: true });
   const adminGuestRecord = guestAdminAfter.data.cases?.find(item => item.id === newGuestCaseId);
+  check("board partner intake and private-access email are server-authoritative and privacy-safe", partnerIntakeReadiness.status === 200 && partnerIntakeReadiness.data.intakeAvailable === true && partnerIntakeReadiness.data.recoveryAvailable === true && publicPartnerServerReadinessSafety(partnerIntakeReadiness.data, { eventId: DEFAULT_EVENT_ID }).ready);
   check("board Guest Services readiness is server-authoritative and privacy-safe", guestServicesReadiness.status === 200 && guestServicesReadiness.data.available === true && guestServicesReadiness.data.categories?.length === 6 && guestServicesReadiness.data.eventId === "texas-sandfest-2027" && !JSON.stringify(guestServicesReadiness.data).includes("defaultTeam") && !JSON.stringify(guestServicesReadiness.data).includes("secret"));
   check("board Guest Services seed shows active, urgent, and resolved work", seededGuestServices.status === 200 && seededGuestServices.data.summary?.total === 3 && seededGuestServices.data.summary?.active === 2 && seededGuestServices.data.summary?.resolved === 1 && !JSON.stringify(seededGuestServices.data).includes("accessTokenHash"));
   check("public Guest Services intake is private and replay safe", guestRequest.status === 201 && replayedGuestRequest.status === 200 && replayedGuestRequest.data.replay === true && replayedGuestRequest.data.access?.token === guestRequest.data.access?.token && deniedGuestStatus.status === 404 && !Object.hasOwn(guestRequest.data.request || {}, "contact") && !Object.hasOwn(guestRequest.data.request || {}, "details"));

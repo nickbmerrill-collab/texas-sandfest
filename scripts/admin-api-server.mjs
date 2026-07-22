@@ -221,6 +221,7 @@ import {
   syncDeploymentCheckTasks
 } from "../lib/deployment-task-sync.mjs";
 import { publicAppBootstrap } from "../lib/public-bootstrap.mjs";
+import { publicPartnerServerReadiness } from "../lib/public-partner-server-readiness.mjs";
 import {
   answerPublicConcierge,
   parsePublicConciergeQuestion,
@@ -5065,6 +5066,17 @@ async function handleRequest(request, response) {
       sendJson(request, response, 200, publicGuestServicesReadiness({
         eventId: CURRENT_EVENT_ID,
         available: GUEST_SERVICES_SECRET.length >= 32 && TURNSTILE.ready
+      }), { "cache-control": "no-store" });
+      return;
+    }
+
+    if (method === "GET" && pathname === "/api/public/partner-intake") {
+      const portalConfig = partnerPortalConfig();
+      const emailConfig = emailConfigFromEnv();
+      sendJson(request, response, 200, publicPartnerServerReadiness({
+        eventId: CURRENT_EVENT_ID,
+        intakeAvailable: portalConfig.ready && TURNSTILE.ready,
+        recoveryAvailable: portalConfig.ready && TURNSTILE.ready && emailConfig.ready
       }), { "cache-control": "no-store" });
       return;
     }
