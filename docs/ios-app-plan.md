@@ -83,6 +83,12 @@ Admin mode is staff-only and should eventually require role-based login.
 - Background sync for content and unresolved incidents.
 - TestFlight distribution for stakeholder review.
 
+The current supervised board build intentionally fails incident mutations
+closed when the authenticated loopback API is unavailable. It does not claim an
+offline incident was recorded. A durable offline outbox remains a production
+milestone and must include native staff identity, idempotency, conflict review,
+and visible sync status before it is enabled.
+
 Signed distribution remains an external release gate. Accept the current Apple
 Developer Program License Agreement, confirm the app's real 10-character
 Application Identifier Prefix, create a valid distribution certificate/profile,
