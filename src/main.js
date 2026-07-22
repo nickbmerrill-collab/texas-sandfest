@@ -4495,6 +4495,7 @@ function armPartnerBotProtection() {
 
 const PARTNER_PORTAL_SESSION_KEY = "sandfest_partner_portal_v1";
 const TASK_PORTAL_SESSION_KEY = "sandfest_task_portal_v1";
+const GUEST_SERVICES_SESSION_KEY = "sandfest_guest_services_v1";
 let taskPortalController = null;
 let taskPortalControllerLoad = null;
 let activeOutreachPreferenceAccess = null;
@@ -10178,6 +10179,18 @@ function renderPublicVisitorGuidance(guidance) {
   ));
 }
 
+if (import.meta.env.DEV && BOARD_DEMO_ACCESS.enabled) {
+  const generation = globalThis.__SANDFEST_BOARD_DEMO_GENERATION__;
+  try { delete globalThis.__SANDFEST_BOARD_DEMO_GENERATION__; } catch { /* ignore */ }
+  const { synchronizeBoardDemoBrowserState } = await import("../lib/board-demo-browser-state.mjs");
+  synchronizeBoardDemoBrowserState({
+    generation,
+    sessionStorage,
+    localStorage,
+    sessionKeys: [PARTNER_PORTAL_SESSION_KEY, TASK_PORTAL_SESSION_KEY, GUEST_SERVICES_SESSION_KEY],
+    localKeys: [PASSPORT_KEY, PASSPORT_ATTENDEE_KEY, VOTING_KEY]
+  });
+}
 initSiteMode();
 initMobileNavigation();
 if (ADMIN_ENTRY) loadPublicBootstrap({ applyGuide: false }).catch(() => {});

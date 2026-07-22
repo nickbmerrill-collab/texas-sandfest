@@ -141,6 +141,10 @@ export function boardDemoAccessPlugin(env) {
   const token = String(env.SANDFEST_BOARD_DEMO_ADMIN_TOKEN || "").trim();
   if (!token) return null;
   if (token.length < 24) throw new Error("SANDFEST_BOARD_DEMO_ADMIN_TOKEN must be at least 24 characters.");
+  const generation = String(env.SANDFEST_BOARD_DEMO_GENERATION || "").trim();
+  if (generation && (!Number.isFinite(Date.parse(generation)) || generation.length > 64)) {
+    throw new Error("SANDFEST_BOARD_DEMO_GENERATION must be a valid timestamp.");
+  }
   return {
     name: "sandfest-board-demo-access",
     apply: "serve",
@@ -155,9 +159,13 @@ export function boardDemoAccessPlugin(env) {
         .replace(/</g, "\\u003c")
         .replace(/\u2028/g, "\\u2028")
         .replace(/\u2029/g, "\\u2029");
+      const serializedGeneration = JSON.stringify(generation)
+        .replace(/</g, "\\u003c")
+        .replace(/\u2028/g, "\\u2028")
+        .replace(/\u2029/g, "\\u2029");
       return [{
         tag: "script",
-        children: `globalThis.__SANDFEST_BOARD_ADMIN_TOKEN__ = ${serializedToken};`,
+        children: `globalThis.__SANDFEST_BOARD_ADMIN_TOKEN__ = ${serializedToken};globalThis.__SANDFEST_BOARD_DEMO_GENERATION__ = ${serializedGeneration};`,
         injectTo: "head-prepend"
       }];
     }

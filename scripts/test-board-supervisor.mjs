@@ -490,6 +490,11 @@ try {
   if (!resetHealthResponse.ok || !resetHealth.boardDemoResetReady || resetHealth.boardDemoGeneration === health.boardDemoGeneration) {
     throw new Error("Board reset did not publish a fresh reset-ready runtime generation.");
   }
+  const resetWebResponse = await fetch(resetSession.endpoints.webBase);
+  const resetWebHtml = await resetWebResponse.text();
+  if (!resetWebResponse.ok || !resetWebHtml.includes(JSON.stringify(resetHealth.boardDemoGeneration))) {
+    throw new Error("Board reset did not publish its fresh runtime generation to the visitor surface.");
+  }
   try {
     await access(resetProbe);
     throw new Error("Board reset retained a runtime file outside the prepared baseline.");

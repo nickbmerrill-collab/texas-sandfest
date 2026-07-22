@@ -38,6 +38,7 @@ const BOARD_TICKET_SECRET = "board-browser-ticket-secret-0123456789abcdef";
 const SMS_ACCOUNT_SID = "AC00000000000000000000000000000001";
 const SMS_AUTH_TOKEN = "board-browser-twilio-auth-token-0123456789";
 const SMS_FROM_NUMBER = "+13615550100";
+const BOARD_BROWSER_GENERATION = "2026-07-22T12:00:00.000Z";
 let temporaryRoot;
 let apiProcess;
 let webProcess;
@@ -436,7 +437,8 @@ test.beforeAll(async () => {
     "--port", String(webPort),
     "--strictPort"
   ], {
-    SANDFEST_BOARD_DEMO_ADMIN_TOKEN: TOKEN
+    SANDFEST_BOARD_DEMO_ADMIN_TOKEN: TOKEN,
+    SANDFEST_BOARD_DEMO_GENERATION: BOARD_BROWSER_GENERATION
   });
   await waitForHttp(`${webBase}/`, webProcess);
 });
@@ -448,6 +450,50 @@ test.afterAll(async () => {
   await stopChild(smsProcess);
   await stopChild(emailProcess);
   if (temporaryRoot) await rm(temporaryRoot, { recursive: true, force: true });
+});
+
+test("a fresh board runtime generation clears stale browser demo state", async ({ page }) => {
+  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#sponsors`);
+  await page.evaluate(() => {
+    sessionStorage.setItem("sandfest_board_demo_session_generation_v1", "2026-07-22T11:00:00.000Z");
+    sessionStorage.setItem("sandfest_partner_portal_v1", JSON.stringify({ reference: "TSF-S-STALE", token: "tsfp_stale" }));
+    sessionStorage.setItem("sandfest_task_portal_v1", JSON.stringify({ taskId: "task_stale", token: "tsft_stale" }));
+    sessionStorage.setItem("sandfest_guest_services_v1", JSON.stringify({ reference: "TSF-GS-STALE", token: "tsfg_stale" }));
+    localStorage.setItem("sandfest_board_demo_local_generation_v1", "2026-07-22T11:00:00.000Z");
+    localStorage.setItem("sandfest_passport_v1", JSON.stringify(["sculpture_stale"]));
+    localStorage.setItem("sandfest_passport_attendee_v1", "web_stale");
+    localStorage.setItem("sandfest_vote_entry_v1", "sculpture_stale");
+  });
+
+  await page.reload();
+  await expect(page.locator("#partner-status-form")).toBeVisible();
+  await expect(page.locator('#partner-status-form [name="reference"]')).toHaveValue("");
+  await expect(page.locator("#partner-status-form .partner-form-status")).toBeEmpty();
+  await expect(page.locator("#partner-status-result")).toContainText("Your SandFest partnership, in one place");
+  const browserState = await page.evaluate(generation => ({
+    sessionGeneration: sessionStorage.getItem("sandfest_board_demo_session_generation_v1"),
+    localGeneration: localStorage.getItem("sandfest_board_demo_local_generation_v1"),
+    partnerAccess: sessionStorage.getItem("sandfest_partner_portal_v1"),
+    taskAccess: sessionStorage.getItem("sandfest_task_portal_v1"),
+    guestAccess: sessionStorage.getItem("sandfest_guest_services_v1"),
+    passport: localStorage.getItem("sandfest_passport_v1"),
+    attendee: localStorage.getItem("sandfest_passport_attendee_v1"),
+    vote: localStorage.getItem("sandfest_vote_entry_v1"),
+    expectedGeneration: generation
+  }), BOARD_BROWSER_GENERATION);
+  expect({ ...browserState, attendee: null }).toEqual({
+    sessionGeneration: BOARD_BROWSER_GENERATION,
+    localGeneration: BOARD_BROWSER_GENERATION,
+    partnerAccess: null,
+    taskAccess: null,
+    guestAccess: null,
+    passport: null,
+    attendee: null,
+    vote: null,
+    expectedGeneration: BOARD_BROWSER_GENERATION
+  });
+  expect(browserState.attendee).toMatch(/^web_/);
+  expect(browserState.attendee).not.toBe("web_stale");
 });
 
 test("board workflows operate through the public and staff interfaces", async ({ page }) => {
