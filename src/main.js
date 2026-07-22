@@ -608,6 +608,7 @@ app.innerHTML = `
     ${ADMIN_ENTRY ? "" : `<nav id="public-navigation" class="primary-nav" aria-label="Primary navigation" data-open="false">
         <a href="#live-beach">Live Beach</a>
         <a href="#concierge">Concierge</a>
+        <a href="#guest-services">Help</a>
         <a href="#tickets">Tickets</a>
         <a href="#schedule">Schedule</a>
         <a href="#sculptors-showcase">Sculptors</a>
@@ -1124,6 +1125,7 @@ app.innerHTML = `
         </div>
       </div>
       ${adminOperationsUi?.boardImpactReportMarkup() || ""}
+      ${adminOperationsUi?.guestServicesMarkup() || ""}
       <div class="admin-readiness-grid">
         <article>
           <strong>${BOARD_DEMO_ACCESS.enabled ? "API workspace" : "API subdomain"}</strong>
@@ -1975,6 +1977,10 @@ app.innerHTML = `
           <button id="ask-submit" class="button primary" type="submit">Ask</button>
         </form>
       </div>
+    </section>
+
+    <section class="section guest-services-section" id="guest-services" data-audience="public" aria-busy="true">
+      <div class="guest-services-loading"><p class="eyebrow">Visitor support</p><h2>Guest Services</h2><p>Loading secure request tools...</p></div>
     </section>
 
     <section class="section" id="operations">
@@ -5963,6 +5969,13 @@ const adminImpactUi = adminOperationsUi?.createBoardImpactUi({
 });
 adminImpactUi?.mount();
 
+const adminGuestServicesUi = adminOperationsUi?.createGuestServicesUi({
+  adminCan,
+  adminFetch,
+  setAdminStatus
+});
+adminGuestServicesUi?.mount();
+
 async function loadAdminRevenue({ quiet = false } = {}) {
   const button = document.querySelector("#admin-load-revenue");
   if (button) button.disabled = true;
@@ -9116,6 +9129,9 @@ async function loadAdminWorkspace() {
     await loadAdminSession();
     await loadAdminDeployment();
     await adminImpactUi?.load({ quiet: true }).catch(() => {});
+    if (adminCan("guest_services:read")) {
+      await adminGuestServicesUi?.load({ quiet: true }).catch(() => {});
+    }
     if (adminCan("admin:read")) await loadAdminJobHealth();
     adminConfigState = await adminFetch("/api/admin/config");
     await loadAdminAlert();
@@ -10104,6 +10120,22 @@ bindSponsorPackageChoices();
 bindVendorOfferingChoices();
 document.querySelector("#refresh-island-conditions")?.addEventListener("click", () => loadIslandConditions({ force: true, preserveOnError: true }));
 
+let guestServicesUiPromise = null;
+function loadGuestServicesUi() {
+  if (ADMIN_ENTRY) return Promise.resolve(null);
+  guestServicesUiPromise ||= import("./guest-services-ui.js").then(module => {
+    const controller = module.createGuestServicesUi({
+      apiBase: publicApiBase,
+      eventPhone: event.phone,
+      intakeReady: PUBLIC_PARTNER_INTAKE.ready,
+      turnstileSiteKey: TURNSTILE_SITE_KEY
+    });
+    controller.mount();
+    return controller;
+  });
+  return guestServicesUiPromise;
+}
+
 initSiteMode();
 initMobileNavigation();
 if (ADMIN_ENTRY) loadPublicBootstrap({ applyGuide: false }).catch(() => {});
@@ -10119,6 +10151,7 @@ if (!ADMIN_ENTRY) {
     loadPublicVendorOfferings(),
     loadPublicAlert()
   ];
+  initialPublicLoads.push(loadGuestServicesUi());
   if (sculptorRosterVisible) initialPublicLoads.push(loadVoting());
   armPartnerBotProtection();
   const initialTaskPortalRequested = taskPortalRequested();
