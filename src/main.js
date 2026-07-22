@@ -5572,7 +5572,12 @@ function renderSponsorPackageChoices(selectedId = "") {
   }
   if (unavailable) {
     unavailable.hidden = ready;
-    unavailable.firstChild.textContent = ready ? "" : `${unavailableMessage} Use the `;
+    const contactFallback = ["loading", "checking"].includes(unavailableState)
+      ? ""
+      : ' or <a href="mailto:sponsors@texassandfest.org">email the sponsorship team</a>';
+    unavailable.innerHTML = ready
+      ? ""
+      : `${escapeHtml(unavailableMessage)} View the <a href="https://www.texassandfest.org/sponsorship" target="_blank" rel="noopener noreferrer">official sponsorship page</a>${contactFallback}.`;
   }
   bindSponsorTierButtons();
   renderSponsorPackageSummary();
@@ -5645,6 +5650,12 @@ function renderVendorIntakeMode(offering) {
   const programReady = publicVendorProgram.available && Boolean(offering);
   const ready = partnerIntakeAvailable() && programReady;
   const unavailableMessage = programReady ? partnerIntakeUnavailableMessage() : publicVendorProgram.message;
+  const unavailableState = programReady
+    ? PUBLIC_PARTNER_INTAKE.ready ? partnerIntakeReadinessUi?.status() || (partnerIntakeReadinessUiFailed ? "unavailable" : "checking") : "unavailable"
+    : publicVendorProgram.status;
+  const contactFallback = ["loading", "checking"].includes(unavailableState)
+    ? ""
+    : ' or <a href="mailto:vendors@texassandfest.org">email the vendor team</a>';
   const notice = partnerContactNotice("vendor", isInterest ? "interest" : "application");
   const label = document.querySelector("#vendor-intake-label");
   const heading = document.querySelector("#vendor-intake-heading");
@@ -5660,7 +5671,7 @@ function renderVendorIntakeMode(offering) {
       ? isInterest
         ? 'Applications closed. Join the interest list for an opening notice or see the <a href="https://www.texassandfest.org/vendors" target="_blank" rel="noopener noreferrer">official vendor page</a>.'
         : 'Applications open. Fees and placement require approval; see the <a href="https://www.texassandfest.org/vendors" target="_blank" rel="noopener noreferrer">official vendor page</a>.'
-      : `${escapeHtml(unavailableMessage)} View the <a href="https://www.texassandfest.org/vendors" target="_blank" rel="noopener noreferrer">official vendor page</a>.`;
+      : `${escapeHtml(unavailableMessage)} View the <a href="https://www.texassandfest.org/vendors" target="_blank" rel="noopener noreferrer">official vendor page</a>${contactFallback}.`;
   }
   if (disclosure) disclosure.textContent = notice.disclosure;
   if (consent) consent.textContent = notice.checkboxLabel;

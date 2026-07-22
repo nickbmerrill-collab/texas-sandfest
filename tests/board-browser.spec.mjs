@@ -2430,8 +2430,19 @@ test("partner intake and private-access recovery fail closed when server readine
   await expect(recoveryForm.locator('button[type="submit"]')).toBeDisabled();
   await expect(sponsorForm.locator("[data-sponsor-program-unavailable]")).toContainText("Online partner applications are temporarily unavailable");
   await expect(page.locator("#vendor-intake-availability")).toContainText("Online partner applications are temporarily unavailable");
+  await expect(sponsorForm.locator('a[href="mailto:sponsors@texassandfest.org"]')).toHaveText("email the sponsorship team");
+  await expect(sponsorForm.locator('a[href="mailto:sponsors@texassandfest.org"]')).toBeVisible();
+  await expect(vendorForm.locator('a[href="mailto:vendors@texassandfest.org"]')).toHaveText("email the vendor team");
+  await expect(vendorForm.locator('a[href="mailto:vendors@texassandfest.org"]')).toBeVisible();
   await expect(recoveryForm.locator("[data-partner-recovery-availability]")).toContainText("Private-access email is temporarily unavailable");
   await expect(page.locator('#partner-status-form button[type="submit"]')).toBeEnabled();
+
+  await page.unroute("**/api/public/partner-intake");
+  await page.reload();
+  await expect(sponsorForm).toHaveAttribute("data-public-intake-state", "ready");
+  await expect(vendorForm).toHaveAttribute("data-public-intake-state", "ready");
+  await expect(sponsorForm.locator('a[href="mailto:sponsors@texassandfest.org"]')).toHaveCount(0);
+  await expect(vendorForm.locator('a[href="mailto:vendors@texassandfest.org"]')).toHaveCount(0);
   await assertNoHorizontalOverflow(page);
 });
 
