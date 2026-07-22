@@ -18,6 +18,7 @@ const root = path.resolve(import.meta.dirname, "..");
 const publicDir = path.join(root, "dist-public");
 const adminDir = path.join(root, "dist-admin");
 const visitorSource = await readFile(path.join(root, "src", "main.js"), "utf8");
+const partnerIntakeSource = await readFile(path.join(root, "src", "partner-intake-readiness-ui.js"), "utf8");
 const adminOperationsSource = await readFile(path.join(root, "src", "admin-operations-ui.js"), "utf8");
 const taskPortalSource = await readFile(path.join(root, "src", "task-portal-ui.js"), "utf8");
 
@@ -217,9 +218,9 @@ assert(publicStylesheets.includes("font-family:Inter") && publicStylesheets.incl
 assert(publicAssets.some(file => file.endsWith(".woff2")), "Public artifact is missing bundled font files.");
 assert(Buffer.byteLength(publicHtml) <= 8 * KIB, "Public entry HTML exceeds the 8 KiB delivery budget.");
 assert(publicInitialScripts.gzipBytes <= 105 * KIB, "Initial public JavaScript exceeds the 105 KiB gzip budget.");
-assert(publicOptionalScripts.gzipBytes <= 8 * KIB, "On-demand public JavaScript exceeds the 8 KiB gzip budget.");
+assert(publicOptionalScripts.gzipBytes <= 12 * KIB, "On-demand public JavaScript exceeds the 12 KiB gzip budget.");
 assert(publicStyles.gzipBytes <= 30 * KIB, "Public CSS exceeds the 30 KiB gzip budget.");
-assert(publicScripts.gzipBytes + publicStyles.gzipBytes <= 140 * KIB, "Public JavaScript and CSS exceed the 140 KiB combined gzip budget.");
+assert(publicScripts.gzipBytes + publicStyles.gzipBytes <= 144 * KIB, "Public JavaScript and CSS exceed the 144 KiB combined gzip budget.");
 assert(publicPreferredFonts.rawBytes <= 200 * KIB, "Public preferred WOFF2 fonts exceed the 200 KiB delivery budget.");
 assert(publicOfflineFonts.rawBytes <= 450 * KIB, "Public compiled fonts exceed the 450 KiB offline-cache budget.");
 assert(adminInitialScripts.gzipBytes <= 121 * KIB, "Initial admin JavaScript exceeds the 121 KiB gzip budget.");
@@ -236,7 +237,7 @@ for (const [width, budget] of heroBudgets) {
   const source = heroDerivative.sources.find(item => item.width === width);
   assert(source && source.bytes <= budget, `Public ${width}px hero exceeds its ${Math.round(budget / KIB)} KiB budget.`);
 }
-assert((visitorSource.match(/loading="lazy"/g) || []).length >= 4, "Public offscreen galleries, field media, and sponsor logos must remain lazy-loaded.");
+assert((`${visitorSource}\n${partnerIntakeSource}`.match(/loading="lazy"/g) || []).length >= 4, "Public offscreen galleries, field media, and sponsor logos must remain lazy-loaded.");
 assert(publicMediaManifestSafety(publicMediaManifest).ready, "Public media manifest exposes internal fields or filesystem paths.");
 const curatedGalleryAssets = selectPublicMediaAssets(publicMediaManifest.assets, PUBLIC_GALLERY_MEDIA);
 const curatedFieldAssets = selectPublicMediaAssets(publicMediaManifest.assets, PUBLIC_FIELD_MEDIA);
@@ -507,7 +508,10 @@ assert(visitorSource.indexOf('window.location.hash.startsWith("#sponsor-invitati
 assert(visitorSource.includes('import("./task-portal-ui.js")')
   && publicOptionalScriptFiles.some(file => file.startsWith("task-portal-ui-"))
   && !publicInitialScriptFiles.some(file => file.startsWith("task-portal-ui-")), "The private task portal is not isolated as an on-demand public chunk.");
-assert(visitorSource.includes("[400, 401, 403, 409, 422].includes(error.status)") && visitorSource.includes("retry protection remains active"), "Partner intake does not distinguish correctable errors from retry-safe transient failures.");
+assert(visitorSource.includes('import("./partner-intake-readiness-ui.js")')
+  && publicOptionalScriptFiles.some(file => file.startsWith("partner-intake-readiness-ui-"))
+  && !publicInitialScriptFiles.some(file => file.startsWith("partner-intake-readiness-ui-")), "Partner intake readiness is not isolated as an on-demand public chunk.");
+assert(partnerIntakeSource.includes("[400, 401, 403, 409, 422].includes(error.status)") && partnerIntakeSource.includes("retry protection remains active"), "Partner intake does not distinguish correctable errors from retry-safe transient failures.");
 const publicAlertLoader = visitorSource.slice(visitorSource.indexOf("async function loadPublicAlert"), visitorSource.indexOf("function applyPublicEventGuide"));
 assert(publicAlertLoader && !publicAlertLoader.includes("renderPublicAlert(null)"), "A transient public-alert fetch failure clears the last known safety message.");
 assert(visitorSource.includes('loadIslandConditions({ force: true, preserveOnError: true })'), "Manual Island Conditions refresh does not preserve the last known reading on failure.");

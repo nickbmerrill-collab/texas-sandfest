@@ -22,6 +22,10 @@ import {
 } from "../lib/board-demo-readiness.mjs";
 import { boardDemoAccessPlugin } from "../vite.config.js";
 import { publicPartnerIntakeReadiness } from "../lib/public-partner-intake.mjs";
+import {
+  publicPartnerServerReadiness,
+  publicPartnerServerReadinessSafety
+} from "../lib/public-partner-server-readiness.mjs";
 import { buildRevenueLedgerView, partnerRevenueEntries, summarizeLedger, ticketRevenueEntries } from "../lib/revenue.mjs";
 import {
   createGuestServicesCase,
@@ -1374,6 +1378,15 @@ console.log("\n=== Pure library suite ===\n");
     production: true,
     turnstileSiteKey: "production-site-key-0001"
   });
+  const publicServerReadiness = publicPartnerServerReadiness({
+    eventId: DEFAULT_EVENT_ID,
+    intakeAvailable: true,
+    recoveryAvailable: true
+  });
+  const unsafeServerReadiness = {
+    ...publicServerReadiness,
+    portalSecret: "must-not-leak"
+  };
 
   ok("Turnstile is optional locally and mandatory in production", !disabled.enabled && disabled.ready && missing.enabled && !missing.ready);
   ok("Turnstile production config pins official verification and public hostname", config.ready && config.siteverifyUrl === TURNSTILE_SITEVERIFY_URL && config.expectedHostname === "www.texassandfest.org" && !unsafeEndpoint.ready);
@@ -1383,6 +1396,7 @@ console.log("\n=== Pure library suite ===\n");
   ok("production web-only build allows a missing Turnstile key but rejects configured test keys", !missingPublicKeyRejected && testPublicKeyRejected);
   ok("production web-only build allows no Apple prefix and validates a configured prefix", !missingApplePrefixRejected && malformedApplePrefixRejected);
   ok("public partner intake remains available locally and fails closed in an unprotected production bundle", localPublicIntake.ready && !localPublicIntake.protectedByTurnstile && !unprotectedProductionIntake.ready && !unprotectedProductionIntake.protectedByTurnstile && protectedProductionIntake.ready && protectedProductionIntake.protectedByTurnstile);
+  ok("public partner server readiness is explicit, event-scoped, and privacy-safe", publicServerReadiness.intakeAvailable && publicServerReadiness.recoveryAvailable && publicPartnerServerReadinessSafety(publicServerReadiness, { eventId: DEFAULT_EVENT_ID }).ready && !publicPartnerServerReadinessSafety(unsafeServerReadiness, { eventId: DEFAULT_EVENT_ID }).ready);
 }
 
 // Public sculptor roster publication authority
@@ -6458,12 +6472,19 @@ try {
   ok("ordinary development API hides presentation reset", health.data.boardDemoResetReady === false && unavailableBoardReset.status === 404);
   ok("ordinary development API hides board SMS preference simulation", unavailableBoardSmsPreference.status === 404);
   const readiness = await hit("GET", "/ready");
+  const publicPartnerReadinessApi = await hitRaw("GET", "/api/public/partner-intake");
   const publicGuestServicesReadinessApi = await hitRaw("GET", "/api/public/guest-services");
   const deployment = await hit("GET", "/api/admin/deployment", null, true);
   const unauthenticatedAppBootstrap = await hit("GET", "/api/admin/app-bootstrap");
   const appBootstrap = await hit("GET", "/api/admin/app-bootstrap", null, true);
   const queueStatus = await hit("GET", "/api/admin/jobs?limit=12", null, true);
   ok("GET /ready queue health", readiness.status === 200 && readiness.data.checks?.queue === true && readiness.data.checks?.queueStatus?.staleRunning === 0);
+  ok("public partner intake readiness is current, privacy-safe, and separates email recovery", publicPartnerReadinessApi.status === 200
+    && publicPartnerReadinessApi.data.eventId === DEFAULT_EVENT_ID
+    && publicPartnerReadinessApi.data.intakeAvailable === true
+    && publicPartnerReadinessApi.data.recoveryAvailable === false
+    && publicPartnerServerReadinessSafety(publicPartnerReadinessApi.data, { eventId: DEFAULT_EVENT_ID }).ready
+    && publicPartnerReadinessApi.headers.get("cache-control") === "no-store");
   ok("public Guest Services readiness is current and privacy-safe", publicGuestServicesReadinessApi.status === 200
     && publicGuestServicesReadinessApi.data.eventId === DEFAULT_EVENT_ID
     && publicGuestServicesReadinessApi.data.available === true

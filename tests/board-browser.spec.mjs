@@ -479,7 +479,16 @@ test("board workflows operate through the public and staff interfaces", async ({
 ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${runId},2027-03-03,yes,receipt`;
 
   await page.setViewportSize({ width: 1440, height: 1000 });
+  const partnerReadinessResponsePromise = page.waitForResponse(response => new URL(response.url()).pathname === "/api/public/partner-intake"
+    && response.request().method() === "GET");
   await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#sponsors`);
+  const partnerReadinessResponse = await partnerReadinessResponsePromise;
+  expect(partnerReadinessResponse.status()).toBe(200);
+  expect(await partnerReadinessResponse.json()).toEqual({
+    eventId: DEFAULT_EVENT_ID,
+    intakeAvailable: true,
+    recoveryAvailable: true
+  });
   await expect(page.locator("#network-status")).toHaveText("Demo");
   await expect(page.locator("#mobile-nav-toggle")).toBeHidden();
   await expect(page.locator("#public-navigation")).toBeVisible();
@@ -2299,6 +2308,33 @@ test("Guest Services intake fails closed when server readiness is unavailable", 
   await expect(form.locator('button[type="submit"]')).toHaveText("Guest Services unavailable");
   await expect(form.locator(".partner-form-status")).toContainText("Call Guest Services for help");
   await expect(page.locator('#guest-services-status-form button[type="submit"]')).toBeEnabled();
+  await assertNoHorizontalOverflow(page);
+});
+
+test("partner intake and private-access recovery fail closed when server readiness is unavailable", async ({ page }) => {
+  await page.route("**/api/public/partner-intake", async route => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "temporarily unavailable" }) });
+      return;
+    }
+    await route.continue();
+  });
+  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#sponsors`);
+
+  const sponsorForm = page.locator("#sponsor-inquiry-form");
+  const vendorForm = page.locator("#vendor-application-form");
+  const recoveryForm = page.locator("#partner-portal-recovery-form");
+  await expect(sponsorForm).toHaveAttribute("data-public-intake-state", "unavailable");
+  await expect(vendorForm).toHaveAttribute("data-public-intake-state", "unavailable");
+  await expect(recoveryForm).toHaveAttribute("data-public-intake-state", "unavailable");
+  await expect(recoveryForm).toHaveAttribute("aria-busy", "false");
+  await expect(sponsorForm.locator('button[type="submit"]')).toBeDisabled();
+  await expect(vendorForm.locator('button[type="submit"]')).toBeDisabled();
+  await expect(recoveryForm.locator('button[type="submit"]')).toBeDisabled();
+  await expect(sponsorForm.locator("[data-sponsor-program-unavailable]")).toContainText("Online partner applications are temporarily unavailable");
+  await expect(page.locator("#vendor-intake-availability")).toContainText("Online partner applications are temporarily unavailable");
+  await expect(recoveryForm.locator("[data-partner-recovery-availability]")).toContainText("Private-access email is temporarily unavailable");
+  await expect(page.locator('#partner-status-form button[type="submit"]')).toBeEnabled();
   await assertNoHorizontalOverflow(page);
 });
 
