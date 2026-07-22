@@ -51,6 +51,8 @@ jobs:
         run: npm run test:platform:api
       - name: Isolated board runtime
         run: npm run test:board-runtime
+      - name: Board capability certificate contract
+        run: npm run test:board-certificate
       - name: Board demo supervisor recovery
         run: npm run test:board-supervisor
       - name: Board browser acceptance
