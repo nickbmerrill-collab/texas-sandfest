@@ -3186,13 +3186,17 @@ test("partner portal recovery is private, delivered, and mobile-safe", async ({ 
 
   await expect(page.locator('#partner-status-form [name="reference"]')).toHaveValue(intake.application.reference);
   await expect(page.locator("#partner-status-form .partner-form-status")).toContainText("Secure status loaded");
+  await page.waitForTimeout(1_750);
 
   const recovery = page.locator("#partner-portal-recovery-form");
-  await expect(recovery.locator('button[type="submit"]')).toBeEnabled();
+  const recoverySubmit = recovery.locator('button[type="submit"]');
+  await expect(recoverySubmit).toBeEnabled();
   await recovery.locator('[name="reference"]').fill(intake.application.reference);
   await recovery.locator('[name="contactEmail"]').fill(contactEmail);
+  await recoverySubmit.evaluate(button => button.scrollIntoView({ behavior: "instant", block: "center" }));
+  await expect(recoverySubmit).toBeInViewport({ ratio: 1 });
   const matchedResponsePromise = page.waitForResponse(response => new URL(response.url()).pathname === "/api/public/partner-portal-recovery" && response.request().method() === "POST");
-  await recovery.locator('button[type="submit"]').click();
+  await recoverySubmit.click();
   const matchedResponse = await matchedResponsePromise;
   const matchedPayload = await matchedResponse.json();
   expect(matchedResponse.status()).toBe(202);
@@ -3204,7 +3208,7 @@ test("partner portal recovery is private, delivered, and mobile-safe", async ({ 
 
   await recovery.locator('[name="contactEmail"]').fill(`unknown.${runId}@example.com`);
   const missedResponsePromise = page.waitForResponse(response => new URL(response.url()).pathname === "/api/public/partner-portal-recovery" && response.request().method() === "POST");
-  await recovery.locator('button[type="submit"]').click();
+  await recoverySubmit.click();
   const missedResponse = await missedResponsePromise;
   const missedPayload = await missedResponse.json();
   expect(missedResponse.status()).toBe(202);
