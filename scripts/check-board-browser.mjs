@@ -132,6 +132,14 @@ async function verifyCommandNavigation(page) {
   };
 }
 
+async function waitForAdminWorkspace(page) {
+  await page.waitForFunction(() => {
+    const status = document.querySelector("#admin-api-status");
+    return status?.dataset.workspaceState === "ready"
+      && status.getAttribute("aria-busy") === "false";
+  }, null, { timeout: timeoutMs });
+}
+
 async function responsiveLayoutObservation(page, { surface, url, width, height }) {
   await page.setViewportSize({ width, height });
   await page.goto(url, { waitUntil: "domcontentloaded", timeout: timeoutMs });
@@ -139,7 +147,7 @@ async function responsiveLayoutObservation(page, { surface, url, width, height }
   if (surface === "visitor") {
     await page.waitForFunction(() => document.querySelectorAll("#public-sponsor-tiers [data-package-id]").length === 11, null, { timeout: timeoutMs });
   } else {
-    await page.waitForFunction(() => document.querySelector("#admin-api-status")?.textContent?.includes("Loaded"), null, { timeout: timeoutMs });
+    await waitForAdminWorkspace(page);
     await page.waitForFunction(() => document.querySelectorAll(".admin-workspace-nav a").length === 7, null, { timeout: timeoutMs });
   }
 
@@ -432,7 +440,7 @@ if (visitorUrl && operationsUrl) {
     try {
       await page.setViewportSize({ width: 1280, height: 720 });
       await page.goto(operationsUrl, { waitUntil: "domcontentloaded", timeout: timeoutMs });
-      await page.waitForFunction(() => document.querySelector("#admin-api-status")?.textContent?.includes("Loaded"), null, { timeout: timeoutMs });
+      await waitForAdminWorkspace(page);
       await page.waitForFunction(() => document.querySelectorAll("#admin-command-signals [data-command-signal]").length === 8, null, { timeout: timeoutMs });
       await page.waitForFunction(() => document.querySelectorAll("#admin-budget-lines [data-budget-line]").length === 6
         && document.querySelectorAll("#admin-expense-list [data-budget-expense]").length === 7, null, { timeout: timeoutMs });

@@ -266,6 +266,11 @@ async function assertChoiceTargets(page, label) {
   expect(issues, `${label} choice controls must expose a 24px pointer target`).toEqual([]);
 }
 
+async function expectAdminWorkspaceReady(page) {
+  const status = page.locator('#admin-api-status[data-workspace-state="ready"]');
+  await expect(status).toHaveAttribute("aria-busy", "false", { timeout: 25_000 });
+}
+
 async function assertNoAccessibilityViolations(page, label) {
   const results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
@@ -2211,6 +2216,7 @@ test("incident delivery verification safely resolves ambiguous provider outcomes
   let deliveredRow = incidentCard.locator(`[data-dispatch-control="${deliveredDispatchId}"]`);
   let deliveredForm = deliveredRow.locator("[data-reconcile-dispatch]");
   await expect(deliveredForm).toContainText("Provider verification required");
+  expect((await deliveredForm.locator('[name="providerMessageId"]').boundingBox())?.height).toBeGreaterThanOrEqual(40);
   await expect(deliveredRow.getByRole("button", { name: "Queue email" })).toHaveCount(0);
   await expect(deliveredRow.getByRole("button", { name: "Dismiss draft" })).toHaveCount(0);
   await deliveredForm.locator('[name="resolutionNote"]').fill("Brevo delivery log checked by the operations lead.");
@@ -2524,6 +2530,7 @@ test("visitor hero and navigation stay ordered across intermediate widths", asyn
     await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor`);
     await expect(page.locator(".hero h1")).toHaveText("Texas SandFest");
     await expect(page.locator(".hero-actions")).toBeInViewport({ ratio: 1 });
+    await assertChoiceTargets(page, `Visitor ${width}px`);
     await expect(page.locator("#public-navigation")).toBeHidden();
     await expect(page.locator("#mobile-nav-toggle")).toBeVisible();
     const layout = await page.locator(".hero").evaluate(hero => {
@@ -2773,6 +2780,12 @@ test("critical public and operations views fit a mobile viewport", async ({ page
   expect(askInputBox?.height).toBeGreaterThanOrEqual(44);
   expect(askSubmitBox?.height).toBeGreaterThanOrEqual(44);
   expect(Math.abs(Number(askInputBox?.width) - Number(askSubmitBox?.width))).toBeLessThanOrEqual(1);
+  const partnerSelects = page.locator("#sponsor-inquiry-form select, #vendor-application-form select");
+  await expect(partnerSelects).toHaveCount(3);
+  for (let index = 0; index < await partnerSelects.count(); index += 1) {
+    const bounds = await partnerSelects.nth(index).boundingBox();
+    expect(bounds?.height).toBeGreaterThanOrEqual(42);
+  }
   const runtimeNotice = page.locator("#runtime-data-notice");
   await expect(runtimeNotice).toContainText("Board demonstration · Synthetic 2027 data");
   await expect(runtimeNotice).toContainText("No external messages, charges, or live-provider calls");
@@ -2912,7 +2925,7 @@ test("critical public and operations views fit a mobile viewport", async ({ page
 
   await page.setViewportSize({ width: 320, height: 740 });
   await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#admin-partners`);
-  await expect(page.locator("#admin-api-status")).toContainText("Loaded", { timeout: 25_000 });
+  await expectAdminWorkspaceReady(page);
   await expect(runtimeNotice).toBeInViewport();
   await expect.poll(() => page.evaluate(() => {
     const notice = document.querySelector("#runtime-data-notice")?.getBoundingClientRect();
