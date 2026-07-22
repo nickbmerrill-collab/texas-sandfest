@@ -1040,6 +1040,29 @@ function expenseAuditView(expense) {
   };
 }
 
+function partnerPaymentAuditView(payment) {
+  if (!payment) return null;
+  return {
+    id: payment.id,
+    eventId: payment.eventId,
+    applicationId: payment.applicationId,
+    invoiceId: payment.invoiceId,
+    amountCents: payment.amountCents,
+    appliedAmountCents: payment.appliedAmountCents,
+    unappliedAmountCents: payment.unappliedAmountCents,
+    refundedAmountCents: payment.refundedAmountCents,
+    method: payment.method,
+    status: payment.status,
+    reconciliationStatus: payment.reconciliationStatus,
+    accountingReferenceAvailable: Boolean(payment.externalRef),
+    providerEvidenceAvailable: Boolean(payment.providerEventId || payment.paymentIntentId || payment.providerCheckoutId),
+    reversalReasonAvailable: Boolean(payment.reversalReason),
+    receivedAt: payment.receivedAt,
+    reversedAt: payment.reversedAt,
+    updatedAt: payment.updatedAt
+  };
+}
+
 function budgetMutationStatus(result) {
   if (result?.code === "NOT_FOUND") return 404;
   if (["DUPLICATE_BUDGET_LINE", "INVALID_STATE", "INVALID_TRANSITION", "OVER_BUDGET"].includes(result?.code)) return 409;
@@ -8969,7 +8992,7 @@ async function handleRequest(request, response) {
         return;
       }
       if (!result.duplicate) {
-        await writeAuditRecord(request, "partner.payment.record", { type: "payment", id: result.payment.id }, null, result.payment, { applicationId, totalPaidCents: result.totalPaidCents });
+        await writeAuditRecord(request, "partner.payment.record", { type: "payment", id: result.payment.id }, null, partnerPaymentAuditView(result.payment), { applicationId, totalPaidCents: result.totalPaidCents });
       }
       sendJson(request, response, result.duplicate ? 200 : 201, { payment: result.payment, totalPaidCents: result.totalPaidCents, duplicate: result.duplicate === true });
       return;
@@ -8992,7 +9015,7 @@ async function handleRequest(request, response) {
         sendJson(request, response, result?.error === "Payment not found." ? 404 : 400, { error: result?.error || "Payment could not be reversed." });
         return;
       }
-      await writeAuditRecord(request, `partner.payment.${body.action === "refund" ? "refund" : "void"}`, { type: "payment", id: paymentId }, before, result.payment, {
+      await writeAuditRecord(request, `partner.payment.${body.action === "refund" ? "refund" : "void"}`, { type: "payment", id: paymentId }, partnerPaymentAuditView(before), partnerPaymentAuditView(result.payment), {
         applicationId: result.payment.applicationId,
         invoiceId: result.payment.invoiceId,
         totalPaidCents: result.totalPaidCents

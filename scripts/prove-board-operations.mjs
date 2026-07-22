@@ -7,6 +7,7 @@ import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { chromium, expect } from "@playwright/test";
+import { parse } from "csv-parse/sync";
 import { BOARD_DEMO_PREFLIGHT_CHECK_COUNT, boardDemoLoopbackUrl } from "../lib/board-demo-readiness.mjs";
 import {
   BOARD_DEMO_SESSION_SCHEMA_VERSION,
@@ -17,6 +18,7 @@ import {
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ADMIN_TOKEN = "board-demo-local-admin-token-change-me";
+const EVENT_ID = "texas-sandfest-2027";
 const SPONSOR_APPLICATION_ID = "demo_sapp_0001";
 const SPONSOR_NAME = "Gulf Shore Credit Union";
 const BASELINE = {
@@ -261,7 +263,14 @@ async function proveAccounting(page, runId) {
   await expect(expenseCard).toHaveAttribute("data-expense-status", "paid");
   await expect(expenseCard).toContainText("ACH payment recorded");
   await expect(expenseCard).not.toContainText(privateReference);
-  return { budgetLineId: line.id, expenseId: expense.id, expenseStatus: "paid" };
+  return {
+    budgetLineId: line.id,
+    budgetLineName: lineName,
+    expenseId: expense.id,
+    expenseStatus: "paid",
+    vendorName,
+    paymentReference: privateReference
+  };
 }
 
 async function proveSponsorPayment(page, runId) {
@@ -270,7 +279,8 @@ async function proveSponsorPayment(page, runId) {
   await expect(sponsorCard).toHaveCount(1);
   await expect(sponsorCard).toContainText("$10,000.00 / $15,000.00");
   await sponsorCard.locator('[name="paymentAmount"]').fill("5000.00");
-  await sponsorCard.locator('[name="paymentReference"]').fill(`BOARD-PROOF-RECEIPT-${runId}`);
+  const accountingReference = `BOARD-PROOF-RECEIPT-${runId}`;
+  await sponsorCard.locator('[name="paymentReference"]').fill(accountingReference);
   await sponsorCard.locator('[name="paymentReceivedAt"]').fill(localDateTimeInput(Date.now()));
   const paymentResponse = page.waitForResponse(response => (
     new URL(response.url()).pathname === `/api/admin/partners/applications/${SPONSOR_APPLICATION_ID}/payments`
@@ -286,7 +296,7 @@ async function proveSponsorPayment(page, runId) {
     .filter({ hasText: SPONSOR_NAME })
     .filter({ hasText: "Payment due" });
   await expect(paymentMilestone.locator('[name="status"]')).toHaveValue("completed");
-  return { paymentId: payment.id, amountCents: payment.amountCents };
+  return { paymentId: payment.id, amountCents: payment.amountCents, accountingReference };
 }
 
 async function proveDelegation(page, runId) {
@@ -363,6 +373,147 @@ async function proveAutomaticDeliveries(page, apiBase, { payment, delegation, ke
   };
 }
 
+async function downloadVisibleExport(page, name) {
+  const button = page.locator("#admin-download-export");
+  await expect(button).toBeEnabled();
+  await page.locator("#admin-export-type").selectOption(name);
+  const [download] = await Promise.all([
+    page.waitForEvent("download", { timeout: timeoutMs }),
+    button.click()
+  ]);
+  const stream = await download.createReadStream();
+  const chunks = [];
+  for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+  await expect(button).toBeEnabled();
+  return {
+    fileName: download.suggestedFilename(),
+    body: Buffer.concat(chunks).toString("utf8")
+  };
+}
+
+function csvRows(download) {
+  return parse(download.body, {
+    bom: true,
+    columns: true,
+    skip_empty_lines: true
+  });
+}
+
+async function proveExports(page, { accounting, payment, keyDate }) {
+  const budget = await downloadVisibleExport(page, "budget.csv");
+  const expenses = await downloadVisibleExport(page, "expenses.csv");
+  const payments = await downloadVisibleExport(page, "payments.csv");
+  const receivables = await downloadVisibleExport(page, "receivables.csv");
+  const calendar = await downloadVisibleExport(page, "milestones.ics");
+  const expectedNames = {
+    budget: `${EVENT_ID}-budget-allocations.csv`,
+    expenses: `${EVENT_ID}-expense-register.csv`,
+    payments: `${EVENT_ID}-partner-payments.csv`,
+    receivables: `${EVENT_ID}-receivables.csv`,
+    calendar: `${EVENT_ID}-partner-key-dates.ics`
+  };
+  for (const [key, expected] of Object.entries(expectedNames)) {
+    const actual = ({ budget, expenses, payments, receivables, calendar })[key].fileName;
+    if (actual !== expected) throw new Error(`${key} export used unexpected file name ${actual}.`);
+  }
+
+  const budgetRows = csvRows(budget);
+  const expenseRows = csvRows(expenses);
+  const paymentRows = csvRows(payments);
+  const receivableRows = csvRows(receivables);
+  const budgetRow = budgetRows.find(row => row["Budget line ID"] === accounting.budgetLineId);
+  const expenseRow = expenseRows.find(row => row["Expense ID"] === accounting.expenseId);
+  const paymentRow = paymentRows.find(row => row["Payment ID"] === payment.paymentId);
+  const receivableRow = receivableRows.find(row => row.Organization === SPONSOR_NAME);
+  if (
+    budgetRow?.Allocation !== accounting.budgetLineName
+    || budgetRow?.["Annual budget"] !== "3000.00"
+    || budgetRow?.Paid !== "1200.00"
+  ) {
+    throw new Error("Budget export did not reconcile the board allocation and paid expense.");
+  }
+  if (
+    expenseRow?.Status !== "paid"
+    || expenseRow?.["Vendor or payee"] !== accounting.vendorName
+    || expenseRow?.["Payment reference"] !== accounting.paymentReference
+  ) {
+    throw new Error("Expense export did not preserve the authorized accounting record.");
+  }
+  if (
+    paymentRow?.Amount !== "5000.00"
+    || paymentRow?.Status !== "succeeded"
+    || paymentRow?.["External reference"] !== payment.accountingReference
+  ) {
+    throw new Error("Payment export did not reconcile the recorded sponsor receipt.");
+  }
+  if (receivableRow?.["Outstanding amount"] !== "0.00" || receivableRow?.["Reconciliation status"] !== "paid") {
+    throw new Error("Receivables export did not show the sponsor account as fully paid.");
+  }
+  const calendarEvents = calendar.body.match(/BEGIN:VEVENT/g)?.length || 0;
+  if (
+    !calendar.body.includes(`UID:${keyDate.milestoneId}@texassandfest.org`)
+    || !calendar.body.includes(`SUMMARY:${SPONSOR_NAME}: ${keyDate.label}`)
+  ) {
+    throw new Error("Key-date calendar did not include the newly scheduled sponsor reminder.");
+  }
+  return {
+    files: 5,
+    budgetRows: budgetRows.length,
+    expenseRows: expenseRows.length,
+    paymentRows: paymentRows.length,
+    receivableRows: receivableRows.length,
+    calendarEvents
+  };
+}
+
+async function proveAudit(apiBase, { accounting, payment, keyDate }, startedAt) {
+  const payload = await adminJson(apiBase, "/api/admin/audit?limit=200");
+  const cutoff = Date.parse(startedAt);
+  const targetIds = new Set([
+    accounting.budgetLineId,
+    accounting.expenseId,
+    payment.paymentId,
+    keyDate.milestoneId,
+    "budget.csv",
+    "expenses.csv",
+    "payments.csv",
+    "receivables.csv",
+    "milestones.ics"
+  ]);
+  const records = (payload.audit || []).map(item => item.record).filter(record => (
+    targetIds.has(record?.target?.id)
+    && Date.parse(record.createdAt) >= cutoff
+  ));
+  const actions = records.map(record => record.action);
+  for (const action of [
+    "budget.line.create",
+    "budget.expense.submit",
+    "budget.expense.approve",
+    "budget.expense.mark_paid",
+    "partner.payment.record",
+    "partner.milestone.create"
+  ]) {
+    if (!actions.includes(action)) throw new Error(`Operations proof audit is missing ${action}.`);
+  }
+  const exportRecords = records.filter(record => record.action === "operations.export.download");
+  if (exportRecords.length !== 5 || exportRecords.some(record => !["csv", "ics"].includes(record.metadata?.format))) {
+    throw new Error("Operations proof did not retain five aggregate export audit records.");
+  }
+  const serialized = JSON.stringify(records);
+  for (const forbidden of [
+    accounting.vendorName,
+    accounting.paymentReference,
+    payment.accountingReference,
+    "externalRef",
+    "paymentReference",
+    "paymentIntentId",
+    "providerEventId"
+  ]) {
+    if (serialized.includes(forbidden)) throw new Error(`Operations proof audit exposed private value ${forbidden}.`);
+  }
+  return { records: records.length, exports: exportRecords.length, actions: [...new Set(actions)].sort() };
+}
+
 const sessionFile = boardDemoSessionPath(process.env, { root: ROOT });
 const runId = randomUUID().slice(0, 8);
 const result = {
@@ -373,6 +524,8 @@ const result = {
   delegation: null,
   keyDate: null,
   deliveries: null,
+  exports: null,
+  audit: null,
   reset: null
 };
 let browser = null;
@@ -401,13 +554,16 @@ try {
   await expect(page.locator("#network-status")).toHaveText("Demo");
   await expect(page.locator("#runtime-data-notice")).toContainText("No external messages, charges, or live-provider calls");
 
+  const auditStartedAt = new Date().toISOString();
   resetRequired = true;
   result.accounting = await proveAccounting(page, runId);
   result.payment = await proveSponsorPayment(page, runId);
   result.delegation = await proveDelegation(page, runId);
   result.keyDate = await proveKeyDate(page, runId);
   result.deliveries = await proveAutomaticDeliveries(page, endpoints.apiBase, result);
-  log("Verified paid expense, sponsor payment, volunteer task, key date, and three authenticated local deliveries.");
+  result.exports = await proveExports(page, result);
+  result.audit = await proveAudit(endpoints.apiBase, result, auditStartedAt);
+  log("Verified paid expense, sponsor payment, volunteer task, key date, three local deliveries, five exports, and privacy-safe audits.");
 } catch (error) {
   workflowError = error;
 } finally {
@@ -440,6 +596,8 @@ if (workflowError) {
     console.log(`Delegation:  ${result.delegation.assigneeType} task delivered`);
     console.log(`Key date:    ${result.keyDate.status} with automatic reminder delivered`);
     console.log(`Automation:  ${result.deliveries.delivered} authenticated local deliveries`);
+    console.log(`Exports:     ${result.exports.files} reconciled accounting and calendar files`);
+    console.log(`Audit:       ${result.audit.records} reference-safe finance lifecycle records`);
     console.log(`Reset:       ${result.reset.applications} applications · ${result.reset.expenses} expenses · ${result.reset.preflight} ready`);
   }
 }
