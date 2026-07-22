@@ -6,7 +6,7 @@ import path from "node:path";
 import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
-import { chromium } from "@playwright/test";
+import { chromium, expect } from "@playwright/test";
 import { BOARD_DEMO_PREFLIGHT_CHECK_COUNT, boardDemoLoopbackUrl } from "../lib/board-demo-readiness.mjs";
 import {
   BOARD_DEMO_SESSION_SCHEMA_VERSION,
@@ -18,12 +18,12 @@ import {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ADMIN_TOKEN = "board-demo-local-admin-token-change-me";
 const BASELINE_APPLICATIONS = { total: 5, vendors: 3, sponsors: 2 };
-const timeoutMs = 25_000;
+const timeoutMs = 30_000;
 const jsonOutput = process.argv.includes("--json");
 
 if (process.argv.includes("--help")) {
   console.log("Usage: npm run board:prove:signups -- [--json]");
-  console.log("Submits one synthetic vendor and sponsor through the active board site, verifies Operations, then restores the baseline.");
+  console.log("Submits one synthetic vendor and sponsor, proves both automatic local acknowledgments in Operations, then restores the baseline.");
   process.exit(0);
 }
 
@@ -75,6 +75,7 @@ function activeSession(session, report) {
   }
   const apiBase = exactBase(session.endpoints?.apiBase, "Board API");
   const webBase = exactBase(session.endpoints?.webBase, "Board web");
+  const emailBase = exactBase(session.endpoints?.emailBase, "Board email sandbox");
   const visitor = new URL(String(report.links?.visitor || ""));
   const operations = new URL(String(report.links?.operations || ""));
   if (
@@ -88,7 +89,7 @@ function activeSession(session, report) {
   ) {
     throw new Error("Board presentation links do not match the active supervised session.");
   }
-  return { apiBase, webBase, visitor: visitor.toString(), operations: operations.toString() };
+  return { apiBase, webBase, emailBase, visitor: visitor.toString(), operations: operations.toString() };
 }
 
 async function adminPartners(apiBase) {
@@ -98,6 +99,20 @@ async function adminPartners(apiBase) {
   });
   if (!response.ok) throw new Error(`Partner workspace returned ${response.status}.`);
   return response.json();
+}
+
+async function emailSandboxHealth(emailBase) {
+  const response = await fetch(`${emailBase}/health`, { signal: AbortSignal.timeout(5_000) });
+  const payload = response.ok ? await response.json() : null;
+  if (
+    !response.ok
+    || payload?.ok !== true
+    || payload.service !== "sandfest-board-email-sandbox"
+    || payload.mode !== "board_demo"
+  ) {
+    throw new Error(`Board email sandbox returned ${response.status}.`);
+  }
+  return payload;
 }
 
 function exactBaseline(payload) {
@@ -204,7 +219,13 @@ async function submitPartner(page, { kind, organizationName }) {
   await form.locator('button[type="submit"]').click();
   const response = await responsePromise;
   const payload = await response.json().catch(() => ({}));
-  if (response.status() !== 201 || payload.application?.type !== kind || !payload.application?.reference) {
+  if (
+    response.status() !== 201
+    || payload.application?.type !== kind
+    || !payload.application?.id
+    || !payload.application?.reference
+    || payload.acknowledgment !== "draft_queued"
+  ) {
     throw new Error(`${kind} signup returned ${response.status()} without a valid application reference.`);
   }
   await page.waitForFunction(({ expectedOrganization, expectedReference }) => {
@@ -222,12 +243,65 @@ async function submitPartner(page, { kind, organizationName }) {
   });
   return {
     kind,
+    applicationId: payload.application.id,
     organizationName,
     reference: payload.application.reference
   };
 }
 
-async function proveOperations(page, operationsUrl, submissions) {
+function expectedAcknowledgmentSubject(submission) {
+  const typeLabel = submission.kind === "vendor" ? "vendor" : "sponsorship";
+  return `Texas SandFest ${typeLabel} application ${submission.reference}`;
+}
+
+function deliveredAcknowledgment(followup, submission) {
+  return followup?.applicationId === submission.applicationId
+    && followup.kind === "application_received"
+    && followup.subject === expectedAcknowledgmentSubject(submission)
+    && followup.status === "sent"
+    && followup.deliveryStatus === "delivered"
+    && followup.provider === "brevo"
+    && /^board-mail-[a-f0-9]{32}$/.test(String(followup.providerMessageId || ""))
+    && followup.deliveryAttempts === 1
+    && followup.automationPolicy === "partner_transactional_v1"
+    && Number.isFinite(Date.parse(followup.deliveredAt))
+    && String(followup.body || "").includes(`#partner-status?reference=${encodeURIComponent(submission.reference)}`);
+}
+
+async function waitForAcknowledgments(apiBase, emailBase, submissions, mailboxBefore) {
+  const deadline = Date.now() + timeoutMs;
+  let lastState = null;
+  while (Date.now() < deadline) {
+    const partners = await adminPartners(apiBase);
+    const acknowledgments = submissions.map(submission => (
+      partners.followups?.find(item => item.applicationId === submission.applicationId && item.kind === "application_received") || null
+    ));
+    const mailbox = await emailSandboxHealth(emailBase);
+    lastState = {
+      statuses: acknowledgments.map(item => ({ status: item?.status || null, deliveryStatus: item?.deliveryStatus || null })),
+      acceptedMessages: mailbox.acceptedMessages,
+      deliveryCallbacks: mailbox.deliveryCallbacks,
+      callbackFailures: mailbox.callbackFailures
+    };
+    if (
+      acknowledgments.every((item, index) => deliveredAcknowledgment(item, submissions[index]))
+      && mailbox.acceptedMessages >= mailboxBefore.acceptedMessages + submissions.length
+      && mailbox.deliveryCallbacks >= mailboxBefore.deliveryCallbacks + submissions.length
+      && mailbox.callbackFailures === 0
+    ) {
+      return {
+        acknowledgments,
+        acceptedMessages: mailbox.acceptedMessages - mailboxBefore.acceptedMessages,
+        deliveryCallbacks: mailbox.deliveryCallbacks - mailboxBefore.deliveryCallbacks,
+        callbackFailures: mailbox.callbackFailures
+      };
+    }
+    await delay(250);
+  }
+  throw new Error(`Vendor and sponsor acknowledgments did not reach authenticated local delivery in time: ${JSON.stringify(lastState)}.`);
+}
+
+async function proveOperations(page, operationsUrl, submissions, acknowledgments) {
   const url = new URL(operationsUrl);
   url.hash = "admin-partner-applications-workspace";
   await page.goto(url.toString(), { waitUntil: "domcontentloaded", timeout: timeoutMs });
@@ -247,16 +321,26 @@ async function proveOperations(page, operationsUrl, submissions) {
       throw new Error(`Operations did not render the ${submission.kind} application reference.`);
     }
   }
+  for (const acknowledgment of acknowledgments) {
+    const card = page.locator(`#admin-partner-followups [data-followup="${acknowledgment.id}"]`);
+    await expect(card).toHaveAttribute("data-delivery-status", "delivered");
+    await expect(card).toContainText(acknowledgment.subject);
+    await expect(card).toContainText("transactional automation");
+  }
   const applicationCount = await page.locator("#admin-partner-applications [data-partner-application]").count();
   if (applicationCount !== BASELINE_APPLICATIONS.total + submissions.length) {
     throw new Error(`Operations rendered ${applicationCount} applications after signup proof; expected ${BASELINE_APPLICATIONS.total + submissions.length}.`);
   }
-  return { applicationCount, references: submissions.map(item => item.reference) };
+  return {
+    applicationCount,
+    references: submissions.map(item => item.reference),
+    deliveredAcknowledgments: acknowledgments.length
+  };
 }
 
 const sessionFile = boardDemoSessionPath(process.env, { root: ROOT });
 const runId = randomUUID().slice(0, 8);
-const result = { ok: false, runId, submissions: [], operations: null, reset: null };
+const result = { ok: false, runId, submissions: [], automation: null, operations: null, reset: null };
 let browser = null;
 let resetRequired = false;
 let workflowError = null;
@@ -273,6 +357,7 @@ try {
     session = await readBoardDemoSession(sessionFile);
     endpoints = activeSession(session, preflight(sessionFile));
   }
+  const mailboxBefore = await emailSandboxHealth(endpoints.emailBase);
 
   browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
@@ -292,8 +377,22 @@ try {
     organizationName: `Board Sponsor Proof ${runId}`
   });
   result.submissions.push(sponsor);
-  result.operations = await proveOperations(page, endpoints.operations, result.submissions);
-  log(`Verified ${vendor.reference} and ${sponsor.reference} through Visitor and Operations.`);
+  const delivery = await waitForAcknowledgments(
+    endpoints.apiBase,
+    endpoints.emailBase,
+    result.submissions,
+    mailboxBefore
+  );
+  result.automation = {
+    delivered: delivery.acknowledgments.length,
+    provider: "brevo",
+    sandboxAuthenticated: delivery.acknowledgments.every(item => String(item.providerMessageId).startsWith("board-mail-")),
+    acceptedMessages: delivery.acceptedMessages,
+    deliveryCallbacks: delivery.deliveryCallbacks,
+    callbackFailures: delivery.callbackFailures
+  };
+  result.operations = await proveOperations(page, endpoints.operations, result.submissions, delivery.acknowledgments);
+  log(`Verified ${vendor.reference} and ${sponsor.reference} through Visitor, automatic delivery, and Operations.`);
 } catch (error) {
   workflowError = error;
 } finally {
@@ -323,6 +422,7 @@ if (workflowError) {
     console.log("\nBoard signup proof passed.");
     console.log(`Vendor:     ${result.submissions[0].reference}`);
     console.log(`Sponsor:    ${result.submissions[1].reference}`);
+    console.log(`Automation: ${result.automation.delivered} authenticated local acknowledgments`);
     console.log(`Operations: ${result.operations.applicationCount} applications observed`);
     console.log(`Reset:      ${result.reset.applicationCount} baseline applications · ${result.reset.preflight} ready`);
   }

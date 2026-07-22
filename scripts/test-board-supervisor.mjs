@@ -159,7 +159,14 @@ async function signupProofRehearsal(sessionFile) {
     result.code !== 0
     || report.ok !== true
     || report.submissions?.length !== 2
+    || report.automation?.delivered !== 2
+    || report.automation?.provider !== "brevo"
+    || report.automation?.sandboxAuthenticated !== true
+    || report.automation?.acceptedMessages < 2
+    || report.automation?.deliveryCallbacks < 2
+    || report.automation?.callbackFailures !== 0
     || report.operations?.applicationCount !== 7
+    || report.operations?.deliveredAcknowledgments !== 2
     || report.reset?.applicationCount !== 5
     || report.reset?.preflight !== `${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}/${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}`
   ) {
@@ -952,7 +959,7 @@ try {
   const signupProof = await signupProofRehearsal(sessionFile);
   const signupProofSession = await readBoardDemoSession(sessionFile);
   rememberServicePids(signupProofSession);
-  console.log(`  ok public signup proof creates ${signupProof.submissions.length} applications, renders ${signupProof.operations.applicationCount} in Operations, and restores the ${signupProof.reset.applicationCount}-application baseline`);
+  console.log(`  ok public signup proof creates ${signupProof.submissions.length} applications, delivers ${signupProof.automation.delivered} authenticated acknowledgments, renders ${signupProof.operations.applicationCount} in Operations, and restores the ${signupProof.reset.applicationCount}-application baseline`);
 
   const guestServicesProof = await guestServicesProofRehearsal(sessionFile);
   const guestServicesProofSession = await readBoardDemoSession(sessionFile);

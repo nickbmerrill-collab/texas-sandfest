@@ -108,7 +108,9 @@ This command requires the same clean, ready, exact-loopback session as the
 read-only rehearsal. It uses the visible demo presets, confirms that consent is
 still unchecked, deliberately grants consent, submits one synthetic vendor and
 one synthetic sponsor through the public forms, opens each private status view,
-and verifies both references in Operations. It then asks the supervisor to
+requires both automatic acknowledgments to reach authenticated loopback Brevo
+delivery with signed callbacks, and verifies the two delivered message records
+and both application references in Operations. It then asks the supervisor to
 replace every service and restore the five-application baseline, even if a
 workflow assertion fails. Do not run this state-mutating proof during the live
 walkthrough; run it during rehearsal and wait for its final 12/12 reset result.
