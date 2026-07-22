@@ -3,6 +3,7 @@ import { existsSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
+import { resolveIOSInstallDevice } from "../lib/ios-device-readiness.mjs";
 
 if (process.platform !== "darwin") {
   console.error("The signed iOS device gate requires macOS and Xcode.");
@@ -58,23 +59,9 @@ function discoverInstallDevice() {
   run("xcrun", ["devicectl", "list", "devices", "--json-output", deviceListPath], "Discover paired iOS hardware", { capture: true });
   const devices = JSON.parse(readFileSync(deviceListPath, "utf8")).result?.devices || [];
   const requestedIdentifier = String(process.env.SANDFEST_IOS_DEVICE_ID || "").trim();
-  const eligible = devices
-    .filter(device => device?.hardwareProperties?.platform === "iOS"
-      && device?.hardwareProperties?.reality === "physical"
-      && device?.hardwareProperties?.udid
-      && device?.connectionProperties?.pairingState === "paired"
-      && device?.connectionProperties?.transportType
-      && device?.deviceProperties?.developerModeStatus === "enabled")
-    .sort((left, right) => Date.parse(right.connectionProperties?.lastConnectionDate || 0) - Date.parse(left.connectionProperties?.lastConnectionDate || 0));
-  const device = requestedIdentifier
-    ? eligible.find(item => item.identifier === requestedIdentifier || item.hardwareProperties.udid === requestedIdentifier)
-    : eligible[0];
-  if (!device) {
-    throw new Error(requestedIdentifier
-      ? "SANDFEST_IOS_DEVICE_ID does not identify an available paired iOS device with Developer Mode enabled."
-      : "No available paired iOS device with Developer Mode enabled was found.");
-  }
-  return device;
+  const selection = resolveIOSInstallDevice(devices, requestedIdentifier);
+  if (!selection.device) throw new Error(selection.reason);
+  return selection.device;
 }
 
 try {
