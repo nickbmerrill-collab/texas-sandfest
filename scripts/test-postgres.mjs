@@ -7,10 +7,17 @@ import { createServer } from "node:net";
 import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
 import twilio from "twilio";
 import { emptyBudgetControl } from "../lib/budget-control.mjs";
+import {
+  CURRENT_EVENT_OPERATIONAL_DOCUMENT_KEYS,
+  operationalDocumentEventId
+} from "../lib/event-context.mjs";
+import { ROLLOVER_DOCUMENT_KEYS } from "../lib/event-rollover.mjs";
+import { platformDocumentStorageKey } from "../lib/platform-data.mjs";
 import { REQUIRED_TICKET_POLICY_NOTICES } from "../lib/ticket-policy-schema.mjs";
 import { partnerCatalogDigest } from "../lib/partner-catalog-publication.mjs";
 import { publicSponsorPackage, sponsorPackageCatalog } from "../lib/sponsor-packages.mjs";
@@ -2614,6 +2621,155 @@ PG-EVENTENY-V-1,vendor,Postgres Eventeny Vendor,Postgres Import Contact,${postgr
     activeAssetDatabaseRejected = error.message.includes("refuses to run against SANDFEST_DATABASE_URL");
   }
   check("asset recovery verifier refuses the active source database", activeAssetDatabaseRejected);
+
+  console.log("\n=== Atomic annual event rollover ===\n");
+  await stopChild(apiChild);
+  apiChild = null;
+  await verificationPool.query(
+    `INSERT INTO platform_documents (key, data, updated_at)
+     VALUES ($1, $2::jsonb, now())
+     ON CONFLICT (key) DO UPDATE SET data = EXCLUDED.data, updated_at = now()`,
+    [platformDocumentStorageKey("incomingDocuments"), JSON.stringify(recoveryIncomingDoc)]
+  );
+  const rolloverTargetEventId = "texas-sandfest-2028";
+  const bootstrapResult = await verificationPool.query(
+    "SELECT data FROM config_documents WHERE key = $1",
+    ["app-bootstrap"]
+  );
+  const targetBootstrap = {
+    ...bootstrapResult.rows[0].data,
+    guide: {
+      ...bootstrapResult.rows[0].data.guide,
+      id: rolloverTargetEventId,
+      startDate: "2028-04-14",
+      endDate: "2028-04-16"
+    }
+  };
+  await verificationPool.query(
+    "UPDATE config_documents SET data = $2::jsonb, updated_at = now() WHERE key = $1",
+    ["app-bootstrap", JSON.stringify(targetBootstrap)]
+  );
+
+  const rolloverStorageKeys = ROLLOVER_DOCUMENT_KEYS.map(platformDocumentStorageKey);
+  const sourceRolloverRows = await verificationPool.query(
+    "SELECT key, data FROM platform_documents WHERE key = ANY($1::text[]) ORDER BY key",
+    [rolloverStorageKeys]
+  );
+  const sourceRolloverDocuments = new Map(sourceRolloverRows.rows.map(row => [row.key, row.data]));
+  const missingRolloverStorageKeys = rolloverStorageKeys.filter(key => !sourceRolloverDocuments.has(key));
+  if (!isDeepStrictEqual(missingRolloverStorageKeys, [platformDocumentStorageKey("passportCompletions")])) {
+    throw new Error(`Atomic rollover fixture has unexpected missing documents: ${missingRolloverStorageKeys.join(", ") || "none"}.`);
+  }
+  const sourceSnapshotCount = Number((await verificationPool.query(
+    "SELECT count(*)::int AS count FROM config_snapshots"
+  )).rows[0].count);
+
+  await verificationPool.query(`
+    CREATE OR REPLACE FUNCTION sandfest_reject_test_rollover()
+    RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+    BEGIN
+      IF NEW.key = 'partner-operations'
+         AND NEW.data->>'eventId' = 'texas-sandfest-2028' THEN
+        RAISE EXCEPTION 'forced rollover rollback';
+      END IF;
+      RETURN NEW;
+    END;
+    $$
+  `);
+  await verificationPool.query(`
+    CREATE TRIGGER sandfest_reject_test_rollover
+    BEFORE UPDATE ON platform_documents
+    FOR EACH ROW
+    EXECUTE FUNCTION sandfest_reject_test_rollover()
+  `);
+
+  let forcedRolloverFailure = null;
+  try {
+    await runChild([
+      "scripts/rollover-event.mjs",
+      "--from", EVENT_ID,
+      "--to", rolloverTargetEventId,
+      "--apply"
+    ], {
+      ...commonEnv,
+      SANDFEST_EVENT_ID: rolloverTargetEventId,
+      SANDFEST_ROLLOVER_MAINTENANCE: "true"
+    }, "forced atomic rollover rollback");
+  } catch (error) {
+    forcedRolloverFailure = error;
+  } finally {
+    await verificationPool.query("DROP TRIGGER IF EXISTS sandfest_reject_test_rollover ON platform_documents");
+    await verificationPool.query("DROP FUNCTION IF EXISTS sandfest_reject_test_rollover()");
+  }
+
+  const rolledBackRows = await verificationPool.query(
+    "SELECT key, data FROM platform_documents WHERE key = ANY($1::text[]) ORDER BY key",
+    [rolloverStorageKeys]
+  );
+  const rolledBackSnapshotCount = Number((await verificationPool.query(
+    "SELECT count(*)::int AS count FROM config_snapshots"
+  )).rows[0].count);
+  const rollbackPreservedDocuments = rolledBackRows.rows.every(row => (
+    isDeepStrictEqual(row.data, sourceRolloverDocuments.get(row.key))
+  ));
+  check("forced mid-rollover failure leaves no mixed-year state", forcedRolloverFailure?.message.includes("forced rollover rollback")
+    && rollbackPreservedDocuments
+    && rolledBackRows.rows.length === sourceRolloverRows.rows.length
+    && rolledBackSnapshotCount === sourceSnapshotCount);
+
+  const rolloverOutput = await runChild([
+    "scripts/rollover-event.mjs",
+    "--from", EVENT_ID,
+    "--to", rolloverTargetEventId,
+    "--apply"
+  ], {
+    ...commonEnv,
+    SANDFEST_EVENT_ID: rolloverTargetEventId,
+    SANDFEST_ROLLOVER_MAINTENANCE: "true"
+  }, "atomic Postgres rollover");
+  const rolloverEvidence = JSON.parse(rolloverOutput.trim());
+  check("Postgres rollover reports serializable all-or-nothing evidence", rolloverEvidence.ok
+    && rolloverEvidence.mode === "applied"
+    && rolloverEvidence.storage === "postgres"
+    && rolloverEvidence.atomic === true
+    && rolloverEvidence.isolation === "serializable"
+    && rolloverEvidence.verifiedDocuments === ROLLOVER_DOCUMENT_KEYS.length
+    && /^[a-f0-9]{64}$/.test(rolloverEvidence.archiveDigest || ""));
+
+  const targetRolloverRows = await verificationPool.query(
+    "SELECT key, data FROM platform_documents WHERE key = ANY($1::text[])",
+    [rolloverStorageKeys]
+  );
+  const targetDocumentsByStorageKey = new Map(targetRolloverRows.rows.map(row => [row.key, row.data]));
+  const targetDocuments = Object.fromEntries(ROLLOVER_DOCUMENT_KEYS.map(key => [
+    key,
+    targetDocumentsByStorageKey.get(platformDocumentStorageKey(key))
+  ]));
+  const allCurrentDocumentsAdvanced = CURRENT_EVENT_OPERATIONAL_DOCUMENT_KEYS.every(key => (
+    operationalDocumentEventId(key, targetDocuments[key]) === rolloverTargetEventId
+  ));
+  const archiveResult = await verificationPool.query(
+    "SELECT data FROM config_snapshots WHERE id = $1",
+    [rolloverEvidence.archiveId]
+  );
+  const archivedDocuments = archiveResult.rows[0]?.data?.data?.documents;
+  check("atomic rollover binds the complete source archive to the new ledgers", allCurrentDocumentsAdvanced
+    && archiveResult.rows.length === 1
+    && archivedDocuments?.partnerOps?.eventId === EVENT_ID
+    && archivedDocuments?.passportCompletions?.completions?.length === totals.completions
+    && archivedDocuments?.voting?.votes?.length === totals.votes
+    && targetDocuments.passportCompletions?.completions?.length === 0
+    && targetDocuments.voting?.votes?.length === 0);
+
+  const retainedHistory = (await verificationPool.query(`
+    SELECT
+      (SELECT count(*)::int FROM hunt_completions WHERE hunt_id = 'sculpture-passport-2027') AS completions,
+      (SELECT count(*)::int FROM peoples_choice_votes WHERE event_id = $1) AS votes
+  `, [EVENT_ID])).rows[0];
+  check("rollover retains source-year append history", retainedHistory.completions === totals.completions
+    && retainedHistory.votes === totals.votes);
   await closePool();
 
   console.log(`\nPostgres total: ${passed} passed, ${failed} failed\n`);
