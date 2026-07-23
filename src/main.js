@@ -1074,7 +1074,7 @@ app.innerHTML = `
         </div>
       </div>
       <div class="booth-map-layout">
-        <div class="booth-corridor" id="booth-corridor" aria-label="Vendor booth map"></div>
+        <div class="booth-corridor" id="booth-corridor" role="region" aria-label="Vendor booth map"></div>
         <div class="booth-list keyboard-scroll-region" id="booth-list" role="region" aria-label="Vendor booth directory" tabindex="0"></div>
       </div>
     </section>
