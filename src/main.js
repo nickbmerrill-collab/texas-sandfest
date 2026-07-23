@@ -1729,6 +1729,7 @@ app.innerHTML = `
             <label><span>Follow-up due</span><input name="nextActionAt" type="datetime-local" /></label>
             <label class="admin-task-wide"><span>Next action</span><input name="nextAction" maxlength="300" value="Research decision maker" /></label>
             <button class="button primary" type="submit">Score prospect</button>
+            <p class="partner-form-status admin-task-wide"></p>
           </form>
           <form id="admin-import-prospects" class="admin-inline-form admin-outreach-import" data-requires-permission="outreach:write">
             <strong>Import outreach list</strong>
@@ -1814,6 +1815,7 @@ app.innerHTML = `
             <section id="admin-campaign-audience-preview" class="admin-campaign-audience-preview" data-state="idle" aria-live="polite">
               <strong>Audience preview required</strong><span>Check exact server-qualified businesses and message personalization before saving this campaign draft.</span>
             </section>
+            <p class="partner-form-status"></p>
           </form>
           <div>
             <strong>Campaigns</strong>
@@ -3345,7 +3347,10 @@ async function downloadAdminExport(name) {
   const link = document.createElement("a");
   link.href = url;
   link.download = fileName;
+  link.hidden = true;
+  document.body.append(link);
   link.click();
+  link.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   return fileName;
 }
@@ -8136,7 +8141,7 @@ function renderAdminOutreachCoverage(outreach) {
       </div>
       <div class="admin-outreach-map-detail">
         <div class="admin-outreach-map-legend" aria-label="Campaign coverage legend"><span data-kind="center"><i></i>Center</span><span data-kind="inside"><i></i>Inside radius</span><span data-kind="outside"><i></i>Outside radius</span></div>
-        <ul class="admin-outreach-map-list" aria-label="Located outreach businesses">${prospectRows || '<li><span><strong>No located businesses</strong></span><span>Add coordinates to a prospect to include it here.</span></li>'}</ul>
+        <ul class="admin-outreach-map-list" aria-label="Located outreach businesses" tabindex="0">${prospectRows || '<li><span><strong>No located businesses</strong></span><span>Add coordinates to a prospect to include it here.</span></li>'}</ul>
         ${plotted.length > 8 ? `<span class="admin-outreach-map-more">${plotted.length - 8} additional located business${plotted.length - 8 === 1 ? "" : "es"}</span>` : ""}
         <p>Geography shows radius coverage. Server matching also enforces industry, city, state, ZIP, fit, qualification, contact basis, and suppression.</p>
       </div>
@@ -9941,26 +9946,12 @@ adminOperationsUi?.bindTaskCreation(document.querySelector("#admin-create-task")
   setAdminStatus
 });
 
-document.querySelector("#admin-create-prospect")?.addEventListener("submit", async event => {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const values = Object.fromEntries(new FormData(form).entries());
-  try {
-    const data = await adminFetch("/api/admin/outreach/prospects", {
-      method: "POST",
-      body: JSON.stringify({
-        ...values,
-        latitude: values.latitude || null,
-        longitude: values.longitude || null,
-        communityFit: form.elements.communityFit.checked,
-        nextActionAt: localDateTimeToIso(values.nextActionAt)
-      })
-    });
-    form.reset();
-    form.elements.state.value = "TX";
-    await loadAdminPartners({ quiet: true });
-    setAdminStatus(`Scored ${data.prospect.organizationName} at ${data.prospect.fitScore}/100.`, "ok");
-  } catch (error) { setAdminStatus(error.message, "error"); }
+adminOperationsUi?.bindOutreachProspectCreation(document.querySelector("#admin-create-prospect"), {
+  adminFetch,
+  loadAdminPartners,
+  localDateTimeToIso,
+  requestOutcomeIsAmbiguous,
+  setAdminStatus
 });
 
 document.querySelector("#admin-discover-businesses")?.addEventListener("input", event => {
@@ -10170,27 +10161,15 @@ document.querySelector("#admin-preview-campaign")?.addEventListener("click", asy
   }
 });
 
-document.querySelector("#admin-create-campaign")?.addEventListener("submit", async event => {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const button = form.querySelector('button[type="submit"]');
-  if (!form.dataset.audiencePreviewFingerprint || form.dataset.audiencePreviewFingerprint !== campaignFormFingerprint(form)) {
-    invalidateCampaignAudiencePreview(form, { force: true });
-    setAdminStatus("Preview the current campaign audience before saving the draft.", "warning");
-    return;
-  }
-  button.disabled = true;
-  try {
-    const data = await adminFetch("/api/admin/outreach/campaigns", {
-      method: "POST",
-      body: JSON.stringify(campaignFormPayload(form))
-    });
-    await loadAdminPartners({ quiet: true });
-    invalidateCampaignAudiencePreview(form, { force: true, message: "Campaign draft saved. Change the campaign name or targeting, then preview again before creating another draft." });
-    setAdminStatus(`${data.campaign.name} saved as a reviewable campaign draft.`, "ok");
-  } catch (error) { setAdminStatus(error.message, "error"); } finally {
-    button.disabled = !adminCan("outreach:write") || !form.dataset.audiencePreviewFingerprint;
-  }
+adminOperationsUi?.bindOutreachCampaignCreation(document.querySelector("#admin-create-campaign"), {
+  adminCan,
+  adminFetch,
+  campaignFormFingerprint,
+  campaignFormPayload,
+  invalidateCampaignAudiencePreview,
+  loadAdminPartners,
+  requestOutcomeIsAmbiguous,
+  setAdminStatus
 });
 
 ["#sponsor-inquiry-form", "#vendor-application-form"].forEach(selector => {

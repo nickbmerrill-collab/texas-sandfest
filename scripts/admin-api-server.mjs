@@ -8668,18 +8668,31 @@ async function handleRequest(request, response) {
     if (method === "POST" && pathname === "/api/admin/outreach/prospects") {
       const session = await requirePermission(request, response, "outreach:write");
       if (!session) return;
+      const idempotency = requiredIdempotencyKey(request);
+      if (!idempotency.ok) {
+        sendJson(request, response, 400, { error: idempotency.error });
+        return;
+      }
       const body = await readBody(request);
       const result = await mutatePartnerOperations(doc => createOutreachProspect(doc, body, {
         actorId: session.id,
-        idFactory: prefix => `${prefix}_${randomUUID()}`,
+        idFactory: idempotencyIdFactory("outreach-prospect-create", idempotency.keyHash),
         now: new Date().toISOString()
       }));
       if (!result?.ok) {
-        sendJson(request, response, 400, { error: result?.error || "Prospect could not be created." });
+        sendJson(request, response, result?.code === "IDEMPOTENCY_CONFLICT" ? 409 : 400, {
+          error: result?.error || "Prospect could not be created.",
+          code: result?.code
+        });
         return;
       }
-      await writeAuditRecord(request, "outreach.prospect.create", { type: "prospect", id: result.prospect.id }, null, adminOutreachProspectAuditView(result.prospect));
-      sendJson(request, response, 201, { prospect: result.prospect });
+      if (!result.replay) {
+        await writeAuditRecord(request, "outreach.prospect.create", { type: "prospect", id: result.prospect.id }, null, adminOutreachProspectAuditView(result.prospect));
+      }
+      sendJson(request, response, result.replay ? 200 : 201, {
+        replay: result.replay === true,
+        prospect: result.prospect
+      });
       return;
     }
 
@@ -8834,18 +8847,31 @@ async function handleRequest(request, response) {
     if (method === "POST" && pathname === "/api/admin/outreach/campaigns") {
       const session = await requirePermission(request, response, "outreach:write");
       if (!session) return;
+      const idempotency = requiredIdempotencyKey(request);
+      if (!idempotency.ok) {
+        sendJson(request, response, 400, { error: idempotency.error });
+        return;
+      }
       const body = await readBody(request);
       const result = await mutatePartnerOperations(doc => createOutreachCampaign(doc, body, {
         actorId: session.id,
-        idFactory: prefix => `${prefix}_${randomUUID()}`,
+        idFactory: idempotencyIdFactory("outreach-campaign-create", idempotency.keyHash),
         now: new Date().toISOString()
       }));
       if (!result?.ok) {
-        sendJson(request, response, 400, { error: result?.error || "Campaign could not be created." });
+        sendJson(request, response, result?.code === "IDEMPOTENCY_CONFLICT" ? 409 : 400, {
+          error: result?.error || "Campaign could not be created.",
+          code: result?.code
+        });
         return;
       }
-      await writeAuditRecord(request, "outreach.campaign.create", { type: "campaign", id: result.campaign.id }, null, result.campaign);
-      sendJson(request, response, 201, { campaign: result.campaign });
+      if (!result.replay) {
+        await writeAuditRecord(request, "outreach.campaign.create", { type: "campaign", id: result.campaign.id }, null, result.campaign);
+      }
+      sendJson(request, response, result.replay ? 200 : 201, {
+        replay: result.replay === true,
+        campaign: result.campaign
+      });
       return;
     }
 

@@ -1,4 +1,5 @@
 import { escapeAttr, escapeHtml } from "../lib/html-escape.mjs";
+import { submitCreation } from "./admin-creation.js";
 
 const panelMarkup = `
   <div class="admin-budget-panel" id="admin-budget">
@@ -69,21 +70,6 @@ function inputCents(value) {
   return Number.isFinite(amount) ? Math.round(amount * 100) : 0;
 }
 
-function creationRetryKey(form, payload) {
-  const fingerprint = JSON.stringify(payload);
-  if (form.dataset.retryFingerprint !== fingerprint) {
-    form.dataset.retryFingerprint = fingerprint;
-    form.dataset.idempotencyKey = globalThis.crypto?.randomUUID?.()
-      || `finance-create-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  }
-  return form.dataset.idempotencyKey;
-}
-
-function clearCreationRetry(form) {
-  delete form.dataset.retryFingerprint;
-  delete form.dataset.idempotencyKey;
-}
-
 export function createAdminBudgetUi({
   adminCan,
   adminFetch,
@@ -95,20 +81,12 @@ export function createAdminBudgetUi({
   setAdminStatus
 }) {
   let mounted = false;
+  const creationDeps = { adminFetch, loadAdminPartners: options => load(options), requestOutcomeIsAmbiguous, setAdminStatus };
 
   function lineById(payload, lineId) {
     return (payload?.summary?.lines || []).find(line => line.id === lineId)
       || (payload?.budgetLines || []).find(line => line.id === lineId)
       || null;
-  }
-
-  function setCreationStatus(form, message, state) {
-    const status = form.querySelector("[data-finance-create-status]");
-    status.textContent = message;
-    status.dataset.state = state;
-    status.setAttribute("role", state === "error" ? "alert" : "status");
-    status.setAttribute("aria-live", state === "error" ? "assertive" : "polite");
-    setAdminStatus(message, state);
   }
 
   function lineCard(line) {
@@ -279,41 +257,20 @@ export function createAdminBudgetUi({
 
   function bindStaticActions() {
     document.querySelector("#admin-load-budget")?.addEventListener("click", () => load());
-    document.querySelector("#admin-create-budget-line")?.addEventListener("submit", async event => {
+    document.querySelector("#admin-create-budget-line")?.addEventListener("submit", event => {
       event.preventDefault();
       const form = event.currentTarget;
-      const button = form.querySelector('button[type="submit"]');
       const body = {
         name: form.elements.name.value,
         ownerTeam: form.elements.ownerTeam.value,
         budgetCents: inputCents(form.elements.amount.value),
         notes: form.elements.notes.value
       };
-      button.disabled = true;
-      try {
-        const result = await adminFetch("/api/admin/budget/lines", {
-          method: "POST",
-          headers: { "idempotency-key": creationRetryKey(form, body) },
-          body: JSON.stringify(body)
-        });
-        clearCreationRetry(form);
-        form.reset();
-        await load({ quiet: true });
-        setCreationStatus(form, `Added ${result.line.name} at ${adminMoney(result.line.budgetCents)}.`, "ok");
-      } catch (error) {
-        const ambiguous = requestOutcomeIsAmbiguous(error);
-        if (!ambiguous) clearCreationRetry(form);
-        setCreationStatus(form, ambiguous
-          ? `${error.message} Try the same allocation again; Finance will record it only once.`
-          : error.message, "error");
-      } finally {
-        button.disabled = !adminCan("budget:write");
-      }
+      void submitCreation(form, "/api/admin/budget/lines", body, "Try the same allocation again; Finance will record it only once.", result => `Added ${result.line.name} at ${adminMoney(result.line.budgetCents)}.`, creationDeps, undefined, () => !adminCan("budget:write"));
     });
-    document.querySelector("#admin-create-expense")?.addEventListener("submit", async event => {
+    document.querySelector("#admin-create-expense")?.addEventListener("submit", event => {
       event.preventDefault();
       const form = event.currentTarget;
-      const button = form.querySelector('button[type="submit"]');
       const body = {
         budgetLineId: form.elements.budgetLineId.value,
         vendorName: form.elements.vendorName.value,
@@ -321,29 +278,11 @@ export function createAdminBudgetUi({
         amountCents: inputCents(form.elements.amount.value),
         dueDate: form.elements.dueDate.value
       };
-      button.disabled = true;
-      try {
-        const result = await adminFetch("/api/admin/budget/expenses", {
-          method: "POST",
-          headers: { "idempotency-key": creationRetryKey(form, body) },
-          body: JSON.stringify(body)
-        });
-        const selectedLine = form.elements.budgetLineId.value;
-        clearCreationRetry(form);
-        form.reset();
+      const selectedLine = form.elements.budgetLineId.value;
+      void submitCreation(form, "/api/admin/budget/expenses", body, "Try the same expense again; Finance will record it only once.", result => `Submitted ${adminMoney(result.expense.amountCents)} for ${result.expense.vendorName}.`, creationDeps, () => {
         form.elements.dueDate.value = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
-        await load({ quiet: true });
         if ([...form.elements.budgetLineId.options].some(option => option.value === selectedLine)) form.elements.budgetLineId.value = selectedLine;
-        setCreationStatus(form, `Submitted ${adminMoney(result.expense.amountCents)} for ${result.expense.vendorName}.`, "ok");
-      } catch (error) {
-        const ambiguous = requestOutcomeIsAmbiguous(error);
-        if (!ambiguous) clearCreationRetry(form);
-        setCreationStatus(form, ambiguous
-          ? `${error.message} Try the same expense again; Finance will record it only once.`
-          : error.message, "error");
-      } finally {
-        button.disabled = !adminCan("budget:write");
-      }
+      }, () => !adminCan("budget:write"));
     });
     const dueDate = document.querySelector("#admin-create-expense input[name=dueDate]");
     if (dueDate && !dueDate.value) dueDate.value = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
