@@ -493,7 +493,7 @@ See `docs/scale-and-reliability.md`.
 
 Set `SANDFEST_ENV=production` when deploying to Heyelab. In production, these checks are blocking:
 
-- `SANDFEST_AUTH_MODE=jwt` with a HTTPS `SANDFEST_AUTH_JWKS_URL` and an `SANDFEST_AUTH_ISSUER` — bearer-token mode is not allowed in production.
+- `SANDFEST_AUTH_MODE=jwt` with a HTTPS `SANDFEST_AUTH_JWKS_URL`, `SANDFEST_AUTH_ISSUER`, and `SANDFEST_AUTH_AUDIENCE` — bearer-token mode and partially pinned JWT verification are not allowed in production.
 - The static admin build must use OIDC with a registered SPA client and HTTPS issuer, redirect, logout, and API URLs. The production build fails before publishing when these values are absent.
 - `SANDFEST_API_PUBLIC_BASE_URL` and `SANDFEST_ADMIN_BASE_URL` must be HTTPS.
 - `SANDFEST_PARTNER_PORTAL_SECRET` must be at least 32 characters and `SANDFEST_PUBLIC_SITE_URL` must be HTTPS.
