@@ -35,6 +35,8 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Unit + pure suite
         run: npm run test:platform
+      - name: Admin JWT trust contract
+        run: npm run test:auth
       - name: Deployment acceptance gate contracts
         run: npm run test:deployment-verifier
       - name: Production container contract

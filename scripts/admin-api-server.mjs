@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { loadDotEnv } from "../lib/load-env.mjs";
 import { RUNTIME_OWNERSHIP_ERROR_CODE, assertRuntimeOwnership, resolveRuntimeRoot, runtimeRootProfile } from "../lib/runtime-root.mjs";
 import { createStorage } from "../lib/storage.mjs";
-import { authMode, authModeIsJwt, resolveSession } from "../lib/auth.mjs";
+import { authConfiguration, authMode, authModeIsJwt, resolveSession } from "../lib/auth.mjs";
 import { buildRevenueLedgerView, partnerRevenueEntries, summarizeLedger, ticketRevenueEntries } from "../lib/revenue.mjs";
 import {
   createBudgetLine,
@@ -880,6 +880,7 @@ const DEPLOYMENT_CHECK_PRESENTATION = Object.freeze({
   authMode: ["Authentication mode", "Access"],
   authJwks: ["JWKS endpoint", "Access"],
   authIssuer: ["Token issuer", "Access"],
+  authAudience: ["Token audience", "Access"],
   adminToken: ["Admin credential", "Access"],
   adminRole: ["Admin role", "Access"],
   adminActor: ["Audit actor", "Access"],
@@ -2433,10 +2434,8 @@ async function deploymentProfile(options = {}) {
   const adminBase = process.env.SANDFEST_ADMIN_BASE_URL || "";
   const publicApiBase = process.env.SANDFEST_API_PUBLIC_BASE_URL || "";
   const corsOrigins = new Set(ALLOWED_ORIGINS);
-  const mode = authMode();
-  const jwt = authModeIsJwt();
-  const jwksUrl = process.env.SANDFEST_AUTH_JWKS_URL || "";
-  const issuer = process.env.SANDFEST_AUTH_ISSUER || "";
+  const authConfig = authConfiguration();
+  const { mode, jwt } = authConfig;
   const capabilityPolicy = requiredCapabilityPolicy(production);
   const [ticketCatalog, eventBootstrap, adminConfigResult, ...operationalDocValues] = await Promise.all([
     storage.config.read("ticket-products"),
@@ -2559,13 +2558,18 @@ async function deploymentProfile(options = {}) {
       production ? "error" : "warning"
     ),
     authJwks: checkStatus(
-      !jwt || jwksUrl.startsWith("https://"),
+      authConfig.checks.jwks,
       jwt ? "JWT mode requires SANDFEST_AUTH_JWKS_URL to be an HTTPS URL." : "JWKS URL not required in bearer-token mode.",
       "error"
     ),
     authIssuer: checkStatus(
-      !jwt || Boolean(issuer),
-      jwt ? "JWT mode requires SANDFEST_AUTH_ISSUER for issuer pinning." : "Issuer pinning not required in bearer-token mode.",
+      authConfig.checks.issuer,
+      jwt ? "JWT mode requires SANDFEST_AUTH_ISSUER to be an HTTPS URL for issuer pinning." : "Issuer pinning not required in bearer-token mode.",
+      jwt ? "error" : "warning"
+    ),
+    authAudience: checkStatus(
+      authConfig.checks.audience,
+      jwt ? "JWT mode requires SANDFEST_AUTH_AUDIENCE for resource pinning." : "Audience pinning not required in bearer-token mode.",
       jwt ? "error" : "warning"
     ),
     adminToken: checkStatus(

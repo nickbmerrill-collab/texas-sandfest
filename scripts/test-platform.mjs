@@ -7263,6 +7263,8 @@ try {
     && publicGuestServicesReadinessSafety(publicGuestServicesReadinessApi.data, { eventId: DEFAULT_EVENT_ID }).ready
     && publicGuestServicesReadinessApi.headers.get("cache-control") === "no-store");
   ok("deployment exposes data plane gate", deployment.status === 200 && deployment.data.deployment?.checks?.dataPlane?.ok === true);
+  ok("deployment exposes the JWT audience gate", deployment.data.deployment?.checks?.authAudience?.ok === true
+    && deployment.data.deployment?.checks?.authAudience?.message.includes("not required"));
   ok("native admin bootstrap requires authentication", unauthenticatedAppBootstrap.status === 401);
   ok("native admin bootstrap exposes privacy-minimized operating lanes", appBootstrap.status === 200
     && appBootstrap.data.eventId === DEFAULT_EVENT_ID
