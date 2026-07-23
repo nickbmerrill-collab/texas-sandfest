@@ -5439,6 +5439,12 @@ function partnerIntakeUnavailableMessage() {
     : PUBLIC_PARTNER_INTAKE.message;
 }
 
+function partnerIntakeAvailabilityState(programReady, programStatus) {
+  if (!programReady) return programStatus;
+  if (!PUBLIC_PARTNER_INTAKE.ready) return "unavailable";
+  return partnerIntakeReadinessUi?.status() || (partnerIntakeReadinessUiFailed ? "unavailable" : "checking");
+}
+
 function ensurePartnerIntakeReadinessUi() {
   if (import.meta.env.VITE_SANDFEST_SURFACE === "admin") {
     return Promise.reject(new Error("Partner intake readiness is public-only."));
@@ -5553,9 +5559,7 @@ function renderSponsorPackageChoices(selectedId = "") {
   const programReady = publicSponsorProgram.available && Boolean(selected);
   const ready = partnerIntakeAvailable() && programReady;
   const unavailableMessage = programReady ? partnerIntakeUnavailableMessage() : publicSponsorProgram.message;
-  const unavailableState = programReady
-    ? PUBLIC_PARTNER_INTAKE.ready ? partnerIntakeReadinessUi?.status() || (partnerIntakeReadinessUiFailed ? "unavailable" : "checking") : "unavailable"
-    : publicSponsorProgram.status;
+  const unavailableState = partnerIntakeAvailabilityState(programReady, publicSponsorProgram.status);
   select.innerHTML = sponsorPackageOptions(publicSponsorPackages, selected?.id || "");
   select.disabled = !publicSponsorPackages.length || Boolean(activeSponsorInvitationToken);
   if (tiers) tiers.innerHTML = sponsorPackageCards(publicSponsorPackages, selected?.id || "");
@@ -5572,9 +5576,7 @@ function renderSponsorPackageChoices(selectedId = "") {
   }
   if (unavailable) {
     unavailable.hidden = ready;
-    const contactFallback = ["loading", "checking"].includes(unavailableState)
-      ? ""
-      : ' or <a href="mailto:sponsors@texassandfest.org">email the sponsorship team</a>';
+    const contactFallback = partnerIntakeReadinessUi?.contactFallback("sponsor", unavailableState) || "";
     unavailable.innerHTML = ready
       ? ""
       : `${escapeHtml(unavailableMessage)} View the <a href="https://www.texassandfest.org/sponsorship" target="_blank" rel="noopener noreferrer">official sponsorship page</a>${contactFallback}.`;
@@ -5650,12 +5652,8 @@ function renderVendorIntakeMode(offering) {
   const programReady = publicVendorProgram.available && Boolean(offering);
   const ready = partnerIntakeAvailable() && programReady;
   const unavailableMessage = programReady ? partnerIntakeUnavailableMessage() : publicVendorProgram.message;
-  const unavailableState = programReady
-    ? PUBLIC_PARTNER_INTAKE.ready ? partnerIntakeReadinessUi?.status() || (partnerIntakeReadinessUiFailed ? "unavailable" : "checking") : "unavailable"
-    : publicVendorProgram.status;
-  const contactFallback = ["loading", "checking"].includes(unavailableState)
-    ? ""
-    : ' or <a href="mailto:vendors@texassandfest.org">email the vendor team</a>';
+  const unavailableState = partnerIntakeAvailabilityState(programReady, publicVendorProgram.status);
+  const contactFallback = partnerIntakeReadinessUi?.contactFallback("vendor", unavailableState) || "";
   const notice = partnerContactNotice("vendor", isInterest ? "interest" : "application");
   const label = document.querySelector("#vendor-intake-label");
   const heading = document.querySelector("#vendor-intake-heading");
