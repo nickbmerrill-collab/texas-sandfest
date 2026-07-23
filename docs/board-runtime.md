@@ -58,6 +58,26 @@ presentation stack does not call NWS or TxDOT: its weather and ferry cards are
 continuously refreshed from a visibly labeled local simulation, so weak venue
 internet cannot block startup or make the conditions panel stale.
 
+On the presentation Mac, use the checkout-owned launchd service instead of
+depending on an open terminal:
+
+```bash
+npm run board:service:start
+npm run board:service:status
+```
+
+`board:service:start` is idempotent. It registers
+`com.heyelab.sandfest.board`, runs the same clean-main `board:demo -- --reset`
+entrypoint, waits for a ready supervisor, and prints the validated links. The
+job command contains no board credentials; output is written to
+`.sandfest-runtime/board-demo-supervisor.log`. Use
+`npm run board:service:restart` after a verified main-branch update and
+`npm run board:service:stop` at the end of the presentation. Every service
+operation verifies that the launchd label names this exact checkout and refuses
+to control an unrelated job. `npm run board:stop` performs the same ownership
+check and boots out the keepalive before stopping the supervisor, so a stale
+source cannot immediately respawn behind an apparently successful stop.
+
 Every prepared runtime carries an explicit compatibility schema. On startup,
 the supervisor automatically rebuilds a recognized synthetic runtime when its
 schema, event, or presentation message mode is stale, before any services are
