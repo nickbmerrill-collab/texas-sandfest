@@ -79,6 +79,52 @@ export function bindOutreachCampaignCreation(form, deps) {
   };
 }
 
+function bindGeneratedCatalogId(form) {
+  form.elements.name.addEventListener("input", event => {
+    const idInput = form.elements.id;
+    if (idInput.dataset.manuallyEdited === "true") return;
+    idInput.value = event.currentTarget.value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  });
+  form.elements.id.addEventListener("input", event => {
+    event.currentTarget.dataset.manuallyEdited = event.currentTarget.value ? "true" : "false";
+  });
+}
+
+export function bindSponsorPackageCreation(form, deps) {
+  if (!form) return;
+  bindGeneratedCatalogId(form);
+  form.onsubmit = () => {
+    const values = Object.fromEntries(new FormData(form));
+    const body = {
+      ...values,
+      amount: deps.centsFromInput(values.amount),
+      benefits: values.benefits.split("\n").map(item => item.trim()).filter(Boolean),
+      active: Boolean(values.active),
+      requiresApproval: Boolean(values.requiresApproval)
+    };
+    void submitCreation(form, "/api/admin/sponsor-packages", body, OUTREACH_RETRY_MESSAGE, "Saved.", deps, null, () => !deps.adminCan("sponsor:write"));
+    return false;
+  };
+}
+
+export function bindVendorOfferingCreation(form, deps) {
+  if (!form) return;
+  bindGeneratedCatalogId(form);
+  form.onsubmit = () => {
+    const values = new FormData(form);
+    const body = {
+      ...Object.fromEntries(values),
+      amount: deps.centsFromInput(values.get("amount")),
+      categories: values.getAll("categories"),
+      inclusions: values.get("inclusions").split("\n").map(item => item.trim()).filter(Boolean),
+      active: values.has("active"),
+      requiresApproval: values.has("requiresApproval")
+    };
+    void submitCreation(form, "/api/admin/vendor-offerings", body, OUTREACH_RETRY_MESSAGE, "Saved.", deps, null, () => !deps.adminCan("finance:write"));
+    return false;
+  };
+}
+
 export function createAdminWorkspaceRecovery({ access, load, status }) {
   let timer = null;
   let attempt = 0;

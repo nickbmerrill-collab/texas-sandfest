@@ -4422,6 +4422,12 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
     amount: 750000,
     benefits: ["Festival website", "Community stage recognition"]
   });
+  const replayedSponsorPackage = createSponsorPackageConfig(createdSponsorPackage.config, {
+    id: "community-partner",
+    name: "Community Partner",
+    amount: 750000,
+    benefits: ["Festival website", "Community stage recognition"]
+  });
   const duplicateSponsorPackage = createSponsorPackageConfig(createdSponsorPackage.config, {
     id: "community-partner",
     name: "Duplicate Community Partner",
@@ -4436,7 +4442,7 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   ok("checked-in sponsor config matches the managed catalog", JSON.stringify(checkedInAdminConfig.sponsorPackages) === JSON.stringify(DEFAULT_SPONSOR_PACKAGES));
   ok("sponsor package catalog rejects unsafe pricing and fulfillment", !invalidSponsorAmount.ok && invalidSponsorAmount.error.includes("amount") && !invalidSponsorBenefits.ok && invalidSponsorBenefits.error.includes("benefit") && !invalidSponsorStripe.ok && invalidSponsorStripe.error.includes("Stripe Price ID"));
   ok("sponsor package catalog keeps one public tier active", !lastSponsorTierDisabled.ok && lastSponsorTierDisabled.error.includes("At least one active"));
-  ok("sponsor package creation validates and rejects duplicate IDs", createdSponsorPackage.ok && createdSponsorPackage.sponsorPackage.publicLabel === "$7,500 sponsorship" && !duplicateSponsorPackage.ok && duplicateSponsorPackage.conflict === true);
+  ok("sponsor package creation validates, replays exact IDs, and rejects changed duplicates", createdSponsorPackage.ok && createdSponsorPackage.sponsorPackage.publicLabel === "$7,500 sponsorship" && replayedSponsorPackage.ok && replayedSponsorPackage.replay === true && replayedSponsorPackage.config.sponsorPackages.length === createdSponsorPackage.config.sponsorPackages.length && !duplicateSponsorPackage.ok && duplicateSponsorPackage.conflict === true);
   ok("public sponsor package hides accounting mappings", updatedSponsorPackage.ok && publicSponsorTier.amount === 550000 && !Object.hasOwn(publicSponsorTier, "quickBooksItemId") && !Object.hasOwn(publicSponsorTier, "stripePriceId"));
   const sponsorPublicItems = DEFAULT_SPONSOR_PACKAGES.map(publicSponsorPackage);
   const pendingSponsorPublication = partnerCatalogPublicationReadiness({
@@ -4522,6 +4528,14 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
     description: "Expanded marketplace booth for larger retail and artisan activations.",
     inclusions: ["Expanded booth footprint", "Published booth listing"]
   });
+  const replayedVendorOffering = createVendorOfferingConfig(createdVendorOffering.config, {
+    id: "premium-marketplace-booth",
+    name: "Premium marketplace booth",
+    amount: 250000,
+    categories: ["retail", "artisan"],
+    description: "Expanded marketplace booth for larger retail and artisan activations.",
+    inclusions: ["Expanded booth footprint", "Published booth listing"]
+  });
   const duplicateVendorOffering = createVendorOfferingConfig(createdVendorOffering.config, {
     id: "premium-marketplace-booth",
     name: "Duplicate premium booth",
@@ -4568,7 +4582,7 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   ok("production vendor intake is interest-only until applications open", DEFAULT_VENDOR_OFFERINGS.every(item => item.intakeMode === "interest" && item.amount === 0) && JSON.stringify(checkedInAdminConfig.vendorOfferings) === JSON.stringify(DEFAULT_VENDOR_OFFERINGS));
   ok("vendor offering category authority", artisanOffering.ok && artisanOffering.offering.amount === 0 && artisanOffering.offering.intakeMode === "interest" && !categoryMismatch.ok && categoryMismatch.error.includes("not available"));
   ok("vendor offering catalog cannot strand a category", !unsafeCatalogChange.ok && unsafeCatalogChange.error.includes("food"));
-  ok("vendor offering creation validates and rejects duplicate IDs", createdVendorOffering.ok && createdVendorOffering.offering.publicLabel === "$2,500 application fee" && !duplicateVendorOffering.ok && duplicateVendorOffering.conflict === true);
+  ok("vendor offering creation validates, replays exact IDs, and rejects changed duplicates", createdVendorOffering.ok && createdVendorOffering.offering.publicLabel === "$2,500 application fee" && replayedVendorOffering.ok && replayedVendorOffering.replay === true && replayedVendorOffering.config.vendorOfferings.length === createdVendorOffering.config.vendorOfferings.length && !duplicateVendorOffering.ok && duplicateVendorOffering.conflict === true);
   ok("vendor offering pricing and provider mappings fail closed", !invalidVendorCents.ok && invalidVendorCents.error.includes("whole cents") && !invalidVendorProvider.ok && invalidVendorProvider.error.includes("Stripe Price ID"));
   ok("vendor offering state and inclusions fail closed", !invalidVendorState.ok && invalidVendorState.error.includes("active state") && !invalidVendorInclusions.ok && invalidVendorInclusions.error.includes("inclusion"));
   const invalidPricedInterest = updateVendorOfferingConfig({ vendorOfferings: DEFAULT_VENDOR_OFFERINGS }, "marketplace-booth", { amount: 100, intakeMode: "interest" });
@@ -8571,10 +8585,16 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
       stripePriceId: "price_api_community_champion",
       quickBooksItemId: "api-community-champion-item"
     };
+    const sponsorPackageCreateKey = "api-sponsor-package-create-0001";
+    const missingSponsorPackageCreateKey = await hit("POST", "/api/admin/sponsor-packages", sponsorPackageCreateBody, true);
     const concurrentSponsorCreates = await Promise.all([
-      hit("POST", "/api/admin/sponsor-packages", sponsorPackageCreateBody, true),
-      hit("POST", "/api/admin/sponsor-packages", sponsorPackageCreateBody, true)
+      hit("POST", "/api/admin/sponsor-packages", sponsorPackageCreateBody, true, { "idempotency-key": sponsorPackageCreateKey }),
+      hit("POST", "/api/admin/sponsor-packages", sponsorPackageCreateBody, true, { "idempotency-key": sponsorPackageCreateKey })
     ]);
+    const conflictingSponsorCreate = await hit("POST", "/api/admin/sponsor-packages", {
+      ...sponsorPackageCreateBody,
+      amount: 800000
+    }, true, { "idempotency-key": sponsorPackageCreateKey });
     const publicSponsorCatalogAfterCreate = await hit("GET", "/api/public/sponsors");
     const invalidSponsorAmountPatch = await hit("PATCH", "/api/admin/sponsor-packages/tarpon", { amount: 0 }, true);
     const invalidSponsorBenefitPatch = await hit("PATCH", "/api/admin/sponsor-packages/tarpon", { benefits: [] }, true);
@@ -8592,7 +8612,7 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     }, true);
     const publicSponsorCatalogAfterPatch = await hit("GET", "/api/public/sponsors");
     const publicTarponAfterPatch = publicSponsorCatalogAfterPatch.data.sponsorPackages?.find(item => item.id === "tarpon");
-    ok("admin sponsor package creation is atomic and returns public catalog to review", concurrentSponsorCreates.map(item => item.status).sort((a, b) => a - b).join(",") === "201,409" && publicSponsorCatalogAfterCreate.data.publication?.available === false && publicSponsorCatalogAfterCreate.data.sponsorPackages?.length === 0);
+    ok("admin sponsor package creation is replay safe and returns public catalog to review", missingSponsorPackageCreateKey.status === 400 && concurrentSponsorCreates.map(item => item.status).sort((a, b) => a - b).join(",") === "200,201" && concurrentSponsorCreates.some(item => item.data.replay === true) && new Set(concurrentSponsorCreates.map(item => item.data.sponsorPackage?.id)).size === 1 && conflictingSponsorCreate.status === 409 && publicSponsorCatalogAfterCreate.data.publication?.available === false && publicSponsorCatalogAfterCreate.data.sponsorPackages?.length === 0);
     ok("admin sponsor catalog publish exposes the exact reviewed catalog", sponsorCatalogPublish.status === 200 && sponsorCatalogPublish.data.readiness?.ready === true && publicCommunityChampion?.amount === 750000);
     ok("admin sponsor package validation", invalidSponsorAmountPatch.status === 400 && invalidSponsorAmountPatch.data.error?.includes("amount") && invalidSponsorBenefitPatch.status === 400 && invalidSponsorBenefitPatch.data.error?.includes("benefit") && publicTarponAfterPatch?.amount === 500000);
     ok("admin sponsor package accounting mapping stays private and published", sponsorPackagePatch.status === 200 && sponsorPackagePatch.data.readiness?.ready === true && sponsorPackagePatch.data.publicationReadiness?.ready === true && sponsorPackagePatch.data.sponsorPackage?.quickBooksItemId === "api-sponsor-tarpon-item" && publicSponsorCatalogAfterPatch.data.publication?.available === true && !Object.hasOwn(publicTarponAfterPatch || {}, "quickBooksItemId") && !Object.hasOwn(publicTarponAfterPatch || {}, "stripePriceId") && !Object.hasOwn(publicCommunityChampion || {}, "quickBooksItemId") && !Object.hasOwn(publicCommunityChampion || {}, "stripePriceId"));
@@ -8611,16 +8631,22 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
       stripePriceId: "price_api_premium_marketplace",
       quickBooksItemId: "api-premium-marketplace-item"
     };
+    const vendorOfferingCreateKey = "api-vendor-offering-create-0001";
+    const missingVendorOfferingCreateKey = await hit("POST", "/api/admin/vendor-offerings", vendorOfferingCreateBody, true);
     const concurrentVendorOfferingCreates = await Promise.all([
-      hit("POST", "/api/admin/vendor-offerings", vendorOfferingCreateBody, true),
-      hit("POST", "/api/admin/vendor-offerings", vendorOfferingCreateBody, true)
+      hit("POST", "/api/admin/vendor-offerings", vendorOfferingCreateBody, true, { "idempotency-key": vendorOfferingCreateKey }),
+      hit("POST", "/api/admin/vendor-offerings", vendorOfferingCreateBody, true, { "idempotency-key": vendorOfferingCreateKey })
     ]);
+    const conflictingVendorOfferingCreate = await hit("POST", "/api/admin/vendor-offerings", {
+      ...vendorOfferingCreateBody,
+      amount: 275000
+    }, true, { "idempotency-key": vendorOfferingCreateKey });
     const publicVendorCatalogAfterCreate = await hit("GET", "/api/public/vendors");
     const invalidVendorOfferingCreate = await hit("POST", "/api/admin/vendor-offerings", {
       ...vendorOfferingCreateBody,
       id: "invalid-vendor-fee",
       amount: 100.5
-    }, true);
+    }, true, { "idempotency-key": "api-vendor-offering-create-0002" });
     const invalidVendorOfferingPatch = await hit("PATCH", "/api/admin/vendor-offerings/marketplace-booth", { categories: [] }, true);
     const vendorCatalogPublish = await hit("POST", "/api/admin/partner-catalog-publication", {
       catalog: "vendor",
@@ -8632,7 +8658,7 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     const publicPremiumMarketplace = publicVendorCatalogAfterPublish.data.vendorOfferings?.find(item => item.id === "premium-marketplace-booth");
     const vendorOfferingPatch = await hit("PATCH", "/api/admin/vendor-offerings/marketplace-booth", { quickBooksItemId: "api-vendor-marketplace-item" }, true);
     const publicVendorCatalogAfterPatch = await hit("GET", "/api/public/vendors");
-    ok("admin vendor offering creation is atomic and returns public catalog to review", concurrentVendorOfferingCreates.map(item => item.status).sort((a, b) => a - b).join(",") === "201,409" && invalidVendorOfferingCreate.status === 400 && publicVendorCatalogAfterCreate.data.publication?.available === false && publicVendorCatalogAfterCreate.data.vendorOfferings?.length === 0);
+    ok("admin vendor offering creation is replay safe and returns public catalog to review", missingVendorOfferingCreateKey.status === 400 && concurrentVendorOfferingCreates.map(item => item.status).sort((a, b) => a - b).join(",") === "200,201" && concurrentVendorOfferingCreates.some(item => item.data.replay === true) && new Set(concurrentVendorOfferingCreates.map(item => item.data.vendorOffering?.id)).size === 1 && conflictingVendorOfferingCreate.status === 409 && invalidVendorOfferingCreate.status === 400 && publicVendorCatalogAfterCreate.data.publication?.available === false && publicVendorCatalogAfterCreate.data.vendorOfferings?.length === 0);
     ok("admin vendor catalog publish exposes the exact reviewed catalog", vendorCatalogPublish.status === 200 && vendorCatalogPublish.data.readiness?.ready === true && publicPremiumMarketplace?.amount === 250000);
     ok("admin vendor offering validation", invalidVendorOfferingPatch.status === 400 && invalidVendorOfferingPatch.data.error?.includes("category"));
     ok("admin vendor offering accounting mapping stays private and published", vendorOfferingPatch.status === 200 && vendorOfferingPatch.data.publicationReadiness?.ready === true && vendorOfferingPatch.data.vendorOffering?.quickBooksItemId === "api-vendor-marketplace-item" && publicVendorCatalogAfterPatch.data.publication?.available === true && !Object.hasOwn(publicVendorCatalogAfterPatch.data.vendorOfferings?.find(item => item.id === "marketplace-booth") || {}, "quickBooksItemId") && !Object.hasOwn(publicPremiumMarketplace || {}, "quickBooksItemId") && !Object.hasOwn(publicPremiumMarketplace || {}, "stripePriceId"));
@@ -9409,7 +9435,7 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
     categories: ["service"],
     description: "Register interest in a future Texas SandFest service-vendor opportunity.",
     inclusions: ["Application-opening notice", "Operations review"]
-  }, true);
+  }, true, { "idempotency-key": "api-vendor-offering-create-0003" });
   const apiInterestCatalogPublish = await hit("POST", "/api/admin/partner-catalog-publication", {
     catalog: "vendor",
     publish: true,
