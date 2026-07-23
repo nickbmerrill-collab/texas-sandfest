@@ -1,11 +1,17 @@
 #!/usr/bin/env node
 
 import { execFile } from "node:child_process";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import {
+  BOARD_CAPABILITY_CERTIFICATE_MAX_AGE_MS,
+  evaluateBoardCapabilityCertificate
+} from "../lib/board-capability-certificate.mjs";
+import {
   BOARD_LAUNCHD_LABEL,
+  boardLaunchdPresentationSafety,
   boardLaunchdStartSafety,
   createBoardLaunchdController
 } from "../lib/board-launchd-service.mjs";
@@ -19,10 +25,11 @@ const execFileAsync = promisify(execFile);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const command = process.argv[2] || "status";
 const unknown = process.argv.slice(3);
-const commands = new Set(["start", "restart", "status", "stop", "uninstall"]);
+const commands = new Set(["start", "restart", "status", "present", "stop", "uninstall"]);
+const certificateFile = path.join(ROOT, ".sandfest-runtime", "board-capability-certification.json");
 
 if (!commands.has(command) || unknown.length) {
-  console.error("Usage: node scripts/board-service.mjs <start|restart|status|stop|uninstall>");
+  console.error("Usage: node scripts/board-service.mjs <start|restart|status|present|stop|uninstall>");
   process.exit(1);
 }
 if (process.platform !== "darwin") {
@@ -73,13 +80,42 @@ async function waitForReady({ previousPid = null, requireReplacement = false } =
   throw new Error(`Timed out waiting for the persistent board service: ${lastDetail}`);
 }
 
-function printReady({ session, report, service }) {
+async function certificationStatus({ session, report }) {
+  let certificate = null;
+  try {
+    certificate = JSON.parse(await readFile(certificateFile, "utf8"));
+  } catch {
+    certificate = null;
+  }
+  return evaluateBoardCapabilityCertificate(certificate, {
+    source: session.source,
+    links: report.links,
+    maxAgeMs: BOARD_CAPABILITY_CERTIFICATE_MAX_AGE_MS
+  });
+}
+
+function formatCertificationAge(ageMs) {
+  if (!Number.isFinite(ageMs)) return "unknown age";
+  const hours = ageMs / (60 * 60 * 1_000);
+  return hours < 1 ? `${Math.max(0, Math.round(ageMs / 60_000))}m old` : `${Math.round(hours)}h old`;
+}
+
+async function printReady({ session, report, service }) {
   console.log(`[board-service] ${BOARD_LAUNCHD_LABEL} is ready (supervisor ${session.pid}).`);
   console.log(`[board-service] Source: ${session.source?.branch}@${String(session.source?.commit || "").slice(0, 8)}`);
   console.log(`[board-service] LaunchAgent: ${service.persistent ? service.plistPath : "session scoped"}`);
+  const certification = await certificationStatus({ session, report });
+  if (certification.ok) {
+    const browsers = certification.browsers.map(item => `${item.engine} ${item.passed}/${item.total}`).join(" · ");
+    console.log(`[board-service] Certification: current · ${certification.journeyCount}/10 journeys · ${browsers} · ${formatCertificationAge(certification.ageMs)}`);
+  } else {
+    console.log(`[board-service] Certification: not current · ${certification.errors[0]}`);
+    console.log("[board-service] Action: npm run board:certify");
+  }
   console.log(`[board-service] Visitor: ${report.links.visitor}`);
   console.log(`[board-service] Operations: ${report.links.operations}`);
   console.log(`[board-service] Log: ${path.join(ROOT, ".sandfest-runtime", "board-demo-supervisor.log")}`);
+  return certification;
 }
 
 async function main() {
@@ -119,7 +155,7 @@ async function main() {
     throw new Error(`Refusing to control ${BOARD_LAUNCHD_LABEL}; it belongs to another checkout.`);
   }
 
-  if (command === "status") {
+  if (command === "status" || command === "present") {
     if (!initialState.installed) {
       throw new Error(initialState.configured
         ? `${BOARD_LAUNCHD_LABEL} is installed at ${initialState.plistPath} but is not running.`
@@ -130,7 +166,15 @@ async function main() {
     if (!session || !boardDemoSessionProcessAlive(session) || !report?.ok) {
       throw new Error(`${BOARD_LAUNCHD_LABEL} is installed but the board stack is not ready.`);
     }
-    printReady({ session, report, service: initialState });
+    const certification = await printReady({ session, report, service: initialState });
+    if (command === "present") {
+      const serviceSafety = boardLaunchdPresentationSafety(initialState);
+      if (!serviceSafety.ok) throw new Error(serviceSafety.reason);
+      if (!certification.ok) {
+        throw new Error("Presentation readiness requires a current full board certificate. Run npm run board:certify.");
+      }
+      console.log("[board-service] Presentation gate: passed.");
+    }
     return;
   }
 
@@ -150,7 +194,7 @@ async function main() {
   const service = await controller.inspect();
   if (!service.persistent) throw new Error("The board service started without a persistent LaunchAgent.");
   console.log(`[board-service] ${result.action.replaceAll("_", " ")}.`);
-  printReady({ ...ready, service });
+  await printReady({ ...ready, service });
 }
 
 try {

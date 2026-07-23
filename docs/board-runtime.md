@@ -64,6 +64,7 @@ depending on an open terminal:
 ```bash
 npm run board:service:start
 npm run board:service:status
+npm run board:present
 ```
 
 `board:service:start` is idempotent. It atomically installs
@@ -81,6 +82,17 @@ configuration name this exact checkout and refuses to control an unrelated job.
 `npm run board:stop` performs the same ownership check and unloads the keepalive
 before stopping the supervisor, so stale source cannot immediately respawn
 behind an apparently successful stop.
+
+Service status distinguishes a healthy stack from a current capability
+certificate. Before handing the machine to a presenter, run `npm run
+board:certify`, then `npm run board:present`. The final command fails unless the
+LaunchAgent is loaded from this checkout, the stack is 12-of-12 ready, and the
+aggregate certificate is a successful full run from the active clean-main
+revision and exact active links. It requires all ten workflow journeys,
+14-of-14 Chromium and WebKit acceptance, exact baseline restoration, the
+approved post-board provider deferrals, and a completion time no more than
+seven days old. A missing or stale certificate does not prevent service startup;
+`board:service:status` names the gap and the remediation command.
 
 Every prepared runtime carries an explicit compatibility schema. On startup,
 the supervisor automatically rebuilds a recognized synthetic runtime when its
