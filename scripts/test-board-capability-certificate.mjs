@@ -16,6 +16,7 @@ import {
   certifyBoardReadinessReport,
   evaluateBoardCapabilityCertificate
 } from "../lib/board-capability-certificate.mjs";
+import { presenterSummary } from "../src/admin-board-capability-proof.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 let passed = 0;
@@ -335,6 +336,25 @@ check("presentation gate rejects stale and future-dated certificates", () => {
     now: "2026-07-23T13:00:00.000Z"
   });
   assert.ok(future.errors.some(error => error.includes("in the future")));
+});
+
+check("Operations proof panel presenter summary translates certified evidence", () => {
+  const certificate = fullCertificate();
+  const summary = presenterSummary({
+    ok: true,
+    journeyCount: certificate.journeys.length,
+    requiredJourneyCount: BOARD_CAPABILITY_JOURNEYS.length,
+    browsers: certificate.browsers,
+    source: certificate.source,
+    certifiedCapabilities: certificate.certifiedCapabilities,
+    deferredProductionGates: certificate.deferredProductionGates
+  }, value => String(value || "").replaceAll("_", " "));
+  assert.match(summary, /10\/10 certified journeys/);
+  assert.match(summary, /chromium 14\/14/);
+  assert.match(summary, /webkit 14\/14/);
+  assert.match(summary, /40 certified capabilities/);
+  assert.match(summary, /6 live-provider gates held for post-board activation/);
+  assert.match(summary, /main@aaaaaaaa/);
 });
 
 check("presentation gate rejects focused, incomplete, or deferral-changing evidence", () => {
