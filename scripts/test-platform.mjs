@@ -6526,6 +6526,43 @@ Research First,construction,Corpus Christi,,78401,,,,Find decision maker,`;
   const incidentSummary = summarizeOperationsIncidents(manual.doc);
   ok("operator incident and summary", manual.ok && incidentSummary.active === 1 && incidentSummary.publicNotices === 1);
   ok("public incident notice is privacy minimized", notice?.title === manual.incident.title && !Object.hasOwn(notice, "ownerName") && !Object.hasOwn(notice, "timeline") && !Object.hasOwn(notice, "sourceType"));
+  const replayIdFactory = prefix => `${prefix}_operator_replay`;
+  const replayInput = {
+    sourceType: "operator",
+    sourceId: "operator-replay-proof",
+    title: "Replay-safe operator incident",
+    summary: "Preserve one command record if the browser loses the accepted response.",
+    severity: "high",
+    ownerTeam: "operations",
+    publicImpact: false,
+    note: "Operator opened incident command."
+  };
+  const replaySafeIncident = createOperationsIncident(seed, replayInput, {
+    actorId: "ops_1",
+    idFactory: replayIdFactory,
+    now: "2026-07-16T12:00:00.000Z"
+  });
+  const replayedIncident = createOperationsIncident(replaySafeIncident.doc, replayInput, {
+    actorId: "ops_1",
+    idFactory: replayIdFactory,
+    now: "2026-07-16T12:01:00.000Z"
+  });
+  const conflictingIncident = createOperationsIncident(replaySafeIncident.doc, {
+    ...replayInput,
+    summary: "Changed incident details must not reuse the accepted key."
+  }, {
+    actorId: "ops_1",
+    idFactory: replayIdFactory,
+    now: "2026-07-16T12:01:00.000Z"
+  });
+  ok("operator incident creation is replay safe", replaySafeIncident.ok
+    && !replaySafeIncident.replay
+    && replayedIncident.ok
+    && replayedIncident.replay
+    && replayedIncident.incident.id === replaySafeIncident.incident.id
+    && replayedIncident.doc.incidents.length === replaySafeIncident.doc.incidents.length
+    && !conflictingIncident.ok
+    && conflictingIncident.code === "IDEMPOTENCY_CONFLICT");
 }
 
 // Incident dispatch assignments and reviewed delivery stay durable and idempotent.
@@ -8364,12 +8401,24 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     ok("camera recovery moves incident to monitoring", recoveryMetric.data.incidentAction === "monitoring" && recoveredState.data.incidents?.find(item => item.id === cameraIncident?.id)?.status === "monitoring");
 
     const unauthorizedIncident = await hit("POST", "/api/admin/island-conditions/incidents", { title: "Unauthorized incident" });
-    const manualIncident = await hit("POST", "/api/admin/island-conditions/incidents", {
+    const manualIncidentBody = {
       title: "Manual beach access incident",
       summary: "Operator verification in progress.",
       severity: "moderate",
       ownerTeam: "operations"
-    }, true);
+    };
+    const manualIncidentKey = "api-conditions-incident-create-0001";
+    const missingIncidentKey = await hit("POST", "/api/admin/island-conditions/incidents", manualIncidentBody, true);
+    const manualIncident = await hit("POST", "/api/admin/island-conditions/incidents", manualIncidentBody, true, {
+      "idempotency-key": manualIncidentKey
+    });
+    const replayedManualIncident = await hit("POST", "/api/admin/island-conditions/incidents", manualIncidentBody, true, {
+      "idempotency-key": manualIncidentKey
+    });
+    const conflictingManualIncident = await hit("POST", "/api/admin/island-conditions/incidents", {
+      ...manualIncidentBody,
+      summary: "Changed operator verification details."
+    }, true, { "idempotency-key": manualIncidentKey });
     const dispatchPath = `/api/admin/island-conditions/incidents/${manualIncident.data.incident?.id}/dispatches`;
     const dispatchInput = {
       assigneeType: "team",
@@ -8393,6 +8442,17 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     const persistedDispatch = dispatchWorkspace.data.dispatches?.find(item => item.id === dispatchId);
     const dispatchAudit = await hit("GET", "/api/admin/audit?limit=100", null, true);
     const dispatchAuditRecords = dispatchAudit.data.audit?.map(item => item.record).filter(record => record?.target?.type === "incident_dispatch" && record.target.id === dispatchId) || [];
+    const incidentAuditRecords = dispatchAudit.data.audit?.map(item => item.record).filter(record => record?.action === "conditions.incident.create" && record.target?.id === manualIncident.data.incident?.id) || [];
+    ok("operator incident creation requires replay protection", unauthorizedIncident.status === 401 && missingIncidentKey.status === 400 && missingIncidentKey.data.error?.includes("Idempotency-Key"));
+    ok("operator incident creation replays once", manualIncident.status === 201
+      && manualIncident.data.replay === false
+      && replayedManualIncident.status === 200
+      && replayedManualIncident.data.replay === true
+      && replayedManualIncident.data.incident?.id === manualIncident.data.incident?.id
+      && conflictingManualIncident.status === 409
+      && dispatchWorkspace.data.incidents?.filter(item => item.id === manualIncident.data.incident?.id).length === 1
+      && incidentAuditRecords.length === 1
+      && !JSON.stringify({ dispatchWorkspace, dispatchAudit }).includes(manualIncidentKey));
     ok("incident dispatch routes enforce auth and idempotency", unauthorizedDispatch.status === 401 && createdDispatch.status === 201 && repeatedDispatch.status === 200 && repeatedDispatch.data.duplicate === true && dispatchWorkspace.data.dispatches?.filter(item => item.id === dispatchId).length === 1);
     ok("incident dispatch review and readiness gate", editedDispatch.status === 200 && editedDispatch.data.dispatch?.notification?.status === "draft_ready" && approvedDispatch.data.dispatch?.notification?.status === "approved" && disabledDispatchSend.status === 409);
     ok("incident dispatch uses governed team route", createdDispatch.data.dispatch?.assigneeName === "Traffic and parking" && createdDispatch.data.dispatch?.notification?.recipientAvailable === true);
@@ -8482,10 +8542,10 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
         dispatchApiChild.stderr.on("data", onData);
         dispatchApiChild.once("error", reject);
       });
-      const dispatchHit = async (method, pathName, body = null) => {
+      const dispatchHit = async (method, pathName, body = null, headers = {}) => {
         const response = await fetch(`${dispatchApiBase}${pathName}`, {
           method,
-          headers: { "content-type": "application/json", authorization: `Bearer ${TOKEN}` },
+          headers: { "content-type": "application/json", authorization: `Bearer ${TOKEN}`, ...headers },
           body: body ? JSON.stringify(body) : undefined
         });
         return { status: response.status, data: await response.json().catch(() => ({})) };
@@ -8495,7 +8555,7 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
         summary: "Verify the durable incident email outbox.",
         severity: "high",
         ownerTeam: "traffic"
-      });
+      }, { "idempotency-key": "api-dispatch-recovery-incident-0001" });
       const recoveryDispatchPath = `/api/admin/island-conditions/incidents/${recoveryIncident.data.incident?.id}/dispatches`;
       const recoveryDispatch = await dispatchHit("POST", recoveryDispatchPath, {
         assigneeType: "team",

@@ -1804,6 +1804,41 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
   const persistedNotice = publicIncidentState.data.notices?.find(item => item.id === cameraIncident?.id);
   check("camera incident lifecycle persists", assignedCameraIncident.status === 200 && persistedCameraIncident?.status === "responding" && persistedCameraIncident?.ownerName === "Postgres traffic desk");
   check("public incident notice remains private", persistedNotice?.severity === "critical" && !("ownerName" in (persistedNotice || {})) && !("timeline" in (persistedNotice || {})));
+  const postgresIncidentBody = {
+    title: "Postgres replay-safe operator incident",
+    summary: "Converge concurrent command submissions on one incident.",
+    severity: "high",
+    ownerTeam: "operations",
+    ownerName: "Postgres command"
+  };
+  const postgresIncidentKey = "postgres-conditions-incident-create-0001";
+  const missingPostgresIncidentKey = await request(base, "POST", "/api/admin/island-conditions/incidents", postgresIncidentBody, { auth: true });
+  const concurrentPostgresIncidents = await Promise.all([
+    request(base, "POST", "/api/admin/island-conditions/incidents", postgresIncidentBody, {
+      auth: true,
+      headers: { "idempotency-key": postgresIncidentKey }
+    }),
+    request(base, "POST", "/api/admin/island-conditions/incidents", postgresIncidentBody, {
+      auth: true,
+      headers: { "idempotency-key": postgresIncidentKey }
+    })
+  ]);
+  const conflictingPostgresIncident = await request(base, "POST", "/api/admin/island-conditions/incidents", {
+    ...postgresIncidentBody,
+    summary: "Changed command details must be rejected."
+  }, { auth: true, headers: { "idempotency-key": postgresIncidentKey } });
+  const postgresIncidentId = concurrentPostgresIncidents[0].data.incident?.id || concurrentPostgresIncidents[1].data.incident?.id;
+  const postgresIncidentWorkspace = await request(base, "GET", "/api/admin/island-conditions", undefined, { auth: true });
+  const postgresIncidentAudit = await request(base, "GET", "/api/admin/audit?limit=200", undefined, { auth: true });
+  const postgresIncidentAudits = postgresIncidentAudit.data.audit?.filter(item => item.record?.action === "conditions.incident.create" && item.record?.target?.id === postgresIncidentId) || [];
+  check("Postgres operator incident requires replay protection", missingPostgresIncidentKey.status === 400 && missingPostgresIncidentKey.data.error?.includes("Idempotency-Key"));
+  check("Postgres operator incident concurrent replay converges", concurrentPostgresIncidents.map(item => item.status).sort((left, right) => left - right).join(",") === "200,201"
+    && concurrentPostgresIncidents.some(item => item.data.replay === true)
+    && new Set(concurrentPostgresIncidents.map(item => item.data.incident?.id)).size === 1
+    && conflictingPostgresIncident.status === 409
+    && postgresIncidentWorkspace.data.incidents?.filter(item => item.id === postgresIncidentId).length === 1
+    && postgresIncidentAudits.length === 1
+    && !JSON.stringify({ postgresIncidentWorkspace, postgresIncidentAudit }).includes(postgresIncidentKey));
   const dispatchPath = `/api/admin/island-conditions/incidents/${cameraIncident?.id}/dispatches`;
   const dispatchInput = {
     assigneeType: "team",

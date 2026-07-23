@@ -9869,27 +9869,41 @@ async function handleRequest(request, response) {
     if (method === "POST" && pathname === "/api/admin/island-conditions/incidents") {
       const session = await requirePermission(request, response, "conditions:write");
       if (!session) return;
+      const idempotency = requiredIdempotencyKey(request);
+      if (!idempotency.ok) {
+        sendJson(request, response, 400, { error: idempotency.error });
+        return;
+      }
       const body = await readBody(request);
       const now = new Date().toISOString();
+      const idFactory = idempotencyIdFactory("conditions-incident-create", idempotency.keyHash);
       let result = null;
       await updatePlatformDoc(ROOT, "islandConditions", current => {
         result = createOperationsIncident(current, {
           ...body,
+          publicImpact: body.publicImpact === true || body.publicImpact === "on",
           sourceType: "operator",
-          sourceId: body.sourceId || `operator-${randomUUID()}`
+          sourceId: idFactory("operator-source")
         }, {
           actorId: session.id,
-          idFactory: prefix => `${prefix}_${randomUUID()}`,
+          idFactory,
           now
         });
         return result.ok ? result.doc : normalizeIslandConditions(current);
       }, { fallback: normalizeIslandConditions(null) });
       if (!result?.ok) {
-        sendJson(request, response, 400, { error: result?.error || "Incident could not be created." });
+        sendJson(request, response, result?.code === "IDEMPOTENCY_CONFLICT" ? 409 : 400, {
+          error: result?.error || "Incident could not be created.",
+          code: result?.code
+        });
         return;
       }
       if (result.changed) await writeAuditRecord(request, "conditions.incident.create", { type: "conditions_incident", id: result.incident.id }, null, result.incident);
-      sendJson(request, response, result.changed ? 201 : 200, { incident: result.incident, duplicate: result.duplicate === true });
+      sendJson(request, response, result.changed ? 201 : 200, {
+        replay: result.replay === true,
+        duplicate: result.duplicate === true,
+        incident: result.incident
+      });
       return;
     }
 
