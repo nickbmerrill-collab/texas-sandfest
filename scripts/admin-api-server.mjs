@@ -45,7 +45,12 @@ import {
   publishVisitorGuidance,
   visitorGuidanceReadiness
 } from "../lib/visitor-guidance.mjs";
-import { eventContextConfig, eventContextReadiness } from "../lib/event-context.mjs";
+import {
+  CURRENT_EVENT_OPERATIONAL_DOCUMENT_KEYS,
+  eventContextConfig,
+  eventContextReadiness,
+  operationalDocumentEventId
+} from "../lib/event-context.mjs";
 import { recoveryReadiness } from "../lib/recovery-readiness.mjs";
 import { enqueueJob, getQueueHealth, listJobs, markTerminalJobHandled } from "../lib/job-queue.mjs";
 import {
@@ -567,21 +572,6 @@ const SMS_MAX_RECIPIENTS = Number.isFinite(configuredSmsMaxRecipients)
 const EVENT_GUIDE_SOURCE_MAX_AGE_DAYS = Math.max(1, Number(process.env.SANDFEST_EVENT_GUIDE_SOURCE_MAX_AGE_DAYS || 90));
 const PARTNER_CATALOG_SOURCE_MAX_AGE_DAYS = Math.max(1, Number(process.env.SANDFEST_PARTNER_CATALOG_SOURCE_MAX_AGE_DAYS || 180));
 const SCULPTOR_ROSTER_SOURCE_MAX_AGE_DAYS = Math.max(1, Number(process.env.SANDFEST_SCULPTOR_ROSTER_SOURCE_MAX_AGE_DAYS || 180));
-const OPERATIONAL_EVENT_DOCUMENT_KEYS = [
-  "fleet",
-  "budgetControl",
-  "volunteers",
-  "staffDirectory",
-  "consent",
-  "sculptorRoster",
-  "passportHunt",
-  "voting",
-  "booths",
-  "partnerOps",
-  "incomingDocuments",
-  "islandConditions",
-  "smsOperations"
-];
 const MAX_BODY_BYTES = Number(process.env.SANDFEST_MAX_BODY_BYTES || 262_144); // 256 KiB
 const LARGE_CSV_IMPORT_BODY_BYTES = 5_500_000;
 const ADMIN_TOKEN = process.env.SANDFEST_ADMIN_API_TOKEN || "dev-admin-token-change-me";
@@ -2454,15 +2444,11 @@ async function deploymentProfile(options = {}) {
     storage.config.read("admin-config")
       .then(value => ({ value, error: null }))
       .catch(error => ({ value: null, error })),
-    ...OPERATIONAL_EVENT_DOCUMENT_KEYS.map(key => readPlatformDoc(ROOT, key, null))
+    ...CURRENT_EVENT_OPERATIONAL_DOCUMENT_KEYS.map(key => readPlatformDoc(ROOT, key, null))
   ]);
-  const operationalDocs = OPERATIONAL_EVENT_DOCUMENT_KEYS.map((key, index) => ({
+  const operationalDocs = CURRENT_EVENT_OPERATIONAL_DOCUMENT_KEYS.map((key, index) => ({
     key,
-    eventId: key === "passportHunt"
-      ? operationalDocValues[index]?.hunt?.eventId ?? null
-      : key === "sculptorRoster"
-        ? operationalDocValues[index]?.meta?.eventId ?? null
-        : operationalDocValues[index]?.eventId ?? null
+    eventId: operationalDocumentEventId(key, operationalDocValues[index])
   }));
   const quickbooks = await readQuickBooksCredentialStatus(ROOT);
   const guideReadiness = eventGuideReadiness(eventBootstrap.guide, {
@@ -2484,7 +2470,7 @@ async function deploymentProfile(options = {}) {
     maxSourceAgeDays: EVENT_GUIDE_SOURCE_MAX_AGE_DAYS,
     allowBoardDemo: BOARD_DEMO_RUNTIME
   });
-  const sculptorRosterDocument = operationalDocValues[OPERATIONAL_EVENT_DOCUMENT_KEYS.indexOf("sculptorRoster")];
+  const sculptorRosterDocument = operationalDocValues[CURRENT_EVENT_OPERATIONAL_DOCUMENT_KEYS.indexOf("sculptorRoster")];
   const rosterReadiness = sculptorRosterReadiness(sculptorRosterDocument, {
     eventId: CURRENT_EVENT_ID,
     maxSourceAgeDays: SCULPTOR_ROSTER_SOURCE_MAX_AGE_DAYS,
@@ -2495,7 +2481,7 @@ async function deploymentProfile(options = {}) {
     guide: eventBootstrap.guide,
     operationalDocs
   });
-  const staffDirectoryDocument = operationalDocValues[OPERATIONAL_EVENT_DOCUMENT_KEYS.indexOf("staffDirectory")];
+  const staffDirectoryDocument = operationalDocValues[CURRENT_EVENT_OPERATIONAL_DOCUMENT_KEYS.indexOf("staffDirectory")];
   const staffReadiness = staffDirectoryReadiness(staffDirectoryDocument, { eventId: CURRENT_EVENT_ID, production });
   const checkoutProducts = (ticketCatalog?.products || []).filter(item => item.active !== false && item.requiresReview !== true);
   const invalidCheckoutProducts = checkoutProducts.filter(item => !/^price_[A-Za-z0-9_]+$/.test(item.stripePriceId || "")

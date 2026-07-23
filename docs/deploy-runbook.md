@@ -199,7 +199,7 @@ The paid database receives managed point-in-time recovery, and Render snapshots 
    SANDFEST_RECOVERY_DATABASE_SSL=no-verify \
    npm run recovery:verify
    ```
-3. Confirm the JSON result has `ok: true`, all ten required tables, all four config documents, and plausible row counts.
+3. Confirm the JSON result has `ok: true`, `isolation: "repeatable-read"`, the expected `eventId`, all ten tables and 74 required columns, all four config documents, all 15 operational ledgers, four green contract checks, plausible row counts, and a `databaseManifestSha256`. Retain that manifest with the drill record.
 4. Restore a partner-asset disk snapshot at an isolated path in a disposable staging service. Do not restore over the production disk or reuse `SANDFEST_PARTNER_ASSET_DIR`.
 5. Verify every uploaded sponsor and vendor file referenced by the restored database:
    ```bash
@@ -209,7 +209,7 @@ The paid database receives managed point-in-time recovery, and Render snapshots 
    SANDFEST_RECOVERY_ASSET_MIN_FILES=1 \
    npm run recovery:verify:assets
    ```
-6. Confirm the JSON result has `ok: true`, `referenced` equals `verified`, both sponsor/vendor category counts are plausible, and retain the manifest SHA-256 with the drill record. The verifier checks every upload's existence, byte count, and checksum; it refuses the active database and active asset directory.
+6. Confirm the JSON result has `ok: true`, `isolation: "repeatable-read"`, `referenced` equals `verified`, the sponsor, vendor, and incoming-document category counts are plausible, and retain the manifest SHA-256 with the drill record. The verifier checks every upload's existence, byte count, and checksum; it refuses the active database and active asset directory.
 7. Set `SANDFEST_DATABASE_RESTORE_DRILL_AT` and `SANDFEST_ASSET_RESTORE_DRILL_AT` to the respective successful verifier timestamps. Repeat both drills at least every 90 days.
 
 Render documents paid Postgres recovery windows and isolated PITR instances in its [Postgres recovery guide](https://render.com/docs/postgresql-backups). Daily encrypted disk snapshots and their retention are documented in [Persistent Disks](https://render.com/docs/disks).

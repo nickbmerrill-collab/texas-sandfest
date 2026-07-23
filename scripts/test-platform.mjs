@@ -443,6 +443,12 @@ import { updateJsonFile } from "../lib/safe-json-store.mjs";
 import { normalizeRequestId, redactAuditValue, safeErrorResponse } from "../lib/security.mjs";
 import { recoveryReadiness } from "../lib/recovery-readiness.mjs";
 import {
+  RECOVERY_REQUIRED_CONFIG_DOCUMENT_KEYS,
+  RECOVERY_REQUIRED_PLATFORM_DOCUMENTS,
+  RECOVERY_REQUIRED_TABLE_COLUMNS,
+  evaluateRecoveryDataContract
+} from "../lib/recovery-contract.mjs";
+import {
   REQUIRED_TICKET_POLICY_NOTICES,
   publicTicketCatalog,
   ticketCheckoutPolicyReadiness,
@@ -2545,6 +2551,133 @@ const visitorGuidanceFixture = [{
   ok("managed recovery readiness requires current drill evidence", ready.ready && ready.databaseRestoreDrillAgeDays === 1 && ready.assetRestoreDrillAgeDays === 2 && ready.checks.databaseRecoveryWindow && ready.checks.assetSnapshots);
   ok("stale restore evidence fails closed", !stale.ready && !stale.checks.databaseRestoreDrill && !stale.checks.assetRestoreDrill && stale.reason.includes("older than 90 days"));
   ok("recovery retention and future timestamps fail closed", !incomplete.ready && !incomplete.checks.databaseRecoveryWindow && !incomplete.checks.assetSnapshots && incomplete.reason.includes("cannot be in the future"));
+}
+
+// Restored database content contract
+{
+  const eventId = "texas-sandfest-2027";
+  const tableColumns = new Map(Object.entries(RECOVERY_REQUIRED_TABLE_COLUMNS).map(([table, columns]) => [
+    table,
+    new Set(columns)
+  ]));
+  const configDocuments = RECOVERY_REQUIRED_CONFIG_DOCUMENT_KEYS.map(key => ({
+    key,
+    updatedAt: "2026-07-16T12:00:00.000Z",
+    data: key === "admin-config"
+      ? {
+          sponsorPackagePublication: { eventId },
+          vendorOfferingPublication: { eventId }
+        }
+      : key === "app-bootstrap"
+        ? {
+            guide: { id: eventId, startDate: "2027-04-16" },
+            schedulePublication: { eventId },
+            guidancePublication: { eventId }
+          }
+        : key === "ticket-products"
+          ? { checkoutPolicy: { eventId } }
+          : {}
+  }));
+  const platformDocuments = RECOVERY_REQUIRED_PLATFORM_DOCUMENTS.map(requirement => ({
+    key: requirement.storageKey,
+    updatedAt: "2026-07-16T12:00:00.000Z",
+    data: !requirement.currentEvent
+      ? { entries: [] }
+      : requirement.logicalKey === "sculptorRoster"
+        ? { meta: { eventId } }
+        : requirement.logicalKey === "passportHunt"
+          ? { hunt: { eventId } }
+          : { eventId }
+  }));
+  const counts = Object.fromEntries(Object.keys(RECOVERY_REQUIRED_TABLE_COLUMNS).map((table, index) => [table, index]));
+  const complete = evaluateRecoveryDataContract({
+    tableColumns,
+    configDocuments,
+    platformDocuments,
+    expectedEventId: eventId,
+    counts
+  });
+  const reordered = evaluateRecoveryDataContract({
+    tableColumns: new Map([...tableColumns].reverse().map(([table, columns]) => [table, new Set([...columns].reverse())])),
+    configDocuments: [...configDocuments].reverse(),
+    platformDocuments: [...platformDocuments].reverse(),
+    expectedEventId: eventId,
+    counts: Object.fromEntries(Object.entries(counts).reverse())
+  });
+  ok("recovery data contract covers schema and operational ledgers", complete.ok
+    && complete.contractVersion === 1
+    && complete.requiredTables === 10
+    && complete.requiredColumns === 74
+    && complete.requiredConfigDocuments === 4
+    && complete.requiredOperationalDocuments === 15
+    && Object.values(complete.checks).every(Boolean)
+    && /^[a-f0-9]{64}$/.test(complete.databaseManifestSha256 || ""));
+  ok("recovery database manifest is deterministic", reordered.ok && reordered.databaseManifestSha256 === complete.databaseManifestSha256);
+  const changedContent = evaluateRecoveryDataContract({
+    tableColumns,
+    configDocuments,
+    platformDocuments: platformDocuments.map(row => row.key === "budget-control"
+      ? { ...row, data: { ...row.data, budgetLines: [{ id: "changed-after-restore" }] } }
+      : row),
+    expectedEventId: eventId,
+    counts
+  });
+  ok("recovery database manifest binds restored document content", changedContent.ok
+    && changedContent.databaseManifestSha256 !== complete.databaseManifestSha256);
+
+  const missingColumnTables = new Map([...tableColumns].map(([table, columns]) => [table, new Set(columns)]));
+  missingColumnTables.get("platform_jobs").delete("lease_token");
+  const missingColumn = evaluateRecoveryDataContract({
+    tableColumns: missingColumnTables,
+    configDocuments,
+    platformDocuments,
+    expectedEventId: eventId,
+    counts
+  });
+  ok("recovery data contract rejects incomplete schema", !missingColumn.ok
+    && !missingColumn.checks.schema
+    && missingColumn.errors.some(error => error.includes("platform_jobs") && error.includes("lease_token")));
+
+  const missingGuestServices = evaluateRecoveryDataContract({
+    tableColumns,
+    configDocuments,
+    platformDocuments: platformDocuments.filter(row => row.key !== "guest-services"),
+    expectedEventId: eventId,
+    counts
+  });
+  ok("recovery data contract rejects a missing operational ledger", !missingGuestServices.ok
+    && !missingGuestServices.checks.operationalDocuments
+    && missingGuestServices.errors.some(error => error.includes("guest-services")));
+
+  const crossEventPlatform = platformDocuments.map(row => row.key === "partner-operations"
+    ? { ...row, data: { ...row.data, eventId: "texas-sandfest-2026" } }
+    : row);
+  const crossEventConfig = configDocuments.map(row => row.key === "app-bootstrap"
+    ? { ...row, data: { ...row.data, guidancePublication: { eventId: "texas-sandfest-2026" } } }
+    : row);
+  const crossEvent = evaluateRecoveryDataContract({
+    tableColumns,
+    configDocuments: crossEventConfig,
+    platformDocuments: crossEventPlatform,
+    expectedEventId: eventId,
+    counts
+  });
+  ok("recovery data contract rejects cross-event restoration", !crossEvent.ok
+    && crossEvent.checks.operationalDocuments
+    && !crossEvent.checks.eventAlignment
+    && crossEvent.errors.some(error => error.includes("partner-operations") && error.includes("texas-sandfest-2026"))
+    && crossEvent.errors.some(error => error.includes("visitor guidance publication") && error.includes("texas-sandfest-2026")));
+
+  const malformed = evaluateRecoveryDataContract({
+    tableColumns,
+    configDocuments: configDocuments.map(row => row.key === "emergency-alert" ? { ...row, data: [] } : row),
+    platformDocuments,
+    expectedEventId: eventId,
+    counts
+  });
+  ok("recovery data contract rejects malformed restored documents", !malformed.ok
+    && !malformed.checks.configDocuments
+    && malformed.errors.some(error => error.includes("emergency-alert") && error.includes("not a JSON object")));
 }
 
 // Revenue

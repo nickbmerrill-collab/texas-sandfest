@@ -277,7 +277,7 @@ Restore Postgres into an isolated database, never the active source, then run:
 SANDFEST_RECOVERY_DATABASE_URL='postgresql://...' npm run recovery:verify
 ```
 
-The database verifier opens a read-only transaction, checks all required tables and seeded config documents, and reports row counts without returning records or credentials. Restore the private upload-disk snapshot at a different path in disposable staging, then prove every Postgres-referenced upload:
+The database verifier opens one repeatable-read, read-only transaction. It requires all ten tables and 74 current schema columns, four governed configuration documents, and 15 named operational ledgers spanning Guest Services, partners, accounting, staffing, documents, communications, and Island Conditions. Every event-bound catalog, publication, and operational document must match `SANDFEST_RECOVERY_EVENT_ID`, `SANDFEST_EVENT_ID`, or the current default event in that order. The aggregate result reports row counts and a deterministic content-bound `databaseManifestSha256` without returning records or credentials. Restore the private upload-disk snapshot at a different path in disposable staging, then prove every Postgres-referenced upload:
 
 ```bash
 SANDFEST_RECOVERY_DATABASE_URL='postgresql://...' \
@@ -286,7 +286,7 @@ SANDFEST_RECOVERY_ASSET_MIN_FILES=1 \
 npm run recovery:verify:assets
 ```
 
-The asset verifier refuses the active database and `SANDFEST_PARTNER_ASSET_DIR`, rejects symlinks and paths outside the restored root, and checks every uploaded sponsor logo, vendor document, and incoming source file against its recorded byte count and SHA-256. Its aggregate JSON includes category counts, verified bytes, and a deterministic manifest checksum without returning partner contacts or file contents. Record `SANDFEST_ASSET_RESTORE_DRILL_AT` only after `referenced` equals `verified`. See Render's [Postgres recovery](https://render.com/docs/postgresql-backups) and [persistent disk snapshot](https://render.com/docs/disks) documentation.
+The asset verifier uses the same repeatable-read database isolation, refuses the active database and `SANDFEST_PARTNER_ASSET_DIR`, rejects symlinks and paths outside the restored root, and checks every uploaded sponsor logo, vendor document, and incoming source file against its recorded byte count and SHA-256. Its aggregate JSON includes category counts, verified bytes, and a deterministic manifest checksum without returning partner contacts or file contents. Record `SANDFEST_ASSET_RESTORE_DRILL_AT` only after `referenced` equals `verified`. See Render's [Postgres recovery](https://render.com/docs/postgresql-backups) and [persistent disk snapshot](https://render.com/docs/disks) documentation.
 
 Neither restore timestamp belongs in the initial Blueprint. Add the exact
 successful timestamps to the API environment only after the two isolated drills
