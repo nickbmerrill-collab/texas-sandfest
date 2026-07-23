@@ -60,6 +60,12 @@ export function createTaskPortalController(options) {
     const surfaces = document.querySelector("#surfaces");
     if (surfaces) surfaces.insertAdjacentHTML("beforebegin", taskPortalMarkup());
     else document.querySelector("main")?.insertAdjacentHTML("beforeend", taskPortalMarkup());
+    document.querySelector("#task-status-result")?.addEventListener("click", event => {
+      const button = event.target instanceof window.Element ? event.target.closest("[data-task-status-retry]") : null;
+      if (!button) return;
+      button.disabled = true;
+      Promise.resolve(options.onManualRetry?.() ?? reload()).catch(() => {});
+    });
     document.querySelector("#task-status-update")?.addEventListener("click", event => {
       const button = event.target instanceof window.Element ? event.target.closest("[data-task-action]") : null;
       if (button) submit(button.dataset.taskAction);
@@ -155,7 +161,7 @@ export function createTaskPortalController(options) {
       result.dataset.state = "error";
       result.innerHTML = rejected
         ? "<strong>This assignment link is no longer valid.</strong><span>Ask the SandFest operations team to send the current private link.</span>"
-        : "<strong>Task status is temporarily unavailable.</strong><span>Your private access is saved in this browser while SandFest retries automatically.</span>";
+        : '<strong>Task status is temporarily unavailable.</strong><span>Your private access is saved in this browser.</span><button class="button secondary" type="button" data-task-status-retry>Retry now</button>';
     }
   }
 
