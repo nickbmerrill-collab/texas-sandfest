@@ -578,6 +578,40 @@ async function main() {
   await writePlatformDoc(ROOT, "consent", { eventId: EVENT_ID, lastUpdated: null, records: [] });
   await writePlatformDoc(ROOT, "booths", { eventId: EVENT_ID, lastUpdated: null, source: "empty", booths: [], vendors: [], imports: [] });
   await writePlatformDoc(ROOT, "budgetControl", emptyBudgetControl(EVENT_ID));
+  const fleetFixture = JSON.parse(await readFile(path.join(ROOT, "data", "processed", "fleet.json"), "utf8"));
+  await writePlatformDoc(ROOT, "fleet", {
+    ...fleetFixture,
+    eventId: EVENT_ID,
+    assets: (fleetFixture.assets || []).map(item => ({ ...item, eventId: EVENT_ID })),
+    checkouts: [],
+    locations: []
+  });
+  const volunteerFixture = JSON.parse(await readFile(path.join(ROOT, "data", "processed", "volunteer-mirror.json"), "utf8"));
+  await writePlatformDoc(ROOT, "volunteers", {
+    ...volunteerFixture,
+    eventId: EVENT_ID,
+    volunteers: (volunteerFixture.volunteers || []).map(item => ({ ...item, eventId: EVENT_ID })),
+    shifts: [],
+    hourLogs: []
+  });
+  const conditionsFixture = JSON.parse(await readFile(path.join(ROOT, "data", "processed", "island-conditions.json"), "utf8"));
+  await writePlatformDoc(ROOT, "islandConditions", {
+    ...conditionsFixture,
+    eventId: EVENT_ID,
+    cameras: (conditionsFixture.cameras || []).map(item => ({
+      ...item,
+      eventId: EVENT_ID,
+      observation: null,
+      health: null
+    })),
+    observations: [],
+    incidents: [],
+    dispatches: []
+  });
+  const revenueFixture = JSON.parse(await readFile(path.join(ROOT, "data", "processed", "revenue-ledger.json"), "utf8"));
+  await writePlatformDoc(ROOT, "revenue", revenueFixture);
+  const { emptyGuestServices } = await import("../lib/guest-services.mjs");
+  await writePlatformDoc(ROOT, "guestServices", emptyGuestServices(EVENT_ID));
   const { emptyIncomingDocumentIntake } = await import("../lib/incoming-documents.mjs");
   await writePlatformDoc(ROOT, "incomingDocuments", emptyIncomingDocumentIntake(EVENT_ID));
   const { emptySmsOperations } = await import("../lib/sms-operations.mjs");
@@ -2437,7 +2471,64 @@ PG-EVENTENY-V-1,vendor,Postgres Eventeny Vendor,Postgres Import Contact,${postgr
     SANDFEST_RECOVERY_DATABASE_SSL: "false"
   }, "Postgres recovery verification");
   const recoveryEvidence = JSON.parse(recoveryOutput.trim().split("\n").at(-1));
-  check("isolated recovery verification is read-only and complete", recoveryEvidence.ok && recoveryEvidence.mode === "read-only" && recoveryEvidence.requiredTables === 10 && recoveryEvidence.requiredConfigDocuments === 4 && recoveryEvidence.counts.platform_documents >= 5);
+  check("isolated recovery verification is read-only and complete", recoveryEvidence.ok
+    && recoveryEvidence.mode === "read-only"
+    && recoveryEvidence.isolation === "repeatable-read"
+    && recoveryEvidence.contractVersion === 1
+    && recoveryEvidence.eventId === EVENT_ID
+    && recoveryEvidence.requiredTables === 10
+    && recoveryEvidence.requiredColumns === 74
+    && recoveryEvidence.requiredConfigDocuments === 4
+    && recoveryEvidence.requiredOperationalDocuments === 15
+    && Object.values(recoveryEvidence.checks || {}).every(Boolean)
+    && /^[a-f0-9]{64}$/.test(recoveryEvidence.databaseManifestSha256 || "")
+    && recoveryEvidence.counts.platform_documents >= 15);
+  const guestServicesRecoveryRow = await verificationPool.query(
+    "SELECT data, updated_at FROM platform_documents WHERE key = $1",
+    ["guest-services"]
+  );
+  await verificationPool.query("DELETE FROM platform_documents WHERE key = $1", ["guest-services"]);
+  let missingOperationalDocumentRejected = false;
+  try {
+    await runChild(["scripts/verify-recovery.mjs"], {
+      ...commonEnv,
+      SANDFEST_DATABASE_URL: "",
+      SANDFEST_RECOVERY_DATABASE_URL: databaseUrl,
+      SANDFEST_RECOVERY_DATABASE_SSL: "false"
+    }, "Postgres missing operational recovery rejection");
+  } catch (error) {
+    missingOperationalDocumentRejected = error.message.includes("missing required operational document guest-services");
+  }
+  check("recovery verifier rejects a missing Guest Services ledger", guestServicesRecoveryRow.rows.length === 1 && missingOperationalDocumentRejected);
+  await verificationPool.query(
+    "INSERT INTO platform_documents (key, data, updated_at) VALUES ($1, $2::jsonb, $3)",
+    ["guest-services", JSON.stringify(guestServicesRecoveryRow.rows[0].data), guestServicesRecoveryRow.rows[0].updated_at]
+  );
+  const partnerRecoveryRow = await verificationPool.query(
+    "SELECT data, updated_at FROM platform_documents WHERE key = $1",
+    ["partner-operations"]
+  );
+  await verificationPool.query(
+    "UPDATE platform_documents SET data = $2::jsonb WHERE key = $1",
+    ["partner-operations", JSON.stringify({ ...partnerRecoveryRow.rows[0].data, eventId: "texas-sandfest-2026" })]
+  );
+  let crossEventRecoveryRejected = false;
+  try {
+    await runChild(["scripts/verify-recovery.mjs"], {
+      ...commonEnv,
+      SANDFEST_DATABASE_URL: "",
+      SANDFEST_RECOVERY_DATABASE_URL: databaseUrl,
+      SANDFEST_RECOVERY_DATABASE_SSL: "false"
+    }, "Postgres cross-event recovery rejection");
+  } catch (error) {
+    crossEventRecoveryRejected = error.message.includes("partner-operations belongs to texas-sandfest-2026")
+      && error.message.includes(`expected ${EVENT_ID}`);
+  }
+  check("recovery verifier rejects a cross-event partner ledger", partnerRecoveryRow.rows.length === 1 && crossEventRecoveryRejected);
+  await verificationPool.query(
+    "UPDATE platform_documents SET data = $2::jsonb, updated_at = $3 WHERE key = $1",
+    ["partner-operations", JSON.stringify(partnerRecoveryRow.rows[0].data), partnerRecoveryRow.rows[0].updated_at]
+  );
   let activeSourceRejected = false;
   try {
     await runChild(["scripts/verify-recovery.mjs"], {
@@ -2467,7 +2558,7 @@ PG-EVENTENY-V-1,vendor,Postgres Eventeny Vendor,Postgres Import Contact,${postgr
     SANDFEST_RECOVERY_ASSET_MIN_FILES: "2"
   }, "Postgres asset recovery verification");
   const assetRecoveryEvidence = JSON.parse(assetRecoveryOutput.trim().split("\n").at(-1));
-  check("isolated asset recovery verification proves every restored upload", assetRecoveryEvidence.ok && assetRecoveryEvidence.mode === "read-only" && assetRecoveryEvidence.database === "restored" && assetRecoveryEvidence.assetDirectory === "restored" && assetRecoveryEvidence.assets?.verified === recoveryUploads.length + recoveryIncomingDocuments.length && assetRecoveryEvidence.assets?.brandAssets >= 1 && assetRecoveryEvidence.assets?.vendorDocuments >= 1 && assetRecoveryEvidence.assets?.incomingDocuments === recoveryIncomingDocuments.length && assetRecoveryEvidence.assets?.incomingDocumentMetadataPresent === true && /^[a-f0-9]{64}$/.test(assetRecoveryEvidence.assets?.manifestSha256 || ""));
+  check("isolated asset recovery verification proves every restored upload", assetRecoveryEvidence.ok && assetRecoveryEvidence.mode === "read-only" && assetRecoveryEvidence.isolation === "repeatable-read" && assetRecoveryEvidence.database === "restored" && assetRecoveryEvidence.assetDirectory === "restored" && assetRecoveryEvidence.assets?.verified === recoveryUploads.length + recoveryIncomingDocuments.length && assetRecoveryEvidence.assets?.brandAssets >= 1 && assetRecoveryEvidence.assets?.vendorDocuments >= 1 && assetRecoveryEvidence.assets?.incomingDocuments === recoveryIncomingDocuments.length && assetRecoveryEvidence.assets?.incomingDocumentMetadataPresent === true && /^[a-f0-9]{64}$/.test(assetRecoveryEvidence.assets?.manifestSha256 || ""));
   await verificationPool.query("DELETE FROM platform_documents WHERE key = $1", ["incoming-documents"]);
   const legacyAssetRecoveryOutput = await runChild(["scripts/verify-asset-recovery.mjs"], {
     ...commonEnv,

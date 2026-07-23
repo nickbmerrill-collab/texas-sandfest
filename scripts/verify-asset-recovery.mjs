@@ -90,7 +90,7 @@ async function readRestoredAsset(storageKey) {
 const client = new Client({ connectionString: recoveryUrl, ssl: sslConfig() });
 try {
   await client.connect();
-  await client.query("BEGIN READ ONLY");
+  await client.query("BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY");
   const result = await client.query("SELECT key, data FROM platform_documents WHERE key = ANY($1::text[])", [["partner-operations", "incoming-documents"]]);
   const documents = new Map(result.rows.map(row => [row.key, row.data]));
   if (!documents.has("partner-operations")) throw new Error("Recovery database is missing the partner-operations platform document.");
@@ -112,6 +112,7 @@ try {
     ok: true,
     checkedAt: new Date().toISOString(),
     mode: "read-only",
+    isolation: "repeatable-read",
     database: "restored",
     assetDirectory: "restored",
     assets: {
