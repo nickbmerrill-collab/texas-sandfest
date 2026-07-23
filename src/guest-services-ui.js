@@ -94,9 +94,9 @@ function markup({ eventPhone }) {
     </div>`;
 }
 
-export function createGuestServicesUi({ apiBase, eventPhone, intakeReady, turnstileSiteKey = "" }) {
+export function createGuestServicesUi({ apiBase, eventPhone, intakeReady, onFailure, turnstileSiteKey = "" }) {
   const root = document.querySelector("#guest-services");
-  if (!root) return { mount: () => {}, loadStatus: () => null };
+  if (!root) return { mount: () => {}, loadStatus: () => null, refresh: () => null };
   let botProtection = { enabled: false, tokenFor: () => "", reset: () => {} };
   let botPromise = null;
   let intakeAvailable = false;
@@ -127,6 +127,7 @@ export function createGuestServicesUi({ apiBase, eventPhone, intakeReady, turnst
       return payload;
     } catch {
       applyReadiness();
+      onFailure?.();
       return null;
     } finally {
       root.setAttribute("aria-busy", "false");
@@ -239,5 +240,5 @@ export function createGuestServicesUi({ apiBase, eventPhone, intakeReady, turnst
     return loadReadiness();
   }
 
-  return { loadStatus, mount };
+  return { loadStatus, mount, refresh: loadReadiness };
 }

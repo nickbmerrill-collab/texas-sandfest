@@ -2387,8 +2387,12 @@ test("Guest Services moves a visitor request through staff response and private 
 });
 
 test("Guest Services intake fails closed when server readiness is unavailable", async ({ page }) => {
+  let unavailable = true;
+  let readinessAttempts = 0;
   await page.route("**/api/public/guest-services", async route => {
     if (route.request().method() !== "GET") return route.continue();
+    readinessAttempts += 1;
+    if (!unavailable) return route.continue();
     await route.fulfill({
       status: 503,
       contentType: "application/json",
@@ -2405,12 +2409,22 @@ test("Guest Services intake fails closed when server readiness is unavailable", 
   await expect(form.locator('button[type="submit"]')).toHaveText("Guest Services unavailable");
   await expect(form.locator(".partner-form-status")).toContainText("Call Guest Services for help");
   await expect(page.locator('#guest-services-status-form button[type="submit"]')).toBeEnabled();
+
+  unavailable = false;
+  await expect(form).toHaveAttribute("data-public-intake-state", "ready", { timeout: 15_000 });
+  await expect(form.locator('[name="category"]')).toBeEnabled();
+  await expect(form.locator('button[type="submit"]')).toHaveText("Send request");
+  expect(readinessAttempts).toBeGreaterThanOrEqual(2);
   await assertNoHorizontalOverflow(page);
 });
 
 test("partner intake and private-access recovery fail closed when server readiness is unavailable", async ({ page }) => {
-  await page.route("**/api/public/partner-intake", async route => {
+  let unavailable = true;
+  const attempts = new Map();
+  for (const endpoint of ["partner-intake", "sponsors", "vendors"]) await page.route(`**/api/public/${endpoint}`, async route => {
     if (route.request().method() === "GET") {
+      attempts.set(endpoint, (attempts.get(endpoint) || 0) + 1);
+      if (!unavailable) return route.continue();
       await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "temporarily unavailable" }) });
       return;
     }
@@ -2428,8 +2442,8 @@ test("partner intake and private-access recovery fail closed when server readine
   await expect(sponsorForm.locator('button[type="submit"]')).toBeDisabled();
   await expect(vendorForm.locator('button[type="submit"]')).toBeDisabled();
   await expect(recoveryForm.locator('button[type="submit"]')).toBeDisabled();
-  await expect(sponsorForm.locator("[data-sponsor-program-unavailable]")).toContainText("Online partner applications are temporarily unavailable");
-  await expect(page.locator("#vendor-intake-availability")).toContainText("Online partner applications are temporarily unavailable");
+  await expect(sponsorForm.locator("[data-sponsor-program-unavailable]")).toContainText("We could not confirm the current sponsorship program");
+  await expect(page.locator("#vendor-intake-availability")).toContainText("We could not confirm the current vendor program");
   await expect(sponsorForm.locator('a[href="mailto:sponsors@texassandfest.org"]')).toHaveText("email the sponsorship team");
   await expect(sponsorForm.locator('a[href="mailto:sponsors@texassandfest.org"]')).toBeVisible();
   await expect(vendorForm.locator('a[href="mailto:vendors@texassandfest.org"]')).toHaveText("email the vendor team");
@@ -2437,12 +2451,13 @@ test("partner intake and private-access recovery fail closed when server readine
   await expect(recoveryForm.locator("[data-partner-recovery-availability]")).toContainText("Private-access email is temporarily unavailable");
   await expect(page.locator('#partner-status-form button[type="submit"]')).toBeEnabled();
 
-  await page.unroute("**/api/public/partner-intake");
-  await page.reload();
-  await expect(sponsorForm).toHaveAttribute("data-public-intake-state", "ready");
-  await expect(vendorForm).toHaveAttribute("data-public-intake-state", "ready");
+  unavailable = false;
+  await expect(sponsorForm).toHaveAttribute("data-public-intake-state", "ready", { timeout: 15_000 });
+  await expect(vendorForm).toHaveAttribute("data-public-intake-state", "ready", { timeout: 15_000 });
+  await expect(recoveryForm).toHaveAttribute("data-public-intake-state", "ready");
   await expect(sponsorForm.locator('a[href="mailto:sponsors@texassandfest.org"]')).toHaveCount(0);
   await expect(vendorForm.locator('a[href="mailto:vendors@texassandfest.org"]')).toHaveCount(0);
+  for (const endpoint of ["partner-intake", "sponsors", "vendors"]) expect(attempts.get(endpoint)).toBeGreaterThanOrEqual(2);
   await assertNoHorizontalOverflow(page);
 });
 

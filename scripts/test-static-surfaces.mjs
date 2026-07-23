@@ -531,6 +531,10 @@ const publicAlertLoader = visitorSource.slice(visitorSource.indexOf("async funct
 assert(publicAlertLoader && !publicAlertLoader.includes("renderPublicAlert(null)"), "A transient public-alert fetch failure clears the last known safety message.");
 assert(visitorSource.includes('loadIslandConditions({ force: true, preserveOnError: true })'), "Manual Island Conditions refresh does not preserve the last known reading on failure.");
 assert(visitorSource.includes('window.addEventListener("online", recoverPublicConnectivity)') && visitorSource.includes("recoveryLoads.push(loadPartnerPortalStatus(portalAccess))") && visitorSource.includes("recoveryLoads.push(loadTaskPortalFromLocation())"), "Public connectivity recovery does not refresh live data and retained private access.");
+assert(visitorSource.includes("publicIntakeRetryAttempt >= 5")
+  && visitorSource.includes("schedulePublicIntakeRecovery();")
+  && visitorSource.includes("controller.refresh()")
+  && visitorSource.includes("onFailure: schedulePublicIntakeRecovery"), "Public intake does not automatically recover after a transient readiness or catalog interruption.");
 assert(visitorSource.includes('setAdminWorkspaceState("failed", retryable)')
   && visitorSource.includes('adminOperationsUi?.createAdminWorkspaceRecovery')
   && visitorSource.includes('" Retrying automatically."')
