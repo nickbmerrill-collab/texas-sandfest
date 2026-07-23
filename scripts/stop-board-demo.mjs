@@ -37,13 +37,13 @@ const sessionFile = sessionValue
 if (!sessionValue && process.platform === "darwin") {
   const launchd = createBoardLaunchdController({ root: ROOT });
   const service = await launchd.inspect();
+  if ((service.installed || service.configured) && !service.owned) {
+    console.error(`[board-stop] Refusing to stop ${service.label}; it is not owned by this checkout.`);
+    process.exit(1);
+  }
   if (service.installed) {
-    if (!service.owned) {
-      console.error(`[board-stop] Refusing to stop ${service.label}; it is not owned by this checkout.`);
-      process.exit(1);
-    }
     await launchd.stop();
-    console.log(`[board-stop] Persistent launchd owner ${service.label} retired.`);
+    console.log(`[board-stop] LaunchAgent ${service.label} unloaded; persistent configuration retained at ${service.plistPath}.`);
   }
 }
 

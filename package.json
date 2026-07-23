@@ -73,6 +73,7 @@
     "board:service:restart": "node scripts/board-service.mjs restart",
     "board:service:status": "node scripts/board-service.mjs status",
     "board:service:stop": "node scripts/board-service.mjs stop",
+    "board:service:uninstall": "node scripts/board-service.mjs uninstall",
     "board:stop": "node scripts/stop-board-demo.mjs",
     "board:check": "node scripts/check-board-demo.mjs",
     "board:rehearse": "npm run board:check && node scripts/check-board-browser.mjs",
