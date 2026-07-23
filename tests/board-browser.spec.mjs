@@ -2741,6 +2741,86 @@ test("ticket checkout and payment recover accepted responses lost by the browser
   expect(fulfillment.data.fulfillment.filter(item => item.record?.orderId === acceptedCheckout.orderId)).toHaveLength(1);
 });
 
+test("task updates recover accepted responses lost by the browser without duplicate history", async ({ page }) => {
+  const runId = randomUUID().slice(0, 8);
+  const partners = await adminApi("/api/admin/partners");
+  expect(partners.status).toBe(200);
+  const volunteer = partners.data.assignmentDirectory.volunteers.find(item => item.emailAvailable);
+  const blockerNote = `Need two additional radios for recovery proof ${runId}.`;
+  const created = await adminApi("/api/admin/partners/tasks", {
+    method: "POST",
+    body: {
+      assigneeType: "volunteer",
+      assigneeId: volunteer.id,
+      title: `Replay-safe task update ${runId}`,
+      description: "Confirm an accepted blocker reaches Operations exactly once.",
+      priority: "high",
+      dueAt: "2027-04-10T15:00:00.000Z"
+    }
+  });
+  expect(created.status).toBe(201);
+
+  const taskUrl = new URL(taskPortalUrlForTask(created.data.task, {
+    config: taskPortalConfig({
+      SANDFEST_ENV: "development",
+      SANDFEST_TASK_PORTAL_SECRET: PORTAL_SECRET,
+      SANDFEST_PUBLIC_SITE_URL: webBase
+    })
+  }));
+  taskUrl.searchParams.set("apiBase", apiBase);
+  await page.goto(taskUrl.toString());
+  await expect(page).toHaveURL(/#task-status$/);
+  await expect(page.locator("#task-status-result")).toContainText(created.data.task.title);
+
+  const retryKeys = [];
+  const responses = [];
+  let attempts = 0;
+  await page.route("**/api/public/task-status/update", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    attempts++;
+    retryKeys.push(route.request().headers()["idempotency-key"]);
+    const providerResponse = await route.fetch();
+    responses.push(await providerResponse.json());
+    if (attempts === 1) {
+      await route.abort("failed");
+      return;
+    }
+    await route.fulfill({ response: providerResponse });
+  });
+
+  await page.locator('#task-status-update [name="note"]').fill(blockerNote);
+  await page.locator('[data-task-action="block"]').click();
+  await expect(page.locator(".task-status-message")).toContainText("Operations will record it only once");
+  await expect(page.locator('[data-task-action="block"]')).toBeEnabled();
+  await page.locator('[data-task-action="block"]').click();
+  await expect(page.locator(".task-status-message")).toContainText("Operations already has this update");
+  await expect(page.locator("#task-status-result")).toContainText(blockerNote);
+
+  expect(attempts).toBe(2);
+  expect(retryKeys[0]).toMatch(/^[A-Za-z0-9][A-Za-z0-9._:-]{15,199}$/);
+  expect(retryKeys[1]).toBe(retryKeys[0]);
+  expect(responses[0].replay).toBe(false);
+  expect(responses[1].replay).toBe(true);
+  expect(JSON.stringify(responses)).not.toContain(retryKeys[0]);
+  expect(JSON.stringify(responses)).not.toMatch(/requestId|requestFingerprint/);
+  await page.unroute("**/api/public/task-status/update");
+
+  const updatedPartners = await adminApi("/api/admin/partners");
+  const updatedTask = updatedPartners.data.tasks.find(item => item.id === created.data.task.id);
+  expect(updatedTask.status).toBe("blocked");
+  expect(updatedTask.assigneeUpdates.filter(item => item.note === blockerNote)).toHaveLength(1);
+  expect(updatedPartners.data.activity.filter(item => item.entityType === "task"
+    && item.entityId === created.data.task.id
+    && item.type === "task.assignee_updated")).toHaveLength(1);
+  expect(JSON.stringify(updatedTask)).not.toContain(retryKeys[0]);
+  expect(JSON.stringify(updatedTask)).not.toMatch(/requestId|requestFingerprint/);
+
+  const audit = await adminApi("/api/admin/audit?limit=200");
+  expect(audit.status).toBe(200);
+  expect(audit.data.audit.filter(item => item.record?.target?.id === created.data.task.id
+    && item.record?.action === "task.assignee.block")).toHaveLength(1);
+});
+
 test("private capability links recover from transient API failures without reloads", async ({ browser }) => {
   test.setTimeout(90_000);
   const runId = randomUUID().slice(0, 8);

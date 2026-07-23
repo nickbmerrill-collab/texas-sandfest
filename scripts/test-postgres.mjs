@@ -1483,7 +1483,7 @@ postgres_eventeny_settlement_1,2026-07-16,vendor_fee,250.00,7.50,242.50,eventeny
     token: postgresTaskPortalToken,
     action: "acknowledge",
     note: "Postgres volunteer confirms the north gate checklist."
-  });
+  }, { headers: { "idempotency-key": "postgres-task-update-acknowledge-0001" } });
   const taskWorkspace = await request(base, "GET", "/api/admin/partners", undefined, { auth: true });
   const persistedAcknowledgedTask = taskWorkspace.data.tasks?.find(item => item.id === notifiedVolunteerTask.data.task?.id);
   check("task lifecycle and workload persisted", blockedTask.status === 200 && notifiedVolunteerTask.status === 201 && notifiedStaffTask.status === 201 && notifiedStaffTask.data.task?.assigneeName === "Postgres Incident Commander" && taskWorkspace.data.taskBoard?.totals?.blocked === 1 && taskWorkspace.data.taskBoard?.workload?.some(item => item.assigneeId === "operations") && taskWorkspace.data.taskBoard?.workload?.some(item => item.assigneeId === "vol_001") && taskWorkspace.data.taskBoard?.workload?.some(item => item.assigneeId === "staff_command"));

@@ -4548,6 +4548,7 @@ async function loadTaskPortalFromLocation(options = {}) {
         publicApiBase,
         fetchWithTimeout,
         friendlyRequestError,
+        requestOutcomeIsAmbiguous,
         conditionLabel,
         onTransientFailure: schedulePublicConnectivityRecovery,
         stabilizeRenderedHashTarget

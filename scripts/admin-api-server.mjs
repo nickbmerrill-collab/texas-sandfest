@@ -2083,8 +2083,12 @@ function adminTicketOrderAuditView(order) {
 
 function adminPartnerTaskView(task, followups = []) {
   if (!task) return task;
-  const { lastAssignmentNoticeRequestId, ...safe } = task;
-  return { ...safe, notificationSummary: summarizeTaskNotifications(task, followups) };
+  const { lastAssignmentNoticeRequestId, assigneeUpdates = [], ...safe } = task;
+  return {
+    ...safe,
+    assigneeUpdates: assigneeUpdates.map(({ requestId, requestFingerprint, ...update }) => update),
+    notificationSummary: summarizeTaskNotifications(task, followups)
+  };
 }
 
 function boardAppPartnerSnapshot(doc, now) {
@@ -2937,6 +2941,17 @@ function guestServicesIdempotency(request, body = {}) {
     idempotencyKeyHash: createHash("sha256").update(key).digest("hex"),
     idempotencyFingerprint: guestServicesIntakeFingerprint(body)
   };
+}
+
+function requiredIdempotencyKey(request) {
+  const header = Array.isArray(request.headers["idempotency-key"])
+    ? request.headers["idempotency-key"][0]
+    : request.headers["idempotency-key"];
+  const key = String(header || "").trim();
+  if (key.length < 16 || key.length > 200 || !/^[A-Za-z0-9][A-Za-z0-9._:-]+$/.test(key)) {
+    return { ok: false, error: "Idempotency-Key must be 16 to 200 URL-safe characters." };
+  }
+  return { ok: true, keyHash: createHash("sha256").update(key).digest("hex") };
 }
 
 function outreachImportPreviewHash(csv, defaultsInput = {}) {
@@ -6232,6 +6247,11 @@ async function handleRequest(request, response) {
         sendJson(request, response, 503, { error: "Task status is temporarily unavailable." }, { "cache-control": "no-store" });
         return;
       }
+      const idempotency = requiredIdempotencyKey(request);
+      if (!idempotency.ok) {
+        sendJson(request, response, 400, { error: idempotency.error }, { "cache-control": "no-store" });
+        return;
+      }
       const body = await readBody(request);
       const result = await mutatePartnerOperations(doc => {
         const access = findTaskPortalTask(doc, body.taskId, body.token, { config });
@@ -6241,7 +6261,8 @@ async function handleRequest(request, response) {
           note: body.note
         }, {
           idFactory: prefix => `${prefix}_${randomUUID()}`,
-          now: new Date().toISOString()
+          now: new Date().toISOString(),
+          requestId: idempotency.keyHash
         });
       });
       if (!result?.ok) {
