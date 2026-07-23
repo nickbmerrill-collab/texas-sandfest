@@ -938,6 +938,11 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   const activationBoundary = page.locator("#admin-board-stage-summary");
   await expect(activationBoundary.locator('[data-board-stage="presentation-ready"]')).toContainText("Real workflows with synthetic providers");
   await expect(activationBoundary.locator('[data-board-stage="post-presentation"]')).toContainText("Stripe, QuickBooks, Brevo, Twilio, NWS, TxDOT, eight webcam edge agents, OIDC, Turnstile, DNS, and managed recovery");
+  const boardCapabilityProof = page.locator("#admin-board-capability-proof");
+  await expect(boardCapabilityProof).toBeVisible();
+  await expect(boardCapabilityProof.locator("#admin-board-capability-proof-title")).toHaveText("Board capability proof");
+  await expect(boardCapabilityProof.locator("#admin-board-capability-proof-kpis article").filter({ hasText: "Journeys" })).toContainText("/10");
+  await expect(boardCapabilityProof.locator("#admin-board-capability-proof-kpis article").filter({ hasText: "Deferred" })).toContainText("post-board gates");
   await expect(page.locator("#admin-load-partners")).toHaveText("Refresh partner workspace");
   await expect(page.locator("#admin-load-conditions")).toHaveText("Refresh island operations");
   await expect(page.locator("#admin-island-conditions > strong").first()).toHaveText("Source health");
@@ -1404,7 +1409,11 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await page.locator("#admin-sync-deployment-tasks").click();
   const launchTaskSyncResult = await launchTaskSyncResponse;
   expect(launchTaskSyncResult.status()).toBe(200);
-  expect((await launchTaskSyncResult.json()).sync.created).toBe(1);
+  expect((await launchTaskSyncResult.json()).sync.created).toBe(2);
+  const certificateLaunchTask = page.locator("#admin-partner-tasks .admin-task-card").filter({ hasText: "[Launch] Board capability certificate" });
+  await expect(certificateLaunchTask).toHaveCount(1);
+  await expect(certificateLaunchTask).toContainText("Operations team");
+  await expect(certificateLaunchTask).toContainText("high priority");
   const backupLaunchTask = page.locator("#admin-partner-tasks .admin-task-card").filter({ hasText: "[Launch] Backup and recovery" });
   await expect(backupLaunchTask).toHaveCount(1);
   await expect(backupLaunchTask).toContainText("Operations team");
@@ -1413,6 +1422,7 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await page.locator("#admin-sync-deployment-tasks").click();
   const launchTaskReplayResult = await launchTaskReplayResponse;
   expect((await launchTaskReplayResult.json()).sync.changed).toBe(false);
+  await expect(certificateLaunchTask).toHaveCount(1);
   await expect(backupLaunchTask).toHaveCount(1);
   const sponsorTierForm = page.locator("#admin-create-sponsor-package");
   await sponsorTierForm.locator('[name="name"]').fill(`Community Champion ${runId}`);

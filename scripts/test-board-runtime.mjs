@@ -315,6 +315,12 @@ try {
     && deployment.data.deployment?.checks?.transactionalEmail?.message.includes("Brevo activation remains post-board")
     && deployment.data.deployment?.checks?.cameraIngest?.message.includes("synthetic metric playback")
     && deployment.data.deployment?.checks?.cameraIngest?.message.includes("webcam edge agents remain post-board"));
+  check("board deployment exposes capability certification evidence", deployment.data.deployment?.checks?.boardCapabilityCertificate?.label === "Board capability certificate"
+    && deployment.data.deployment?.checks?.boardCapabilityCertificate?.group === "Platform"
+    && deployment.data.deployment?.checks?.boardCapabilityCertificate?.severity === "warning"
+    && deployment.data.deployment?.boardCapabilities?.requiredJourneyCount === 10
+    && Array.isArray(deployment.data.deployment?.boardCapabilities?.errors)
+    && deployment.data.deployment?.boardCapabilities?.errors.length >= 1);
   check("board bootstrap preserves the public privacy boundary", publicAppBootstrapSafety(bootstrap.data, { allowBoardRuntime: true }).ready
     && bootstrap.data.guidance?.length >= 6
     && bootstrap.data.guidance?.every(item => !Object.hasOwn(item, "ownerTeam") && !Object.hasOwn(item, "escalationContact"))
