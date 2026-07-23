@@ -3447,6 +3447,7 @@ test("incident delivery verification safely resolves ambiguous provider outcomes
   const title = `Provider verification drill ${runId}`;
   const incidentResult = await adminApi("/api/admin/island-conditions/incidents", {
     method: "POST",
+    headers: { "idempotency-key": `browser-provider-incident-${runId}` },
     body: {
       title,
       summary: "Verify ambiguous provider outcomes without duplicate operational email.",
@@ -3673,6 +3674,60 @@ test("partner delivery verification prevents duplicate automated messages", asyn
   await assertChoiceTargets(page, "Partner provider verification");
   await assertNoHorizontalOverflow(page);
   await assertNoAccessibilityViolations(page, "Partner provider verification");
+});
+
+test("incident creation recovers an accepted response without duplicate command records or audits", async ({ page }) => {
+  const runId = randomUUID().slice(0, 8);
+  const title = `Recovery island incident ${runId}`;
+  await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#operations`);
+  await expect(page.locator("#admin-api-status")).toContainText("Loaded", { timeout: 25_000 });
+  const form = page.locator("#admin-create-incident");
+  await expect(form).toBeVisible();
+  const keys = [];
+  const responses = [];
+  let attempts = 0;
+  await page.route("**/api/admin/island-conditions/incidents", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    attempts++;
+    keys.push(route.request().headers()["idempotency-key"]);
+    const serverResponse = await route.fetch();
+    responses.push(await serverResponse.json());
+    if (attempts === 1) {
+      await route.abort("failed");
+      return;
+    }
+    await route.fulfill({ response: serverResponse });
+  });
+
+  await form.locator('[name="title"]').fill(title);
+  await form.locator('[name="severity"]').selectOption("high");
+  await form.locator('[name="ownerTeam"]').selectOption("traffic");
+  await form.locator('[name="ownerName"]').fill("Traffic command");
+  await form.locator('[name="summary"]').fill("Keep one command record when the accepted response is lost.");
+  await form.locator('[name="publicImpact"]').check();
+  await form.evaluate(node => node.requestSubmit());
+  await expect(page.locator("#admin-api-status")).toContainText("Retry safely; saved once");
+  await expect(form.locator('[name="title"]')).toHaveValue(title);
+  expect(await form.evaluate(node => node.dataset.idempotencyKey?.length > 15)).toBe(true);
+
+  await form.evaluate(node => node.requestSubmit());
+  await expect(page.locator("#admin-api-status")).toContainText("Incident opened");
+  expect(keys[0]).toMatch(/^[A-Za-z0-9][A-Za-z0-9._:-]{15,199}$/);
+  expect(keys[1]).toBe(keys[0]);
+  expect(responses[0].replay).toBe(false);
+  expect(responses[1].replay).toBe(true);
+  expect(responses[1].incident.id).toBe(responses[0].incident.id);
+  expect(responses[1].incident.publicImpact).toBe(true);
+  expect(attempts).toBe(2);
+  await page.unroute("**/api/admin/island-conditions/incidents");
+
+  const conditions = await adminApi("/api/admin/island-conditions");
+  const audit = await adminApi("/api/admin/audit?limit=200");
+  expect(conditions.data.incidents.filter(item => item.id === responses[0].incident.id)).toHaveLength(1);
+  expect(conditions.data.incidents.filter(item => item.title === title)).toHaveLength(1);
+  expect(audit.data.audit.filter(item => item.record?.action === "conditions.incident.create"
+    && item.record?.target?.id === responses[0].incident.id)).toHaveLength(1);
+  expect(JSON.stringify({ responses, conditions, audit })).not.toContain(keys[0]);
 });
 
 test("operations command summary fits and navigates across board viewports", async ({ page }) => {

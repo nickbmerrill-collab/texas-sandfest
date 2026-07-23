@@ -314,6 +314,9 @@ assert(adminOperationsSource.includes("bindSponsorPackageCreation")
 assert(adminOperationsSource.includes("export { submitCreation };")
   && visitorSource.includes("adminOperationsUi?.submitCreation")
   && visitorSource.includes('"Retry safely; saved once."'), "Custom sponsor deliverable creation does not retain replay protection after an ambiguous response.");
+assert(visitorSource.includes('"/api/admin/island-conditions/incidents"')
+  && visitorSource.includes("loadAdminPartners: loadAdminConditions")
+  && visitorSource.includes('"Incident opened."'), "Operator incident creation does not retain replay protection after an ambiguous response.");
 assert(adminContentScriptFiles.length === 1
   && visitorSource.includes('adminSculptorRosterUiPromise ??= import("./admin-sculptor-roster-ui.js")'), "The staff roster publication workspace must remain on demand.");
 for (const marker of boardDemoCredentialMarkers) {

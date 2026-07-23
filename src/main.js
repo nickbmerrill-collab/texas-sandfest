@@ -9838,21 +9838,19 @@ document.querySelector("#admin-incident-filter")?.addEventListener("change", eve
   incidentBoardFilter = event.currentTarget.value;
   if (adminConditionsState) renderAdminConditions(adminConditionsState);
 });
-document.querySelector("#admin-create-incident")?.addEventListener("submit", async event => {
+document.querySelector("#admin-create-incident")?.addEventListener("submit", event => {
   event.preventDefault();
   const form = event.currentTarget;
-  const values = Object.fromEntries(new FormData(form).entries());
-  const button = form.querySelector('button[type="submit"]');
-  button.disabled = true;
-  try {
-    await adminFetch("/api/admin/island-conditions/incidents", {
-      method: "POST",
-      body: JSON.stringify({ ...values, publicImpact: form.querySelector('[name="publicImpact"]').checked })
-    });
-    form.reset();
-    await loadAdminConditions({ quiet: true });
-    setAdminStatus("Incident opened.", "ok");
-  } catch (error) { setAdminStatus(error.message, "error"); } finally { button.disabled = !adminCan("conditions:write"); }
+  void adminOperationsUi?.submitCreation(
+    form,
+    "/api/admin/island-conditions/incidents",
+    Object.fromEntries(new FormData(form)),
+    "Retry safely; saved once.",
+    "Incident opened.",
+    { adminFetch, loadAdminPartners: loadAdminConditions, requestOutcomeIsAmbiguous, setAdminStatus },
+    null,
+    () => !adminCan("conditions:write")
+  );
 });
 document.querySelector("#admin-task-status-filter")?.addEventListener("change", event => {
   taskBoardFilters.status = event.currentTarget.value;

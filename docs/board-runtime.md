@@ -255,6 +255,9 @@ loopback Brevo sandbox, and track acknowledgement, travel, on-scene response,
 and completed closeout. Three signed recovery signals must move the incident to
 monitoring before a noted manual resolution removes the visitor notice. Eleven
 incident and dispatch audits must omit recipient and delivery ownership values.
+The ordinary operator form uses the same recovery posture: a lost accepted
+response retains one retry key and returns the original incident, while changed
+details with that key are rejected and the key itself is never stored or audited.
 The supervisor then restores zero incidents, dispatches, and public notices at
 12/12 readiness. No footage is read or stored and no live provider is called.
 
