@@ -941,6 +941,15 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   const boardCapabilityProof = page.locator("#admin-board-capability-proof");
   await expect(boardCapabilityProof).toBeVisible();
   await expect(boardCapabilityProof.locator("#admin-board-capability-proof-title")).toHaveText("Board capability proof");
+  await expect(boardCapabilityProof.locator("#admin-board-capability-proof-copy")).toBeEnabled();
+  const proofSummaryText = await boardCapabilityProof.locator("#admin-board-capability-proof-summary").textContent();
+  if (proofSummaryText?.includes("certified journeys")) {
+    await expect(boardCapabilityProof.locator("#admin-board-capability-proof-summary")).toContainText("certified capabilities");
+    await expect(boardCapabilityProof.locator("#admin-board-capability-proof-scope span")).toHaveCount(12);
+    await expect(boardCapabilityProof.locator("#admin-board-capability-proof-scope")).toContainText("vendor signup");
+  } else {
+    expect(proofSummaryText || "").toMatch(/Run board capability certification|different runtime session/);
+  }
   await expect(boardCapabilityProof.locator("#admin-board-capability-proof-kpis article").filter({ hasText: "Journeys" })).toContainText("/10");
   await expect(boardCapabilityProof.locator("#admin-board-capability-proof-kpis article").filter({ hasText: "Deferred" })).toContainText("post-board gates");
   await expect(page.locator("#admin-load-partners")).toHaveText("Refresh partner workspace");
