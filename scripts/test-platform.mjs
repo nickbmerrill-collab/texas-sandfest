@@ -3557,8 +3557,17 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   const customMilestone = createPartnerMilestone(created.doc, created.application.id, { label: "Hospitality roster due", dueAt: "2026-08-10T17:00:00.000Z", assigneeTeam: "guest-services", reminderLeadDays: 5 }, { idFactory, actorId: "admin_1", now });
   const milestoneSummary = summarizePartnerMilestones(customMilestone.doc, now);
   const invalidMilestone = createPartnerMilestone(created.doc, created.application.id, { label: "Bad date", dueAt: "invalid", reminderLeadDays: 31 }, { idFactory, now });
+  const milestoneRetryFactory = prefix => `${prefix}_retry_safe`;
+  const milestoneRetryInput = { label: "Replay-safe key date", dueAt: "2026-08-12T17:00:00.000Z", assigneeTeam: "sponsor", reminderLeadDays: 4 };
+  const retryMilestone = createPartnerMilestone(created.doc, created.application.id, milestoneRetryInput, { idFactory: milestoneRetryFactory, actorId: "admin_1", now });
+  const replayedMilestone = createPartnerMilestone(retryMilestone.doc, created.application.id, milestoneRetryInput, { idFactory: milestoneRetryFactory, actorId: "admin_1", now });
+  const conflictingMilestone = createPartnerMilestone(retryMilestone.doc, created.application.id, { ...milestoneRetryInput, reminderLeadDays: 5 }, { idFactory: milestoneRetryFactory, actorId: "admin_1", now });
   ok("custom partner milestone", customMilestone.ok && customMilestone.milestone.assigneeTeam === "guest-services" && customMilestone.milestone.reminderLeadDays === 5 && milestoneSummary.totals.open === 5);
   ok("milestone input validation", !invalidMilestone.ok);
+  ok("partner milestone creation is idempotent and activity safe", retryMilestone.ok && replayedMilestone.replay
+    && replayedMilestone.doc.milestones.length === retryMilestone.doc.milestones.length
+    && replayedMilestone.doc.activity.filter(item => item.type === "milestone.created" && item.entityId === retryMilestone.milestone.id).length === 1
+    && conflictingMilestone.code === "IDEMPOTENCY_CONFLICT");
   const drafted = prepareFollowupDraft(created.doc, created.followup.id, { now, portalUrl });
   ok("follow-up review draft", drafted.ok && drafted.followup.status === "draft_ready" && !drafted.followup.sentAt && drafted.followup.body.includes(portalUrl));
   const reviewFirstAutomation = applyTransactionalFollowupAutomation(drafted.doc, { providerReady: true, now });
@@ -4814,7 +4823,25 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
     priority: "urgent",
     dueAt: "2026-07-16T11:00:00.000Z"
   }, { actorId: "ops_1", idFactory, now: "2026-07-14T12:00:00.000Z" });
+  const taskRetryFactory = prefix => `${prefix}_retry_safe`;
+  const taskRetryInput = {
+    title: "Replay-safe volunteer briefing",
+    description: "Confirm the opening checklist without duplicate delegation.",
+    assigneeType: "volunteer",
+    assigneeId: "vol_001",
+    assigneeName: "Alex Rivera",
+    assigneeRole: "gate",
+    priority: "high",
+    dueAt: "2026-07-17T11:00:00.000Z"
+  };
+  const retryTask = createPartnerTask(paid.doc, taskRetryInput, { actorId: "ops_1", idFactory: taskRetryFactory, now });
+  const replayedTask = createPartnerTask(retryTask.doc, taskRetryInput, { actorId: "ops_1", idFactory: taskRetryFactory, now });
+  const conflictingTask = createPartnerTask(retryTask.doc, { ...taskRetryInput, priority: "urgent" }, { actorId: "ops_1", idFactory: taskRetryFactory, now });
   ok("delegated volunteer task", task.ok && task.task.assigneeType === "volunteer" && task.task.assigneeName === "Alex Rivera" && task.task.createdBy === "ops_1" && task.task.assignmentVersion === 1 && task.task.scheduleVersion === 1);
+  ok("partner task creation is idempotent and activity safe", retryTask.ok && replayedTask.replay
+    && replayedTask.doc.tasks.length === retryTask.doc.tasks.length
+    && replayedTask.doc.activity.filter(item => item.type === "task.created" && item.entityId === retryTask.task.id).length === 1
+    && conflictingTask.code === "IDEMPOTENCY_CONFLICT");
   const taskPortal = taskPortalConfig({
     SANDFEST_ENV: "production",
     SANDFEST_TASK_PORTAL_SECRET: "0123456789abcdef0123456789abcdef-task",
@@ -8953,21 +8980,26 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     reminderLeadDays: 5,
     notes: "Confirm the package handoff with finance."
   }, true);
-  const customMilestoneApi = await hit("POST", `/api/admin/partners/applications/${encodeURIComponent(sponsorApplication?.id)}/milestones`, {
+  const customMilestoneBody = {
     label: "Hospitality roster due",
     dueAt: "2026-09-15T17:00:00.000Z",
     assigneeTeam: "guest-services",
     reminderLeadDays: 4,
     notes: "Collect attendee names and dietary needs."
-  }, true);
+  };
+  const customMilestoneKey = "api-partner-milestone-create-0001";
+  const missingMilestoneKeyApi = await hit("POST", `/api/admin/partners/applications/${encodeURIComponent(sponsorApplication?.id)}/milestones`, customMilestoneBody, true);
+  const customMilestoneApi = await hit("POST", `/api/admin/partners/applications/${encodeURIComponent(sponsorApplication?.id)}/milestones`, customMilestoneBody, true, { "idempotency-key": customMilestoneKey });
+  const replayedMilestoneApi = await hit("POST", `/api/admin/partners/applications/${encodeURIComponent(sponsorApplication?.id)}/milestones`, customMilestoneBody, true, { "idempotency-key": customMilestoneKey });
+  const conflictingMilestoneApi = await hit("POST", `/api/admin/partners/applications/${encodeURIComponent(sponsorApplication?.id)}/milestones`, { ...customMilestoneBody, reminderLeadDays: 5 }, true, { "idempotency-key": customMilestoneKey });
   const invalidMilestoneApi = await hit("POST", `/api/admin/partners/applications/${encodeURIComponent(sponsorApplication?.id)}/milestones`, {
     label: "Invalid date",
     dueAt: "not-a-date",
     assigneeTeam: "sponsor"
-  }, true);
+  }, true, { "idempotency-key": "api-partner-milestone-create-0002" });
   const milestoneWorkspaceApi = await hit("GET", "/api/admin/partners", null, true);
   const persistedCustomMilestone = milestoneWorkspaceApi.data.milestones?.find(item => item.id === customMilestoneApi.data.milestone?.id);
-  ok("admin milestone create and reschedule API", rescheduledMilestoneApi.status === 200 && rescheduledMilestoneApi.data.milestone?.scheduleVersion === 2 && rescheduledMilestoneApi.data.milestone?.assigneeTeam === "finance" && customMilestoneApi.status === 201 && persistedCustomMilestone?.assigneeTeam === "guest-services" && !("ok" in (persistedCustomMilestone || {})));
+  ok("admin milestone create and reschedule API", rescheduledMilestoneApi.status === 200 && rescheduledMilestoneApi.data.milestone?.scheduleVersion === 2 && rescheduledMilestoneApi.data.milestone?.assigneeTeam === "finance" && missingMilestoneKeyApi.status === 400 && customMilestoneApi.status === 201 && replayedMilestoneApi.status === 200 && replayedMilestoneApi.data.replay === true && replayedMilestoneApi.data.milestone?.id === customMilestoneApi.data.milestone?.id && conflictingMilestoneApi.status === 409 && persistedCustomMilestone?.assigneeTeam === "guest-services" && !("ok" in (persistedCustomMilestone || {})));
   ok("admin milestone validation and summary API", invalidMilestoneApi.status === 400 && milestoneWorkspaceApi.data.milestoneSummary?.totals?.open >= 7);
   const completedMilestoneApi = await hit("PATCH", `/api/admin/partners/milestones/${encodeURIComponent(customMilestoneApi.data.milestone?.id)}`, { status: "completed" }, true);
   const completedMilestoneWorkspaceApi = await hit("GET", "/api/admin/partners", null, true);
@@ -9036,15 +9068,20 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
   const restoredInvoice = reversedWorkspace.data.invoices?.find(item => item.id === invoiceApi.data.invoice?.id);
   ok("payment reversal API restores balance", reversedPaymentApi.status === 200 && reversedPaymentApi.data.payment?.status === "voided" && restoredInvoice?.balanceCents === restoredInvoice?.amountCents && reversedWorkspace.data.receivables?.accounts?.find(item => item.applicationId === sponsorApplication?.id)?.paidAmountCents === 0);
 
-  const staffTaskApi = await hit("POST", "/api/admin/partners/tasks", {
+  const staffTaskBody = {
     title: "Confirm operations briefing",
     description: "Review the opening checklist with command.",
     assigneeType: "staff",
     assigneeId: "staff_operations",
     priority: "high",
     dueAt: "2026-07-17T12:30:00.000Z"
-  }, true);
-  ok("POST governed staff task assignment", staffTaskApi.status === 201 && staffTaskApi.data.task?.assigneeName === "Jamie Torres" && staffTaskApi.data.task?.assigneeRole === "ops_admin");
+  };
+  const staffTaskKey = "api-partner-task-create-0001";
+  const missingTaskKeyApi = await hit("POST", "/api/admin/partners/tasks", staffTaskBody, true);
+  const staffTaskApi = await hit("POST", "/api/admin/partners/tasks", staffTaskBody, true, { "idempotency-key": staffTaskKey });
+  const replayedStaffTaskApi = await hit("POST", "/api/admin/partners/tasks", staffTaskBody, true, { "idempotency-key": staffTaskKey });
+  const conflictingStaffTaskApi = await hit("POST", "/api/admin/partners/tasks", { ...staffTaskBody, priority: "urgent" }, true, { "idempotency-key": staffTaskKey });
+  ok("POST governed staff task assignment", missingTaskKeyApi.status === 400 && staffTaskApi.status === 201 && replayedStaffTaskApi.status === 200 && replayedStaffTaskApi.data.replay === true && replayedStaffTaskApi.data.task?.id === staffTaskApi.data.task?.id && conflictingStaffTaskApi.status === 409 && staffTaskApi.data.task?.assigneeName === "Jamie Torres" && staffTaskApi.data.task?.assigneeRole === "ops_admin");
   const delegatedTask = await hit("POST", "/api/admin/partners/tasks", {
     title: "Brief the volunteer gate lead",
     description: "Confirm radio channel and opening checklist.",
@@ -9052,7 +9089,7 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     assigneeId: "vol_001",
     priority: "high",
     dueAt: "2026-07-17T13:00:00.000Z"
-  }, true);
+  }, true, { "idempotency-key": "api-partner-task-create-0002" });
   ok("POST volunteer task assignment", delegatedTask.status === 201 && delegatedTask.data.task?.assigneeName === "Alex Rivera");
   const taskNoticeRequestId = "api-task-notice-request-0001";
   const requestedTaskNoticeApi = await hit("POST", `/api/admin/partners/tasks/${encodeURIComponent(delegatedTask.data.task?.id)}/assignment-notice`, { requestId: taskNoticeRequestId }, true);

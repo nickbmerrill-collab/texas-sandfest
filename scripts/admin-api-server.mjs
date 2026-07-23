@@ -2954,6 +2954,10 @@ function requiredIdempotencyKey(request) {
   return { ok: true, keyHash: createHash("sha256").update(key).digest("hex") };
 }
 
+function idempotencyIdFactory(scope, keyHash) {
+  return prefix => `${prefix}_${createHash("sha256").update(`${scope}:${prefix}:${keyHash}`).digest("hex").slice(0, 32)}`;
+}
+
 function outreachImportPreviewHash(csv, defaultsInput = {}) {
   const defaults = normalizeOutreachImportDefaults(defaultsInput);
   const canonical = {
@@ -9442,6 +9446,11 @@ async function handleRequest(request, response) {
     if (method === "POST" && pathname === "/api/admin/partners/tasks") {
       const session = await requirePermission(request, response, "partners:write");
       if (!session) return;
+      const idempotency = requiredIdempotencyKey(request);
+      if (!idempotency.ok) {
+        sendJson(request, response, 400, { error: idempotency.error });
+        return;
+      }
       const body = await readBody(request);
       const assignment = await enrichTaskAssignment(body);
       if (!assignment.ok) {
@@ -9450,15 +9459,20 @@ async function handleRequest(request, response) {
       }
       const result = await mutatePartnerOperations(doc => createPartnerTask(doc, assignment.input, {
         actorId: session.id,
-        idFactory: prefix => `${prefix}_${randomUUID()}`,
+        idFactory: idempotencyIdFactory("partner-task-create", idempotency.keyHash),
         now: new Date().toISOString()
       }));
       if (!result?.ok) {
-        sendJson(request, response, 400, { error: result?.error || "Task could not be created." });
+        sendJson(request, response, result?.code === "IDEMPOTENCY_CONFLICT" ? 409 : 400, { error: result?.error || "Task could not be created.", code: result?.code });
         return;
       }
-      await writeAuditRecord(request, "partner.task.create", { type: "task", id: result.task.id }, null, adminPartnerTaskView(result.task, result.doc.followups));
-      sendJson(request, response, 201, { task: adminPartnerTaskView(result.task, result.doc.followups) });
+      if (!result.replay) {
+        await writeAuditRecord(request, "partner.task.create", { type: "task", id: result.task.id }, null, adminPartnerTaskView(result.task, result.doc.followups));
+      }
+      sendJson(request, response, result.replay ? 200 : 201, {
+        replay: result.replay === true,
+        task: adminPartnerTaskView(result.task, result.doc.followups)
+      });
       return;
     }
 
@@ -9551,19 +9565,30 @@ async function handleRequest(request, response) {
     if (method === "POST" && partnerMilestoneCreateMatch) {
       const session = await requirePermission(request, response, "partners:write");
       if (!session) return;
+      const idempotency = requiredIdempotencyKey(request);
+      if (!idempotency.ok) {
+        sendJson(request, response, 400, { error: idempotency.error });
+        return;
+      }
       const applicationId = decodeURIComponent(partnerMilestoneCreateMatch[1]);
       const body = await readBody(request);
       const result = await mutatePartnerOperations(doc => createPartnerMilestone(doc, applicationId, body, {
         actorId: session.id,
-        idFactory: prefix => `${prefix}_${randomUUID()}`,
+        idFactory: idempotencyIdFactory("partner-milestone-create", idempotency.keyHash),
         now: new Date().toISOString()
       }));
       if (!result?.ok) {
-        sendJson(request, response, result?.error === "Application not found." ? 404 : 400, { error: result?.error || "Milestone could not be created." });
+        const status = result?.error === "Application not found." ? 404 : result?.code === "IDEMPOTENCY_CONFLICT" ? 409 : 400;
+        sendJson(request, response, status, { error: result?.error || "Milestone could not be created.", code: result?.code });
         return;
       }
-      await writeAuditRecord(request, "partner.milestone.create", { type: "milestone", id: result.milestone.id }, null, result.milestone, { applicationId });
-      sendJson(request, response, 201, { milestone: result.milestone });
+      if (!result.replay) {
+        await writeAuditRecord(request, "partner.milestone.create", { type: "milestone", id: result.milestone.id }, null, result.milestone, { applicationId });
+      }
+      sendJson(request, response, result.replay ? 200 : 201, {
+        replay: result.replay === true,
+        milestone: result.milestone
+      });
       return;
     }
 

@@ -11,6 +11,103 @@ import { REQUIRED_TICKET_POLICY_NOTICES } from "../lib/ticket-policy-schema.mjs"
 
 const PENDING_NOTICE_STATUSES = new Set(["pending", "draft_ready", "approved", "queued", "sending"]);
 
+function creationRetryKey(form, payload) {
+  const fingerprint = JSON.stringify(payload);
+  if (form.dataset.retryFingerprint !== fingerprint) {
+    form.dataset.retryFingerprint = fingerprint;
+    form.dataset.idempotencyKey = globalThis.crypto?.randomUUID?.()
+      || `admin-create-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+  return form.dataset.idempotencyKey;
+}
+
+function clearCreationRetry(form) {
+  delete form.dataset.retryFingerprint;
+  delete form.dataset.idempotencyKey;
+}
+
+function setCreationStatus(form, message, state, setAdminStatus) {
+  const status = form.querySelector(".partner-form-status");
+  if (status) {
+    status.textContent = message;
+    status.dataset.state = state;
+    status.setAttribute("role", state === "error" ? "alert" : "status");
+    status.setAttribute("aria-live", state === "error" ? "assertive" : "polite");
+  }
+  setAdminStatus(message, state);
+}
+
+export function bindTaskCreation(form, { adminFetch, loadAdminPartners, requestOutcomeIsAmbiguous, setAdminStatus }) {
+  if (!form || form.dataset.creationBound === "true") return;
+  form.dataset.creationBound = "true";
+  form.addEventListener("submit", async event => {
+    event.preventDefault();
+    const values = Object.fromEntries(new FormData(form).entries());
+    const button = form.querySelector('button[type="submit"]');
+    const body = { ...values, dueAt: values.dueAt ? new Date(values.dueAt).toISOString() : null };
+    button.disabled = true;
+    try {
+      await adminFetch("/api/admin/partners/tasks", {
+        method: "POST",
+        headers: { "idempotency-key": creationRetryKey(form, body) },
+        body: JSON.stringify(body)
+      });
+      clearCreationRetry(form);
+      form.reset();
+      await loadAdminPartners({ quiet: true });
+      setCreationStatus(form, "Task delegated.", "ok", setAdminStatus);
+    } catch (error) {
+      const ambiguous = requestOutcomeIsAmbiguous(error);
+      if (!ambiguous) clearCreationRetry(form);
+      setCreationStatus(form, ambiguous
+        ? `${error.message} Try the same task again; Operations will delegate it only once.`
+        : error.message, "error", setAdminStatus);
+    } finally {
+      button.disabled = false;
+    }
+  });
+}
+
+export function bindMilestoneCreation(form, { adminFetch, loadAdminPartners, requestOutcomeIsAmbiguous, setAdminStatus }) {
+  if (!form) return;
+  form.onsubmit = async event => {
+    event.preventDefault();
+    const button = form.querySelector('button[type="submit"]');
+    const dueAt = form.elements.dueAt.value;
+    if (!form.elements.applicationId.value || !dueAt) {
+      setCreationStatus(form, "Choose a partner and due date.", "error", setAdminStatus);
+      return;
+    }
+    const body = {
+      label: form.elements.label.value.trim(),
+      dueAt: new Date(dueAt).toISOString(),
+      assigneeTeam: form.elements.assigneeTeam.value,
+      reminderLeadDays: Number(form.elements.reminderLeadDays.value)
+    };
+    button.disabled = true;
+    try {
+      await adminFetch(`/api/admin/partners/applications/${encodeURIComponent(form.elements.applicationId.value)}/milestones`, {
+        method: "POST",
+        headers: { "idempotency-key": creationRetryKey(form, body) },
+        body: JSON.stringify(body)
+      });
+      clearCreationRetry(form);
+      form.reset();
+      form.elements.reminderLeadDays.value = "3";
+      await loadAdminPartners({ quiet: true });
+      setCreationStatus(form, "Partner key date added.", "ok", setAdminStatus);
+    } catch (error) {
+      const ambiguous = requestOutcomeIsAmbiguous(error);
+      if (!ambiguous) clearCreationRetry(form);
+      setCreationStatus(form, ambiguous
+        ? `${error.message} Try the same key date again; Operations will record it only once.`
+        : error.message, "error", setAdminStatus);
+    } finally {
+      button.disabled = false;
+    }
+  };
+}
+
 export function createAdminWorkspaceRecovery({ access, load, status }) {
   let timer = null;
   let attempt = 0;
