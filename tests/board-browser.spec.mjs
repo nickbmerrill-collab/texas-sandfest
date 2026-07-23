@@ -2821,6 +2821,90 @@ test("task updates recover accepted responses lost by the browser without duplic
     && item.record?.action === "task.assignee.block")).toHaveLength(1);
 });
 
+test("finance creation recovers accepted responses without duplicate records or audits", async ({ page }) => {
+  const runId = randomUUID().slice(0, 8);
+  await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#admin-budget`);
+  await expect(page.locator("#admin-api-status")).toContainText("Loaded", { timeout: 25_000 });
+  const lineForm = page.locator("#admin-create-budget-line");
+  await expect(lineForm).toBeVisible();
+
+  const lineKeys = [];
+  const lineResponses = [];
+  let lineAttempts = 0;
+  await page.route("**/api/admin/budget/lines", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    lineAttempts++;
+    lineKeys.push(route.request().headers()["idempotency-key"]);
+    const providerResponse = await route.fetch();
+    lineResponses.push(await providerResponse.json());
+    if (lineAttempts === 1) {
+      await route.abort("failed");
+      return;
+    }
+    await route.fulfill({ response: providerResponse });
+  });
+
+  await lineForm.locator('[name="name"]').fill(`Recovery finance ${runId}`);
+  await lineForm.locator('[name="ownerTeam"]').selectOption("finance");
+  await lineForm.locator('[name="amount"]').fill("4200.00");
+  await lineForm.locator('[name="notes"]').fill("Accepted-response recovery allocation");
+  await lineForm.evaluate(form => form.requestSubmit());
+  await expect(page.locator("#admin-api-status")).toContainText("Finance will record it only once");
+  await lineForm.evaluate(form => form.requestSubmit());
+  await expect(page.locator("#admin-api-status")).toContainText("Added Recovery finance");
+  expect(lineKeys[0]).toMatch(/^[A-Za-z0-9][A-Za-z0-9._:-]{15,199}$/);
+  expect(lineKeys[1]).toBe(lineKeys[0]);
+  expect(lineResponses[0].replay).toBe(false);
+  expect(lineResponses[1].replay).toBe(true);
+  expect(lineResponses[1].line.id).toBe(lineResponses[0].line.id);
+  await page.unroute("**/api/admin/budget/lines");
+
+  const createdLine = lineResponses[0].line;
+  const expenseForm = page.locator("#admin-create-expense");
+  await expenseForm.locator('[name="budgetLineId"]').selectOption(createdLine.id);
+  const expenseKeys = [];
+  const expenseResponses = [];
+  let expenseAttempts = 0;
+  await page.route("**/api/admin/budget/expenses", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    expenseAttempts++;
+    expenseKeys.push(route.request().headers()["idempotency-key"]);
+    const providerResponse = await route.fetch();
+    expenseResponses.push(await providerResponse.json());
+    if (expenseAttempts === 1) {
+      await route.abort("failed");
+      return;
+    }
+    await route.fulfill({ response: providerResponse });
+  });
+
+  await expenseForm.locator('[name="vendorName"]').fill(`Recovery Vendor ${runId}`);
+  await expenseForm.locator('[name="amount"]').fill("875.00");
+  await expenseForm.locator('[name="dueDate"]').fill("2027-03-25");
+  await expenseForm.locator('[name="description"]').fill("Replay-safe finance equipment request");
+  await expenseForm.evaluate(form => form.requestSubmit());
+  await expect(page.locator("#admin-api-status")).toContainText("Finance will record it only once");
+  await expenseForm.evaluate(form => form.requestSubmit());
+  await expect(page.locator("#admin-api-status")).toContainText("Submitted $875.00");
+  expect(expenseKeys[0]).toMatch(/^[A-Za-z0-9][A-Za-z0-9._:-]{15,199}$/);
+  expect(expenseKeys[1]).toBe(expenseKeys[0]);
+  expect(expenseResponses[0].replay).toBe(false);
+  expect(expenseResponses[1].replay).toBe(true);
+  expect(expenseResponses[1].expense.id).toBe(expenseResponses[0].expense.id);
+  await page.unroute("**/api/admin/budget/expenses");
+
+  const budget = await adminApi("/api/admin/budget");
+  expect(budget.data.budgetLines.filter(item => item.id === createdLine.id)).toHaveLength(1);
+  expect(budget.data.expenses.filter(item => item.id === expenseResponses[0].expense.id)).toHaveLength(1);
+  const audit = await adminApi("/api/admin/audit?limit=200");
+  expect(audit.data.audit.filter(item => item.record?.action === "budget.line.create"
+    && item.record?.target?.id === createdLine.id)).toHaveLength(1);
+  expect(audit.data.audit.filter(item => item.record?.action === "budget.expense.submit"
+    && item.record?.target?.id === expenseResponses[0].expense.id)).toHaveLength(1);
+  expect(JSON.stringify({ lineResponses, expenseResponses })).not.toContain(lineKeys[0]);
+  expect(JSON.stringify({ lineResponses, expenseResponses })).not.toContain(expenseKeys[0]);
+});
+
 test("private capability links recover from transient API failures without reloads", async ({ browser }) => {
   test.setTimeout(90_000);
   const runId = randomUUID().slice(0, 8);

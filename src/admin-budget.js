@@ -67,12 +67,28 @@ function inputCents(value) {
   return Number.isFinite(amount) ? Math.round(amount * 100) : 0;
 }
 
+function creationRetryKey(form, payload) {
+  const fingerprint = JSON.stringify(payload);
+  if (form.dataset.retryFingerprint !== fingerprint) {
+    form.dataset.retryFingerprint = fingerprint;
+    form.dataset.idempotencyKey = globalThis.crypto?.randomUUID?.()
+      || `finance-create-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+  return form.dataset.idempotencyKey;
+}
+
+function clearCreationRetry(form) {
+  delete form.dataset.retryFingerprint;
+  delete form.dataset.idempotencyKey;
+}
+
 export function createAdminBudgetUi({
   adminCan,
   adminFetch,
   adminMoney,
   getAdminSessionState,
   renderAdminSession,
+  requestOutcomeIsAmbiguous,
   revenueKpiCard,
   setAdminStatus
 }) {
@@ -256,22 +272,29 @@ export function createAdminBudgetUi({
       event.preventDefault();
       const form = event.currentTarget;
       const button = form.querySelector('button[type="submit"]');
+      const body = {
+        name: form.elements.name.value,
+        ownerTeam: form.elements.ownerTeam.value,
+        budgetCents: inputCents(form.elements.amount.value),
+        notes: form.elements.notes.value
+      };
       button.disabled = true;
       try {
         const result = await adminFetch("/api/admin/budget/lines", {
           method: "POST",
-          body: JSON.stringify({
-            name: form.elements.name.value,
-            ownerTeam: form.elements.ownerTeam.value,
-            budgetCents: inputCents(form.elements.amount.value),
-            notes: form.elements.notes.value
-          })
+          headers: { "idempotency-key": creationRetryKey(form, body) },
+          body: JSON.stringify(body)
         });
+        clearCreationRetry(form);
         form.reset();
         await load({ quiet: true });
         setAdminStatus(`Added ${result.line.name} at ${adminMoney(result.line.budgetCents)}.`, "ok");
       } catch (error) {
-        setAdminStatus(error.message, "error");
+        const ambiguous = requestOutcomeIsAmbiguous(error);
+        if (!ambiguous) clearCreationRetry(form);
+        setAdminStatus(ambiguous
+          ? `${error.message} Try the same allocation again; Finance will record it only once.`
+          : error.message, "error");
       } finally {
         button.disabled = !adminCan("budget:write");
       }
@@ -280,26 +303,33 @@ export function createAdminBudgetUi({
       event.preventDefault();
       const form = event.currentTarget;
       const button = form.querySelector('button[type="submit"]');
+      const body = {
+        budgetLineId: form.elements.budgetLineId.value,
+        vendorName: form.elements.vendorName.value,
+        description: form.elements.description.value,
+        amountCents: inputCents(form.elements.amount.value),
+        dueDate: form.elements.dueDate.value
+      };
       button.disabled = true;
       try {
         const result = await adminFetch("/api/admin/budget/expenses", {
           method: "POST",
-          body: JSON.stringify({
-            budgetLineId: form.elements.budgetLineId.value,
-            vendorName: form.elements.vendorName.value,
-            description: form.elements.description.value,
-            amountCents: inputCents(form.elements.amount.value),
-            dueDate: form.elements.dueDate.value
-          })
+          headers: { "idempotency-key": creationRetryKey(form, body) },
+          body: JSON.stringify(body)
         });
         const selectedLine = form.elements.budgetLineId.value;
+        clearCreationRetry(form);
         form.reset();
         form.elements.dueDate.value = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
         await load({ quiet: true });
         if ([...form.elements.budgetLineId.options].some(option => option.value === selectedLine)) form.elements.budgetLineId.value = selectedLine;
         setAdminStatus(`Submitted ${adminMoney(result.expense.amountCents)} for ${result.expense.vendorName}.`, "ok");
       } catch (error) {
-        setAdminStatus(error.message, "error");
+        const ambiguous = requestOutcomeIsAmbiguous(error);
+        if (!ambiguous) clearCreationRetry(form);
+        setAdminStatus(ambiguous
+          ? `${error.message} Try the same expense again; Finance will record it only once.`
+          : error.message, "error");
       } finally {
         button.disabled = !adminCan("budget:write");
       }

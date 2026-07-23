@@ -3319,7 +3319,9 @@ async function adminRawFetch(path, options = {}) {
       headers
     });
   } catch (error) {
-    throw new Error(friendlyRequestError(error, "The operations API request failed."));
+    const requestError = new Error(friendlyRequestError(error, "The operations API request failed."));
+    requestError.code = error?.code;
+    throw requestError;
   }
   if (response.status === 401 && ADMIN_AUTH_MODE === "oidc") {
     await adminAuthClient?.clear().catch(() => {});
@@ -6040,6 +6042,7 @@ async function loadAdminBudget(options = {}) {
       adminMoney,
       getAdminSessionState: () => adminSessionState,
       renderAdminSession,
+      requestOutcomeIsAmbiguous,
       revenueKpiCard,
       setAdminStatus
     }));
