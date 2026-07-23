@@ -10,6 +10,7 @@ import {
   boardLaunchAgentPath,
   boardLaunchAgentPlist,
   boardLaunchdCommand,
+  boardLaunchdPresentationSafety,
   boardLaunchdStartSafety,
   boardLaunchdTarget,
   createBoardLaunchdController,
@@ -95,6 +96,30 @@ check("service installation refuses to race a foreground supervisor",
   !boardLaunchdStartSafety({ serviceInstalled: false, supervisorAlive: true }).ok);
 check("an installed service can restart its own supervisor",
   boardLaunchdStartSafety({ serviceInstalled: true, supervisorAlive: true }).ok);
+check("presentation requires an owned persistent LaunchAgent",
+  boardLaunchdPresentationSafety({
+    supported: true,
+    installed: true,
+    configured: true,
+    persistent: true,
+    owned: true
+  }).ok);
+check("presentation rejects a session-scoped launchd job",
+  !boardLaunchdPresentationSafety({
+    supported: true,
+    installed: true,
+    configured: false,
+    persistent: false,
+    owned: true
+  }).ok);
+check("presentation rejects a foreign persistent configuration",
+  !boardLaunchdPresentationSafety({
+    supported: true,
+    installed: true,
+    configured: true,
+    persistent: true,
+    owned: false
+  }).ok);
 
 function persistentPrint(plistPath) {
   return `

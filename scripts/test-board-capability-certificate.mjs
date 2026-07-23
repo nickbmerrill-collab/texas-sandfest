@@ -2,15 +2,19 @@
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  BOARD_CAPABILITY_BROWSER_CHECKS,
+  BOARD_CAPABILITY_CERTIFICATE_SCHEMA_VERSION,
   BOARD_CAPABILITY_DEFERRED_GATES,
   BOARD_CAPABILITY_JOURNEYS,
   boardCapabilityCoverage,
   certifyBoardBrowserReport,
   certifyBoardCapabilityJourney,
-  certifyBoardReadinessReport
+  certifyBoardReadinessReport,
+  evaluateBoardCapabilityCertificate
 } from "../lib/board-capability-certificate.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -126,6 +130,62 @@ const reports = {
   }
 };
 
+const certificateSource = {
+  branch: "main",
+  commit: "a".repeat(40),
+  originMainCommit: "a".repeat(40),
+  matchesOriginMain: true,
+  dirty: false
+};
+const certificateLinks = {
+  visitor: "http://127.0.0.1:5175/?apiBase=http%3A%2F%2F127.0.0.1%3A8806&mode=visitor",
+  operations: "http://127.0.0.1:5175/admin.html?apiBase=http%3A%2F%2F127.0.0.1%3A8806"
+};
+
+function fullCertificate(overrides = {}) {
+  const startedAt = "2026-07-23T12:00:00.000Z";
+  const completedAt = "2026-07-23T12:03:20.000Z";
+  return {
+    schemaVersion: BOARD_CAPABILITY_CERTIFICATE_SCHEMA_VERSION,
+    kind: "sandfest_board_capability_certificate",
+    mode: "synthetic_board_demo",
+    scope: "full",
+    ok: true,
+    startedAt,
+    completedAt,
+    durationMs: Date.parse(completedAt) - Date.parse(startedAt),
+    source: { ...certificateSource },
+    links: { ...certificateLinks },
+    readiness: {
+      before: "12/12",
+      after: "12/12",
+      baselineRestored: true
+    },
+    selectedJourneys: BOARD_CAPABILITY_JOURNEYS.map(item => item.id),
+    journeys: BOARD_CAPABILITY_JOURNEYS.map(item => ({
+      ...certifyBoardCapabilityJourney(item.id, reports[item.id]),
+      durationMs: 10_000
+    })),
+    browsers: ["chromium", "webkit"].map(engine => ({
+      engine,
+      ok: true,
+      passed: BOARD_CAPABILITY_BROWSER_CHECKS,
+      total: BOARD_CAPABILITY_BROWSER_CHECKS,
+      responsive: true,
+      browserErrors: 0,
+      durationMs: 2_000
+    })),
+    certifiedCapabilities: [
+      "source_and_service_readiness",
+      ...boardCapabilityCoverage(),
+      "responsive_cross_browser_web"
+    ],
+    deferredProductionGates: [...BOARD_CAPABILITY_DEFERRED_GATES],
+    failure: null,
+    ...overrides
+  };
+}
+
 console.log("\n=== Board capability certificate contract ===\n");
 
 check("manifest contains ten unique reset-safe journeys", () => {
@@ -233,6 +293,91 @@ check("certificate names account-owned live production gates", () => {
     "production_identity_and_bot_protection",
     "public_dns_and_recovery_cutover"
   ]);
+});
+
+check("presentation gate accepts a recent full certificate from the active source", () => {
+  const result = evaluateBoardCapabilityCertificate(fullCertificate(), {
+    source: certificateSource,
+    links: certificateLinks,
+    now: "2026-07-23T13:00:00.000Z"
+  });
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.journeyCount, 10);
+  assert.deepEqual(result.browsers.map(item => item.engine), ["chromium", "webkit"]);
+});
+
+check("presentation gate rejects source and active-link drift", () => {
+  const result = evaluateBoardCapabilityCertificate(fullCertificate(), {
+    source: { ...certificateSource, commit: "b".repeat(40), originMainCommit: "b".repeat(40) },
+    links: { ...certificateLinks, operations: "http://127.0.0.1:5199/admin.html" },
+    now: "2026-07-23T13:00:00.000Z"
+  });
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(error => error.includes("active source revision")));
+  assert.ok(result.errors.some(error => error.includes("active presentation links")));
+});
+
+check("presentation gate rejects stale and future-dated certificates", () => {
+  const stale = evaluateBoardCapabilityCertificate(fullCertificate(), {
+    source: certificateSource,
+    links: certificateLinks,
+    now: "2026-08-01T13:00:00.000Z"
+  });
+  assert.ok(stale.errors.some(error => error.includes("freshness window")));
+
+  const future = evaluateBoardCapabilityCertificate(fullCertificate({
+    startedAt: "2026-07-24T12:00:00.000Z",
+    completedAt: "2026-07-24T12:03:20.000Z"
+  }), {
+    source: certificateSource,
+    links: certificateLinks,
+    now: "2026-07-23T13:00:00.000Z"
+  });
+  assert.ok(future.errors.some(error => error.includes("in the future")));
+});
+
+check("presentation gate rejects focused, incomplete, or deferral-changing evidence", () => {
+  const certificate = fullCertificate();
+  const result = evaluateBoardCapabilityCertificate({
+    ...certificate,
+    scope: "focused",
+    selectedJourneys: certificate.selectedJourneys.slice(0, -1),
+    journeys: certificate.journeys.slice(0, -1).map((item, index) => index === 0 ? { ...item, evidence: null } : item),
+    browsers: certificate.browsers.map((item, index) => index === 0 ? { ...item, passed: 13 } : item),
+    deferredProductionGates: certificate.deferredProductionGates.slice(0, -1)
+  }, {
+    source: certificateSource,
+    links: certificateLinks,
+    now: "2026-07-23T13:00:00.000Z"
+  });
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(error => error.includes("full-scope")));
+  assert.ok(result.errors.some(error => error.includes("every required journey")));
+  assert.ok(result.errors.some(error => error.includes("journey evidence")));
+  assert.ok(result.errors.some(error => error.includes("Chromium and WebKit")));
+  assert.ok(result.errors.some(error => error.includes("post-board production deferrals")));
+
+  const truncatedEvidence = evaluateBoardCapabilityCertificate({
+    ...certificate,
+    journeys: certificate.journeys.map((item, index) => index === 0 ? { ...item, evidence: null } : item)
+  }, {
+    source: certificateSource,
+    links: certificateLinks,
+    now: "2026-07-23T13:00:00.000Z"
+  });
+  assert.ok(truncatedEvidence.errors.some(error => error.includes("journey evidence")));
+});
+
+check("board:present maps to the strict persistent-service presentation gate", () => {
+  const packageJson = JSON.parse(readFileSync(path.join(ROOT, "package.json"), "utf8"));
+  assert.equal(packageJson.scripts["board:present"], "node scripts/board-service.mjs present");
+  const result = spawnSync(process.execPath, ["scripts/board-service.mjs", "unknown"], {
+    cwd: ROOT,
+    encoding: "utf8"
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /status\|present/);
 });
 
 check("certification CLI exposes focused and full-run controls", () => {
