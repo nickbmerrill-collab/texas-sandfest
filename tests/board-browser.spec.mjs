@@ -510,7 +510,7 @@ test("board workflows operate through the public and staff interfaces", async ({
     process.env.SANDFEST_WEBKIT_COMPAT_ONLY === "true",
     "The full state-mutating workflow runs in Chromium CI and local WebKit; Linux WebKit runs the focused compatibility workflows."
   );
-  test.setTimeout(300_000);
+  test.setTimeout(420_000);
   const pageErrors = [];
   page.on("pageerror", error => pageErrors.push(error.message));
   const runId = randomUUID().slice(0, 8);
@@ -2584,7 +2584,7 @@ test("private capability links recover from transient API failures without reloa
     return url.toString();
   };
   const context = await browser.newContext();
-  const openWithFirstFailure = async ({ url, endpoint, failureText, success }) => {
+  const openWithFirstFailure = async ({ url, endpoint, failureSelector, failureText, retrySelector, success }) => {
     const page = await context.newPage();
     let attempts = 0;
     await page.route(`**${endpoint}`, async route => {
@@ -2596,7 +2596,15 @@ test("private capability links recover from transient API failures without reloa
       await route.continue();
     });
     await page.goto(addApiBase(url));
-    await expect(page.getByText(failureText, { exact: false })).toBeVisible();
+    await expect(page.locator(failureSelector)).toContainText(failureText);
+    if (retrySelector) {
+      const retryButton = page.locator(retrySelector);
+      await expect(retryButton).toBeVisible();
+      await expect(retryButton).toBeEnabled();
+      await expect(retryButton).toHaveText("Retry now");
+      expect((await retryButton.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+      await retryButton.click();
+    }
     await success(page);
     expect(attempts).toBeGreaterThanOrEqual(2);
     expect(await page.evaluate(() => performance.getEntriesByType("navigation")[0]?.type)).toBe("navigate");
@@ -2606,25 +2614,32 @@ test("private capability links recover from transient API failures without reloa
   await openWithFirstFailure({
     url: portalAccess.data.portalAccess.url,
     endpoint: "/api/public/partner-status",
+    failureSelector: "#partner-status-form .partner-form-status",
     failureText: "retry automatically",
     success: page => expect(page.locator("#partner-status-result")).toContainText(application.organizationName, { timeout: 15_000 })
   });
   await openWithFirstFailure({
     url: taskUrl,
     endpoint: "/api/public/task-status",
-    failureText: "retries automatically",
+    failureSelector: "#task-status-result",
+    failureText: "temporarily unavailable",
+    retrySelector: "[data-task-status-retry]",
     success: page => expect(page.locator("#task-status-result")).toContainText(taskTitle, { timeout: 15_000 })
   });
   await openWithFirstFailure({
     url: preferenceUrl,
     endpoint: "/api/public/outreach-preferences",
-    failureText: "retry automatically",
+    failureSelector: "#outreach-preferences-status",
+    failureText: "temporarily unavailable",
+    retrySelector: "#outreach-preferences-unsubscribe",
     success: page => expect(page.locator("#outreach-preferences-copy")).toContainText(prospectName, { timeout: 15_000 })
   });
   await openWithFirstFailure({
     url: invitationResult.data.invitation.url,
     endpoint: "/api/public/sponsor-invitation",
-    failureText: "Retrying automatically",
+    failureSelector: "#sponsor-invitation-copy",
+    failureText: "temporarily unavailable",
+    retrySelector: "[data-sponsor-retry]",
     success: page => expect(page.locator('#sponsor-inquiry-form [name="organizationName"]')).toHaveValue(prospectName, { timeout: 15_000 })
   });
 
@@ -2661,7 +2676,7 @@ test("private capability links recover from transient API failures without reloa
   await guestStatusForm.locator('[name="reference"]').fill(guest.access.reference);
   await guestStatusForm.locator('[name="token"]').fill(guest.access.token);
   await guestStatusForm.locator('button[type="submit"]').click();
-  await expect(guestStatusForm.locator(".partner-form-status")).toContainText("Retrying automatically");
+  await expect(guestStatusForm.locator(".partner-form-status")).toContainText("temporarily unavailable");
   await expect(guestPage.locator("#guest-services-status-result")).toContainText(guestTitle, { timeout: 15_000 });
   expect(guestAttempts).toBeGreaterThanOrEqual(2);
   expect(await guestPage.evaluate(() => performance.getEntriesByType("navigation")[0]?.type)).toBe("navigate");

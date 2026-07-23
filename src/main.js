@@ -2187,7 +2187,7 @@ app.innerHTML = `
             ${import.meta.env.DEV && BOARD_DEMO_ACCESS.enabled ? '<button class="button secondary partner-demo-preset" type="button" data-board-partner-preset="sponsor">Use demo sponsor</button>' : ""}
           </div>
           <p class="partner-availability-note" data-sponsor-program-unavailable>Loading the current sponsorship program. You can also view the <a href="https://www.texassandfest.org/sponsorship" target="_blank" rel="noopener noreferrer">official sponsorship page</a>.</p>
-          <div id="sponsor-invitation" class="sponsor-invitation" hidden><strong>SandFest invitation</strong><span id="sponsor-invitation-copy"></span></div>
+          <div id="sponsor-invitation" class="sponsor-invitation" hidden><strong>SandFest invitation</strong><span id="sponsor-invitation-copy"></span><button data-sponsor-retry class="button secondary" type="button" hidden>Retry now</button></div>
           <div class="partner-fields">
             <label>Business or organization<input name="organizationName" required maxlength="160" autocomplete="organization" /></label>
             <label>Contact name<input name="contactName" required maxlength="120" autocomplete="name" /></label>
@@ -4602,8 +4602,9 @@ function sponsorInvitationTokenFromFragment() {
 async function loadSponsorInvitation(token, options = {}) {
   const banner = document.querySelector("#sponsor-invitation");
   const copy = document.querySelector("#sponsor-invitation-copy");
+  const retryButton = document.querySelector("[data-sponsor-retry]");
   const form = document.querySelector("#sponsor-inquiry-form");
-  if (!banner || !copy || !form || !token) return;
+  if (!banner || !copy || !retryButton || !form || !token) return;
   const loadVersion = ++sponsorInvitationLoadVersion;
   pendingSponsorInvitationToken = token;
   if (activeSponsorInvitationToken && activeSponsorInvitationToken !== token) clearSponsorInvitationForm(form);
@@ -4613,6 +4614,7 @@ async function loadSponsorInvitation(token, options = {}) {
   banner.hidden = false;
   banner.dataset.state = "loading";
   copy.textContent = "Opening your sponsor invitation...";
+  retryButton.hidden = true;
   let responseStatus = 0;
   try {
     const response = await fetchWithTimeout(`${publicApiBase()}/api/public/sponsor-invitation`, {
@@ -4660,8 +4662,10 @@ async function loadSponsorInvitation(token, options = {}) {
       copy.textContent = error.message;
     } else {
       pendingSponsorInvitationToken = token;
-      copy.textContent = "This sponsor invitation is temporarily unavailable. Retrying automatically.";
       schedulePublicConnectivityRecovery();
+      copy.textContent = "This sponsor invitation is temporarily unavailable.";
+      retryButton.onclick = recoverPublicConnectivity;
+      retryButton.hidden = false;
     }
   }
 }
@@ -4692,8 +4696,16 @@ function renderOutreachPreference(preference) {
     : `${preference.organizationName} is currently eligible for reviewed Texas SandFest sponsor outreach.`;
   status.dataset.state = unsubscribed ? "ok" : "ready";
   status.textContent = unsubscribed ? "Preference saved. Any unsent outreach has been canceled." : "You can stop future sponsor outreach below.";
+  button.onclick = unsubscribeOutreachPreference;
+  button.textContent = "Stop sponsor outreach";
   button.hidden = unsubscribed;
   button.disabled = false;
+}
+
+function showOutreachPreferenceRetry(button) {
+  button.onclick = recoverPublicConnectivity;
+  button.textContent = "Retry now";
+  button.hidden = button.disabled = false;
 }
 
 function sameOutreachPreferenceAccess(left, right) {
@@ -4757,18 +4769,22 @@ async function loadOutreachPreference(access, options = {}) {
     if (!accessRejected && previous?.preference && sameOutreachPreferenceAccess(previous.access, access)) {
       activeOutreachPreferenceAccess = previous.access;
       renderOutreachPreference(previous.preference);
+      showOutreachPreferenceRetry(button);
       status.dataset.state = "error";
-      status.textContent = "Outreach preferences are temporarily unavailable. Showing the last verified preference and retrying automatically.";
+      status.textContent = "Outreach preferences are temporarily unavailable. Showing the last verified preference.";
       return;
     }
     if (accessRejected) {
       activeOutreachPreferenceAccess = null;
       copy.textContent = "No outreach recipient is shown because this private link could not be verified.";
     }
+    if (!accessRejected) {
+      showOutreachPreferenceRetry(button);
+    }
     status.dataset.state = "error";
     status.textContent = accessRejected
       ? "This outreach preference link is invalid. Use the latest link from the SandFest message."
-      : "Outreach preferences are temporarily unavailable. This private access remains available while we retry automatically.";
+      : "Outreach preferences are temporarily unavailable. Select Retry now.";
   }
 }
 
@@ -10239,7 +10255,6 @@ document.querySelector("#partner-portal-recovery-form")?.addEventListener("submi
   submitPartnerPortalRecovery(event.currentTarget);
 });
 document.querySelector("#partner-status-forget")?.addEventListener("click", clearPartnerPortalView);
-document.querySelector("#outreach-preferences-unsubscribe")?.addEventListener("click", unsubscribeOutreachPreference);
 document.querySelector("#admin-command-signals")?.addEventListener("click", navigateAdminCommandSignal);
 bindSponsorTierButtons();
 bindSponsorPackageChoices();

@@ -6045,6 +6045,7 @@ body.mode-ops header nav a[data-audience="public"] {
 .sponsor-invitation[hidden] { display: none; }
 .sponsor-invitation strong { color: var(--deep); font-size: 13px; }
 .sponsor-invitation span { color: var(--muted); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.sponsor-invitation .button { justify-self: start; margin-top: 4px; min-height: 44px; }
 .sponsor-invitation[data-state="ok"] { background: #eef6f5; border-left-color: var(--gulf); }
 .sponsor-invitation[data-state="error"] { background: #fff0ee; border-left-color: #a62929; }
 .partner-consent { align-items: flex-start; color: var(--muted); display: flex; font-size: 12px; gap: 8px; line-height: 1.45; min-height: 24px; }
@@ -6185,6 +6186,7 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .task-status-result > span,
 .task-status-owner,
 .task-status-description { color: var(--muted); line-height: 1.55; margin: 0; overflow-wrap: anywhere; }
+.task-status-result > .button { justify-self: start; min-height: 44px; }
 .task-status-owner { font-size: 13px; font-weight: 700; }
 .task-status-facts { display: grid; gap: 1px; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; }
 .task-status-facts div { background: #f4f7f6; display: grid; gap: 4px; min-width: 0; padding: 11px; }

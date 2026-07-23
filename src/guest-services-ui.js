@@ -190,7 +190,7 @@ export function createGuestServicesUi({ apiBase, eventPhone, intakeReady, onFail
         setStatus(status, "This private Guest Services link is no longer valid.", "error");
       } else {
         onFailure?.();
-        setStatus(status, "Guest Services status is temporarily unavailable. Retrying automatically.", "error");
+        setStatus(status, "Guest Services status is temporarily unavailable. Select View status to try again.", "error");
       }
       return null;
     } finally {
