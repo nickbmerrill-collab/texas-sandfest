@@ -1424,7 +1424,7 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   const sponsorTierCreateResponse = await sponsorTierResponse;
   expect(sponsorTierCreateResponse.status()).toBe(201);
   expect((await sponsorTierCreateResponse.json()).sponsorPackage.publicLabel).toBe("$7,500 sponsorship");
-  await expect(page.locator("#admin-api-status")).toContainText("Added Community Champion");
+  await expect(page.locator("#admin-api-status")).toContainText("Saved");
   await expect(page.locator(`[data-admin-sponsor="${sponsorTierId}"]`)).toContainText("$7,500.00");
   const vendorOfferingForm = page.locator("#admin-create-vendor-offering");
   await vendorOfferingForm.locator('[name="name"]').fill(`Premium marketplace ${runId}`);
@@ -1440,7 +1440,7 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   const vendorOfferingCreateResponse = await vendorOfferingResponse;
   expect(vendorOfferingCreateResponse.status()).toBe(201);
   expect((await vendorOfferingCreateResponse.json()).vendorOffering.publicLabel).toBe("$2,500 application fee");
-  await expect(page.locator("#admin-api-status")).toContainText("Added Premium marketplace");
+  await expect(page.locator("#admin-api-status")).toContainText("Saved");
   await expect(page.locator(`[data-admin-vendor-offering="${vendorOfferingId}"]`)).toContainText("$2,500.00");
   const documentUploadForm = page.locator("#admin-document-upload");
   const presentation = await readFile(path.join(ROOT, "docs", "presentations", "SandFest-Board-Platform-Briefing.pptx"));
@@ -2904,6 +2904,99 @@ test("finance creation recovers accepted responses without duplicate records or 
     && item.record?.target?.id === expenseResponses[0].expense.id)).toHaveLength(1);
   expect(JSON.stringify({ lineResponses, expenseResponses })).not.toContain(lineKeys[0]);
   expect(JSON.stringify({ lineResponses, expenseResponses })).not.toContain(expenseKeys[0]);
+});
+
+test("catalog creation recovers accepted responses without duplicate tiers, offerings, snapshots, or audits", async ({ page }) => {
+  const runId = randomUUID().slice(0, 8);
+  const sponsorTierId = `recovery-sponsor-${runId}`;
+  const sponsorTierName = `Recovery Sponsor ${runId}`;
+  const vendorOfferingId = `recovery-vendor-${runId}`;
+  const vendorOfferingName = `Recovery Marketplace ${runId}`;
+
+  await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#admin-config`);
+  const sponsorForm = page.locator("#admin-create-sponsor-package");
+  await expect(sponsorForm).toBeVisible({ timeout: 25_000 });
+
+  const sponsorKeys = [];
+  const sponsorResponses = [];
+  let sponsorAttempts = 0;
+  await page.route("**/api/admin/sponsor-packages", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    sponsorAttempts++;
+    sponsorKeys.push(route.request().headers()["idempotency-key"]);
+    const serverResponse = await route.fetch();
+    sponsorResponses.push(await serverResponse.json());
+    if (sponsorAttempts === 1) {
+      await route.abort("failed");
+      return;
+    }
+    await route.fulfill({ response: serverResponse });
+  });
+
+  await sponsorForm.locator('[name="name"]').fill(sponsorTierName);
+  await sponsorForm.locator('[name="id"]').fill(sponsorTierId);
+  await sponsorForm.locator('[name="amount"]').fill("6500.00");
+  await sponsorForm.locator('[name="benefits"]').fill("Board recognition\nPublic sponsor showcase");
+  await sponsorForm.evaluate(form => form.requestSubmit());
+  await expect(page.locator("#admin-api-status")).toContainText("Retry safely; saved once");
+  await sponsorForm.evaluate(form => form.requestSubmit());
+  await expect(page.locator("#admin-api-status")).toContainText("Saved");
+  expect(sponsorKeys[0]).toMatch(/^[A-Za-z0-9][A-Za-z0-9._:-]{15,199}$/);
+  expect(sponsorKeys[1]).toBe(sponsorKeys[0]);
+  expect(sponsorResponses[0].replay).toBe(false);
+  expect(sponsorResponses[1].replay).toBe(true);
+  expect(sponsorResponses[1].sponsorPackage.id).toBe(sponsorResponses[0].sponsorPackage.id);
+  await page.unroute("**/api/admin/sponsor-packages");
+
+  const vendorForm = page.locator("#admin-create-vendor-offering");
+  const vendorKeys = [];
+  const vendorResponses = [];
+  let vendorAttempts = 0;
+  await page.route("**/api/admin/vendor-offerings", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    vendorAttempts++;
+    vendorKeys.push(route.request().headers()["idempotency-key"]);
+    const serverResponse = await route.fetch();
+    vendorResponses.push(await serverResponse.json());
+    if (vendorAttempts === 1) {
+      await route.abort("failed");
+      return;
+    }
+    await route.fulfill({ response: serverResponse });
+  });
+
+  await vendorForm.locator('[name="name"]').fill(vendorOfferingName);
+  await vendorForm.locator('[name="id"]').fill(vendorOfferingId);
+  await vendorForm.locator('[name="amount"]').fill("1800.00");
+  await vendorForm.locator('[name="intakeMode"]').selectOption("application");
+  await vendorForm.locator('[name="categories"][value="retail"]').check();
+  await vendorForm.locator('[name="categories"][value="artisan"]').check();
+  await vendorForm.locator('[name="description"]').fill("Replay-safe marketplace offering for board presentation readiness.");
+  await vendorForm.locator('[name="inclusions"]').fill("Expanded booth footprint\nPublic vendor listing");
+  await vendorForm.evaluate(form => form.requestSubmit());
+  await expect(page.locator("#admin-api-status")).toContainText("Retry safely; saved once");
+  await vendorForm.evaluate(form => form.requestSubmit());
+  await expect(page.locator("#admin-api-status")).toContainText("Saved");
+  expect(vendorKeys[0]).toMatch(/^[A-Za-z0-9][A-Za-z0-9._:-]{15,199}$/);
+  expect(vendorKeys[1]).toBe(vendorKeys[0]);
+  expect(vendorResponses[0].replay).toBe(false);
+  expect(vendorResponses[1].replay).toBe(true);
+  expect(vendorResponses[1].vendorOffering.id).toBe(vendorResponses[0].vendorOffering.id);
+  await page.unroute("**/api/admin/vendor-offerings");
+
+  const config = await adminApi("/api/admin/config");
+  expect(config.data.config.sponsorPackages.filter(item => item.id === sponsorTierId)).toHaveLength(1);
+  expect(config.data.config.vendorOfferings.filter(item => item.id === vendorOfferingId)).toHaveLength(1);
+  const audit = await adminApi("/api/admin/audit?limit=500");
+  expect(audit.data.audit.filter(item => item.record?.action === "sponsor-package.create"
+    && item.record?.target?.id === sponsorTierId)).toHaveLength(1);
+  expect(audit.data.audit.filter(item => item.record?.action === "vendor-offering.create"
+    && item.record?.target?.id === vendorOfferingId)).toHaveLength(1);
+  const snapshots = await adminApi("/api/admin/snapshots?limit=500");
+  expect(snapshots.data.snapshots.filter(item => item.record?.reason === `Before sponsor package creation: ${sponsorTierId}`)).toHaveLength(1);
+  expect(snapshots.data.snapshots.filter(item => item.record?.reason === `Before vendor offering creation: ${vendorOfferingId}`)).toHaveLength(1);
+  expect(JSON.stringify({ sponsorResponses, vendorResponses, config, audit, snapshots })).not.toContain(sponsorKeys[0]);
+  expect(JSON.stringify({ sponsorResponses, vendorResponses, config, audit, snapshots })).not.toContain(vendorKeys[0]);
 });
 
 test("task and key-date creation recover accepted responses without duplicate work or audits", async ({ page }) => {

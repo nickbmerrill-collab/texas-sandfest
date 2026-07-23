@@ -9383,90 +9383,20 @@ document.querySelectorAll("[data-partner-catalog-publication]").forEach(form => 
   form.querySelector("[data-hold-partner-catalog]")?.addEventListener("click", () => updatePartnerCatalogPublication(form, false));
 });
 const adminCreateSponsorPackageForm = document.querySelector("#admin-create-sponsor-package");
-adminCreateSponsorPackageForm?.elements.name.addEventListener("input", event => {
-  const idInput = adminCreateSponsorPackageForm.elements.id;
-  if (idInput.dataset.manuallyEdited === "true") return;
-  idInput.value = event.currentTarget.value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-});
-adminCreateSponsorPackageForm?.elements.id.addEventListener("input", event => {
-  event.currentTarget.dataset.manuallyEdited = event.currentTarget.value ? "true" : "false";
-});
-adminCreateSponsorPackageForm?.addEventListener("submit", async event => {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const values = Object.fromEntries(new FormData(form).entries());
-  const button = form.querySelector('button[type="submit"]');
-  button.disabled = true;
-  try {
-    const result = await adminFetch("/api/admin/sponsor-packages", {
-      method: "POST",
-      body: JSON.stringify({
-        id: values.id,
-        name: values.name,
-        amount: centsFromInput(values.amount),
-        publicLabel: values.publicLabel,
-        stripePriceId: values.stripePriceId || null,
-        quickBooksItemId: values.quickBooksItemId || null,
-        benefits: values.benefits.split("\n").map(item => item.trim()).filter(Boolean),
-        active: form.elements.active.checked,
-        requiresApproval: form.elements.requiresApproval.checked
-      })
-    });
-    form.reset();
-    delete form.elements.id.dataset.manuallyEdited;
-    await reloadAdminConfigEditors();
-    await loadAdminDeployment();
-    setAdminStatus(`Added ${result.sponsorPackage.name} as a draft sponsor tier. Review and publish the catalog before it appears publicly.`, "ok");
-  } catch (error) {
-    setAdminStatus(error.message, "error");
-  } finally {
-    button.disabled = !adminCan("sponsor:write");
-  }
-});
 const adminCreateVendorOfferingForm = document.querySelector("#admin-create-vendor-offering");
-adminCreateVendorOfferingForm?.elements.name.addEventListener("input", event => {
-  const idInput = adminCreateVendorOfferingForm.elements.id;
-  if (idInput.dataset.manuallyEdited === "true") return;
-  idInput.value = event.currentTarget.value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-});
-adminCreateVendorOfferingForm?.elements.id.addEventListener("input", event => {
-  event.currentTarget.dataset.manuallyEdited = event.currentTarget.value ? "true" : "false";
-});
-adminCreateVendorOfferingForm?.addEventListener("submit", async event => {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const values = new FormData(form);
-  const button = form.querySelector('button[type="submit"]');
-  button.disabled = true;
-  try {
-    const result = await adminFetch("/api/admin/vendor-offerings", {
-      method: "POST",
-      body: JSON.stringify({
-        id: values.get("id"),
-        name: values.get("name"),
-        amount: centsFromInput(values.get("amount")),
-        intakeMode: values.get("intakeMode"),
-        publicLabel: values.get("publicLabel"),
-        stripePriceId: values.get("stripePriceId") || null,
-        quickBooksItemId: values.get("quickBooksItemId") || null,
-        categories: values.getAll("categories"),
-        description: values.get("description"),
-        inclusions: values.get("inclusions").split("\n").map(item => item.trim()).filter(Boolean),
-        active: form.elements.active.checked,
-        requiresApproval: form.elements.requiresApproval.checked
-      })
-    });
-    form.reset();
-    delete form.elements.id.dataset.manuallyEdited;
+const adminCatalogCreationDeps = {
+  adminCan,
+  adminFetch,
+  centsFromInput,
+  loadAdminPartners: async () => {
     await reloadAdminConfigEditors();
     await loadAdminDeployment();
-    setAdminStatus(`Added ${result.vendorOffering.name} as a draft vendor offering. Review and publish the catalog before it appears publicly.`, "ok");
-  } catch (error) {
-    setAdminStatus(error.message, "error");
-  } finally {
-    button.disabled = !adminCan("finance:write");
-  }
-});
+  },
+  requestOutcomeIsAmbiguous,
+  setAdminStatus
+};
+adminOperationsUi?.bindSponsorPackageCreation(adminCreateSponsorPackageForm, adminCatalogCreationDeps);
+adminOperationsUi?.bindVendorOfferingCreation(adminCreateVendorOfferingForm, adminCatalogCreationDeps);
 document.querySelector("#admin-load-documents")?.addEventListener("click", () => loadAdminDocuments());
 document.querySelector("#admin-launch-readiness")?.addEventListener("click", event => {
   const button = event.target.closest("[data-deployment-filter]");

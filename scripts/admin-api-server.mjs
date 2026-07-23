@@ -4869,11 +4869,16 @@ async function handleAdminSponsorPatch(request, response, sponsorId) {
 
 async function handleAdminSponsorCreate(request, response) {
   if (!(await requirePermission(request, response, "sponsor:write"))) return;
+  const idempotency = requiredIdempotencyKey(request);
+  if (!idempotency.ok) {
+    sendJson(request, response, 400, { error: idempotency.error });
+    return;
+  }
   const input = filterPatch(await readBody(request), creatableSponsorFields);
   let result;
   await storage.config.update("admin-config", async config => {
     result = createSponsorPackageConfig(config, input);
-    if (!result.ok) return undefined;
+    if (!result.ok || result.replay) return undefined;
     const now = new Date().toISOString();
     result.config.sponsorPackagePublication = refreshedPartnerCatalogPublication(result.config, "sponsor", now);
     result.config.lastUpdated = now;
@@ -4887,13 +4892,16 @@ async function handleAdminSponsorCreate(request, response) {
     });
     return;
   }
-  await writeAuditRecord(request, "sponsor-package.create", {
-    type: "sponsorPackage",
-    id: result.sponsorPackage.id
-  }, null, result.sponsorPackage, {
-    changedFields: Object.keys(input)
-  });
-  sendJson(request, response, 201, {
+  if (!result.replay) {
+    await writeAuditRecord(request, "sponsor-package.create", {
+      type: "sponsorPackage",
+      id: result.sponsorPackage.id
+    }, null, result.sponsorPackage, {
+      changedFields: Object.keys(input)
+    });
+  }
+  sendJson(request, response, result.replay ? 200 : 201, {
+    replay: result.replay === true,
     sponsorPackage: result.sponsorPackage,
     readiness: {
       ready: result.catalog.ready,
@@ -4944,11 +4952,16 @@ async function handleAdminVendorOfferingPatch(request, response, offeringId) {
 
 async function handleAdminVendorOfferingCreate(request, response) {
   if (!(await requirePermission(request, response, "finance:write"))) return;
+  const idempotency = requiredIdempotencyKey(request);
+  if (!idempotency.ok) {
+    sendJson(request, response, 400, { error: idempotency.error });
+    return;
+  }
   const input = filterPatch(await readBody(request), creatableVendorOfferingFields);
   let result;
   await storage.config.update("admin-config", async config => {
     result = createVendorOfferingConfig(config, input);
-    if (!result.ok) return undefined;
+    if (!result.ok || result.replay) return undefined;
     const now = new Date().toISOString();
     result.config.vendorOfferingPublication = refreshedPartnerCatalogPublication(result.config, "vendor", now);
     result.config.lastUpdated = now;
@@ -4962,13 +4975,16 @@ async function handleAdminVendorOfferingCreate(request, response) {
     });
     return;
   }
-  await writeAuditRecord(request, "vendor-offering.create", {
-    type: "vendorOffering",
-    id: result.offering.id
-  }, null, result.offering, {
-    changedFields: Object.keys(input)
-  });
-  sendJson(request, response, 201, {
+  if (!result.replay) {
+    await writeAuditRecord(request, "vendor-offering.create", {
+      type: "vendorOffering",
+      id: result.offering.id
+    }, null, result.offering, {
+      changedFields: Object.keys(input)
+    });
+  }
+  sendJson(request, response, result.replay ? 200 : 201, {
+    replay: result.replay === true,
     vendorOffering: result.offering,
     readiness: {
       ready: result.catalog.ready,

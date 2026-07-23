@@ -735,8 +735,8 @@ async function main() {
     quickBooksItemId: "postgres-community-champion-item"
   };
   const postgresSponsorCreates = await Promise.all([
-    request(base, "POST", "/api/admin/sponsor-packages", postgresSponsorCreateBody, { auth: true }),
-    request(base, "POST", "/api/admin/sponsor-packages", postgresSponsorCreateBody, { auth: true })
+    request(base, "POST", "/api/admin/sponsor-packages", postgresSponsorCreateBody, { auth: true, headers: { "idempotency-key": "postgres-sponsor-package-create-0001" } }),
+    request(base, "POST", "/api/admin/sponsor-packages", postgresSponsorCreateBody, { auth: true, headers: { "idempotency-key": "postgres-sponsor-package-create-0001" } })
   ]);
   const postgresSponsorCatalogPending = await request(base, "GET", "/api/public/sponsors");
   const postgresInvalidSponsorPatch = await request(base, "PATCH", "/api/admin/sponsor-packages/tarpon", {
@@ -756,7 +756,7 @@ async function main() {
   const postgresPublicTarpon = postgresPublicSponsorCatalog.data.sponsorPackages?.find(item => item.id === "tarpon");
   const postgresPublicCommunityChampion = postgresPublicSponsorCatalog.data.sponsorPackages?.find(item => item.id === "postgres-community-champion");
   check("sponsor package catalog reads from Postgres", postgresSponsorCatalog.status === 200 && postgresSponsorCatalog.data.publication?.available === true && postgresSponsorCatalog.data.sponsorPackages?.find(item => item.id === "tarpon")?.amount === 500000);
-  check("concurrent sponsor package creation is atomic in Postgres", postgresSponsorCreates.map(item => item.status).sort((a, b) => a - b).join(",") === "201,409" && postgresSponsorCatalogPending.data.publication?.available === false && postgresSponsorCatalogPending.data.sponsorPackages?.length === 0 && postgresSponsorCatalogPublish.status === 200 && postgresPublicCommunityChampion?.amount === 750000);
+  check("concurrent sponsor package creation is replay safe in Postgres", postgresSponsorCreates.map(item => item.status).sort((a, b) => a - b).join(",") === "200,201" && postgresSponsorCreates.some(item => item.data.replay === true) && postgresSponsorCatalogPending.data.publication?.available === false && postgresSponsorCatalogPending.data.sponsorPackages?.length === 0 && postgresSponsorCatalogPublish.status === 200 && postgresPublicCommunityChampion?.amount === 750000);
   check("sponsor package config validates and keeps accounting private", postgresInvalidSponsorPatch.status === 400 && postgresSponsorPackagePatch.status === 200 && postgresSponsorPackagePatch.data.publicationReadiness?.ready === true && postgresSponsorPackagePatch.data.sponsorPackage?.quickBooksItemId === "postgres-sponsor-tarpon-item" && postgresPublicTarpon?.amount === 500000 && !Object.hasOwn(postgresPublicTarpon || {}, "quickBooksItemId") && !Object.hasOwn(postgresPublicTarpon || {}, "stripePriceId") && !Object.hasOwn(postgresPublicCommunityChampion || {}, "quickBooksItemId") && !Object.hasOwn(postgresPublicCommunityChampion || {}, "stripePriceId"));
 
   const postgresVendorCatalog = await request(base, "GET", "/api/public/vendors");
@@ -771,8 +771,8 @@ async function main() {
     quickBooksItemId: "postgres-premium-marketplace-item"
   };
   const postgresVendorOfferingCreates = await Promise.all([
-    request(base, "POST", "/api/admin/vendor-offerings", postgresVendorOfferingCreateBody, { auth: true }),
-    request(base, "POST", "/api/admin/vendor-offerings", postgresVendorOfferingCreateBody, { auth: true })
+    request(base, "POST", "/api/admin/vendor-offerings", postgresVendorOfferingCreateBody, { auth: true, headers: { "idempotency-key": "postgres-vendor-offering-create-0001" } }),
+    request(base, "POST", "/api/admin/vendor-offerings", postgresVendorOfferingCreateBody, { auth: true, headers: { "idempotency-key": "postgres-vendor-offering-create-0001" } })
   ]);
   const postgresVendorCatalogPending = await request(base, "GET", "/api/public/vendors");
   const postgresVendorCatalogPublish = await request(base, "POST", "/api/admin/partner-catalog-publication", {
@@ -787,7 +787,7 @@ async function main() {
   const postgresPublicVendorCatalog = await request(base, "GET", "/api/public/vendors");
   const postgresPublicPremiumMarketplace = postgresPublicVendorCatalog.data.vendorOfferings?.find(item => item.id === "postgres-premium-marketplace");
   check("vendor offering catalog reads from Postgres", postgresVendorCatalog.status === 200 && postgresVendorCatalog.data.publication?.available === true && postgresVendorCatalog.data.vendorOfferings?.find(item => item.id === "marketplace-booth")?.amount === 125000);
-  check("concurrent vendor offering creation is atomic in Postgres", postgresVendorOfferingCreates.map(item => item.status).sort((a, b) => a - b).join(",") === "201,409" && postgresVendorCatalogPending.data.publication?.available === false && postgresVendorCatalogPending.data.vendorOfferings?.length === 0 && postgresVendorCatalogPublish.status === 200 && postgresPublicPremiumMarketplace?.amount === 250000);
+  check("concurrent vendor offering creation is replay safe in Postgres", postgresVendorOfferingCreates.map(item => item.status).sort((a, b) => a - b).join(",") === "200,201" && postgresVendorOfferingCreates.some(item => item.data.replay === true) && postgresVendorCatalogPending.data.publication?.available === false && postgresVendorCatalogPending.data.vendorOfferings?.length === 0 && postgresVendorCatalogPublish.status === 200 && postgresPublicPremiumMarketplace?.amount === 250000);
   check("vendor offering config persists without exposing accounting IDs", postgresVendorOfferingPatch.status === 200 && postgresVendorOfferingPatch.data.publicationReadiness?.ready === true && postgresVendorOfferingPatch.data.vendorOffering?.quickBooksItemId === "postgres-vendor-marketplace-item" && !Object.hasOwn(postgresPublicVendorCatalog.data.vendorOfferings?.find(item => item.id === "marketplace-booth") || {}, "quickBooksItemId") && !Object.hasOwn(postgresPublicPremiumMarketplace || {}, "quickBooksItemId") && !Object.hasOwn(postgresPublicPremiumMarketplace || {}, "stripePriceId"));
 
   const postgresStaffContents = JSON.stringify({

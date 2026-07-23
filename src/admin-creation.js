@@ -31,7 +31,10 @@ export async function submitCreation(form, path, body, recovery, message, deps, 
       body: JSON.stringify(body)
     });
     clearCreationRetry(form);
-    if (reset) form.reset();
+    if (reset) {
+      form.reset();
+      delete form.elements.id?.dataset.manuallyEdited;
+    }
     await deps.loadAdminPartners({ quiet: true });
     after?.(data);
     setCreationStatus(form, typeof message === "function" ? message(data) : message, "ok", deps.setAdminStatus);

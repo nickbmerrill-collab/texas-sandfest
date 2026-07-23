@@ -308,6 +308,9 @@ assert(adminCreationSource.includes('"idempotency-key": creationRetryKey')
 assert(adminOperationsSource.includes('OUTREACH_RETRY_MESSAGE = "Retry safely; saved once."')
   && adminOperationsSource.includes("bindOutreachProspectCreation")
   && adminOperationsSource.includes("bindOutreachCampaignCreation"), "Outreach creation forms do not retain replay protection after an ambiguous response.");
+assert(adminOperationsSource.includes("bindSponsorPackageCreation")
+  && adminOperationsSource.includes("bindVendorOfferingCreation")
+  && adminOperationsSource.includes('"Saved."'), "Sponsor and vendor catalog creation forms do not retain replay protection after an ambiguous response.");
 assert(adminContentScriptFiles.length === 1
   && visitorSource.includes('adminSculptorRosterUiPromise ??= import("./admin-sculptor-roster-ui.js")'), "The staff roster publication workspace must remain on demand.");
 for (const marker of boardDemoCredentialMarkers) {
