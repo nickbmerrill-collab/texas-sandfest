@@ -2903,6 +2903,28 @@ test("visitor view switch opens the dedicated operations portal", async ({ page 
   await assertNoHorizontalOverflow(page);
 });
 
+test("Operations automatically reconnects after a transient API interruption", async ({ page }) => {
+  let sessionAttempts = 0;
+  await page.route(`${apiBase}/api/admin/session`, async route => {
+    sessionAttempts += 1;
+    if (sessionAttempts === 1) await route.abort("connectionrefused");
+    else await route.continue();
+  });
+
+  await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#admin-partners`);
+  const status = page.locator("#admin-api-status");
+  await expect(status).toHaveAttribute("data-workspace-state", "failed", { timeout: 10_000 });
+  await expect(status).toContainText("Retrying automatically.");
+  await expect(status).toHaveAttribute("role", "alert");
+  await expect(status).toHaveAttribute("aria-busy", "false");
+
+  await expectAdminWorkspaceReady(page);
+  await expect(status).toContainText("Loaded");
+  expect(sessionAttempts).toBeGreaterThanOrEqual(2);
+  await expect(page.locator("#admin-partner-kpis article").first()).toBeVisible();
+  await assertNoHorizontalOverflow(page);
+});
+
 test("canonical iOS links retain safe visitor web fallbacks", async ({ page }) => {
   let conciergeRequests = 0;
   page.on("request", request => {

@@ -2392,6 +2392,12 @@ app.innerHTML = `
   </main>
 `;
 
+const adminWorkspaceRecovery = adminOperationsUi?.createAdminWorkspaceRecovery({
+  access: adminToken,
+  load: loadAdminWorkspace,
+  status: () => document.querySelector("#admin-api-status")
+});
+
 renderPublicVolunteerProgram(event.volunteer);
 
 function addMessage(text, type) {
@@ -2892,10 +2898,11 @@ function setAdminStatus(message, state = "idle") {
   pill.dataset.state = state;
 }
 
-function setAdminWorkspaceState(state) {
+function setAdminWorkspaceState(state, retry = false) {
   const status = document.querySelector("#admin-api-status");
   status.dataset.workspaceState = state;
   status.setAttribute("aria-busy", state === "loading" ? "true" : "false");
+  adminWorkspaceRecovery?.transition(state, retry);
 }
 
 async function writeClipboardText(value) {
@@ -3306,7 +3313,11 @@ async function loadAdminDocuments({ quiet = false } = {}) {
 async function adminFetch(path, options = {}) {
   const response = await adminRawFetch(path, options);
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || `Request failed with ${response.status}`);
+  if (!response.ok) {
+    const error = new Error(data.error || `Request failed with ${response.status}`);
+    error.status = response.status;
+    throw error;
+  }
   return data;
 }
 
@@ -9226,8 +9237,9 @@ async function loadAdminWorkspace() {
     stabilizeRenderedHashTarget();
   } catch (error) {
     const localHint = ADMIN_AUTH_MODE === "token" ? " Confirm the local API is running and the token matches." : "";
-    setAdminStatus(`${error.message}${localHint}`, "error");
-    setAdminWorkspaceState("failed");
+    const retryable = adminWorkspaceRecovery?.retryable(error) || false;
+    setAdminStatus(`${error.message}${localHint}${retryable ? " Retrying automatically." : ""}`, "error");
+    setAdminWorkspaceState("failed", retryable);
   } finally {
     button.disabled = ADMIN_AUTH_MODE === "oidc" && !adminToken();
   }
