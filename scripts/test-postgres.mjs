@@ -1124,6 +1124,29 @@ PG-B-01,${EVENT_ID},PG-EV-V-01,PG-EV-V-01,Postgres Booth Vendor,retail,vendor,po
   const fulfillmentWorkspace = await request(base, "GET", "/api/admin/partners", undefined, { auth: true });
   check("sponsor fulfillment summary persists", fulfillmentWorkspace.data.fulfillment?.profiles?.approved === 1 && fulfillmentWorkspace.data.fulfillment?.assets?.approved === 1 && fulfillmentWorkspace.data.deliverables?.filter(item => item.applicationId === sponsorApplication.id).length === 6);
   check("sponsor proof notice resolves durably", fulfillmentWorkspace.data.followups?.find(item => item.id === publishedBenefit.data.followup?.id)?.status === "dismissed");
+  const postgresCustomDeliverableBody = {
+    label: "Postgres sponsor hospitality display",
+    ownerId: "staff_sponsor",
+    dueAt: "2026-08-06T17:00:00.000Z",
+    description: "Track the hospitality display through sponsor fulfillment."
+  };
+  const postgresCustomDeliverableKey = "postgres-partner-deliverable-create-0001";
+  const postgresCustomDeliverablePath = `/api/admin/partners/applications/${sponsorApplication.id}/deliverables`;
+  const missingPostgresDeliverableKey = await request(base, "POST", postgresCustomDeliverablePath, postgresCustomDeliverableBody, { auth: true });
+  const concurrentPostgresDeliverables = await Promise.all([
+    request(base, "POST", postgresCustomDeliverablePath, postgresCustomDeliverableBody, { auth: true, headers: { "idempotency-key": postgresCustomDeliverableKey } }),
+    request(base, "POST", postgresCustomDeliverablePath, postgresCustomDeliverableBody, { auth: true, headers: { "idempotency-key": postgresCustomDeliverableKey } })
+  ]);
+  const conflictingPostgresDeliverable = await request(base, "POST", postgresCustomDeliverablePath, {
+    ...postgresCustomDeliverableBody,
+    label: "Changed Postgres sponsor display"
+  }, { auth: true, headers: { "idempotency-key": postgresCustomDeliverableKey } });
+  const postgresCustomDeliverableId = concurrentPostgresDeliverables[0].data.deliverable?.id || concurrentPostgresDeliverables[1].data.deliverable?.id;
+  const postgresDeliverableWorkspace = await request(base, "GET", "/api/admin/partners", undefined, { auth: true });
+  const postgresDeliverableAudit = await request(base, "GET", "/api/admin/audit?limit=200", undefined, { auth: true });
+  const postgresDeliverableAudits = postgresDeliverableAudit.data.audit?.filter(item => item.record?.action === "partner.deliverable.create" && item.record?.target?.id === postgresCustomDeliverableId) || [];
+  check("Postgres custom sponsor deliverable requires replay protection", missingPostgresDeliverableKey.status === 400 && missingPostgresDeliverableKey.data.error?.includes("Idempotency-Key"));
+  check("Postgres custom sponsor deliverable concurrent replay converges", concurrentPostgresDeliverables.map(item => item.status).sort((left, right) => left - right).join(",") === "200,201" && concurrentPostgresDeliverables.some(item => item.data.replay === true) && new Set(concurrentPostgresDeliverables.map(item => item.data.deliverable?.id)).size === 1 && conflictingPostgresDeliverable.status === 409 && postgresDeliverableWorkspace.data.deliverables?.filter(item => item.id === postgresCustomDeliverableId).length === 1 && postgresDeliverableWorkspace.data.activity?.filter(item => item.type === "deliverable.created" && item.entityId === postgresCustomDeliverableId).length === 1 && postgresDeliverableAudits.length === 1 && !JSON.stringify({ postgresDeliverableWorkspace, postgresDeliverableAudit }).includes(postgresCustomDeliverableKey));
 
   const defaultSponsorMilestone = fulfillmentWorkspace.data.milestones?.find(item => item.applicationId === sponsorApplication.id);
   const reminderDueAt = new Date(Date.now() + 86_400_000).toISOString();

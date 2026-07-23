@@ -2938,9 +2938,9 @@ test("catalog creation recovers accepted responses without duplicate tiers, offe
   await sponsorForm.locator('[name="amount"]').fill("6500.00");
   await sponsorForm.locator('[name="benefits"]').fill("Board recognition\nPublic sponsor showcase");
   await sponsorForm.evaluate(form => form.requestSubmit());
-  await expect(page.locator("#admin-api-status")).toContainText("Retry safely; saved once");
+  await expect(sponsorForm.locator(".partner-form-status")).toContainText("Retry safely; saved once");
   await sponsorForm.evaluate(form => form.requestSubmit());
-  await expect(page.locator("#admin-api-status")).toContainText("Saved");
+  await expect(sponsorForm.locator(".partner-form-status")).toContainText("Saved");
   expect(sponsorKeys[0]).toMatch(/^[A-Za-z0-9][A-Za-z0-9._:-]{15,199}$/);
   expect(sponsorKeys[1]).toBe(sponsorKeys[0]);
   expect(sponsorResponses[0].replay).toBe(false);
@@ -2974,9 +2974,9 @@ test("catalog creation recovers accepted responses without duplicate tiers, offe
   await vendorForm.locator('[name="description"]').fill("Replay-safe marketplace offering for board presentation readiness.");
   await vendorForm.locator('[name="inclusions"]').fill("Expanded booth footprint\nPublic vendor listing");
   await vendorForm.evaluate(form => form.requestSubmit());
-  await expect(page.locator("#admin-api-status")).toContainText("Retry safely; saved once");
+  await expect(vendorForm.locator(".partner-form-status")).toContainText("Retry safely; saved once");
   await vendorForm.evaluate(form => form.requestSubmit());
-  await expect(page.locator("#admin-api-status")).toContainText("Saved");
+  await expect(vendorForm.locator(".partner-form-status")).toContainText("Saved");
   expect(vendorKeys[0]).toMatch(/^[A-Za-z0-9][A-Za-z0-9._:-]{15,199}$/);
   expect(vendorKeys[1]).toBe(vendorKeys[0]);
   expect(vendorResponses[0].replay).toBe(false);
@@ -3091,6 +3091,61 @@ test("task and key-date creation recover accepted responses without duplicate wo
     && item.record?.target?.id === milestoneResponses[0].milestone.id)).toHaveLength(1);
   expect(JSON.stringify({ taskResponses, milestoneResponses, partners, audit })).not.toContain(taskKeys[0]);
   expect(JSON.stringify({ taskResponses, milestoneResponses, partners, audit })).not.toContain(milestoneKeys[0]);
+});
+
+test("custom sponsor deliverable creation recovers an accepted response without duplicate fulfillment or audit", async ({ page }) => {
+  const runId = randomUUID().slice(0, 8);
+  const label = `Recovery sponsor display ${runId}`;
+  await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#admin-sponsor-fulfillment-workspace`);
+  await expect(page.locator("#admin-api-status")).toContainText("Loaded", { timeout: 25_000 });
+  const form = page.locator("#admin-sponsor-fulfillment [data-create-deliverable]").first();
+  await expect(form).toBeVisible();
+  const applicationId = await form.getAttribute("data-create-deliverable");
+  const endpoint = `/api/admin/partners/applications/${applicationId}/deliverables`;
+  const keys = [];
+  const responses = [];
+  let attempts = 0;
+  await page.route(`**${endpoint}`, async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    attempts++;
+    keys.push(route.request().headers()["idempotency-key"]);
+    const serverResponse = await route.fetch();
+    responses.push(await serverResponse.json());
+    if (attempts === 1) {
+      await route.abort("failed");
+      return;
+    }
+    await route.fulfill({ response: serverResponse });
+  });
+
+  await form.locator('[name="label"]').fill(label);
+  await form.locator('[name="ownerId"]').fill("staff_sponsor");
+  await form.locator('[name="dueAt"]').fill("2027-03-26T15:00");
+  await form.locator('[name="description"]').fill("Track one custom board sponsor display through fulfillment.");
+  await form.evaluate(node => node.requestSubmit());
+  await expect(page.locator("#admin-api-status")).toContainText("Retry safely; saved once");
+  await expect(form.locator('[name="label"]')).toHaveValue(label);
+  expect(await form.evaluate(node => node.dataset.idempotencyKey?.length > 15)).toBe(true);
+
+  await form.evaluate(node => node.requestSubmit());
+  await expect(page.locator("#admin-api-status")).toContainText("Sponsor deliverable saved");
+  expect(keys[0]).toMatch(/^[A-Za-z0-9][A-Za-z0-9._:-]{15,199}$/);
+  expect(keys[1]).toBe(keys[0]);
+  expect(responses[0].replay).toBe(false);
+  expect(responses[1].replay).toBe(true);
+  expect(responses[1].deliverable.id).toBe(responses[0].deliverable.id);
+  expect(attempts).toBe(2);
+  await page.unroute(`**${endpoint}`);
+
+  const partners = await adminApi("/api/admin/partners");
+  expect(partners.data.deliverables.filter(item => item.id === responses[0].deliverable.id)).toHaveLength(1);
+  expect(partners.data.deliverables.filter(item => item.label === label)).toHaveLength(1);
+  expect(partners.data.activity.filter(item => item.type === "deliverable.created"
+    && item.entityId === responses[0].deliverable.id)).toHaveLength(1);
+  const audit = await adminApi("/api/admin/audit?limit=200");
+  expect(audit.data.audit.filter(item => item.record?.action === "partner.deliverable.create"
+    && item.record?.target?.id === responses[0].deliverable.id)).toHaveLength(1);
+  expect(JSON.stringify({ responses, partners, audit })).not.toContain(keys[0]);
 });
 
 test("outreach creation recovers accepted responses without duplicate targets, campaigns, or audits", async ({ page }) => {

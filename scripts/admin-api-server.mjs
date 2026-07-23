@@ -9187,19 +9187,30 @@ async function handleRequest(request, response) {
     if (method === "POST" && partnerDeliverableCreateMatch) {
       const session = await requirePermission(request, response, "partners:write");
       if (!session) return;
+      const idempotency = requiredIdempotencyKey(request);
+      if (!idempotency.ok) {
+        sendJson(request, response, 400, { error: idempotency.error });
+        return;
+      }
       const applicationId = decodeURIComponent(partnerDeliverableCreateMatch[1]);
       const body = await readBody(request);
       const result = await mutatePartnerOperations(doc => createPartnerDeliverable(doc, applicationId, body, {
         actorId: session.id,
-        idFactory: prefix => `${prefix}_${randomUUID()}`,
+        idFactory: idempotencyIdFactory("partner-deliverable-create", idempotency.keyHash),
         now: new Date().toISOString()
       }));
       if (!result?.ok) {
-        sendJson(request, response, result?.error === "Application not found." ? 404 : 400, { error: result?.error || "Deliverable could not be created." });
+        const status = result?.error === "Application not found." ? 404 : result?.code === "IDEMPOTENCY_CONFLICT" ? 409 : 400;
+        sendJson(request, response, status, { error: result?.error || "Deliverable could not be created.", code: result?.code });
         return;
       }
-      await writeAuditRecord(request, "partner.deliverable.create", { type: "deliverable", id: result.deliverable.id }, null, result.deliverable);
-      sendJson(request, response, 201, { deliverable: result.deliverable });
+      if (!result.replay) {
+        await writeAuditRecord(request, "partner.deliverable.create", { type: "deliverable", id: result.deliverable.id }, null, result.deliverable, { applicationId });
+      }
+      sendJson(request, response, result.replay ? 200 : 201, {
+        replay: result.replay === true,
+        deliverable: result.deliverable
+      });
       return;
     }
 

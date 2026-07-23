@@ -4087,6 +4087,26 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   const noProof = updatePartnerDeliverable(changedBrandAsset.doc, created.deliverables[1].id, { status: "complete" }, { actorId: "sponsor_admin_1", idFactory, now });
   ok("sponsor completion requires proof", !noProof.ok && noProof.error.includes("proof"));
   const customDeliverable = createPartnerDeliverable(revisedProof.doc, created.application.id, { label: "VIP welcome banner", dueAt: "2026-08-05T17:00:00.000Z" }, { actorId: "sponsor_admin_1", idFactory, now });
+  const deliverableReplayFactory = prefix => `${prefix}_replay_safe_custom`;
+  const replaySafeDeliverable = createPartnerDeliverable(revisedProof.doc, created.application.id, {
+    label: "Hospitality welcome display",
+    ownerId: "sponsor_admin_1",
+    dueAt: "2026-08-06T17:00:00.000Z",
+    description: "Welcome display for the sponsor hospitality area."
+  }, { actorId: "sponsor_admin_1", idFactory: deliverableReplayFactory, now });
+  const replayedDeliverable = createPartnerDeliverable(replaySafeDeliverable.doc, created.application.id, {
+    label: "Hospitality welcome display",
+    ownerId: "sponsor_admin_1",
+    dueAt: "2026-08-06T17:00:00.000Z",
+    description: "Welcome display for the sponsor hospitality area."
+  }, { actorId: "sponsor_admin_1", idFactory: deliverableReplayFactory, now: "2026-07-16T19:00:00.000Z" });
+  const conflictingDeliverable = createPartnerDeliverable(replaySafeDeliverable.doc, created.application.id, {
+    label: "Changed hospitality display",
+    ownerId: "sponsor_admin_1",
+    dueAt: "2026-08-06T17:00:00.000Z",
+    description: "Welcome display for the sponsor hospitality area."
+  }, { actorId: "sponsor_admin_1", idFactory: deliverableReplayFactory, now });
+  ok("custom sponsor deliverable creation is replay safe", replaySafeDeliverable.ok && !replaySafeDeliverable.replay && replayedDeliverable.ok && replayedDeliverable.replay && replayedDeliverable.deliverable.id === replaySafeDeliverable.deliverable.id && replayedDeliverable.doc.deliverables.length === replaySafeDeliverable.doc.deliverables.length && replayedDeliverable.doc.activity.length === replaySafeDeliverable.doc.activity.length && !conflictingDeliverable.ok && conflictingDeliverable.code === "IDEMPOTENCY_CONFLICT");
   const fulfillmentSummary = summarizeSponsorFulfillment(customDeliverable.doc, now);
   ok("sponsor fulfillment summary", customDeliverable.ok && fulfillmentSummary.deliverables.total === 4 && fulfillmentSummary.deliverables.awaitingPartnerReview === 1 && fulfillmentSummary.assets.changesRequested === 1);
   const publicBranding = publicPartnerPortalStatus(customDeliverable.doc, created.application).branding;
@@ -9029,6 +9049,23 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
   ok("private sponsor asset download", downloadedAsset.status === 200 && Buffer.isBuffer(downloadedAsset.data) && downloadedAsset.data.equals(apiPng) && downloadedAsset.headers.get("cache-control") === "private, no-store");
   const updatedSponsorWorkspace = await hit("GET", "/api/admin/partners", null, true);
   ok("sponsor fulfillment API summary", updatedSponsorWorkspace.data.fulfillment?.profiles?.approved === 1 && updatedSponsorWorkspace.data.fulfillment?.assets?.approved === 1 && updatedSponsorWorkspace.data.deliverables?.filter(item => item.applicationId === sponsorApplication?.id).length === 6);
+  const customDeliverableBody = {
+    label: "API sponsor hospitality display",
+    ownerId: "staff_sponsor",
+    dueAt: "2026-08-06T17:00:00.000Z",
+    description: "Track the approved hospitality display through delivery."
+  };
+  const customDeliverableKey = "api-partner-deliverable-create-0001";
+  const customDeliverablePath = `/api/admin/partners/applications/${encodeURIComponent(sponsorApplication?.id)}/deliverables`;
+  const missingDeliverableKeyApi = await hit("POST", customDeliverablePath, customDeliverableBody, true);
+  const customDeliverableApi = await hit("POST", customDeliverablePath, customDeliverableBody, true, { "idempotency-key": customDeliverableKey });
+  const replayedDeliverableApi = await hit("POST", customDeliverablePath, customDeliverableBody, true, { "idempotency-key": customDeliverableKey });
+  const conflictingDeliverableApi = await hit("POST", customDeliverablePath, { ...customDeliverableBody, label: "Changed API sponsor display" }, true, { "idempotency-key": customDeliverableKey });
+  const customDeliverableWorkspaceApi = await hit("GET", "/api/admin/partners", null, true);
+  const customDeliverableAuditApi = await hit("GET", "/api/admin/audit?limit=500", null, true);
+  const customDeliverableAudits = customDeliverableAuditApi.data.audit?.filter(item => item.record?.action === "partner.deliverable.create" && item.record?.target?.id === customDeliverableApi.data.deliverable?.id) || [];
+  ok("admin custom sponsor deliverable creation requires replay protection", missingDeliverableKeyApi.status === 400 && missingDeliverableKeyApi.data.error?.includes("Idempotency-Key"));
+  ok("admin custom sponsor deliverable creation replays once", customDeliverableApi.status === 201 && customDeliverableApi.data.replay === false && replayedDeliverableApi.status === 200 && replayedDeliverableApi.data.replay === true && replayedDeliverableApi.data.deliverable?.id === customDeliverableApi.data.deliverable?.id && conflictingDeliverableApi.status === 409 && customDeliverableWorkspaceApi.data.deliverables?.filter(item => item.id === customDeliverableApi.data.deliverable?.id).length === 1 && customDeliverableAudits.length === 1 && !JSON.stringify({ customDeliverableWorkspaceApi, customDeliverableAuditApi }).includes(customDeliverableKey));
 
   const sponsorMilestone = updatedSponsorWorkspace.data.milestones?.find(item => item.applicationId === sponsorApplication?.id);
   const rescheduledMilestoneApi = await hit("PATCH", `/api/admin/partners/milestones/${encodeURIComponent(sponsorMilestone?.id)}`, {
