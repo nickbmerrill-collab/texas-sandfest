@@ -1664,7 +1664,7 @@ app.innerHTML = `
         </div>
         <div class="admin-partner-columns">
           <div id="admin-partner-applications-workspace"><strong>Applications and accounting</strong><div id="admin-partner-applications" class="admin-partner-list keyboard-scroll-region" role="region" aria-label="Partner applications and accounting" tabindex="0"></div></div>
-          <div id="admin-partner-followups-workspace"><strong>Message drafts</strong><div id="admin-partner-followups" class="admin-partner-list keyboard-scroll-region" role="region" aria-label="Partner message drafts" tabindex="0"></div></div>
+          <div id="admin-partner-followups-workspace"><strong>Message drafts</strong><div id="admin-partner-followups-summary"></div><div id="admin-partner-followups" class="admin-partner-list keyboard-scroll-region" role="region" aria-label="Partner message drafts" tabindex="0"></div></div>
         </div>
         <div class="admin-partner-create">
           <form id="admin-import-partners" class="admin-inline-form admin-outreach-import" data-requires-permission="partners:write">
@@ -8160,6 +8160,7 @@ function renderAdminPartners(payload, outreach) {
   const kpis = document.querySelector("#admin-partner-kpis");
   const applications = document.querySelector("#admin-partner-applications");
   const followups = document.querySelector("#admin-partner-followups");
+  const followupSummary = document.querySelector("#admin-partner-followups-summary");
   const prospects = document.querySelector("#admin-outreach-prospects");
   const campaigns = document.querySelector("#admin-outreach-campaigns");
   const automationForm = document.querySelector("#admin-partner-automation");
@@ -8317,6 +8318,21 @@ function renderAdminPartners(payload, outreach) {
     ["sent", 7],
     ["dismissed", 8]
   ]);
+  if (followupSummary) {
+    const items = payload.followups || [];
+    const count = status => items.filter(item => item.status === status).length;
+    const review = summary.operations.draftsAwaitingReview || 0;
+    const attention = (summary.operations.unknownDeliveryMessages || 0) + count("failed");
+    const queue = count("approved") + count("failed");
+    const flight = count("pending") + count("queued") + count("sending");
+    const sent = count("sent");
+    const automated = items.filter(item => item.automationPolicy && !item.manualReviewRequiredAt && item.status !== "dismissed").length;
+    const overdue = summary.operations.overdueMilestones || 0;
+    const soon = summary.operations.dueSoonMilestones || 0;
+    const state = attention || overdue ? "attention" : review || queue || flight ? "tracking" : "idle";
+    const headline = attention ? `${attention} delivery review` : review ? `${review} staff approval` : queue ? `${queue} ready to queue` : `${sent} sent`;
+    followupSummary.innerHTML = `<p class="partner-form-status" data-state="${state}"><strong>${headline}</strong> · ${automated} automated · ${flight} in flight · ${overdue} overdue key date${overdue === 1 ? "" : "s"} · ${soon} due soon</p>`;
+  }
   followups.innerHTML = [...(payload.followups || [])].sort((left, right) => {
     const priority = (followupPriority.get(left.status) ?? 99) - (followupPriority.get(right.status) ?? 99);
     if (priority) return priority;
