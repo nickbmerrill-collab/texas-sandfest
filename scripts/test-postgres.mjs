@@ -1226,19 +1226,21 @@ postgres_eventeny_settlement_1,2026-07-16,vendor_fee,250.00,7.50,242.50,eventeny
     notes: "Postgres durability verification"
   };
   const concurrentBudgetLineResponses = await Promise.all([
-    request(base, "POST", "/api/admin/budget/lines", concurrentBudgetLineBody, { auth: true }),
-    request(base, "POST", "/api/admin/budget/lines", concurrentBudgetLineBody, { auth: true })
+    request(base, "POST", "/api/admin/budget/lines", concurrentBudgetLineBody, { auth: true, headers: { "idempotency-key": "postgres-budget-create-0001" } }),
+    request(base, "POST", "/api/admin/budget/lines", concurrentBudgetLineBody, { auth: true, headers: { "idempotency-key": "postgres-budget-create-0002" } })
   ]);
   const postgresBudgetLine = concurrentBudgetLineResponses.find(item => item.status === 201);
   check("Postgres budget allocation serializes concurrent duplicate writes", concurrentBudgetLineResponses.filter(item => item.status === 201).length === 1
     && concurrentBudgetLineResponses.filter(item => item.status === 409).length === 1 && postgresBudgetLine?.data.line?.eventId === EVENT_ID);
-  const postgresExpenseRequest = await request(base, "POST", "/api/admin/budget/expenses", {
+  const postgresExpenseBody = {
     budgetLineId: postgresBudgetLine?.data.line?.id,
     vendorName: "Postgres Private Staging Vendor",
     description: "Postgres beach staging reservation",
     amountCents: 30_000,
     dueDate: "2027-02-15"
-  }, { auth: true });
+  };
+  const postgresExpenseRequest = await request(base, "POST", "/api/admin/budget/expenses", postgresExpenseBody, { auth: true, headers: { "idempotency-key": "postgres-expense-create-0001" } });
+  const replayedPostgresExpense = await request(base, "POST", "/api/admin/budget/expenses", postgresExpenseBody, { auth: true, headers: { "idempotency-key": "postgres-expense-create-0001" } });
   const postgresExpenseApproval = await request(base, "POST", `/api/admin/budget/expenses/${postgresExpenseRequest.data.expense?.id}/approve`, {}, { auth: true });
   const postgresExpensePayment = await request(base, "POST", `/api/admin/budget/expenses/${postgresExpenseRequest.data.expense?.id}/mark-paid`, {
     paymentMethod: "ach",
@@ -1250,14 +1252,14 @@ postgres_eventeny_settlement_1,2026-07-16,vendor_fee,250.00,7.50,242.50,eventeny
     description: "Postgres additional safety structures",
     amountCents: 25_000,
     dueDate: "2027-03-01"
-  }, { auth: true });
+  }, { auth: true, headers: { "idempotency-key": "postgres-expense-create-0002" } });
   const postgresOverBudgetBlocked = await request(base, "POST", `/api/admin/budget/expenses/${postgresOverBudgetRequest.data.expense?.id}/approve`, {}, { auth: true });
   const postgresOverBudgetApproved = await request(base, "POST", `/api/admin/budget/expenses/${postgresOverBudgetRequest.data.expense?.id}/approve`, {
     allowOverBudget: true,
     note: "Executive exception approved for required safety capacity."
   }, { auth: true });
   const postgresBudget = await request(base, "GET", "/api/admin/budget", undefined, { auth: true });
-  check("Postgres expense approval and payment evidence persists", postgresExpenseRequest.status === 201 && postgresExpenseApproval.status === 200
+  check("Postgres expense approval and payment evidence persists", postgresExpenseRequest.status === 201 && replayedPostgresExpense.status === 200 && replayedPostgresExpense.data.replay === true && replayedPostgresExpense.data.expense?.id === postgresExpenseRequest.data.expense?.id && postgresExpenseApproval.status === 200
     && postgresExpensePayment.status === 200 && postgresBudget.data.expenses?.find(item => item.id === postgresExpenseRequest.data.expense?.id)?.status === "paid");
   check("Postgres over-budget approval fails closed and persists an explicit override", postgresOverBudgetBlocked.status === 409 && postgresOverBudgetApproved.status === 200
     && postgresBudget.data.summary?.totals?.budgetCents === 50_000 && postgresBudget.data.summary?.totals?.committedCents === 55_000

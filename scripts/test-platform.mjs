@@ -2666,6 +2666,14 @@ bad_money,2026-07-16,eventeny,texas-sandfest-2027,ticket,10.001,0.30,9.70,receip
   }, { actorId: "finance-1", idFactory, now });
   ok("budget lines require accountable, unique whole-cent allocations", firstLine.ok && secondLine.ok
     && duplicateLine.ok === false && duplicateLine.code === "DUPLICATE_BUDGET_LINE");
+  const retryLineFactory = () => "budget_line_retry_safe";
+  const retryLineInput = { name: "Traffic control", ownerTeam: "traffic", budgetCents: 25_000, notes: "Replay proof" };
+  const retryLine = createBudgetLine(secondLine.doc, retryLineInput, { actorId: "finance-1", idFactory: retryLineFactory, now });
+  const replayedLine = createBudgetLine(retryLine.doc, retryLineInput, { actorId: "finance-1", idFactory: retryLineFactory, now });
+  const conflictingLine = createBudgetLine(retryLine.doc, { ...retryLineInput, budgetCents: 26_000 }, { actorId: "finance-1", idFactory: retryLineFactory, now });
+  ok("budget allocation creation is idempotent and conflict safe", retryLine.ok && replayedLine.replay
+    && replayedLine.doc.budgetLines.length === retryLine.doc.budgetLines.length
+    && conflictingLine.code === "IDEMPOTENCY_CONFLICT");
   const missingChangeNote = updateBudgetLine(secondLine.doc, firstLine.line.id, { budgetCents: 110_000 }, { actorId: "finance-2", now });
   const changedLine = updateBudgetLine(secondLine.doc, firstLine.line.id, {
     budgetCents: 110_000,
@@ -2707,6 +2715,20 @@ bad_money,2026-07-16,eventeny,texas-sandfest-2027,ticket,10.001,0.30,9.70,receip
   }, { actorId: "finance-2", now: "2026-07-20T12:04:00.000Z" });
   ok("expense requests preserve approval and payment evidence", submitted.ok && approved.ok && paid.ok
     && invalidPaymentDate.ok === false && paid.expense.status === "paid" && paid.expense.paymentReference === "RAMP-TEST-1001");
+  const retryExpenseFactory = () => "expense_retry_safe";
+  const retryExpenseInput = {
+    budgetLineId: firstLine.line.id,
+    vendorName: "Replay Rentals",
+    description: "Replay-safe equipment reservation",
+    amountCents: 8_000,
+    dueDate: "2027-02-10"
+  };
+  const retryExpense = createExpenseRequest(changedLine.doc, retryExpenseInput, { actorId: "ops-1", idFactory: retryExpenseFactory, now });
+  const replayedExpense = createExpenseRequest(retryExpense.doc, retryExpenseInput, { actorId: "ops-1", idFactory: retryExpenseFactory, now });
+  const conflictingExpense = createExpenseRequest(retryExpense.doc, { ...retryExpenseInput, amountCents: 9_000 }, { actorId: "ops-1", idFactory: retryExpenseFactory, now });
+  ok("expense submission is idempotent and conflict safe", retryExpense.ok && replayedExpense.replay
+    && replayedExpense.doc.expenses.length === retryExpense.doc.expenses.length
+    && conflictingExpense.code === "IDEMPOTENCY_CONFLICT");
 
   const oversized = createExpenseRequest(paid.doc, {
     budgetLineId: firstLine.line.id,
@@ -7994,17 +8016,26 @@ api_square_invalid,2026-07-16,merch,20.00,1.00,20.00,1,square_payout_api_1,2026-
     ownerTeam: "operations",
     budgetCents: 50_000
   });
-  const budgetLineApi = await hit("POST", "/api/admin/budget/lines", {
+  const missingBudgetLineKeyApi = await hit("POST", "/api/admin/budget/lines", {
+    name: "API missing-key allocation",
+    ownerTeam: "operations",
+    budgetCents: 10_000
+  }, true);
+  const budgetLineKey = "api-budget-line-create-0001";
+  const budgetLineBody = {
     name: "API beach operations",
     ownerTeam: "operations",
     budgetCents: 50_000,
     notes: "API workflow verification"
-  }, true);
+  };
+  const budgetLineApi = await hit("POST", "/api/admin/budget/lines", budgetLineBody, true, { "idempotency-key": budgetLineKey });
+  const replayedBudgetLineApi = await hit("POST", "/api/admin/budget/lines", budgetLineBody, true, { "idempotency-key": budgetLineKey });
+  const conflictingBudgetLineApi = await hit("POST", "/api/admin/budget/lines", { ...budgetLineBody, budgetCents: 51_000 }, true, { "idempotency-key": budgetLineKey });
   const duplicateBudgetLineApi = await hit("POST", "/api/admin/budget/lines", {
     name: "api BEACH operations",
     ownerTeam: "finance",
     budgetCents: 10_000
-  }, true);
+  }, true, { "idempotency-key": "api-budget-line-create-0002" });
   const budgetLineUpdateWithoutNoteApi = await hit("PATCH", `/api/admin/budget/lines/${budgetLineApi.data.line?.id}`, {
     budgetCents: 52_000
   }, true);
@@ -8013,13 +8044,17 @@ api_square_invalid,2026-07-16,merch,20.00,1.00,20.00,1,square_payout_api_1,2026-
     active: true,
     changeNote: "No amount change required for API verification."
   }, true);
-  const paidExpenseRequestApi = await hit("POST", "/api/admin/budget/expenses", {
+  const paidExpenseBody = {
     budgetLineId: budgetLineApi.data.line?.id,
     vendorName: "API Private Staging Vendor",
     description: "API staging reservation for beach operations",
     amountCents: 30_000,
     dueDate: "2027-02-15"
-  }, true);
+  };
+  const paidExpenseKey = "api-expense-create-0001";
+  const paidExpenseRequestApi = await hit("POST", "/api/admin/budget/expenses", paidExpenseBody, true, { "idempotency-key": paidExpenseKey });
+  const replayedPaidExpenseApi = await hit("POST", "/api/admin/budget/expenses", paidExpenseBody, true, { "idempotency-key": paidExpenseKey });
+  const conflictingPaidExpenseApi = await hit("POST", "/api/admin/budget/expenses", { ...paidExpenseBody, amountCents: 31_000 }, true, { "idempotency-key": paidExpenseKey });
   const paidExpenseApprovalApi = await hit("POST", `/api/admin/budget/expenses/${paidExpenseRequestApi.data.expense?.id}/approve`, {}, true);
   const paidExpensePaymentApi = await hit("POST", `/api/admin/budget/expenses/${paidExpenseRequestApi.data.expense?.id}/mark-paid`, {
     paymentMethod: "ach",
@@ -8031,7 +8066,7 @@ api_square_invalid,2026-07-16,merch,20.00,1.00,20.00,1,square_payout_api_1,2026-
     description: "API additional safety structures for the beach",
     amountCents: 25_000,
     dueDate: "2027-03-01"
-  }, true);
+  }, true, { "idempotency-key": "api-expense-create-0002" });
   const overBudgetBlockedApi = await hit("POST", `/api/admin/budget/expenses/${overBudgetExpenseRequestApi.data.expense?.id}/approve`, {}, true);
   const overBudgetApprovedApi = await hit("POST", `/api/admin/budget/expenses/${overBudgetExpenseRequestApi.data.expense?.id}/approve`, {
     allowOverBudget: true,
@@ -8040,10 +8075,11 @@ api_square_invalid,2026-07-16,merch,20.00,1.00,20.00,1,square_payout_api_1,2026-
   const repeatedBudgetTransitionApi = await hit("POST", `/api/admin/budget/expenses/${overBudgetExpenseRequestApi.data.expense?.id}/approve`, {}, true);
   const persistedBudgetApi = await hit("GET", "/api/admin/budget", null, true);
   ok("budget API requires finance authentication", unauthenticatedBudgetApi.status === 401 && unauthenticatedBudgetLineApi.status === 401);
+  ok("budget creation API requires replay protection", missingBudgetLineKeyApi.status === 400 && missingBudgetLineKeyApi.data.error?.includes("Idempotency-Key"));
   ok("budget API starts current event without sample finance records", emptyBudgetApi.status === 200 && emptyBudgetApi.data.eventId === DEFAULT_EVENT_ID && emptyBudgetApi.data.summary?.counts?.budgetLines === 0);
-  ok("budget allocation API enforces uniqueness and noted changes", budgetLineApi.status === 201 && duplicateBudgetLineApi.status === 409
+  ok("budget allocation API enforces replay safety, uniqueness, and noted changes", budgetLineApi.status === 201 && replayedBudgetLineApi.status === 200 && replayedBudgetLineApi.data.replay === true && replayedBudgetLineApi.data.line?.id === budgetLineApi.data.line?.id && conflictingBudgetLineApi.status === 409 && duplicateBudgetLineApi.status === 409
     && budgetLineUpdateWithoutNoteApi.status === 400 && budgetLineUpdateApi.status === 200 && budgetLineUpdateApi.data.line?.createdBy && budgetLineUpdateApi.data.line?.lastChangedBy);
-  ok("expense API persists approval and payment evidence", paidExpenseRequestApi.status === 201 && paidExpenseApprovalApi.status === 200
+  ok("expense API persists replay-safe approval and payment evidence", paidExpenseRequestApi.status === 201 && replayedPaidExpenseApi.status === 200 && replayedPaidExpenseApi.data.replay === true && replayedPaidExpenseApi.data.expense?.id === paidExpenseRequestApi.data.expense?.id && conflictingPaidExpenseApi.status === 409 && paidExpenseApprovalApi.status === 200
     && paidExpensePaymentApi.status === 200 && paidExpensePaymentApi.data.expense?.status === "paid" && paidExpensePaymentApi.data.expense?.paymentReference === "PRIVATE-ACH-API-1001");
   ok("budget approval fails closed and records explicit overrides", overBudgetBlockedApi.status === 409 && overBudgetBlockedApi.data.code === "OVER_BUDGET"
     && overBudgetApprovedApi.status === 200 && overBudgetApprovedApi.data.expense?.overBudgetOverride === true && repeatedBudgetTransitionApi.status === 409);

@@ -1065,7 +1065,7 @@ function partnerPaymentAuditView(payment) {
 
 function budgetMutationStatus(result) {
   if (result?.code === "NOT_FOUND") return 404;
-  if (["DUPLICATE_BUDGET_LINE", "INVALID_STATE", "INVALID_TRANSITION", "OVER_BUDGET"].includes(result?.code)) return 409;
+  if (["DUPLICATE_BUDGET_LINE", "IDEMPOTENCY_CONFLICT", "INVALID_STATE", "INVALID_TRANSITION", "OVER_BUDGET"].includes(result?.code)) return 409;
   return 400;
 }
 
@@ -7588,18 +7588,25 @@ async function handleRequest(request, response) {
     if (method === "POST" && pathname === "/api/admin/budget/lines") {
       const session = await requirePermission(request, response, "budget:write");
       if (!session) return;
+      const idempotency = requiredIdempotencyKey(request);
+      if (!idempotency.ok) {
+        sendJson(request, response, 400, { error: idempotency.error });
+        return;
+      }
       const body = await readBody(request);
       const result = await mutateBudgetControl(doc => createBudgetLine(doc, body, {
         actorId: session.id,
-        idFactory: () => `budget_line_${randomUUID()}`,
+        idFactory: () => `budget_line_${idempotency.keyHash.slice(0, 32)}`,
         now: new Date().toISOString()
       }));
       if (!result?.ok) {
         sendJson(request, response, budgetMutationStatus(result), { error: result?.error || "Budget line could not be created.", code: result?.code });
         return;
       }
-      await writeAuditRecord(request, "budget.line.create", { type: "budget_line", id: result.line.id }, null, budgetLineAuditView(result.line));
-      sendJson(request, response, 201, { line: result.line, summary: summarizeBudgetControl(result.doc) });
+      if (!result.replay) {
+        await writeAuditRecord(request, "budget.line.create", { type: "budget_line", id: result.line.id }, null, budgetLineAuditView(result.line));
+      }
+      sendJson(request, response, result.replay ? 200 : 201, { replay: result.replay === true, line: result.line, summary: summarizeBudgetControl(result.doc) });
       return;
     }
 
@@ -7627,18 +7634,25 @@ async function handleRequest(request, response) {
     if (method === "POST" && pathname === "/api/admin/budget/expenses") {
       const session = await requirePermission(request, response, "budget:write");
       if (!session) return;
+      const idempotency = requiredIdempotencyKey(request);
+      if (!idempotency.ok) {
+        sendJson(request, response, 400, { error: idempotency.error });
+        return;
+      }
       const body = await readBody(request);
       const result = await mutateBudgetControl(doc => createExpenseRequest(doc, body, {
         actorId: session.id,
-        idFactory: () => `expense_${randomUUID()}`,
+        idFactory: () => `expense_${idempotency.keyHash.slice(0, 32)}`,
         now: new Date().toISOString()
       }));
       if (!result?.ok) {
         sendJson(request, response, budgetMutationStatus(result), { error: result?.error || "Expense request could not be created.", code: result?.code });
         return;
       }
-      await writeAuditRecord(request, "budget.expense.submit", { type: "expense", id: result.expense.id }, null, expenseAuditView(result.expense));
-      sendJson(request, response, 201, { expense: result.expense, summary: summarizeBudgetControl(result.doc) });
+      if (!result.replay) {
+        await writeAuditRecord(request, "budget.expense.submit", { type: "expense", id: result.expense.id }, null, expenseAuditView(result.expense));
+      }
+      sendJson(request, response, result.replay ? 200 : 201, { replay: result.replay === true, expense: result.expense, summary: summarizeBudgetControl(result.doc) });
       return;
     }
 
