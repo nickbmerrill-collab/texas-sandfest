@@ -22,6 +22,7 @@ const ticketPaymentSandboxSource = await readFile(path.join(root, "src", "board-
 const partnerPaymentSandboxSource = await readFile(path.join(root, "src", "board-demo", "partner-payment-sandbox.js"), "utf8");
 const partnerIntakeSource = await readFile(path.join(root, "src", "partner-intake-readiness-ui.js"), "utf8");
 const guestServicesSource = await readFile(path.join(root, "src", "guest-services-ui.js"), "utf8");
+const adminCreationSource = await readFile(path.join(root, "src", "admin-creation.js"), "utf8");
 const adminOperationsSource = await readFile(path.join(root, "src", "admin-operations-ui.js"), "utf8");
 const adminBudgetSource = await readFile(path.join(root, "src", "admin-budget.js"), "utf8");
 const taskPortalSource = await readFile(path.join(root, "src", "task-portal-ui.js"), "utf8");
@@ -297,11 +298,16 @@ assert(adminJavaScript.includes("/api/admin/partners/followups/")
   && !publicJavaScript.includes("data-reconcile-followup"), "Partner delivery reconciliation must remain admin-only and available on demand.");
 assert(adminOptionalScriptFiles.some(file => file.startsWith("admin-budget-"))
   && visitorSource.includes('adminBudgetUiPromise ||= import("./admin-budget.js")'), "The permission-gated budget workspace must remain on demand.");
-assert(adminBudgetSource.includes('"idempotency-key": creationRetryKey')
+assert(adminCreationSource.includes('"idempotency-key": creationRetryKey')
+  && adminBudgetSource.includes("submitCreation")
   && adminBudgetSource.includes("Finance will record it only once."), "Finance creation forms do not retain replay protection after an ambiguous response.");
-assert(adminOperationsSource.includes('"idempotency-key": creationRetryKey')
+assert(adminCreationSource.includes('"idempotency-key": creationRetryKey')
+  && adminOperationsSource.includes("submitCreation")
   && adminOperationsSource.includes("Operations will delegate it only once.")
   && adminOperationsSource.includes("Operations will record it only once."), "Delegation and key-date forms do not retain replay protection after an ambiguous response.");
+assert(adminOperationsSource.includes('OUTREACH_RETRY_MESSAGE = "Retry safely; saved once."')
+  && adminOperationsSource.includes("bindOutreachProspectCreation")
+  && adminOperationsSource.includes("bindOutreachCampaignCreation"), "Outreach creation forms do not retain replay protection after an ambiguous response.");
 assert(adminContentScriptFiles.length === 1
   && visitorSource.includes('adminSculptorRosterUiPromise ??= import("./admin-sculptor-roster-ui.js")'), "The staff roster publication workspace must remain on demand.");
 for (const marker of boardDemoCredentialMarkers) {

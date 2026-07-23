@@ -1494,7 +1494,7 @@ postgres_eventeny_settlement_1,2026-07-16,vendor_fee,250.00,7.50,242.50,eventeny
   check("task assignee capability update persists in Postgres", openedPostgresTaskPortal.status === 200 && acknowledgedPostgresTask.status === 200 && acknowledgedPostgresTask.data.task?.acknowledgedAt && persistedAcknowledgedTask?.acknowledgedAt && persistedAcknowledgedTask?.assigneeUpdates?.at(-1)?.note.includes("Postgres volunteer"));
   check("assignment directory minimizes private contacts", taskWorkspace.data.staffDirectory?.ready === true && taskWorkspace.data.assignmentDirectory?.staff?.some(item => item.id === "staff_command" && item.emailAvailable === true && !("email" in item)) && taskWorkspace.data.assignmentDirectory?.volunteers?.some(item => item.id === "vol_001" && item.emailAvailable === true && !("email" in item) && !("phone" in item)));
 
-  const prospect = await request(base, "POST", "/api/admin/outreach/prospects", {
+  const postgresProspectBody = {
     organizationName: "Postgres Island Hotel",
     contactName: "Morgan Taylor",
     contactEmail: "partners@postgres-hotel.example",
@@ -1509,9 +1509,11 @@ postgres_eventeny_settlement_1,2026-07-16,vendor_fee,250.00,7.50,242.50,eventeny
     ownerId: "sponsor_lead",
     nextAction: "Prepare a reviewed sponsor invitation",
     nextActionAt: "2027-01-15T15:00:00.000Z"
-  }, { auth: true });
+  };
+  const prospect = await request(base, "POST", "/api/admin/outreach/prospects", postgresProspectBody, { auth: true, headers: { "idempotency-key": "postgres-outreach-prospect-create-0001" } });
+  const replayedPostgresProspect = await request(base, "POST", "/api/admin/outreach/prospects", postgresProspectBody, { auth: true, headers: { "idempotency-key": "postgres-outreach-prospect-create-0001" } });
   const scheduledPostgresOutreach = await request(base, "GET", "/api/admin/outreach", undefined, { auth: true });
-  check("outreach prospect persisted", prospect.status === 201 && prospect.data.prospect?.fitScore >= 60, `status ${prospect.status}`);
+  check("outreach prospect persisted", prospect.status === 201 && replayedPostgresProspect.status === 200 && replayedPostgresProspect.data.replay === true && replayedPostgresProspect.data.prospect?.id === prospect.data.prospect?.id && prospect.data.prospect?.fitScore >= 60, `status ${prospect.status}/${replayedPostgresProspect.status}`);
   check("outreach ownership and schedule persisted", prospect.data.prospect?.ownerId === "sponsor_lead" && prospect.data.prospect?.nextActionAt === "2027-01-15T15:00:00.000Z" && scheduledPostgresOutreach.data.summary?.nextActionsScheduled === 1 && scheduledPostgresOutreach.data.summary?.unassigned === 0);
 
   const invitedPostgresProspect = await request(base, "POST", "/api/admin/outreach/prospects", {
@@ -1525,7 +1527,7 @@ postgres_eventeny_settlement_1,2026-07-16,vendor_fee,250.00,7.50,242.50,eventeny
     postalCode: "78401",
     contactBasis: "business_relevance",
     status: "contact_ready"
-  }, { auth: true });
+  }, { auth: true, headers: { "idempotency-key": "postgres-outreach-prospect-create-0002" } });
   const invitedPostgresProspectId = invitedPostgresProspect.data.prospect?.id;
   const postgresInvitation = await request(base, "POST", `/api/admin/outreach/prospects/${invitedPostgresProspectId}/sponsor-invitation`, { action: "issue", packageId: "tarpon" }, { auth: true });
   const copiedPostgresInvitation = await request(base, "POST", `/api/admin/outreach/prospects/${invitedPostgresProspectId}/sponsor-invitation`, { action: "copy" }, { auth: true });
@@ -1648,8 +1650,9 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
   const postgresCampaignPreview = await request(base, "POST", "/api/admin/outreach/campaigns/preview", postgresCampaignPayload, { auth: true });
   const postgresAfterCampaignPreview = await request(base, "GET", "/api/admin/outreach", undefined, { auth: true });
   check("Postgres campaign preflight is private and mutation-free", unauthenticatedPostgresCampaignPreview.status === 401 && postgresCampaignPreview.status === 200 && postgresCampaignPreview.data.preview?.matched === 1 && postgresCampaignPreview.data.preview?.matches?.[0]?.organizationName === "Postgres Island Hotel" && !("contactEmail" in postgresCampaignPreview.data.preview.matches[0]) && postgresCampaignPreview.data.preview.sample?.sequence?.[0]?.subject === "A SandFest partnership for Postgres Island Hotel" && postgresAfterCampaignPreview.data.campaigns?.length === postgresDiscoveryResearched.data.campaigns?.length);
-  const campaign = await request(base, "POST", "/api/admin/outreach/campaigns", postgresCampaignPayload, { auth: true });
-  check("outreach campaign persisted", campaign.status === 201 && campaign.data.campaign?.id, `status ${campaign.status}`);
+  const campaign = await request(base, "POST", "/api/admin/outreach/campaigns", postgresCampaignPayload, { auth: true, headers: { "idempotency-key": "postgres-outreach-campaign-create-0001" } });
+  const replayedPostgresCampaign = await request(base, "POST", "/api/admin/outreach/campaigns", postgresCampaignPayload, { auth: true, headers: { "idempotency-key": "postgres-outreach-campaign-create-0001" } });
+  check("outreach campaign persisted", campaign.status === 201 && replayedPostgresCampaign.status === 200 && replayedPostgresCampaign.data.replay === true && replayedPostgresCampaign.data.campaign?.id === campaign.data.campaign?.id && campaign.data.campaign?.id, `status ${campaign.status}/${replayedPostgresCampaign.status}`);
   const campaignId = campaign.data.campaign?.id;
   const activation = await request(base, "POST", `/api/admin/outreach/campaigns/${campaignId}/activate`, {}, { auth: true });
   check("campaign activation atomically seeds and audits the opening message", activation.status === 200 && activation.data.campaign?.status === "active" && activation.data.generated === 1, `status ${activation.status} generated ${activation.data.generated ?? "missing"}`);
@@ -2056,7 +2059,7 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
     longitude: -97.0611,
     contactBasis: "business_relevance",
     status: "contact_ready"
-  }, { auth: true });
+  }, { auth: true, headers: { "idempotency-key": "postgres-outreach-prospect-create-0003" } });
   const automationOutreachGeneration = await request(base, "POST", `/api/admin/outreach/campaigns/${campaignId}/generate`, {}, { auth: true });
   const manualOutreachWorkspace = await request(base, "GET", "/api/admin/outreach", undefined, { auth: true });
   const manualOutreachDraft = manualOutreachWorkspace.data.followups?.find(item => item.prospectId === automationProspect.data.prospect?.id && item.campaignId === campaignId && item.kind === "sponsor_outreach");
@@ -2080,7 +2083,7 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
       subjectTemplate: "Approved SandFest outreach for {{organization}}",
       bodyTemplate: "Hello {{contactName}}, may we share the approved Texas SandFest sponsor program?"
     }]
-  }, { auth: true });
+  }, { auth: true, headers: { "idempotency-key": "postgres-outreach-campaign-create-0002" } });
   const approvedSequenceCampaignId = approvedSequenceCampaign.data.campaign?.id;
   const approvedSequenceActivation = await request(base, "POST", `/api/admin/outreach/campaigns/${approvedSequenceCampaignId}/activate`, {}, { auth: true });
   const automationMode = await request(base, "PATCH", "/api/admin/partners/automation", { mode: "transactional_auto" }, { auth: true });

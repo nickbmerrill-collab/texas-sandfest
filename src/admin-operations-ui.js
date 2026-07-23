@@ -8,74 +8,29 @@ import {
   VISITOR_GUIDANCE_RISK_LEVELS
 } from "../lib/visitor-guidance.mjs";
 import { REQUIRED_TICKET_POLICY_NOTICES } from "../lib/ticket-policy-schema.mjs";
+import { setCreationStatus, submitCreation } from "./admin-creation.js";
 
 const PENDING_NOTICE_STATUSES = new Set(["pending", "draft_ready", "approved", "queued", "sending"]);
+const OUTREACH_RETRY_MESSAGE = "Retry safely; saved once.";
 
-function creationRetryKey(form, payload) {
-  const fingerprint = JSON.stringify(payload);
-  if (form.dataset.retryFingerprint !== fingerprint) {
-    form.dataset.retryFingerprint = fingerprint;
-    form.dataset.idempotencyKey = globalThis.crypto?.randomUUID?.()
-      || `admin-create-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  }
-  return form.dataset.idempotencyKey;
-}
-
-function clearCreationRetry(form) {
-  delete form.dataset.retryFingerprint;
-  delete form.dataset.idempotencyKey;
-}
-
-function setCreationStatus(form, message, state, setAdminStatus) {
-  const status = form.querySelector(".partner-form-status");
-  if (status) {
-    status.textContent = message;
-    status.dataset.state = state;
-    status.setAttribute("role", state === "error" ? "alert" : "status");
-    status.setAttribute("aria-live", state === "error" ? "assertive" : "polite");
-  }
-  setAdminStatus(message, state);
-}
-
-export function bindTaskCreation(form, { adminFetch, loadAdminPartners, requestOutcomeIsAmbiguous, setAdminStatus }) {
+export function bindTaskCreation(form, deps) {
   if (!form || form.dataset.creationBound === "true") return;
   form.dataset.creationBound = "true";
-  form.addEventListener("submit", async event => {
+  form.addEventListener("submit", event => {
     event.preventDefault();
-    const values = Object.fromEntries(new FormData(form).entries());
-    const button = form.querySelector('button[type="submit"]');
+    const values = Object.fromEntries(new FormData(form));
     const body = { ...values, dueAt: values.dueAt ? new Date(values.dueAt).toISOString() : null };
-    button.disabled = true;
-    try {
-      await adminFetch("/api/admin/partners/tasks", {
-        method: "POST",
-        headers: { "idempotency-key": creationRetryKey(form, body) },
-        body: JSON.stringify(body)
-      });
-      clearCreationRetry(form);
-      form.reset();
-      await loadAdminPartners({ quiet: true });
-      setCreationStatus(form, "Task delegated.", "ok", setAdminStatus);
-    } catch (error) {
-      const ambiguous = requestOutcomeIsAmbiguous(error);
-      if (!ambiguous) clearCreationRetry(form);
-      setCreationStatus(form, ambiguous
-        ? `${error.message} Try the same task again; Operations will delegate it only once.`
-        : error.message, "error", setAdminStatus);
-    } finally {
-      button.disabled = false;
-    }
+    void submitCreation(form, "/api/admin/partners/tasks", body, "Try the same task again; Operations will delegate it only once.", "Task delegated.", deps);
   });
 }
 
-export function bindMilestoneCreation(form, { adminFetch, loadAdminPartners, requestOutcomeIsAmbiguous, setAdminStatus }) {
+export function bindMilestoneCreation(form, deps) {
   if (!form) return;
-  form.onsubmit = async event => {
+  form.onsubmit = event => {
     event.preventDefault();
-    const button = form.querySelector('button[type="submit"]');
     const dueAt = form.elements.dueAt.value;
     if (!form.elements.applicationId.value || !dueAt) {
-      setCreationStatus(form, "Choose a partner and due date.", "error", setAdminStatus);
+      setCreationStatus(form, "Choose a partner and due date.", "error", deps.setAdminStatus);
       return;
     }
     const body = {
@@ -84,27 +39,43 @@ export function bindMilestoneCreation(form, { adminFetch, loadAdminPartners, req
       assigneeTeam: form.elements.assigneeTeam.value,
       reminderLeadDays: Number(form.elements.reminderLeadDays.value)
     };
-    button.disabled = true;
-    try {
-      await adminFetch(`/api/admin/partners/applications/${encodeURIComponent(form.elements.applicationId.value)}/milestones`, {
-        method: "POST",
-        headers: { "idempotency-key": creationRetryKey(form, body) },
-        body: JSON.stringify(body)
-      });
-      clearCreationRetry(form);
-      form.reset();
+    void submitCreation(form, `/api/admin/partners/applications/${encodeURIComponent(form.elements.applicationId.value)}/milestones`, body, "Try the same key date again; Operations will record it only once.", "Partner key date added.", deps, () => {
       form.elements.reminderLeadDays.value = "3";
-      await loadAdminPartners({ quiet: true });
-      setCreationStatus(form, "Partner key date added.", "ok", setAdminStatus);
-    } catch (error) {
-      const ambiguous = requestOutcomeIsAmbiguous(error);
-      if (!ambiguous) clearCreationRetry(form);
-      setCreationStatus(form, ambiguous
-        ? `${error.message} Try the same key date again; Operations will record it only once.`
-        : error.message, "error", setAdminStatus);
-    } finally {
-      button.disabled = false;
+    });
+  };
+}
+
+export function bindOutreachProspectCreation(form, deps) {
+  if (!form) return;
+  form.onsubmit = event => {
+    event.preventDefault();
+    const values = Object.fromEntries(new FormData(form));
+    const body = {
+      ...values,
+      latitude: values.latitude || null,
+      longitude: values.longitude || null,
+      communityFit: form.elements.communityFit.checked,
+      nextActionAt: deps.localDateTimeToIso(values.nextActionAt)
+    };
+    void submitCreation(form, "/api/admin/outreach/prospects", body, OUTREACH_RETRY_MESSAGE, data => `Scored ${data.prospect.organizationName} at ${data.prospect.fitScore}/100.`, deps, () => {
+      form.elements.state.value = "TX";
+    });
+  };
+}
+
+export function bindOutreachCampaignCreation(form, deps) {
+  if (!form) return;
+  form.onsubmit = event => {
+    event.preventDefault();
+    if (!form.dataset.audiencePreviewFingerprint || form.dataset.audiencePreviewFingerprint !== deps.campaignFormFingerprint(form)) {
+      deps.invalidateCampaignAudiencePreview(form, { force: true });
+      setCreationStatus(form, "Preview the current campaign audience before saving the draft.", "error", deps.setAdminStatus);
+      return;
     }
+    const body = deps.campaignFormPayload(form);
+    void submitCreation(form, "/api/admin/outreach/campaigns", body, OUTREACH_RETRY_MESSAGE, data => `${data.campaign.name} saved.`, deps, () => {
+      deps.invalidateCampaignAudiencePreview(form, { force: true, message: "Campaign draft saved. Change the campaign name or targeting, then preview again before creating another draft." });
+    }, () => !deps.adminCan("outreach:write") || !form.dataset.audiencePreviewFingerprint, false);
   };
 }
 

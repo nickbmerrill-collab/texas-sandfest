@@ -3000,6 +3000,108 @@ test("task and key-date creation recover accepted responses without duplicate wo
   expect(JSON.stringify({ taskResponses, milestoneResponses, partners, audit })).not.toContain(milestoneKeys[0]);
 });
 
+test("outreach creation recovers accepted responses without duplicate targets, campaigns, or audits", async ({ page }) => {
+  const runId = randomUUID().slice(0, 8);
+  const prospectName = `Recovery outreach target ${runId}`;
+  const industry = `recovery-industry-${runId}`;
+  const campaignName = `Recovery outreach campaign ${runId}`;
+
+  await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#admin-outreach-workspace`);
+  const prospectForm = page.locator("#admin-create-prospect");
+  await expect(prospectForm).toBeVisible({ timeout: 25_000 });
+
+  const prospectKeys = [];
+  const prospectResponses = [];
+  let prospectAttempts = 0;
+  await page.route("**/api/admin/outreach/prospects", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    prospectAttempts++;
+    prospectKeys.push(route.request().headers()["idempotency-key"]);
+    const serverResponse = await route.fetch();
+    prospectResponses.push(await serverResponse.json());
+    if (prospectAttempts === 1) {
+      await route.abort("failed");
+      return;
+    }
+    await route.fulfill({ response: serverResponse });
+  });
+
+  await prospectForm.locator('[name="organizationName"]').fill(prospectName);
+  await prospectForm.locator('[name="contactName"]').fill("Recovery Outreach");
+  await prospectForm.locator('[name="industry"]').fill(industry);
+  await prospectForm.locator('[name="city"]').fill("Port Aransas");
+  await prospectForm.locator('[name="postalCode"]').fill("78373");
+  await prospectForm.locator('[name="latitude"]').fill("27.8339");
+  await prospectForm.locator('[name="longitude"]').fill("-97.0611");
+  await prospectForm.locator('[name="contactEmail"]').fill(`recovery-outreach-${runId}@example.com`);
+  await prospectForm.locator('[name="communityFit"]').check();
+  await prospectForm.locator('[name="contactBasis"]').selectOption("business_relevance");
+  await prospectForm.locator('[name="status"]').selectOption("contact_ready");
+  await prospectForm.evaluate(form => form.requestSubmit());
+  await expect(prospectForm.locator(".partner-form-status")).toContainText("Retry safely; saved once");
+  await prospectForm.evaluate(form => form.requestSubmit());
+  await expect(prospectForm.locator(".partner-form-status")).toContainText(`Scored ${prospectName}`);
+  expect(prospectKeys[0]).toMatch(/^[A-Za-z0-9][A-Za-z0-9._:-]{15,199}$/);
+  expect(prospectKeys[1]).toBe(prospectKeys[0]);
+  expect(prospectResponses[0].replay).toBe(false);
+  expect(prospectResponses[1].replay).toBe(true);
+  expect(prospectResponses[1].prospect.id).toBe(prospectResponses[0].prospect.id);
+  await page.unroute("**/api/admin/outreach/prospects");
+
+  const campaignForm = page.locator("#admin-create-campaign");
+  await campaignForm.locator('[name="name"]').fill(campaignName);
+  await campaignForm.locator('[name="industries"]').fill(industry);
+  await campaignForm.locator('[name="cities"]').fill("Port Aransas");
+  await campaignForm.locator('[name="minFitScore"]').fill("0");
+  const previewResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/outreach/campaigns/preview"
+    && response.request().method() === "POST");
+  await campaignForm.locator("#admin-preview-campaign").click();
+  expect((await previewResponse).status()).toBe(200);
+  await expect(campaignForm.locator('button[type="submit"]')).toBeEnabled();
+
+  const campaignKeys = [];
+  const campaignResponses = [];
+  let campaignAttempts = 0;
+  await page.route("**/api/admin/outreach/campaigns", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    campaignAttempts++;
+    campaignKeys.push(route.request().headers()["idempotency-key"]);
+    const serverResponse = await route.fetch();
+    campaignResponses.push(await serverResponse.json());
+    if (campaignAttempts === 1) {
+      await route.abort("failed");
+      return;
+    }
+    await route.fulfill({ response: serverResponse });
+  });
+
+  await campaignForm.evaluate(form => form.requestSubmit());
+  await expect(campaignForm.locator(".partner-form-status")).toContainText("Retry safely; saved once");
+  await campaignForm.evaluate(form => form.requestSubmit());
+  await expect(campaignForm.locator(".partner-form-status")).toContainText(`${campaignName} saved`);
+  expect(campaignKeys[0]).toMatch(/^[A-Za-z0-9][A-Za-z0-9._:-]{15,199}$/);
+  expect(campaignKeys[1]).toBe(campaignKeys[0]);
+  expect(campaignResponses[0].replay).toBe(false);
+  expect(campaignResponses[1].replay).toBe(true);
+  expect(campaignResponses[1].campaign.id).toBe(campaignResponses[0].campaign.id);
+
+  const outreach = await adminApi("/api/admin/outreach");
+  expect(outreach.data.prospects.filter(item => item.id === prospectResponses[0].prospect.id)).toHaveLength(1);
+  expect(outreach.data.campaigns.filter(item => item.id === campaignResponses[0].campaign.id)).toHaveLength(1);
+  const partners = await adminApi("/api/admin/partners");
+  expect(partners.data.activity.filter(item => item.type === "outreach.prospect.created"
+    && item.entityId === prospectResponses[0].prospect.id)).toHaveLength(1);
+  expect(partners.data.activity.filter(item => item.type === "outreach.campaign.created"
+    && item.entityId === campaignResponses[0].campaign.id)).toHaveLength(1);
+  const audit = await adminApi("/api/admin/audit?limit=200");
+  expect(audit.data.audit.filter(item => item.record?.action === "outreach.prospect.create"
+    && item.record?.target?.id === prospectResponses[0].prospect.id)).toHaveLength(1);
+  expect(audit.data.audit.filter(item => item.record?.action === "outreach.campaign.create"
+    && item.record?.target?.id === campaignResponses[0].campaign.id)).toHaveLength(1);
+  expect(JSON.stringify({ prospectResponses, campaignResponses, outreach, partners, audit })).not.toContain(prospectKeys[0]);
+  expect(JSON.stringify({ prospectResponses, campaignResponses, outreach, partners, audit })).not.toContain(campaignKeys[0]);
+});
+
 test("private capability links recover from transient API failures without reloads", async ({ browser }) => {
   test.setTimeout(90_000);
   const runId = randomUUID().slice(0, 8);
@@ -3034,6 +3136,7 @@ test("private capability links recover from transient API failures without reloa
   const prospectName = `Recovery Coast Sponsor ${runId}`;
   const prospectResult = await adminApi("/api/admin/outreach/prospects", {
     method: "POST",
+    headers: { "idempotency-key": `browser-private-prospect-create-${runId}` },
     body: {
       organizationName: prospectName,
       contactName: "Recovery Browser",

@@ -5089,7 +5089,25 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
     nextAction: "Prepare a reviewed sponsor invitation",
     nextActionAt: "2026-07-17T15:00:00.000Z"
   }, { idFactory, now });
+  const prospectRetryFactory = prefix => `${prefix}_outreach_retry`;
+  const prospectRetryInput = {
+    organizationName: "Replay Safe Hotel",
+    industry: "hospitality",
+    city: "Port Aransas",
+    state: "TX",
+    postalCode: "78373",
+    contactEmail: "replay-safe-hotel@example.com",
+    contactBasis: "business_relevance",
+    status: "contact_ready"
+  };
+  const retryProspect = createOutreachProspect(done.doc, prospectRetryInput, { actorId: "sponsor_1", idFactory: prospectRetryFactory, now });
+  const replayedProspect = createOutreachProspect(retryProspect.doc, prospectRetryInput, { actorId: "sponsor_1", idFactory: prospectRetryFactory, now });
+  const conflictingProspect = createOutreachProspect(retryProspect.doc, { ...prospectRetryInput, industry: "banking" }, { actorId: "sponsor_1", idFactory: prospectRetryFactory, now });
   ok("geographic prospect scoring", prospect.ok && prospect.prospect.fitScore >= 60 && prospect.prospect.fitReasons.length === 2 && prospect.prospect.ownerId === "sponsor_lead");
+  ok("outreach prospect creation is idempotent and activity safe", retryProspect.ok && replayedProspect.replay
+    && replayedProspect.doc.prospects.length === retryProspect.doc.prospects.length
+    && replayedProspect.doc.activity.filter(item => item.type === "outreach.prospect.created" && item.entityId === retryProspect.prospect.id).length === 1
+    && conflictingProspect.code === "IDEMPOTENCY_CONFLICT");
   const qualified = updateOutreachProspect(prospect.doc, prospect.prospect.id, {
     status: "contact_ready",
     contactBasis: "business_relevance"
@@ -5247,6 +5265,15 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
       { delayDays: 7, subjectTemplate: "Following up with {{organization}}", bodyTemplate: "Hello {{contactName}},\n\nMay we answer any SandFest sponsorship questions?" }
     ]
   }, { actorId: "sponsor_1", idFactory, now });
+  const campaignRetryFactory = prefix => `${prefix}_outreach_retry`;
+  const campaignRetryInput = {
+    name: "Replay-safe outreach",
+    targeting: { industries: ["hospitality"], states: ["TX"], minFitScore: 50 },
+    sequence: [{ delayDays: 0, subjectTemplate: "A partnership for {{organization}}", bodyTemplate: "Hello {{contactName}}" }]
+  };
+  const retryCampaign = createOutreachCampaign(issuedInvitation.doc, campaignRetryInput, { actorId: "sponsor_1", idFactory: campaignRetryFactory, now });
+  const replayedCampaign = createOutreachCampaign(retryCampaign.doc, campaignRetryInput, { actorId: "sponsor_1", idFactory: campaignRetryFactory, now });
+  const conflictingCampaign = createOutreachCampaign(retryCampaign.doc, { ...campaignRetryInput, dailySendLimit: 10 }, { actorId: "sponsor_1", idFactory: campaignRetryFactory, now });
   const farProspect = createOutreachProspect(qualified.doc, {
     organizationName: "Austin Technology Group",
     industry: "software",
@@ -5289,6 +5316,10 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
     latitude: 27.8
   }, { idFactory, now });
   ok("outreach campaign targeting", campaign.ok && campaign.campaign.targeting.postalCodes[0] === "78373" && campaign.campaign.deliveryMode === "review_first" && campaign.campaign.dailySendLimit === 25 && matchOutreachProspects(campaign.doc, campaign.campaign).length === 1);
+  ok("outreach campaign creation is idempotent and activity safe", retryCampaign.ok && replayedCampaign.replay
+    && replayedCampaign.doc.campaigns.length === retryCampaign.doc.campaigns.length
+    && replayedCampaign.doc.activity.filter(item => item.type === "outreach.campaign.created" && item.entityId === retryCampaign.campaign.id).length === 1
+    && conflictingCampaign.code === "IDEMPOTENCY_CONFLICT");
   ok("outreach radius targeting", radiusCampaign.ok && matchOutreachProspects(radiusCampaign.doc, radiusCampaign.campaign).map(item => item.id).join() === prospect.prospect.id && outreachDistanceMiles(27.8339, -97.0611, 30.2672, -97.7431) > 150);
   ok("outreach campaign preflight is exact, personalized, private, and mutation-free", radiusPreview.ok && radiusPreview.preview.totalProspects === 2 && radiusPreview.preview.matched === 1 && radiusPreview.preview.excluded === 1 && radiusPreview.preview.exclusions.length === 1 && radiusPreview.preview.exclusions[0].reason === "outside_radius" && radiusPreview.preview.matches[0].organizationName === "Island Hotel" && !("contactEmail" in radiusPreview.preview.matches[0]) && radiusPreview.preview.sample.sequence[0].subject === "A partnership for Island Hotel" && radiusPreview.preview.sample.sequence[0].body === "Hello Jordan Lee in Port Aransas" && farProspect.doc.campaigns.length === 0);
   ok("outreach geofence validation", !invalidGeofence.ok && invalidGeofence.error.includes("requires center"));
@@ -9143,7 +9174,7 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     staffDirectoryApiOk ? "" : JSON.stringify({ readiness: taskWorkspace.data.staffDirectory, assignmentDirectory: taskWorkspace.data.assignmentDirectory })
   );
 
-  const geoProspectApi = await hit("POST", "/api/admin/outreach/prospects", {
+  const geoProspectBodyApi = {
     organizationName: "API Port Aransas Hotel",
     contactName: "Geo Test",
     contactEmail: "geo-api@example.com",
@@ -9159,17 +9190,22 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     ownerId: "sponsor_lead",
     nextAction: "Review the Tarpon sponsor invitation",
     nextActionAt: "2027-01-15T15:00:00.000Z"
-  }, true);
+  };
+  const geoProspectKeyApi = "api-outreach-prospect-create-0001";
+  const missingGeoProspectKeyApi = await hit("POST", "/api/admin/outreach/prospects", geoProspectBodyApi, true);
+  const geoProspectApi = await hit("POST", "/api/admin/outreach/prospects", geoProspectBodyApi, true, { "idempotency-key": geoProspectKeyApi });
+  const replayedGeoProspectApi = await hit("POST", "/api/admin/outreach/prospects", geoProspectBodyApi, true, { "idempotency-key": geoProspectKeyApi });
+  const conflictingGeoProspectApi = await hit("POST", "/api/admin/outreach/prospects", { ...geoProspectBodyApi, industry: "banking" }, true, { "idempotency-key": geoProspectKeyApi });
   const invalidGeoProspectApi = await hit("POST", "/api/admin/outreach/prospects", {
     organizationName: "Invalid API Coordinates",
     contactEmail: "invalid-geo-api@example.com",
     latitude: 27.8
-  }, true);
+  }, true, { "idempotency-key": "api-outreach-prospect-create-0002" });
   const invalidScheduleProspectApi = await hit("POST", "/api/admin/outreach/prospects", {
     organizationName: "Invalid API Follow-up",
     contactEmail: "invalid-schedule-api@example.com",
     nextActionAt: "not-a-date"
-  }, true);
+  }, true, { "idempotency-key": "api-outreach-prospect-create-0003" });
   const geoCampaignPayloadApi = {
     name: "API Port Aransas geofence",
     targeting: {
@@ -9183,12 +9219,16 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
   const unauthenticatedGeoCampaignPreviewApi = await hit("POST", "/api/admin/outreach/campaigns/preview", geoCampaignPayloadApi);
   const geoCampaignPreviewApi = await hit("POST", "/api/admin/outreach/campaigns/preview", geoCampaignPayloadApi, true);
   const outreachAfterPreviewApi = await hit("GET", "/api/admin/outreach", null, true);
-  const geoCampaignApi = await hit("POST", "/api/admin/outreach/campaigns", geoCampaignPayloadApi, true);
+  const geoCampaignKeyApi = "api-outreach-campaign-create-0001";
+  const missingGeoCampaignKeyApi = await hit("POST", "/api/admin/outreach/campaigns", geoCampaignPayloadApi, true);
+  const geoCampaignApi = await hit("POST", "/api/admin/outreach/campaigns", geoCampaignPayloadApi, true, { "idempotency-key": geoCampaignKeyApi });
+  const replayedGeoCampaignApi = await hit("POST", "/api/admin/outreach/campaigns", geoCampaignPayloadApi, true, { "idempotency-key": geoCampaignKeyApi });
+  const conflictingGeoCampaignApi = await hit("POST", "/api/admin/outreach/campaigns", { ...geoCampaignPayloadApi, dailySendLimit: 10 }, true, { "idempotency-key": geoCampaignKeyApi });
   const invalidGeoCampaignApi = await hit("POST", "/api/admin/outreach/campaigns", {
     name: "Invalid API geofence",
     targeting: { geofence: { latitude: 27.8339, radiusMiles: 25 } },
     sequence: [{ delayDays: 0, subjectTemplate: "Invalid", bodyTemplate: "Invalid" }]
-  }, true);
+  }, true, { "idempotency-key": "api-outreach-campaign-create-0002" });
   const invalidGeoCampaignPreviewApi = await hit("POST", "/api/admin/outreach/campaigns/preview", {
     name: "Invalid API geofence preview",
     targeting: { geofence: { latitude: 27.8339, radiusMiles: 25 } },
@@ -9200,7 +9240,7 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
   const geoCampaignWorkspaceApi = geoOutreachWorkspaceApi.data.campaigns?.find(item => item.id === geoCampaignApi.data.campaign?.id);
   const geoDraftApi = geoOutreachWorkspaceApi.data.followups?.find(item => item.campaignId === geoCampaignApi.data.campaign?.id);
   ok("campaign preflight API is authorized, private, personalized, and mutation-free", unauthenticatedGeoCampaignPreviewApi.status === 401 && geoCampaignPreviewApi.status === 200 && geoCampaignPreviewApi.data.preview?.matched === 1 && geoCampaignPreviewApi.data.preview?.matches?.[0]?.id === geoProspectApi.data.prospect?.id && !("contactEmail" in geoCampaignPreviewApi.data.preview.matches[0]) && geoCampaignPreviewApi.data.preview.sample?.sequence?.[0]?.subject === "A local partnership for API Port Aransas Hotel" && !outreachAfterPreviewApi.data.campaigns?.some(item => item.name === geoCampaignPayloadApi.name) && invalidGeoCampaignPreviewApi.status === 400);
-  ok("geofenced outreach API", geoProspectApi.status === 201 && geoCampaignApi.status === 201 && activatedGeoCampaignApi.status === 200 && activatedGeoCampaignApi.data.generated === 1 && generatedGeoCampaignApi.data.generated === 0 && geoCampaignWorkspaceApi?.metrics?.matched === 1 && geoCampaignWorkspaceApi?.metrics?.funnel?.enrolled === 1 && geoCampaignWorkspaceApi?.metrics?.funnel?.reached === 0 && geoCampaignWorkspaceApi?.metrics?.funnel?.applications === 0 && geoCampaignWorkspaceApi?.targeting?.postalCodes?.[0] === "78373");
+  ok("geofenced outreach API", missingGeoProspectKeyApi.status === 400 && geoProspectApi.status === 201 && replayedGeoProspectApi.status === 200 && replayedGeoProspectApi.data.replay === true && replayedGeoProspectApi.data.prospect?.id === geoProspectApi.data.prospect?.id && conflictingGeoProspectApi.status === 409 && missingGeoCampaignKeyApi.status === 400 && geoCampaignApi.status === 201 && replayedGeoCampaignApi.status === 200 && replayedGeoCampaignApi.data.replay === true && replayedGeoCampaignApi.data.campaign?.id === geoCampaignApi.data.campaign?.id && conflictingGeoCampaignApi.status === 409 && activatedGeoCampaignApi.status === 200 && activatedGeoCampaignApi.data.generated === 1 && generatedGeoCampaignApi.data.generated === 0 && geoCampaignWorkspaceApi?.metrics?.matched === 1 && geoCampaignWorkspaceApi?.metrics?.funnel?.enrolled === 1 && geoCampaignWorkspaceApi?.metrics?.funnel?.reached === 0 && geoCampaignWorkspaceApi?.metrics?.funnel?.applications === 0 && geoCampaignWorkspaceApi?.targeting?.postalCodes?.[0] === "78373");
   ok("outreach accountability API", geoProspectApi.data.prospect?.ownerId === "sponsor_lead" && geoProspectApi.data.prospect?.nextActionAt === "2027-01-15T15:00:00.000Z" && geoOutreachWorkspaceApi.data.summary?.nextActionsScheduled >= 1);
   ok("geofenced outreach API validation", invalidGeoProspectApi.status === 400 && invalidScheduleProspectApi.status === 400 && invalidScheduleProspectApi.data.error?.includes("follow-up date") && invalidGeoCampaignApi.status === 400);
   const invitedSponsorProspectApi = await hit("POST", "/api/admin/outreach/prospects", {
@@ -9214,7 +9254,7 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     postalCode: "78401",
     contactBasis: "business_relevance",
     status: "contact_ready"
-  }, true);
+  }, true, { "idempotency-key": "api-outreach-prospect-create-0004" });
   const invitedProspectIdApi = invitedSponsorProspectApi.data.prospect?.id;
   const unauthenticatedInvitationApi = await hit("POST", `/api/admin/outreach/prospects/${encodeURIComponent(invitedProspectIdApi)}/sponsor-invitation`, { action: "issue", packageId: "tarpon" });
   const firstInvitationApi = await hit("POST", `/api/admin/outreach/prospects/${encodeURIComponent(invitedProspectIdApi)}/sponsor-invitation`, { action: "issue", packageId: "tarpon" }, true);
@@ -9235,7 +9275,7 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     name: "API invited sponsor conversion",
     targeting: { industries: ["banking"], postalCodes: ["78401"], minFitScore: 0 },
     sequence: [{ delayDays: 0, subjectTemplate: "A SandFest sponsor invitation", bodyTemplate: "Hello {{contactName}}" }]
-  }, true);
+  }, true, { "idempotency-key": "api-outreach-campaign-create-0003" });
   const activatedInvitedSponsorCampaignApi = await hit("POST", `/api/admin/outreach/campaigns/${encodeURIComponent(invitedSponsorCampaignApi.data.campaign?.id)}/activate`, {}, true);
   const generatedInvitationDraftApi = await hit("POST", `/api/admin/outreach/campaigns/${encodeURIComponent(invitedSponsorCampaignApi.data.campaign?.id)}/generate`, {}, true);
   const invitedWorkspaceBeforeConversionApi = await hit("GET", "/api/admin/outreach", null, true);
@@ -9274,7 +9314,7 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     postalCode: "78382",
     contactBasis: "business_relevance",
     status: "contact_ready"
-  }, true);
+  }, true, { "idempotency-key": "api-outreach-prospect-create-0005" });
   const revocableProspectIdApi = revocableSponsorProspectApi.data.prospect?.id;
   const revocableInvitationApi = await hit("POST", `/api/admin/outreach/prospects/${encodeURIComponent(revocableProspectIdApi)}/sponsor-invitation`, { action: "issue", packageId: "tarpon" }, true);
   const revokedInvitationApi = await hit("POST", `/api/admin/outreach/prospects/${encodeURIComponent(revocableProspectIdApi)}/sponsor-invitation`, { action: "revoke" }, true);
@@ -9327,7 +9367,7 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     name: "API discovered business review gate",
     targeting: { industries: [selectedDiscoveryCandidateApi?.industry], states: ["TX"], minFitScore: 0 },
     sequence: [{ delayDays: 0, subjectTemplate: "Regional SandFest partnership", bodyTemplate: "Hello {{contactName}}" }]
-  }, true);
+  }, true, { "idempotency-key": "api-outreach-campaign-create-0004" });
   const discoveryWorkspaceBeforeResearchApi = await hit("GET", "/api/admin/outreach", null, true);
   const discoveredProspectApi = discoveryWorkspaceBeforeResearchApi.data.prospects?.find(item => item.id === discoveryImportApi.data.prospects?.[0]?.id);
   const discoveryCampaignBeforeResearchApi = discoveryWorkspaceBeforeResearchApi.data.campaigns?.find(item => item.id === discoveryCampaignApi.data.campaign?.id);
