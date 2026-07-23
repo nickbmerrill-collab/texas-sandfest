@@ -11,6 +11,30 @@ import { REQUIRED_TICKET_POLICY_NOTICES } from "../lib/ticket-policy-schema.mjs"
 
 const PENDING_NOTICE_STATUSES = new Set(["pending", "draft_ready", "approved", "queued", "sending"]);
 
+export function createAdminWorkspaceRecovery({ access, load, status }) {
+  let timer = null;
+  let attempt = 0;
+
+  return {
+    retryable(error) {
+      return Boolean(access()) && (!error.status || error.status === 408 || error.status === 429 || error.status >= 500);
+    },
+    transition(state, retry = false) {
+      const node = status();
+      globalThis.clearTimeout(timer);
+      timer = null;
+      if (state === "ready" || (state === "failed" && !retry)) attempt = 0;
+      if (!retry) return;
+
+      const delay = Math.min(30_000, 2_000 * (2 ** attempt++));
+      timer = globalThis.setTimeout(() => {
+        timer = null;
+        if (node?.dataset.workspaceState === "failed" && access()) void load();
+      }, delay);
+    }
+  };
+}
+
 export function operationsNavigationLinks({ islandLabel = "Island conditions" } = {}) {
   return `<a href="#admin-config">Overview</a>
     <a href="#admin-impact-report">Impact</a>

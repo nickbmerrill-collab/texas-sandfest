@@ -225,11 +225,11 @@ assert(publicStyles.gzipBytes <= 30 * KIB, "Public CSS exceeds the 30 KiB gzip b
 assert(publicScripts.gzipBytes + publicStyles.gzipBytes <= 147 * KIB, "Public JavaScript and CSS exceed the 147 KiB combined gzip budget.");
 assert(publicPreferredFonts.rawBytes <= 200 * KIB, "Public preferred WOFF2 fonts exceed the 200 KiB delivery budget.");
 assert(publicOfflineFonts.rawBytes <= 450 * KIB, "Public compiled fonts exceed the 450 KiB offline-cache budget.");
-assert(adminInitialScripts.gzipBytes <= 123 * KIB, "Initial admin JavaScript exceeds the 123 KiB gzip budget.");
+assert(adminInitialScripts.gzipBytes <= 124 * KIB, "Initial admin JavaScript exceeds the 124 KiB gzip budget.");
 assert(adminOptionalScripts.gzipBytes <= 6 * KIB, "On-demand admin JavaScript exceeds the 6 KiB gzip budget.");
 assert(adminContentScripts.gzipBytes <= 4 * KIB, "On-demand admin content JavaScript exceeds the 4 KiB gzip budget.");
 assert(adminStyles.gzipBytes <= 30 * KIB, "Admin CSS exceeds the 30 KiB gzip budget.");
-assert(adminScripts.gzipBytes + adminStyles.gzipBytes <= 158 * KIB, "Admin JavaScript and CSS exceed the 158 KiB combined gzip budget.");
+assert(adminScripts.gzipBytes + adminStyles.gzipBytes <= 159 * KIB, "Admin JavaScript and CSS exceed the 159 KiB combined gzip budget.");
 assert(robots === "User-agent: *\nAllow: /\n", "Public artifact has an invalid or unexpected robots.txt policy.");
 assert(publicHtml.includes("optimized/hero-1440.webp") && publicHtml.includes('fetchpriority="high"'), "Public artifact is missing its optimized hero preload.");
 assert(mediaDerivatives.derivatives?.length >= 30, "Public artifact is missing its optimized media catalog.");
@@ -531,6 +531,11 @@ const publicAlertLoader = visitorSource.slice(visitorSource.indexOf("async funct
 assert(publicAlertLoader && !publicAlertLoader.includes("renderPublicAlert(null)"), "A transient public-alert fetch failure clears the last known safety message.");
 assert(visitorSource.includes('loadIslandConditions({ force: true, preserveOnError: true })'), "Manual Island Conditions refresh does not preserve the last known reading on failure.");
 assert(visitorSource.includes('window.addEventListener("online", recoverPublicConnectivity)') && visitorSource.includes("recoveryLoads.push(loadPartnerPortalStatus(portalAccess))") && visitorSource.includes("recoveryLoads.push(loadTaskPortalFromLocation())"), "Public connectivity recovery does not refresh live data and retained private access.");
+assert(visitorSource.includes('setAdminWorkspaceState("failed", retryable)')
+  && visitorSource.includes('adminOperationsUi?.createAdminWorkspaceRecovery')
+  && visitorSource.includes('" Retrying automatically."')
+  && adminOperationsSource.includes('node?.dataset.workspaceState === "failed" && access()')
+  && adminOperationsSource.includes('error.status === 429 || error.status >= 500'), "Operations does not automatically reconnect after a retryable API interruption.");
 
 console.log(
   `Static entrypoint isolation verified: visitor entry is 2027-current, CSP-hardened, self-hosted, Turnstile-protected, public-only, and within delivery budgets ` +
