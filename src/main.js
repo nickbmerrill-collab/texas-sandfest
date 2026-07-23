@@ -1884,7 +1884,7 @@ app.innerHTML = `
               <label class="admin-check"><input name="requiresApproval" type="checkbox" checked /><span>Approval required</span></label>
             </div>
             <div class="admin-edit-actions">
-              <span>Provider mappings remain private</span>
+              <span class="partner-form-status" aria-live="polite">Provider mappings remain private</span>
               <button class="button primary" type="submit">Add tier</button>
             </div>
           </form>
@@ -1945,7 +1945,7 @@ app.innerHTML = `
               <label class="admin-check"><input name="requiresApproval" type="checkbox" checked /><span>Approval required</span></label>
             </div>
             <div class="admin-edit-actions">
-              <span></span>
+              <span class="partner-form-status" aria-live="polite"></span>
               <button class="button primary" type="submit">Add offering</button>
             </div>
           </form>
@@ -7329,11 +7329,11 @@ function renderAdminSponsorFulfillment(payload) {
         </div>
       </div>`).join("") || '<span class="empty-state">No package benefits configured.</span>'}</div>
       <form class="admin-custom-deliverable" data-create-deliverable="${escapeAttr(application.id)}">
-        <strong>Add custom deliverable</strong>
-        <input name="label" required maxlength="160" placeholder="Deliverable" aria-label="${escapeAttr(application.organizationName)} custom deliverable" />
-        <input name="ownerId" maxlength="100" placeholder="Owner" aria-label="${escapeAttr(application.organizationName)} custom deliverable owner" />
-        <input name="dueAt" type="datetime-local" aria-label="${escapeAttr(application.organizationName)} custom deliverable due date" />
-        <input name="description" maxlength="1000" placeholder="Scope" aria-label="${escapeAttr(application.organizationName)} custom deliverable scope" />
+        <strong>Add deliverable</strong>
+        <input name="label" required maxlength="160" placeholder="Deliverable" aria-label="${escapeAttr(application.organizationName)} deliverable" />
+        <input name="ownerId" maxlength="100" placeholder="Owner" aria-label="${escapeAttr(application.organizationName)} deliverable owner" />
+        <input name="dueAt" type="datetime-local" aria-label="${escapeAttr(application.organizationName)} deliverable due date" />
+        <input name="description" maxlength="1000" placeholder="Scope" aria-label="${escapeAttr(application.organizationName)} deliverable scope" />
         <button class="button secondary" type="submit" ${adminCan("partners:write") ? "" : "disabled"}>Add</button>
       </form>
     </article>`;
@@ -7398,19 +7398,20 @@ function renderAdminSponsorFulfillment(payload) {
       setAdminStatus("Sponsor deliverable saved.", "ok");
     } catch (error) { setAdminStatus(error.message, "error"); } finally { button.disabled = false; }
   }));
-  target.querySelectorAll("[data-create-deliverable]").forEach(form => form.addEventListener("submit", async event => {
+  target.querySelectorAll("[data-create-deliverable]").forEach(form => form.addEventListener("submit", event => {
     event.preventDefault();
-    const button = form.querySelector('button[type="submit"]');
-    const dueAt = form.elements.dueAt.value;
-    button.disabled = true;
-    try {
-      await adminFetch(`/api/admin/partners/applications/${encodeURIComponent(form.dataset.createDeliverable)}/deliverables`, {
-        method: "POST",
-        body: JSON.stringify({ label: form.elements.label.value.trim(), ownerId: form.elements.ownerId.value.trim(), dueAt: dueAt ? new Date(dueAt).toISOString() : null, description: form.elements.description.value.trim() })
-      });
-      await loadAdminPartners({ quiet: true });
-      setAdminStatus("Custom sponsor deliverable added.", "ok");
-    } catch (error) { setAdminStatus(error.message, "error"); } finally { button.disabled = false; }
+    const body = Object.fromEntries(new FormData(form));
+    body.dueAt &&= new Date(body.dueAt).toISOString();
+    void adminOperationsUi?.submitCreation(
+      form,
+      `/api/admin/partners/applications/${encodeURIComponent(form.dataset.createDeliverable)}/deliverables`,
+      body,
+      "Retry safely; saved once.",
+      "Sponsor deliverable saved.",
+      { adminFetch, loadAdminPartners, requestOutcomeIsAmbiguous, setAdminStatus },
+      null,
+      () => !adminCan("partners:write")
+    );
   }));
 }
 

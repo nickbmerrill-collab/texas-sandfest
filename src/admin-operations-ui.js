@@ -63,6 +63,8 @@ export function bindOutreachProspectCreation(form, deps) {
   };
 }
 
+export { submitCreation };
+
 export function bindOutreachCampaignCreation(form, deps) {
   if (!form) return;
   form.onsubmit = event => {

@@ -311,6 +311,9 @@ assert(adminOperationsSource.includes('OUTREACH_RETRY_MESSAGE = "Retry safely; s
 assert(adminOperationsSource.includes("bindSponsorPackageCreation")
   && adminOperationsSource.includes("bindVendorOfferingCreation")
   && adminOperationsSource.includes('"Saved."'), "Sponsor and vendor catalog creation forms do not retain replay protection after an ambiguous response.");
+assert(adminOperationsSource.includes("export { submitCreation };")
+  && visitorSource.includes("adminOperationsUi?.submitCreation")
+  && visitorSource.includes('"Retry safely; saved once."'), "Custom sponsor deliverable creation does not retain replay protection after an ambiguous response.");
 assert(adminContentScriptFiles.length === 1
   && visitorSource.includes('adminSculptorRosterUiPromise ??= import("./admin-sculptor-roster-ui.js")'), "The staff roster publication workspace must remain on demand.");
 for (const marker of boardDemoCredentialMarkers) {
@@ -496,7 +499,7 @@ for (const marker of [
   "operating profile review notes",
   "brand profile review notes",
   "delivery proof URL",
-  "custom deliverable due date",
+  "deliverable due date",
   "outreach suppression reason"
 ]) {
   assert(visitorSource.includes(marker), `Admin source is missing the accessible control marker ${marker}.`);

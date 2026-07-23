@@ -491,6 +491,10 @@ completion, and the featured public sponsor showcase ahead of package selection.
 reversal, and reopened key date stay attached to that record, so branding,
 fulfillment, and finance are verified as one lifecycle instead of separate seed
 examples.
+Custom sponsor deliverables use the same retry-safe staff creation contract as
+delegated tasks and key dates. Browser acceptance deliberately drops one
+successful response, retries with the retained key, and verifies that only one
+fulfillment item, one activity entry, and one audit record exist.
 It also delegates one new due-dated task to a governed volunteer, waits for the
 loopback mailbox and authenticated delivery webhook to prove the assignment
 notice, advances the same task through in-progress and done states, and verifies
