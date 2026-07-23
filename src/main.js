@@ -295,6 +295,8 @@ let publicVendorProgram = {
 let partnerIntakeReadinessUi = null;
 let partnerIntakeReadinessUiPromise = null;
 let partnerIntakeReadinessUiFailed = false;
+let publicIntakeRetryTimer = null;
+let publicIntakeRetryAttempt = 0;
 const sponsorContactNotice = partnerContactNotice("sponsor");
 const vendorInterestContactNotice = partnerContactNotice("vendor", "interest");
 const taskBoardFilters = { status: "active", assignment: "all", query: "" };
@@ -5493,9 +5495,13 @@ function ensurePartnerIntakeReadinessUi() {
 
 async function loadPublicPartnerReadiness() {
   try {
-    return await (await ensurePartnerIntakeReadinessUi()).load();
+    const ui = await ensurePartnerIntakeReadinessUi();
+    const readiness = await ui.load();
+    if (ui.status() === "unavailable") schedulePublicIntakeRecovery();
+    return readiness;
   } catch {
     partnerIntakeReadinessUiFailed = true;
+    schedulePublicIntakeRecovery();
     const recoveryForm = document.querySelector("#partner-portal-recovery-form");
     if (recoveryForm) {
       recoveryForm.dataset.publicIntakeState = "unavailable";
@@ -5647,6 +5653,7 @@ async function loadPublicSponsorPackages() {
       status: "unavailable",
       message: "We could not confirm the current sponsorship program."
     };
+    schedulePublicIntakeRecovery();
     renderSponsorPackageChoices();
   }
 }
@@ -5745,6 +5752,7 @@ async function loadPublicVendorOfferings() {
       status: "unavailable",
       message: "We could not confirm the current vendor program."
     };
+    schedulePublicIntakeRecovery();
     renderVendorOfferingChoices();
   }
 }
@@ -10199,6 +10207,7 @@ function loadGuestServicesUi() {
       apiBase: publicApiBase,
       eventPhone: event.phone,
       intakeReady: PUBLIC_PARTNER_INTAKE.ready,
+      onFailure: schedulePublicIntakeRecovery,
       turnstileSiteKey: TURNSTILE_SITE_KEY
     });
     await controller.mount();
@@ -10306,9 +10315,19 @@ function updateNetworkStatus() {
   status.dataset.state = online ? "online" : "offline";
 }
 
-function recoverPublicConnectivity() {
+function schedulePublicIntakeRecovery() {
+  if (publicIntakeRetryTimer || publicIntakeRetryAttempt >= 5) return;
+  const delay = Math.min(30_000, 2_000 * (2 ** publicIntakeRetryAttempt));
+  publicIntakeRetryTimer = setTimeout(() => {
+    publicIntakeRetryTimer = null;
+    publicIntakeRetryAttempt++;
+    refreshPublicConnectivity();
+  }, delay);
+}
+
+function refreshPublicConnectivity() {
   updateNetworkStatus();
-  if (ADMIN_ENTRY) return;
+  if (ADMIN_ENTRY) return Promise.resolve([]);
   const recoveryLoads = [
     loadPublicBootstrap(),
     loadPublicTicketCatalog(),
@@ -10319,11 +10338,19 @@ function recoverPublicConnectivity() {
     loadPublicVendorOfferings(),
     loadPublicAlert()
   ];
+  recoveryLoads.push(loadGuestServicesUi().then(controller => controller.refresh()));
   if (sculptorRosterVisible) recoveryLoads.push(loadVoting());
   if (taskPortalController?.hasAccess() || taskPortalRequested()) recoveryLoads.push(loadTaskPortalFromLocation());
   const portalAccess = activePartnerPortalAccess || savedPartnerPortalAccess();
   if (portalAccess) recoveryLoads.push(loadPartnerPortalStatus(portalAccess));
-  Promise.allSettled(recoveryLoads);
+  return Promise.allSettled(recoveryLoads);
+}
+
+function recoverPublicConnectivity() {
+  clearTimeout(publicIntakeRetryTimer);
+  publicIntakeRetryTimer = null;
+  publicIntakeRetryAttempt = 0;
+  return refreshPublicConnectivity();
 }
 
 function setupInstallAndOfflineSupport() {
