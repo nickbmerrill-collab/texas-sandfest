@@ -133,6 +133,14 @@ async function submitAndCapture(page, form, pathname) {
   return response.json();
 }
 
+async function beforeUnloadPrevented(page) {
+  return page.evaluate(() => {
+    const event = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(event);
+    return event.defaultPrevented;
+  });
+}
+
 async function adminApi(pathname, { method = "GET", body } = {}) {
   const response = await fetch(`${apiBase}${pathname}`, {
     method,
@@ -2459,6 +2467,31 @@ test("partner intake and private-access recovery fail closed when server readine
   await expect(vendorForm.locator('a[href="mailto:vendors@texassandfest.org"]')).toHaveCount(0);
   for (const endpoint of ["partner-intake", "sponsors", "vendors"]) expect(attempts.get(endpoint)).toBeGreaterThanOrEqual(2);
   await assertNoHorizontalOverflow(page);
+});
+
+test("public intake warns only while visitor entries are unsaved", async ({ page }) => {
+  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#sponsors`);
+  const sponsorForm = page.locator("#sponsor-inquiry-form");
+  const vendorForm = page.locator("#vendor-application-form");
+  await expect(sponsorForm).toHaveAttribute("data-public-intake-state", "ready");
+  await expect(vendorForm).toHaveAttribute("data-public-intake-state", "ready");
+  expect(await beforeUnloadPrevented(page)).toBe(false);
+
+  await sponsorForm.locator('[name="organizationName"]').fill("Unsaved sponsor draft");
+  expect(await beforeUnloadPrevented(page)).toBe(true);
+  await vendorForm.locator('[name="organizationName"]').fill("Unsaved vendor draft");
+  expect(await beforeUnloadPrevented(page)).toBe(true);
+  await sponsorForm.evaluate(form => form.reset());
+  expect(await beforeUnloadPrevented(page)).toBe(true);
+  await vendorForm.evaluate(form => form.reset());
+  expect(await beforeUnloadPrevented(page)).toBe(false);
+
+  const guestServicesForm = page.locator("#guest-services-form");
+  await expect(guestServicesForm).toHaveAttribute("data-public-intake-state", "ready");
+  await guestServicesForm.locator('[name="title"]').fill("Unsaved Guest Services request");
+  expect(await beforeUnloadPrevented(page)).toBe(true);
+  await guestServicesForm.evaluate(form => form.reset());
+  expect(await beforeUnloadPrevented(page)).toBe(false);
 });
 
 test("incident delivery verification safely resolves ambiguous provider outcomes", async ({ page }) => {

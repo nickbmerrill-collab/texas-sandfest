@@ -19,6 +19,7 @@ const publicDir = path.join(root, "dist-public");
 const adminDir = path.join(root, "dist-admin");
 const visitorSource = await readFile(path.join(root, "src", "main.js"), "utf8");
 const partnerIntakeSource = await readFile(path.join(root, "src", "partner-intake-readiness-ui.js"), "utf8");
+const guestServicesSource = await readFile(path.join(root, "src", "guest-services-ui.js"), "utf8");
 const adminOperationsSource = await readFile(path.join(root, "src", "admin-operations-ui.js"), "utf8");
 const taskPortalSource = await readFile(path.join(root, "src", "task-portal-ui.js"), "utf8");
 
@@ -222,7 +223,7 @@ assert(Buffer.byteLength(publicHtml) <= 8 * KIB, "Public entry HTML exceeds the 
 assert(publicInitialScripts.gzipBytes <= 106 * KIB, "Initial public JavaScript exceeds the 106 KiB gzip budget.");
 assert(publicOptionalScripts.gzipBytes <= 13 * KIB, "On-demand public JavaScript exceeds the 13 KiB gzip budget.");
 assert(publicStyles.gzipBytes <= 30 * KIB, "Public CSS exceeds the 30 KiB gzip budget.");
-assert(publicScripts.gzipBytes + publicStyles.gzipBytes <= 147 * KIB, "Public JavaScript and CSS exceed the 147 KiB combined gzip budget.");
+assert(publicScripts.gzipBytes + publicStyles.gzipBytes <= 148 * KIB, "Public JavaScript and CSS exceed the 148 KiB combined gzip budget.");
 assert(publicPreferredFonts.rawBytes <= 200 * KIB, "Public preferred WOFF2 fonts exceed the 200 KiB delivery budget.");
 assert(publicOfflineFonts.rawBytes <= 450 * KIB, "Public compiled fonts exceed the 450 KiB offline-cache budget.");
 assert(adminInitialScripts.gzipBytes <= 124 * KIB, "Initial admin JavaScript exceeds the 124 KiB gzip budget.");
@@ -522,6 +523,11 @@ assert(visitorSource.includes('import("./partner-intake-readiness-ui.js")')
   && publicOptionalScriptFiles.some(file => file.startsWith("partner-intake-readiness-ui-"))
   && !publicInitialScriptFiles.some(file => file.startsWith("partner-intake-readiness-ui-")), "Partner intake readiness is not isolated as an on-demand public chunk.");
 assert(partnerIntakeSource.includes("[400, 401, 403, 409, 422].includes(error.status)") && partnerIntakeSource.includes("retry protection remains active"), "Partner intake does not distinguish correctable errors from retry-safe transient failures.");
+assert(visitorSource.includes('window.addEventListener("beforeunload", preventUnsavedPublicFormUnload)')
+  && visitorSource.includes('window.removeEventListener("beforeunload", preventUnsavedPublicFormUnload)')
+  && visitorSource.includes('["#sponsor-inquiry-form", "#vendor-application-form"]')
+  && visitorSource.includes("protectUnsavedForm: protectUnsavedPublicForm")
+  && guestServicesSource.includes("protectUnsavedForm?.(intake)"), "Public intake forms do not protect unsaved entries without keeping a permanent unload listener.");
 assert(partnerIntakeSource.includes('href="mailto:sponsors@texassandfest.org"')
   && partnerIntakeSource.includes('href="mailto:vendors@texassandfest.org"')
   && partnerIntakeSource.includes('["loading", "checking"].includes(readinessStatus)')

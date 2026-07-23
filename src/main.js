@@ -4422,6 +4422,34 @@ async function loadBooths() {
   }
 }
 
+const dirtyPublicIntakeForms = new Set();
+const protectedPublicIntakeForms = new WeakSet();
+
+function preventUnsavedPublicFormUnload(event) {
+  event.preventDefault();
+  event.returnValue = "";
+}
+
+function syncUnsavedPublicFormGuard() {
+  if (dirtyPublicIntakeForms.size) window.addEventListener("beforeunload", preventUnsavedPublicFormUnload);
+  else window.removeEventListener("beforeunload", preventUnsavedPublicFormUnload);
+}
+
+function protectUnsavedPublicForm(form) {
+  if (!form || protectedPublicIntakeForms.has(form)) return;
+  protectedPublicIntakeForms.add(form);
+  const markDirty = () => {
+    dirtyPublicIntakeForms.add(form);
+    syncUnsavedPublicFormGuard();
+  };
+  form.addEventListener("input", markDirty);
+  form.addEventListener("change", markDirty);
+  form.addEventListener("reset", () => {
+    dirtyPublicIntakeForms.delete(form);
+    syncUnsavedPublicFormGuard();
+  });
+}
+
 function formPayload(form) {
   const payload = Object.fromEntries(new FormData(form).entries());
   payload.consentToContact = form.elements.consentToContact?.checked === true;
@@ -10169,6 +10197,9 @@ document.querySelector("#admin-create-campaign")?.addEventListener("submit", asy
   }
 });
 
+["#sponsor-inquiry-form", "#vendor-application-form"].forEach(selector => {
+  protectUnsavedPublicForm(document.querySelector(selector));
+});
 document.querySelector("#sponsor-inquiry-form")?.addEventListener("submit", event => {
   event.preventDefault();
   submitPartnerForm(event.currentTarget, "/api/public/sponsor-inquiries");
@@ -10208,6 +10239,7 @@ function loadGuestServicesUi() {
       eventPhone: event.phone,
       intakeReady: PUBLIC_PARTNER_INTAKE.ready,
       onFailure: schedulePublicIntakeRecovery,
+      protectUnsavedForm: protectUnsavedPublicForm,
       turnstileSiteKey: TURNSTILE_SITE_KEY
     });
     await controller.mount();
