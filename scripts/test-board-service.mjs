@@ -180,16 +180,21 @@ const migrationHome = await mkdtemp(path.join(os.tmpdir(), "sandfest-board-migra
 const migrationPlist = boardLaunchAgentPath({ homeDir: migrationHome });
 let legacyLoaded = true;
 let legacyPrint = submittedPrint;
+let legacyRetirementPolls = 0;
 const migrationCalls = [];
 async function migrationRunFile(file, args) {
   migrationCalls.push([file, args]);
   if (file === "which") return { stdout: `${npmPath}\n`, stderr: "" };
   if (args[0] === "print") {
+    if (legacyRetirementPolls > 0) {
+      legacyRetirementPolls -= 1;
+      if (legacyRetirementPolls === 0) legacyLoaded = false;
+    }
     if (!legacyLoaded) throw missingError;
     return { stdout: legacyPrint, stderr: "" };
   }
   if (args[0] === "bootout") {
-    legacyLoaded = false;
+    legacyRetirementPolls = 2;
     return { stdout: "", stderr: "" };
   }
   if (args[0] === "bootstrap") {
@@ -205,6 +210,7 @@ const migrationController = createBoardLaunchdController({
   platform: "darwin",
   homeDir: migrationHome,
   runFile: migrationRunFile,
+  sleep: async () => {},
   npmPath,
   logPath
 });
@@ -213,6 +219,7 @@ check("session-scoped jobs migrate through bootout and LaunchAgent bootstrap",
   migration.action === "migrated"
   && migrationCalls.some(([, args]) => args[0] === "bootout")
   && migrationCalls.some(([, args]) => args[0] === "bootstrap")
+  && migrationCalls.filter(([, args]) => args[0] === "print").length >= 3
   && (await readFile(migrationPlist, "utf8")) === plist);
 
 const foreignHome = await mkdtemp(path.join(os.tmpdir(), "sandfest-board-foreign-"));
