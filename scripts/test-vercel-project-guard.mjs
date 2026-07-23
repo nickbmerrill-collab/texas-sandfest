@@ -86,7 +86,7 @@ const unavailableProduction = await verifyVercelRelease({
   }
 });
 assert.equal(unavailableProduction.ok, false);
-assert.equal(productionRequests, 12);
+assert.equal(productionRequests, 13);
 assert.match(unavailableProduction.failures.join(" "), /Production API contract failed/);
 
 console.log("Vercel project and release guard: 9 passed, 0 failed.");

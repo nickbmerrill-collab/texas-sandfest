@@ -7582,6 +7582,11 @@ try {
     "access-control-request-method": "POST",
     "access-control-request-headers": "authorization,content-type,x-document-review-due-at"
   });
+  const untrustedDocumentUploadPreflightApi = await hitRaw("OPTIONS", "/api/admin/documents/upload", undefined, {
+    origin: "https://texassandfest.org.evil.example",
+    "access-control-request-method": "POST",
+    "access-control-request-headers": "authorization,content-type,x-document-review-due-at"
+  });
   const unauthenticatedDocumentsApi = await hitRaw("GET", "/api/admin/documents");
   const unauthenticatedDocumentUploadApi = await hitRaw("POST", "/api/admin/documents/upload", apiDocumentBytes, {
     "content-type": "text/plain",
@@ -7661,6 +7666,7 @@ try {
   const retriedBoardBriefingApi = documentsAfterRetryApi.data.documents?.find(item => item.id === extractedBoardBriefingApi?.id);
   ok("document intake API requires dedicated staff authentication", unauthenticatedDocumentsApi.status === 401 && unauthenticatedDocumentUploadApi.status === 401);
   ok("document intake upload CORS permits the review deadline", documentUploadPreflightApi.status === 204 && documentUploadPreflightApi.headers.get("access-control-allow-origin") === "https://www.texassandfest.org" && documentUploadPreflightApi.headers.get("access-control-allow-headers")?.includes("x-document-review-due-at"));
+  ok("document intake upload CORS withholds untrusted origins", untrustedDocumentUploadPreflightApi.status === 204 && !untrustedDocumentUploadPreflightApi.headers.has("access-control-allow-origin"));
   ok("document intake API stores private metadata and preview", documentUploadApi.status === 201 && documentUploadApi.data.document?.textPreview.includes("Board packet source") && !("storageKey" in (documentUploadApi.data.document || {})) && documentUploadApi.data.document?.checksumSha256?.length === 64 && documentUploadApi.data.document?.reviewDueAt === apiDocumentReviewDueAt);
   ok("document intake API is checksum-idempotent", documentReplayApi.status === 200 && documentReplayApi.data.duplicate === true && documentReplayApi.data.document?.id === documentIdApi && documentReplayApi.data.document?.reviewTask?.id === documentUploadApi.data.document?.reviewTask?.id && documentListApi.data.summary?.total === 1);
   ok("document intake API routes one due-dated work-board task", documentListApi.data.documents?.[0]?.reviewTask?.status === "open" && documentListApi.data.documents?.[0]?.reviewTask?.assigneeId === "operations" && documentListApi.data.documents?.[0]?.reviewTask?.dueAt === apiDocumentReviewDueAt && documentReviewTasksApi.length === 1);
