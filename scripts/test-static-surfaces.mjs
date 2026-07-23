@@ -522,6 +522,11 @@ assert(visitorSource.includes('import("./partner-intake-readiness-ui.js")')
   && publicOptionalScriptFiles.some(file => file.startsWith("partner-intake-readiness-ui-"))
   && !publicInitialScriptFiles.some(file => file.startsWith("partner-intake-readiness-ui-")), "Partner intake readiness is not isolated as an on-demand public chunk.");
 assert(partnerIntakeSource.includes("[400, 401, 403, 409, 422].includes(error.status)") && partnerIntakeSource.includes("retry protection remains active"), "Partner intake does not distinguish correctable errors from retry-safe transient failures.");
+assert(partnerIntakeSource.includes('href="mailto:sponsors@texassandfest.org"')
+  && partnerIntakeSource.includes('href="mailto:vendors@texassandfest.org"')
+  && partnerIntakeSource.includes('["loading", "checking"].includes(readinessStatus)')
+  && visitorSource.includes('partnerIntakeReadinessUi?.contactFallback("sponsor", unavailableState)')
+  && visitorSource.includes('partnerIntakeReadinessUi?.contactFallback("vendor", unavailableState)'), "Unavailable partner intake does not provide category-specific contact fallbacks after readiness resolves.");
 const publicAlertLoader = visitorSource.slice(visitorSource.indexOf("async function loadPublicAlert"), visitorSource.indexOf("function applyPublicEventGuide"));
 assert(publicAlertLoader && !publicAlertLoader.includes("renderPublicAlert(null)"), "A transient public-alert fetch failure clears the last known safety message.");
 assert(visitorSource.includes('loadIslandConditions({ force: true, preserveOnError: true })'), "Manual Island Conditions refresh does not preserve the last known reading on failure.");
