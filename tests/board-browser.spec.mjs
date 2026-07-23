@@ -2503,7 +2503,9 @@ test("public signups recover accepted responses lost by the browser without dupl
 
   const submitAfterAcceptedResponseLoss = async ({ formSelector, preset, endpoint, organizationName }) => {
     const form = page.locator(formSelector);
-    await form.locator(`[data-board-partner-preset="${preset}"]`).click();
+    await form
+      .locator(`[data-board-partner-preset="${preset}"]`)
+      .evaluate((button) => button.click());
     await expect(form.locator(".partner-form-status")).toContainText("Synthetic details are ready");
     await form.locator('[name="organizationName"]').fill(organizationName);
     await form.locator('[name="consentToContact"]').check();
@@ -2650,6 +2652,93 @@ test("Guest Services clears a definitive conflict key while preserving corrected
   expect(keys[1]).not.toBe(keys[0]);
   expect(attempts).toBe(2);
   await page.unroute("**/api/public/guest-services");
+});
+
+test("ticket checkout and payment recover accepted responses lost by the browser", async ({ page }) => {
+  test.setTimeout(90_000);
+  const runId = randomUUID().slice(0, 8);
+  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#tickets`);
+  const ticketCard = page.locator(".ticket-card").filter({ has: page.locator('[data-ticket-id="general-admission-3-day"]') });
+  await ticketCard.locator('[data-ticket-action="increase"]').click();
+  await page.locator("#ticket-policy-acceptance").check();
+  await page.locator("#checkout-email").fill(`ambiguous.ticket.${runId}@example.com`);
+  await expect(page.locator("#checkout-btn")).toBeEnabled();
+
+  const checkoutKeys = [];
+  let checkoutAttempts = 0;
+  let acceptedCheckout = null;
+  let replayedCheckout = null;
+  await page.route("**/api/stripe/create-checkout-session", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    checkoutAttempts++;
+    checkoutKeys.push(route.request().headers()["idempotency-key"]);
+    const providerResponse = await route.fetch();
+    const data = await providerResponse.json();
+    if (checkoutAttempts === 1) {
+      acceptedCheckout = data;
+      await route.abort("failed");
+      return;
+    }
+    replayedCheckout = data;
+    await route.fulfill({ response: providerResponse });
+  });
+
+  await page.locator("#checkout-btn").evaluate(button => button.click());
+  await expect(page.locator("#checkout-status")).toContainText("resume the same checkout without creating a second order");
+  await expect(page.locator("#ticket-subtotal")).toHaveText("$30.00");
+  await expect(page.locator("#checkout-email")).toHaveValue(`ambiguous.ticket.${runId}@example.com`);
+  await expect(page.locator("#checkout-btn")).toBeEnabled();
+  await page.locator("#checkout-btn").evaluate(button => button.click());
+  await expect(page.locator("#ticket-demo-checkout")).toBeVisible();
+  expect(checkoutAttempts).toBe(2);
+  expect(checkoutKeys[0]).toBeTruthy();
+  expect(checkoutKeys[1]).toBe(checkoutKeys[0]);
+  expect(acceptedCheckout.duplicate).toBe(false);
+  expect(replayedCheckout.duplicate).toBe(true);
+  expect(replayedCheckout.orderId).toBe(acceptedCheckout.orderId);
+  expect(replayedCheckout.demoCheckout.token).toBe(acceptedCheckout.demoCheckout.token);
+  await page.unroute("**/api/stripe/create-checkout-session");
+
+  let paymentAttempts = 0;
+  let acceptedPayment = null;
+  let replayedPayment = null;
+  await page.route("**/api/public/board-ticket-checkout/complete", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    paymentAttempts++;
+    const providerResponse = await route.fetch();
+    const data = await providerResponse.json();
+    if (paymentAttempts === 1) {
+      acceptedPayment = data;
+      await route.abort("failed");
+      return;
+    }
+    replayedPayment = data;
+    await route.fulfill({ response: providerResponse });
+  });
+
+  await page.locator("#ticket-demo-pay").evaluate(button => button.click());
+  await expect(page.locator("#ticket-demo-status")).toContainText("the same order will be reused");
+  await expect(page.locator("#ticket-demo-pay")).toBeEnabled();
+  await page.locator("#ticket-demo-pay").evaluate(button => button.click());
+  await expect(page.locator("#ticket-demo-status")).toContainText("Demo payment complete");
+  expect(paymentAttempts).toBe(2);
+  expect(acceptedPayment.duplicate).toBe(false);
+  expect(replayedPayment.duplicate).toBe(true);
+  expect(replayedPayment.receipt.orderId).toBe(acceptedPayment.receipt.orderId);
+  expect(replayedPayment.receipt.fulfillmentCount).toBe(1);
+  await page.unroute("**/api/public/board-ticket-checkout/complete");
+
+  const orders = await adminApi("/api/admin/orders?limit=200");
+  expect(orders.status).toBe(200);
+  const matchingOrders = orders.data.pendingOrders.filter(item => item.record?.id === acceptedCheckout.orderId);
+  expect(matchingOrders).toHaveLength(1);
+  expect(matchingOrders[0].record.status).toBe("paid");
+  const events = await adminApi("/api/admin/payment-events?limit=200");
+  expect(events.status).toBe(200);
+  expect(events.data.paymentEvents.filter(item => item.record?.ticketReconciliation?.orderId === acceptedCheckout.orderId)).toHaveLength(1);
+  const fulfillment = await adminApi("/api/admin/fulfillment?limit=200");
+  expect(fulfillment.status).toBe(200);
+  expect(fulfillment.data.fulfillment.filter(item => item.record?.orderId === acceptedCheckout.orderId)).toHaveLength(1);
 });
 
 test("private capability links recover from transient API failures without reloads", async ({ browser }) => {
@@ -3499,6 +3588,130 @@ test("partner invoice checkout refuses lookalike Stripe destinations", async ({ 
   await expect(payButton).toBeEnabled();
   expect(page.url()).toContain(webBase);
   expect(attemptedExternalRequests).toEqual([]);
+});
+
+test("partner invoice checkout explains replay-safe ambiguous payment outcomes", async ({ page }) => {
+  const invoiceId = "invoice_ambiguous_payment";
+  const checkoutToken = "board_partner_checkout_ambiguous_browser_token";
+  const application = {
+    reference: "TSF-S-AMBIGUOUS-PAYMENT",
+    type: "sponsor",
+    intakeMode: "application",
+    status: "invoiced",
+    organizationName: "Ambiguous Payment Sponsor",
+    submittedAt: "2026-07-20T12:00:00.000Z",
+    updatedAt: "2026-07-20T12:00:00.000Z",
+    nextStep: null,
+    contactPreference: { allowed: true, version: 1, updatedAt: "2026-07-20T12:00:00.000Z" },
+    finance: {
+      currency: "usd",
+      expectedAmountCents: 500000,
+      paidAmountCents: 0,
+      balanceCents: 500000,
+      paymentStatus: "unpaid",
+      onlinePayment: { enabled: true, ready: true, provider: "board_sandbox" },
+      invoice: { id: invoiceId, status: "approved", amountCents: 500000, balanceCents: 500000, dueAt: "2027-03-01T12:00:00.000Z" },
+      checkout: null
+    },
+    milestones: [],
+    branding: null,
+    vendorOnboarding: null
+  };
+  await page.route("**/api/public/partner-status", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    await route.fulfill({
+      status: 200,
+      headers: { "access-control-allow-origin": webBase, "cache-control": "no-store" },
+      contentType: "application/json",
+      body: JSON.stringify({ application })
+    });
+  });
+
+  let checkoutAttempts = 0;
+  await page.route("**/api/public/partner-payment-checkout", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    checkoutAttempts++;
+    if (checkoutAttempts === 1) {
+      await route.abort("failed");
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      headers: { "access-control-allow-origin": webBase, "cache-control": "no-store" },
+      contentType: "application/json",
+      body: JSON.stringify({
+        duplicate: true,
+        demoCheckout: {
+          mode: "board_sandbox",
+          checkoutId: "partner_checkout_ambiguous",
+          invoiceId,
+          amountCents: 500000,
+          currency: "usd",
+          completeEndpoint: "/api/public/board-partner-checkout/complete",
+          token: checkoutToken
+        }
+      })
+    });
+  });
+
+  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#partner-status?reference=${application.reference}&token=tsfp_ambiguous_payment_browser`);
+  await expect(page.locator("#partner-status-form .partner-form-status")).toContainText("Secure status loaded");
+  const payInvoice = page.locator(`[data-partner-pay-invoice="${invoiceId}"]`);
+  await payInvoice.evaluate(button => button.click());
+  await expect(page.locator(".partner-payment-status")).toContainText("The invoice is unchanged. Try again to resume the same checkout.");
+  await expect(payInvoice).toBeEnabled();
+  await payInvoice.evaluate(button => button.click());
+  const sandbox = page.locator("[data-partner-payment-sandbox]");
+  await expect(sandbox).toBeVisible();
+  expect(checkoutAttempts).toBe(2);
+
+  let completionAttempts = 0;
+  await page.route("**/api/public/board-partner-checkout/complete", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    completionAttempts++;
+    expect(route.request().postDataJSON().token).toBe(checkoutToken);
+    if (completionAttempts === 1) {
+      await route.abort("failed");
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      headers: { "access-control-allow-origin": webBase, "cache-control": "no-store" },
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        duplicate: true,
+        application: {
+          ...application,
+          status: "paid",
+          finance: {
+            ...application.finance,
+            paidAmountCents: 500000,
+            balanceCents: 0,
+            paymentStatus: "paid",
+            invoice: { ...application.finance.invoice, status: "paid", balanceCents: 0 }
+          }
+        },
+        receipt: {
+          invoiceId,
+          paymentId: "payment_ambiguous_once",
+          amountCents: 500000,
+          currency: "usd",
+          paidAt: "2027-03-01T12:05:00.000Z",
+          environment: "board_sandbox"
+        }
+      })
+    });
+  });
+
+  const completePayment = sandbox.locator("[data-complete-partner-demo-payment]");
+  await completePayment.evaluate(button => button.click());
+  await expect(sandbox.locator(".partner-payment-status")).toContainText("the same invoice payment will be reused");
+  await expect(completePayment).toBeEnabled();
+  await completePayment.evaluate(button => button.click());
+  await expect(page.locator(".partner-status-invoice > .partner-payment-status")).toContainText("$5,000.00 demonstration payment recorded");
+  await expect(page.locator("[data-partner-pay-invoice]")).toHaveCount(0);
+  expect(completionAttempts).toBe(2);
 });
 
 test("critical public and operations views fit a mobile viewport", async ({ page }) => {

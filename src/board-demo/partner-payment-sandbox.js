@@ -64,7 +64,12 @@ export function showPartnerPaymentSandbox(checkout, { complete, onComplete }) {
       onComplete(result.application, result.receipt);
     } catch (error) {
       status.dataset.state = "error";
-      status.textContent = error.message;
+      const ambiguous = ["request_timeout", "network_error"].includes(error?.code)
+        || [408, 429].includes(error?.status)
+        || error?.status >= 500;
+      status.textContent = ambiguous
+        ? `${error.message} The payment result could not be confirmed. Select Complete demo payment again; the same invoice payment will be reused.`
+        : error.message;
       pay.disabled = false;
       cancel.disabled = false;
     }

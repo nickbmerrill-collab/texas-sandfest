@@ -18,6 +18,8 @@ const root = path.resolve(import.meta.dirname, "..");
 const publicDir = path.join(root, "dist-public");
 const adminDir = path.join(root, "dist-admin");
 const visitorSource = await readFile(path.join(root, "src", "main.js"), "utf8");
+const ticketPaymentSandboxSource = await readFile(path.join(root, "src", "board-demo", "ticket-payment-sandbox.js"), "utf8");
+const partnerPaymentSandboxSource = await readFile(path.join(root, "src", "board-demo", "partner-payment-sandbox.js"), "utf8");
 const partnerIntakeSource = await readFile(path.join(root, "src", "partner-intake-readiness-ui.js"), "utf8");
 const guestServicesSource = await readFile(path.join(root, "src", "guest-services-ui.js"), "utf8");
 const adminOperationsSource = await readFile(path.join(root, "src", "admin-operations-ui.js"), "utf8");
@@ -350,12 +352,21 @@ assert(sourcePassport.hunt?.active === false && sourcePassport.checkpoints?.leng
 assert(!(await exists(path.join(publicDir, "board-demo"))) && !(await exists(path.join(publicDir, "data", "sculptors-demo.json"))) && !(await exists(path.join(publicDir, "data", "live-beach-demo.json"))), "Production artifact contains local board-demonstration data files.");
 assert(
   visitorSource.includes('if (import.meta.env.DEV && data.demoCheckout)')
+    && visitorSource.includes('import("./board-demo/ticket-payment-sandbox.js")')
     && visitorSource.includes('import("./board-demo/partner-payment-sandbox.js")'),
-  "Partner invoice sandbox is not isolated behind the development build boundary."
+  "Ticket or partner payment sandbox is not isolated behind the development build boundary."
 );
-for (const marker of ["board-partner-checkout", "partner-payment-sandbox"]) {
-  assert(!publicJavaScript.includes(marker), `Public production JavaScript contains the board-only partner payment marker ${marker}.`);
-  assert(!adminJavaScript.includes(marker), `Admin production JavaScript contains the board-only partner payment marker ${marker}.`);
+assert(
+  visitorSource.includes("requestOutcomeIsAmbiguous")
+    && visitorSource.includes("resume the same checkout without creating a second order")
+    && visitorSource.includes("The invoice is unchanged. Try again to resume the same checkout.")
+    && ticketPaymentSandboxSource.includes("the same order will be reused")
+    && partnerPaymentSandboxSource.includes("the same invoice payment will be reused"),
+  "Ticket or partner payment recovery does not explain replay-safe ambiguous outcomes."
+);
+for (const marker of ["board-ticket-checkout", "ticket-payment-sandbox", "board-partner-checkout", "partner-payment-sandbox"]) {
+  assert(!publicJavaScript.includes(marker), `Public production JavaScript contains the board-only payment marker ${marker}.`);
+  assert(!adminJavaScript.includes(marker), `Admin production JavaScript contains the board-only payment marker ${marker}.`);
 }
 for (const marker of fictionalPublicContentMarkers) {
   assert(!serializedPublicRoster.includes(marker), `Public sculptor roster contains fictional marker ${marker}.`);
@@ -512,8 +523,9 @@ assert(visitorSource.includes("const loadVersion = ++outreachPreferenceLoadVersi
   && visitorSource.includes("if (loadVersion !== outreachPreferenceLoadVersion) return;"), "Outreach preference links can erase valid access or render stale overlapping responses.");
 assert(visitorSource.includes("const loadVersion = ++sponsorInvitationLoadVersion;")
   && visitorSource.includes("if (loadVersion !== sponsorInvitationLoadVersion) return;"), "Overlapping sponsor invitation links can render an older invitation.");
+const sponsorInvitationLoader = visitorSource.slice(visitorSource.indexOf("async function loadSponsorInvitation"), visitorSource.indexOf("function clearSponsorInvitationForm"));
 const outreachPreferenceLoader = visitorSource.slice(visitorSource.indexOf("async function loadOutreachPreference"), visitorSource.indexOf("function rememberPartnerPortalAccess"));
-assert(visitorSource.indexOf('window.location.hash.startsWith("#sponsor-invitation?")') < visitorSource.indexOf('body: JSON.stringify({ token })')
+assert(sponsorInvitationLoader.indexOf('window.location.hash.startsWith("#sponsor-invitation?")') < sponsorInvitationLoader.indexOf('body: JSON.stringify({ token })')
   && taskPortalSource.indexOf("concealCapability();") < taskPortalSource.indexOf("body: JSON.stringify(access)")
   && outreachPreferenceLoader.indexOf('window.location.hash.startsWith("#outreach-preferences?")') < outreachPreferenceLoader.indexOf("body: JSON.stringify(access)"), "Private fragment capabilities are not concealed before provider requests.");
 assert(visitorSource.includes('import("./task-portal-ui.js")')
