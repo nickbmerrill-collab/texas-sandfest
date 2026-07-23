@@ -148,11 +148,14 @@ export function createTaskPortalController(options) {
       if (currentLoadVersion !== loadVersion) return;
       const rejected = shouldForgetTaskPortalAccess(error.status);
       if (rejected) forget(access);
-      else remember(access);
+      else {
+        remember(access);
+        options.onTransientFailure?.();
+      }
       result.dataset.state = "error";
       result.innerHTML = rejected
         ? "<strong>This assignment link is no longer valid.</strong><span>Ask the SandFest operations team to send the current private link.</span>"
-        : "<strong>Task status is temporarily unavailable.</strong><span>Your private access is saved in this browser. Try again when the connection recovers.</span>";
+        : "<strong>Task status is temporarily unavailable.</strong><span>Your private access is saved in this browser while SandFest retries automatically.</span>";
     }
   }
 

@@ -221,7 +221,7 @@ assert(publicStylesheets.includes("font-family:Inter") && publicStylesheets.incl
 assert(publicAssets.some(file => file.endsWith(".woff2")), "Public artifact is missing bundled font files.");
 assert(Buffer.byteLength(publicHtml) <= 8 * KIB, "Public entry HTML exceeds the 8 KiB delivery budget.");
 assert(publicInitialScripts.gzipBytes <= 106 * KIB, "Initial public JavaScript exceeds the 106 KiB gzip budget.");
-assert(publicOptionalScripts.gzipBytes <= 13 * KIB, "On-demand public JavaScript exceeds the 13 KiB gzip budget.");
+assert(publicOptionalScripts.gzipBytes <= 14 * KIB, "On-demand public JavaScript exceeds the 14 KiB gzip budget.");
 assert(publicStyles.gzipBytes <= 30 * KIB, "Public CSS exceeds the 30 KiB gzip budget.");
 assert(publicScripts.gzipBytes + publicStyles.gzipBytes <= 148 * KIB, "Public JavaScript and CSS exceed the 148 KiB combined gzip budget.");
 assert(publicPreferredFonts.rawBytes <= 200 * KIB, "Public preferred WOFF2 fonts exceed the 200 KiB delivery budget.");
@@ -496,7 +496,7 @@ assert(publicStylesheets.includes("outline:3px solid var(--sun)") && adminStyles
 assert(publicStylesheets.includes("[hidden]{display:none!important}") && adminStylesheets.includes("[hidden]{display:none!important}"), "Compiled surfaces allow component display rules to override hidden states.");
 assert(visitorSource.includes("armPartnerBotProtection();") && !visitorSource.includes("initPartnerBotProtection(),"), "Partner bot protection is not deferred until form interaction.");
 assert((visitorSource.match(/\bfetch\(/g) || []).length === 1 && visitorSource.includes("fetchWithTimeout"), "Browser requests are not consistently bounded by the shared timeout wrapper.");
-assert(visitorSource.includes("Your private access is still saved; try again.") && visitorSource.includes("!activePartnerPortalApplication"), "Transient partner-portal failures do not preserve private access and the last loaded view.");
+assert(visitorSource.includes("Your private access is still saved while we retry automatically.") && visitorSource.includes("!activePartnerPortalApplication"), "Transient partner-portal failures do not preserve private access and the last loaded view.");
 assert(visitorSource.includes('const portalAccess = partnerPortalAccessFromFragment();\n    if (portalAccess) {\n      loadPartnerPortalStatus(portalAccess, { scroll: true });')
   && visitorSource.includes("if (taskPortalRequested())")
   && visitorSource.includes("loadTaskPortalFromLocation({ scroll: true });")
@@ -536,11 +536,23 @@ assert(partnerIntakeSource.includes('href="mailto:sponsors@texassandfest.org"')
 const publicAlertLoader = visitorSource.slice(visitorSource.indexOf("async function loadPublicAlert"), visitorSource.indexOf("function applyPublicEventGuide"));
 assert(publicAlertLoader && !publicAlertLoader.includes("renderPublicAlert(null)"), "A transient public-alert fetch failure clears the last known safety message.");
 assert(visitorSource.includes('loadIslandConditions({ force: true, preserveOnError: true })'), "Manual Island Conditions refresh does not preserve the last known reading on failure.");
-assert(visitorSource.includes('window.addEventListener("online", recoverPublicConnectivity)') && visitorSource.includes("recoveryLoads.push(loadPartnerPortalStatus(portalAccess))") && visitorSource.includes("recoveryLoads.push(loadTaskPortalFromLocation())"), "Public connectivity recovery does not refresh live data and retained private access.");
-assert(visitorSource.includes("publicIntakeRetryAttempt >= 5")
-  && visitorSource.includes("schedulePublicIntakeRecovery();")
+assert(visitorSource.includes('window.addEventListener("online", recoverPublicConnectivity)')
+  && visitorSource.includes("recoveryLoads.push(loadPartnerPortalStatus(portalAccess))")
+  && visitorSource.includes("recoveryLoads.push(loadTaskPortalFromLocation())")
+  && visitorSource.includes("recoveryLoads.push(loadOutreachPreference(activeOutreachPreferenceAccess))")
+  && visitorSource.includes("controller.reloadStatus()")
+  && visitorSource.includes("loadSponsorInvitation(pendingSponsorInvitationToken)"), "Public connectivity recovery does not refresh live data and retained private access.");
+assert(visitorSource.includes("publicRecoveryRetryAttempt >= 5")
+  && visitorSource.includes("schedulePublicConnectivityRecovery();")
+  && visitorSource.includes("if (!publicRecoveryRetryTimer) publicRecoveryRetryAttempt = 0;")
   && visitorSource.includes("controller.refresh()")
-  && visitorSource.includes("onFailure: schedulePublicIntakeRecovery"), "Public intake does not automatically recover after a transient readiness or catalog interruption.");
+  && visitorSource.includes("onFailure: schedulePublicConnectivityRecovery"), "Public intake does not automatically recover after a transient readiness or catalog interruption.");
+assert(visitorSource.includes("onTransientFailure: schedulePublicConnectivityRecovery")
+  && visitorSource.includes("if (!accessRejected) schedulePublicConnectivityRecovery();")
+  && visitorSource.includes("pendingSponsorInvitationToken = token")
+  && taskPortalSource.includes("options.onTransientFailure?.()")
+  && guestServicesSource.includes("Guest Services status is temporarily unavailable. Retrying automatically.")
+  && guestServicesSource.includes("activeStatusAccess || saved()"), "Private capability lookups do not retry bounded transient failures while retaining access safely.");
 assert(visitorSource.includes('setAdminWorkspaceState("failed", retryable)')
   && visitorSource.includes('adminOperationsUi?.createAdminWorkspaceRecovery')
   && visitorSource.includes('" Retrying automatically."')

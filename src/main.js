@@ -276,6 +276,7 @@ let partnerImportPreview = null;
 let outreachImportPreview = null;
 let outreachDiscoveryPreview = null;
 let activeSponsorInvitationToken = null;
+let pendingSponsorInvitationToken = null;
 let sponsorInvitationLoadVersion = 0;
 let activePartnerPortalAccess = null;
 let activePartnerPortalApplication = null;
@@ -295,8 +296,8 @@ let publicVendorProgram = {
 let partnerIntakeReadinessUi = null;
 let partnerIntakeReadinessUiPromise = null;
 let partnerIntakeReadinessUiFailed = false;
-let publicIntakeRetryTimer = null;
-let publicIntakeRetryAttempt = 0;
+let publicRecoveryRetryTimer = null;
+let publicRecoveryRetryAttempt = 0;
 const sponsorContactNotice = partnerContactNotice("sponsor");
 const vendorInterestContactNotice = partnerContactNotice("vendor", "interest");
 const taskBoardFilters = { status: "active", assignment: "all", query: "" };
@@ -4570,6 +4571,7 @@ async function loadTaskPortalFromLocation(options = {}) {
         fetchWithTimeout,
         friendlyRequestError,
         conditionLabel,
+        onTransientFailure: schedulePublicConnectivityRecovery,
         stabilizeRenderedHashTarget
       });
       return taskPortalController;
@@ -4603,6 +4605,7 @@ async function loadSponsorInvitation(token, options = {}) {
   const form = document.querySelector("#sponsor-inquiry-form");
   if (!banner || !copy || !form || !token) return;
   const loadVersion = ++sponsorInvitationLoadVersion;
+  pendingSponsorInvitationToken = token;
   if (activeSponsorInvitationToken && activeSponsorInvitationToken !== token) clearSponsorInvitationForm(form);
   if (window.location.hash.startsWith("#sponsor-invitation?")) {
     history.replaceState(null, "", `${window.location.pathname}${window.location.search}#sponsors`);
@@ -4610,15 +4613,18 @@ async function loadSponsorInvitation(token, options = {}) {
   banner.hidden = false;
   banner.dataset.state = "loading";
   copy.textContent = "Opening your sponsor invitation...";
+  let responseStatus = 0;
   try {
     const response = await fetchWithTimeout(`${publicApiBase()}/api/public/sponsor-invitation`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ token })
     });
+    responseStatus = response.status;
     const data = await response.json().catch(() => ({}));
     if (loadVersion !== sponsorInvitationLoadVersion) return;
     if (!response.ok) throw new Error(data.error || `Invitation lookup failed with ${response.status}`);
+    pendingSponsorInvitationToken = null;
     history.replaceState(null, "", `${window.location.pathname}${window.location.search}#sponsors`);
     if (data.converted && data.portalAccess?.reference && data.portalAccess?.token) {
       clearSponsorInvitationForm(form);
@@ -4644,11 +4650,19 @@ async function loadSponsorInvitation(token, options = {}) {
     if (options.scroll) form.scrollIntoView({ behavior: "smooth", block: "center" });
   } catch (error) {
     if (loadVersion !== sponsorInvitationLoadVersion) return;
+    const definitiveFailure = [400, 401, 403, 404, 409, 410, 422].includes(responseStatus);
     clearSponsorInvitationForm(form);
     history.replaceState(null, "", `${window.location.pathname}${window.location.search}#sponsors`);
     banner.hidden = false;
     banner.dataset.state = "error";
-    copy.textContent = error.message;
+    if (definitiveFailure) {
+      pendingSponsorInvitationToken = null;
+      copy.textContent = error.message;
+    } else {
+      pendingSponsorInvitationToken = token;
+      copy.textContent = "This sponsor invitation is temporarily unavailable. Retrying automatically.";
+      schedulePublicConnectivityRecovery();
+    }
   }
 }
 
@@ -4729,6 +4743,7 @@ async function loadOutreachPreference(access, options = {}) {
   } catch (error) {
     if (loadVersion !== outreachPreferenceLoadVersion) return;
     const accessRejected = shouldForgetPartnerPortalAccess(responseStatus);
+    if (!accessRejected) schedulePublicConnectivityRecovery();
     if (accessRejected && previous?.access && previous?.preference) {
       if (switchingAccess) {
         activeOutreachPreferenceAccess = previous.access;
@@ -4743,7 +4758,7 @@ async function loadOutreachPreference(access, options = {}) {
       activeOutreachPreferenceAccess = previous.access;
       renderOutreachPreference(previous.preference);
       status.dataset.state = "error";
-      status.textContent = "Outreach preferences are temporarily unavailable. Showing the last verified preference so you can retry.";
+      status.textContent = "Outreach preferences are temporarily unavailable. Showing the last verified preference and retrying automatically.";
       return;
     }
     if (accessRejected) {
@@ -4753,7 +4768,7 @@ async function loadOutreachPreference(access, options = {}) {
     status.dataset.state = "error";
     status.textContent = accessRejected
       ? "This outreach preference link is invalid. Use the latest link from the SandFest message."
-      : "Outreach preferences are temporarily unavailable. This private access remains available to retry.";
+      : "Outreach preferences are temporarily unavailable. This private access remains available while we retry automatically.";
   }
 }
 
@@ -5437,10 +5452,11 @@ async function loadPartnerPortalStatus(access, options = {}) {
       if (result) result.innerHTML = '<div class="partner-status-empty"><strong>We could not open this application.</strong><span>Check the private link or ask the SandFest team to issue a new one.</span></div>';
     } else {
       rememberPartnerPortalAccess(access);
+      schedulePublicConnectivityRecovery();
       if (forgetButton) forgetButton.hidden = false;
-      setFormStatus(status, "SandFest status is temporarily unavailable. Your private access is still saved; try again.", "error");
+      setFormStatus(status, "SandFest status is temporarily unavailable. Your private access is still saved while we retry automatically.", "error");
       if (result && !activePartnerPortalApplication) {
-        result.innerHTML = '<div class="partner-status-empty"><strong>Status is temporarily unavailable.</strong><span>Your private access is still saved in this browser. Try again when the connection recovers.</span></div>';
+        result.innerHTML = '<div class="partner-status-empty"><strong>Status is temporarily unavailable.</strong><span>Your private access is still saved in this browser while SandFest retries automatically.</span></div>';
       }
     }
   } finally {
@@ -5525,11 +5541,11 @@ async function loadPublicPartnerReadiness() {
   try {
     const ui = await ensurePartnerIntakeReadinessUi();
     const readiness = await ui.load();
-    if (ui.status() === "unavailable") schedulePublicIntakeRecovery();
+    if (ui.status() === "unavailable") schedulePublicConnectivityRecovery();
     return readiness;
   } catch {
     partnerIntakeReadinessUiFailed = true;
-    schedulePublicIntakeRecovery();
+    schedulePublicConnectivityRecovery();
     const recoveryForm = document.querySelector("#partner-portal-recovery-form");
     if (recoveryForm) {
       recoveryForm.dataset.publicIntakeState = "unavailable";
@@ -5681,7 +5697,7 @@ async function loadPublicSponsorPackages() {
       status: "unavailable",
       message: "We could not confirm the current sponsorship program."
     };
-    schedulePublicIntakeRecovery();
+    schedulePublicConnectivityRecovery();
     renderSponsorPackageChoices();
   }
 }
@@ -5780,7 +5796,7 @@ async function loadPublicVendorOfferings() {
       status: "unavailable",
       message: "We could not confirm the current vendor program."
     };
-    schedulePublicIntakeRecovery();
+    schedulePublicConnectivityRecovery();
     renderVendorOfferingChoices();
   }
 }
@@ -10238,7 +10254,7 @@ function loadGuestServicesUi() {
       apiBase: publicApiBase,
       eventPhone: event.phone,
       intakeReady: PUBLIC_PARTNER_INTAKE.ready,
-      onFailure: schedulePublicIntakeRecovery,
+      onFailure: schedulePublicConnectivityRecovery,
       protectUnsavedForm: protectUnsavedPublicForm,
       turnstileSiteKey: TURNSTILE_SITE_KEY
     });
@@ -10347,41 +10363,49 @@ function updateNetworkStatus() {
   status.dataset.state = online ? "online" : "offline";
 }
 
-function schedulePublicIntakeRecovery() {
-  if (publicIntakeRetryTimer || publicIntakeRetryAttempt >= 5) return;
-  const delay = Math.min(30_000, 2_000 * (2 ** publicIntakeRetryAttempt));
-  publicIntakeRetryTimer = setTimeout(() => {
-    publicIntakeRetryTimer = null;
-    publicIntakeRetryAttempt++;
-    refreshPublicConnectivity();
+function schedulePublicConnectivityRecovery() {
+  if (publicRecoveryRetryTimer || publicRecoveryRetryAttempt >= 5) return;
+  const delay = Math.min(30_000, 2_000 * (2 ** publicRecoveryRetryAttempt));
+  publicRecoveryRetryTimer = setTimeout(() => {
+    publicRecoveryRetryTimer = null;
+    publicRecoveryRetryAttempt++;
+    refreshPublicConnectivity().then(() => {
+      if (!publicRecoveryRetryTimer) publicRecoveryRetryAttempt = 0;
+    });
   }, delay);
 }
 
 function refreshPublicConnectivity() {
   updateNetworkStatus();
   if (ADMIN_ENTRY) return Promise.resolve([]);
+  const sponsorPackagesLoad = loadPublicSponsorPackages();
   const recoveryLoads = [
     loadPublicBootstrap(),
     loadPublicTicketCatalog(),
     loadBooths(),
     loadIslandConditions({ force: true, preserveOnError: true }),
     loadPublicPartnerReadiness(),
-    loadPublicSponsorPackages(),
+    sponsorPackagesLoad,
     loadPublicVendorOfferings(),
     loadPublicAlert()
   ];
-  recoveryLoads.push(loadGuestServicesUi().then(controller => controller.refresh()));
+  recoveryLoads.push(loadGuestServicesUi().then(async controller => {
+    await controller.refresh();
+    return controller.reloadStatus();
+  }));
   if (sculptorRosterVisible) recoveryLoads.push(loadVoting());
   if (taskPortalController?.hasAccess() || taskPortalRequested()) recoveryLoads.push(loadTaskPortalFromLocation());
   const portalAccess = activePartnerPortalAccess || savedPartnerPortalAccess();
   if (portalAccess) recoveryLoads.push(loadPartnerPortalStatus(portalAccess));
+  if (activeOutreachPreferenceAccess) recoveryLoads.push(loadOutreachPreference(activeOutreachPreferenceAccess));
+  if (pendingSponsorInvitationToken) recoveryLoads.push(sponsorPackagesLoad.then(() => loadSponsorInvitation(pendingSponsorInvitationToken)));
   return Promise.allSettled(recoveryLoads);
 }
 
 function recoverPublicConnectivity() {
-  clearTimeout(publicIntakeRetryTimer);
-  publicIntakeRetryTimer = null;
-  publicIntakeRetryAttempt = 0;
+  clearTimeout(publicRecoveryRetryTimer);
+  publicRecoveryRetryTimer = null;
+  publicRecoveryRetryAttempt = 0;
   return refreshPublicConnectivity();
 }
 

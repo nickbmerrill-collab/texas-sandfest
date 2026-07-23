@@ -25,6 +25,7 @@ import {
   recordFollowupDelivery,
   reviewFollowup
 } from "../lib/partner-ops.mjs";
+import { outreachPreferenceUrlForProspect, outreachPreferencesConfig } from "../lib/outreach-preferences.mjs";
 import { updatePlatformDoc } from "../lib/platform-data.mjs";
 import { taskPortalConfig, taskPortalUrlForTask } from "../lib/task-portal.mjs";
 
@@ -2492,6 +2493,180 @@ test("public intake warns only while visitor entries are unsaved", async ({ page
   expect(await beforeUnloadPrevented(page)).toBe(true);
   await guestServicesForm.evaluate(form => form.reset());
   expect(await beforeUnloadPrevented(page)).toBe(false);
+});
+
+test("private capability links recover from transient API failures without reloads", async ({ browser }) => {
+  test.setTimeout(90_000);
+  const runId = randomUUID().slice(0, 8);
+  const partners = await adminApi("/api/admin/partners");
+  expect(partners.status).toBe(200);
+  const application = partners.data.applications.find(item => item.type === "sponsor") || partners.data.applications[0];
+  const portalAccess = await adminApi(`/api/admin/partners/applications/${application.id}/portal-access`, { method: "POST", body: {} });
+  expect(portalAccess.status).toBe(200);
+
+  const volunteer = partners.data.assignmentDirectory.volunteers.find(item => item.emailAvailable);
+  const taskTitle = `Transient recovery assignment ${runId}`;
+  const taskResult = await adminApi("/api/admin/partners/tasks", {
+    method: "POST",
+    body: {
+      assigneeType: "volunteer",
+      assigneeId: volunteer.id,
+      title: taskTitle,
+      description: "Confirm the private task link recovers without replaying a task update.",
+      priority: "medium",
+      dueAt: "2027-04-10T15:00:00.000Z"
+    }
+  });
+  expect(taskResult.status).toBe(201);
+  const taskPortalConfigForBrowser = taskPortalConfig({
+    SANDFEST_ENV: "development",
+    SANDFEST_TASK_PORTAL_SECRET: PORTAL_SECRET,
+    SANDFEST_PUBLIC_SITE_URL: webBase
+  });
+  const taskUrl = taskPortalUrlForTask(taskResult.data.task, { config: taskPortalConfigForBrowser });
+
+  const prospectName = `Recovery Coast Sponsor ${runId}`;
+  const prospectResult = await adminApi("/api/admin/outreach/prospects", {
+    method: "POST",
+    body: {
+      organizationName: prospectName,
+      contactName: "Recovery Browser",
+      contactEmail: `recovery.${runId}@example.com`,
+      industry: "hospitality",
+      city: "Port Aransas",
+      postalCode: "78373",
+      latitude: 27.8339,
+      longitude: -97.0611,
+      communityFit: true,
+      contactBasis: "business_relevance",
+      status: "contact_ready"
+    }
+  });
+  expect(prospectResult.status).toBe(201);
+  const prospect = prospectResult.data.prospect;
+  const preferenceUrl = outreachPreferenceUrlForProspect(prospect, {
+    config: outreachPreferencesConfig({
+      SANDFEST_ENV: "development",
+      SANDFEST_OUTREACH_PREFERENCES_SECRET: OUTREACH_SECRET,
+      SANDFEST_PUBLIC_SITE_URL: webBase
+    })
+  });
+  const sponsorCatalog = await fetch(`${apiBase}/api/public/sponsors`).then(response => response.json());
+  const invitationResult = await adminApi(`/api/admin/outreach/prospects/${prospect.id}/sponsor-invitation`, {
+    method: "POST",
+    body: { action: "issue", packageId: sponsorCatalog.sponsorPackages[0].id }
+  });
+  expect(invitationResult.status).toBe(200);
+
+  const guestTitle = `Transient Guest Services request ${runId}`;
+  const guestReadiness = await fetch(`${apiBase}/api/public/guest-services`).then(response => response.json());
+  const guestResponse = await fetch(`${apiBase}/api/public/guest-services`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "idempotency-key": `browser-recovery-${runId}` },
+    body: JSON.stringify({
+      category: guestReadiness.categories[0].id,
+      festivalDay: "Saturday",
+      title: guestTitle,
+      details: "Verify that a private Guest Services lookup recovers after one temporary API failure.",
+      location: "North Gate",
+      contactName: "Recovery Browser Guest",
+      contactEmail: `guest.recovery.${runId}@example.com`,
+      contactPreference: "email",
+      consentToContact: true
+    })
+  });
+  expect(guestResponse.status).toBe(201);
+  const guest = await guestResponse.json();
+
+  const addApiBase = value => {
+    const url = new URL(value);
+    url.searchParams.set("apiBase", apiBase);
+    return url.toString();
+  };
+  const context = await browser.newContext();
+  const openWithFirstFailure = async ({ url, endpoint, failureText, success }) => {
+    const page = await context.newPage();
+    let attempts = 0;
+    await page.route(`**${endpoint}`, async route => {
+      attempts++;
+      if (attempts === 1) {
+        await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "temporarily unavailable" }) });
+        return;
+      }
+      await route.continue();
+    });
+    await page.goto(addApiBase(url));
+    await expect(page.getByText(failureText, { exact: false })).toBeVisible();
+    await success(page);
+    expect(attempts).toBeGreaterThanOrEqual(2);
+    expect(await page.evaluate(() => performance.getEntriesByType("navigation")[0]?.type)).toBe("navigate");
+    await page.close();
+  };
+
+  await openWithFirstFailure({
+    url: portalAccess.data.portalAccess.url,
+    endpoint: "/api/public/partner-status",
+    failureText: "retry automatically",
+    success: page => expect(page.locator("#partner-status-result")).toContainText(application.organizationName, { timeout: 15_000 })
+  });
+  await openWithFirstFailure({
+    url: taskUrl,
+    endpoint: "/api/public/task-status",
+    failureText: "retries automatically",
+    success: page => expect(page.locator("#task-status-result")).toContainText(taskTitle, { timeout: 15_000 })
+  });
+  await openWithFirstFailure({
+    url: preferenceUrl,
+    endpoint: "/api/public/outreach-preferences",
+    failureText: "retry automatically",
+    success: page => expect(page.locator("#outreach-preferences-copy")).toContainText(prospectName, { timeout: 15_000 })
+  });
+  await openWithFirstFailure({
+    url: invitationResult.data.invitation.url,
+    endpoint: "/api/public/sponsor-invitation",
+    failureText: "Retrying automatically",
+    success: page => expect(page.locator('#sponsor-inquiry-form [name="organizationName"]')).toHaveValue(prospectName, { timeout: 15_000 })
+  });
+
+  const rejectedInvitationUrl = new URL(invitationResult.data.invitation.url);
+  const rejectedInvitationParams = new URLSearchParams(rejectedInvitationUrl.hash.split("?")[1]);
+  rejectedInvitationParams.set("token", `${rejectedInvitationParams.get("token")}x`);
+  rejectedInvitationUrl.hash = `sponsor-invitation?${rejectedInvitationParams}`;
+  const rejectedInvitationPage = await context.newPage();
+  let rejectedInvitationAttempts = 0;
+  await rejectedInvitationPage.route("**/api/public/sponsor-invitation", async route => {
+    rejectedInvitationAttempts++;
+    await route.continue();
+  });
+  await rejectedInvitationPage.goto(addApiBase(rejectedInvitationUrl));
+  await expect(rejectedInvitationPage.locator("#sponsor-invitation")).toHaveAttribute("data-state", "error");
+  await expect(rejectedInvitationPage).toHaveURL(/#sponsors$/);
+  await rejectedInvitationPage.waitForTimeout(2_500);
+  expect(rejectedInvitationAttempts).toBe(1);
+  await rejectedInvitationPage.close();
+
+  const guestPage = await context.newPage();
+  let guestAttempts = 0;
+  await guestPage.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#guest-services`);
+  await expect(guestPage.locator("#guest-services-form")).toHaveAttribute("data-public-intake-state", "ready");
+  await guestPage.route("**/api/public/guest-services/status", async route => {
+    guestAttempts++;
+    if (guestAttempts === 1) {
+      await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "temporarily unavailable" }) });
+      return;
+    }
+    await route.continue();
+  });
+  const guestStatusForm = guestPage.locator("#guest-services-status-form");
+  await guestStatusForm.locator('[name="reference"]').fill(guest.access.reference);
+  await guestStatusForm.locator('[name="token"]').fill(guest.access.token);
+  await guestStatusForm.locator('button[type="submit"]').click();
+  await expect(guestStatusForm.locator(".partner-form-status")).toContainText("Retrying automatically");
+  await expect(guestPage.locator("#guest-services-status-result")).toContainText(guestTitle, { timeout: 15_000 });
+  expect(guestAttempts).toBeGreaterThanOrEqual(2);
+  expect(await guestPage.evaluate(() => performance.getEntriesByType("navigation")[0]?.type)).toBe("navigate");
+  await guestPage.close();
+  await context.close();
 });
 
 test("incident delivery verification safely resolves ambiguous provider outcomes", async ({ page }) => {
