@@ -1133,6 +1133,12 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await expect(partnerActivity).toContainText(/assignment notices prepared/i);
   await expect(partnerActivity).toContainText("Brand profile approved");
   expect(await partnerActivity.textContent()).not.toMatch(/activity_|demo_[sv]app|followup_/);
+  const partnerMessageSummary = page.locator("#admin-partner-followups-summary p");
+  await expect(partnerMessageSummary).toHaveCount(1);
+  await expect(partnerMessageSummary).toHaveAttribute("data-state", /attention|tracking|idle/);
+  await expect(partnerMessageSummary).toContainText(/automated/);
+  await expect(partnerMessageSummary).toContainText(/in flight/);
+  await expect(partnerMessageSummary).toContainText(/key date/);
   const partnerMessages = page.locator("#admin-partner-followups");
   await expect(partnerMessages).toContainText(`Texas SandFest vendor application ${vendorResult.application.reference}`);
   await expect(partnerMessages).toContainText(`Texas SandFest sponsorship application ${sponsorResult.application.reference}`);
