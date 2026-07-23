@@ -574,6 +574,9 @@ assert(visitorSource.includes("data-sponsor-retry")
   && taskPortalSource.includes("data-task-status-retry")
   && taskPortalSource.includes("Your private access is saved in this browser.")
   && guestServicesSource.includes("Select View status to try again."), "Private capability lookups do not expose an accessible manual recovery path after bounded retries pause.");
+assert(taskPortalSource.includes('"idempotency-key": pendingUpdate.key')
+  && taskPortalSource.includes("pendingUpdate?.fingerprint !== updateFingerprint")
+  && taskPortalSource.includes("Operations will record it only once."), "Private task updates do not preserve an exact retry identity after an ambiguous response.");
 assert(visitorSource.includes('setAdminWorkspaceState("failed", retryable)')
   && visitorSource.includes('adminOperationsUi?.createAdminWorkspaceRecovery')
   && visitorSource.includes('" Retrying automatically."')

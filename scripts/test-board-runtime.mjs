@@ -639,7 +639,7 @@ try {
   const taskPortalParams = taskPortalLink ? new URLSearchParams(taskPortalLink.hash.split("?")[1] || "") : null;
   const taskPortalAccess = taskPortalParams ? { taskId: taskPortalParams.get("task"), token: taskPortalParams.get("token") } : null;
   const openedTaskPortal = taskPortalAccess ? await request(base, "POST", "/api/public/task-status", taskPortalAccess) : null;
-  const acknowledgedTaskPortal = taskPortalAccess ? await request(base, "POST", "/api/public/task-status/update", { ...taskPortalAccess, action: "acknowledge", note: "Synthetic assignee confirms the board-demo handoff." }) : null;
+  const acknowledgedTaskPortal = taskPortalAccess ? await request(base, "POST", "/api/public/task-status/update", { ...taskPortalAccess, action: "acknowledge", note: "Synthetic assignee confirms the board-demo handoff." }, { idempotencyKey: "board-runtime-task-update-0001" }) : null;
   const taskWorkspaceAfterAcknowledgment = await request(base, "GET", "/api/admin/partners", undefined, { auth: true });
   const acknowledgedBoardTask = taskWorkspaceAfterAcknowledgment.data.tasks?.find(item => item.id === taskPortalAccess?.taskId);
   check("private task link closes the assignee-to-Operations loop", openedTaskPortal?.status === 200 && acknowledgedTaskPortal?.status === 200 && acknowledgedTaskPortal.data.task?.acknowledgedAt && acknowledgedBoardTask?.acknowledgedAt && acknowledgedBoardTask?.assigneeUpdates?.at(-1)?.note.includes("Synthetic assignee"));
