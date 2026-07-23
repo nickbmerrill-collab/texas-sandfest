@@ -1655,6 +1655,7 @@ app.innerHTML = `
             <select name="assigneeTeam" aria-label="Responsible team"><option value="operations">Operations</option><option value="sponsor">Sponsor</option><option value="finance">Finance</option><option value="volunteer-captains">Volunteer captains</option><option value="traffic">Traffic and parking</option><option value="guest-services">Guest services</option><option value="production">Production</option></select>
             <input name="reminderLeadDays" type="number" min="0" max="30" step="1" value="3" aria-label="Reminder lead days" />
             <button class="button primary" type="submit">Add key date</button>
+            <p class="partner-form-status admin-import-wide"></p>
           </form>
           <div id="admin-partner-milestones" class="admin-key-date-list keyboard-scroll-region" role="region" aria-label="Partner key dates" tabindex="0"></div>
         </div>
@@ -1701,6 +1702,7 @@ app.innerHTML = `
             <label class="admin-task-wide"><span>Description</span><textarea name="description" rows="3" maxlength="1000"></textarea></label>
             <datalist id="admin-task-assignee-options"></datalist>
             <button class="button primary" type="submit">Assign task</button>
+            <p class="partner-form-status admin-task-wide"></p>
           </form>
           <form id="admin-create-prospect" class="admin-inline-form" data-requires-permission="outreach:write">
             <strong>Add outreach target</strong>
@@ -7147,28 +7149,12 @@ function renderAdminMilestones(payload) {
       setAdminStatus(result.dismissedFollowups ? `Key date saved; ${result.dismissedFollowups} stale reminder${result.dismissedFollowups === 1 ? "" : "s"} dismissed.` : "Key date saved.", "ok");
     } catch (error) { setAdminStatus(error.message, "error"); } finally { button.disabled = false; }
   }));
-  createForm.onsubmit = async event => {
-    event.preventDefault();
-    const button = createForm.querySelector('button[type="submit"]');
-    const dueAt = createForm.elements.dueAt.value;
-    if (!createForm.elements.applicationId.value || !dueAt) { setAdminStatus("Choose a partner and due date.", "error"); return; }
-    button.disabled = true;
-    try {
-      await adminFetch(`/api/admin/partners/applications/${encodeURIComponent(createForm.elements.applicationId.value)}/milestones`, {
-        method: "POST",
-        body: JSON.stringify({
-          label: createForm.elements.label.value.trim(),
-          dueAt: new Date(dueAt).toISOString(),
-          assigneeTeam: createForm.elements.assigneeTeam.value,
-          reminderLeadDays: Number(createForm.elements.reminderLeadDays.value)
-        })
-      });
-      createForm.reset();
-      createForm.elements.reminderLeadDays.value = "3";
-      await loadAdminPartners({ quiet: true });
-      setAdminStatus("Partner key date added.", "ok");
-    } catch (error) { setAdminStatus(error.message, "error"); } finally { button.disabled = false; }
-  };
+  adminOperationsUi?.bindMilestoneCreation(createForm, {
+    adminFetch,
+    loadAdminPartners,
+    requestOutcomeIsAmbiguous,
+    setAdminStatus
+  });
 }
 
 function deliverableStatusOptions(selected) {
@@ -9948,21 +9934,11 @@ document.querySelector('#admin-create-task [name="assigneeType"]')?.addEventList
   populateTaskCreateOwners(adminPartnerState?.payload || {}, { preserve: false });
 });
 
-document.querySelector("#admin-create-task")?.addEventListener("submit", async event => {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const values = Object.fromEntries(new FormData(form).entries());
-  const button = form.querySelector('button[type="submit"]');
-  button.disabled = true;
-  try {
-    await adminFetch("/api/admin/partners/tasks", {
-      method: "POST",
-      body: JSON.stringify({ ...values, dueAt: values.dueAt ? new Date(values.dueAt).toISOString() : null })
-    });
-    form.reset();
-    await loadAdminPartners({ quiet: true });
-    setAdminStatus("Task delegated.", "ok");
-  } catch (error) { setAdminStatus(error.message, "error"); } finally { button.disabled = false; }
+adminOperationsUi?.bindTaskCreation(document.querySelector("#admin-create-task"), {
+  adminFetch,
+  loadAdminPartners,
+  requestOutcomeIsAmbiguous,
+  setAdminStatus
 });
 
 document.querySelector("#admin-create-prospect")?.addEventListener("submit", async event => {

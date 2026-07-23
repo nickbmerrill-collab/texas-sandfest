@@ -1133,12 +1133,14 @@ PG-B-01,${EVENT_ID},PG-EV-V-01,PG-EV-V-01,Postgres Booth Vendor,retail,vendor,po
     reminderLeadDays: 3,
     notes: "Verify the sponsor finance handoff."
   }, { auth: true });
-  const postgresCustomMilestone = await request(base, "POST", `/api/admin/partners/applications/${sponsorApplication.id}/milestones`, {
+  const postgresCustomMilestoneBody = {
     label: "Postgres hospitality roster",
     dueAt: new Date(Date.now() + 5 * 86_400_000).toISOString(),
     assigneeTeam: "guest-services",
     reminderLeadDays: 5
-  }, { auth: true });
+  };
+  const postgresCustomMilestone = await request(base, "POST", `/api/admin/partners/applications/${sponsorApplication.id}/milestones`, postgresCustomMilestoneBody, { auth: true, headers: { "idempotency-key": "postgres-partner-milestone-create-0001" } });
+  const replayedPostgresMilestone = await request(base, "POST", `/api/admin/partners/applications/${sponsorApplication.id}/milestones`, postgresCustomMilestoneBody, { auth: true, headers: { "idempotency-key": "postgres-partner-milestone-create-0001" } });
   const postgresCustomReschedule = await request(base, "PATCH", `/api/admin/partners/milestones/${postgresCustomMilestone.data.milestone?.id}`, {
     dueAt: new Date(Date.now() + 6 * 86_400_000).toISOString(),
     reminderLeadDays: 4
@@ -1146,7 +1148,7 @@ PG-B-01,${EVENT_ID},PG-EV-V-01,PG-EV-V-01,Postgres Booth Vendor,retail,vendor,po
   const postgresCustomCompletion = await request(base, "PATCH", `/api/admin/partners/milestones/${postgresCustomMilestone.data.milestone?.id}`, { status: "completed" }, { auth: true });
   const postgresMilestoneWorkspace = await request(base, "GET", "/api/admin/partners", undefined, { auth: true });
   const persistedCustomMilestone = postgresMilestoneWorkspace.data.milestones?.find(item => item.id === postgresCustomMilestone.data.milestone?.id);
-  check("milestone lifecycle persists", postgresMilestoneReschedule.status === 200 && postgresMilestoneReschedule.data.milestone?.scheduleVersion === 2 && postgresCustomMilestone.status === 201 && postgresCustomReschedule.data.milestone?.scheduleVersion === 2 && postgresCustomCompletion.data.milestone?.completedBy === "postgres-test-admin" && persistedCustomMilestone?.status === "completed" && !("ok" in (persistedCustomMilestone || {})));
+  check("milestone lifecycle persists", postgresMilestoneReschedule.status === 200 && postgresMilestoneReschedule.data.milestone?.scheduleVersion === 2 && postgresCustomMilestone.status === 201 && replayedPostgresMilestone.status === 200 && replayedPostgresMilestone.data.replay === true && replayedPostgresMilestone.data.milestone?.id === postgresCustomMilestone.data.milestone?.id && postgresCustomReschedule.data.milestone?.scheduleVersion === 2 && postgresCustomCompletion.data.milestone?.completedBy === "postgres-test-admin" && persistedCustomMilestone?.status === "completed" && !("ok" in (persistedCustomMilestone || {})));
   check("milestone summary persists", postgresMilestoneWorkspace.data.milestoneSummary?.totals?.completed === 1 && postgresMilestoneWorkspace.data.milestoneSummary?.totals?.open === 40);
 
   const approvedForBilling = await request(base, "PATCH", `/api/admin/partners/applications/${sponsorApplication.id}`, { status: "approved" }, { auth: true });
@@ -1450,7 +1452,7 @@ postgres_eventeny_settlement_1,2026-07-16,vendor_fee,250.00,7.50,242.50,eventeny
     assigneeId: "vol_001",
     priority: "high",
     dueAt: "2026-07-17T13:00:00.000Z"
-  }, { auth: true });
+  }, { auth: true, headers: { "idempotency-key": "postgres-partner-task-create-0001" } });
   check("volunteer task assignment persisted", delegatedTask.status === 201 && delegatedTask.data.task?.assigneeName === "Alex Rivera", `status ${delegatedTask.status}`);
   const blockedTask = await request(base, "PATCH", `/api/admin/partners/tasks/${delegatedTask.data.task?.id}`, {
     status: "blocked",
@@ -1465,7 +1467,7 @@ postgres_eventeny_settlement_1,2026-07-16,vendor_fee,250.00,7.50,242.50,eventeny
     assigneeId: "vol_001",
     priority: "high",
     dueAt: new Date(Date.now() + 3 * 86_400_000).toISOString()
-  }, { auth: true });
+  }, { auth: true, headers: { "idempotency-key": "postgres-partner-task-create-0002" } });
   const notifiedStaffTask = await request(base, "POST", "/api/admin/partners/tasks", {
     title: "Postgres command briefing",
     description: "Confirm the incident command handoff.",
@@ -1473,7 +1475,7 @@ postgres_eventeny_settlement_1,2026-07-16,vendor_fee,250.00,7.50,242.50,eventeny
     assigneeId: "staff_command",
     priority: "high",
     dueAt: new Date(Date.now() + 3 * 86_400_000).toISOString()
-  }, { auth: true });
+  }, { auth: true, headers: { "idempotency-key": "postgres-partner-task-create-0003" } });
   const postgresTaskPortalConfig = taskPortalConfig(commonEnv);
   const postgresTaskPortalToken = issueTaskPortalToken(notifiedVolunteerTask.data.task, { config: postgresTaskPortalConfig });
   const openedPostgresTaskPortal = await request(base, "POST", "/api/public/task-status", {

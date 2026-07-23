@@ -142,10 +142,10 @@ async function beforeUnloadPrevented(page) {
   });
 }
 
-async function adminApi(pathname, { method = "GET", body } = {}) {
+async function adminApi(pathname, { method = "GET", body, headers = {} } = {}) {
   const response = await fetch(`${apiBase}${pathname}`, {
     method,
-    headers: { authorization: `Bearer ${TOKEN}`, ...(body === undefined ? {} : { "content-type": "application/json" }) },
+    headers: { authorization: `Bearer ${TOKEN}`, ...(body === undefined ? {} : { "content-type": "application/json" }), ...headers },
     body: body === undefined ? undefined : JSON.stringify(body)
   });
   return { status: response.status, data: await response.json().catch(() => ({})) };
@@ -2749,6 +2749,7 @@ test("task updates recover accepted responses lost by the browser without duplic
   const blockerNote = `Need two additional radios for recovery proof ${runId}.`;
   const created = await adminApi("/api/admin/partners/tasks", {
     method: "POST",
+    headers: { "idempotency-key": `browser-task-create-${runId}` },
     body: {
       assigneeType: "volunteer",
       assigneeId: volunteer.id,
@@ -2905,6 +2906,100 @@ test("finance creation recovers accepted responses without duplicate records or 
   expect(JSON.stringify({ lineResponses, expenseResponses })).not.toContain(expenseKeys[0]);
 });
 
+test("task and key-date creation recover accepted responses without duplicate work or audits", async ({ page }) => {
+  const runId = randomUUID().slice(0, 8);
+  const initialPartners = await adminApi("/api/admin/partners");
+  expect(initialPartners.status).toBe(200);
+  const application = initialPartners.data.applications.find(item => item.type === "sponsor")
+    || initialPartners.data.applications[0];
+  expect(application?.id).toBeTruthy();
+
+  await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#admin-partner-milestones-workspace`);
+  const taskForm = page.locator("#admin-create-task");
+  await expect(taskForm).toBeVisible({ timeout: 25_000 });
+  await taskForm.locator('[name="assigneeType"]').selectOption("team");
+  await expect(taskForm.locator('[name="assigneeId"] option[value="operations"]')).toHaveCount(1);
+  await taskForm.locator('[name="assigneeId"]').selectOption("operations");
+
+  const taskKeys = [];
+  const taskResponses = [];
+  let taskAttempts = 0;
+  await page.route("**/api/admin/partners/tasks", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    taskAttempts++;
+    taskKeys.push(route.request().headers()["idempotency-key"]);
+    const serverResponse = await route.fetch();
+    taskResponses.push(await serverResponse.json());
+    if (taskAttempts === 1) {
+      await route.abort("failed");
+      return;
+    }
+    await route.fulfill({ response: serverResponse });
+  });
+
+  await taskForm.locator('[name="title"]').fill(`Recovery delegation ${runId}`);
+  await taskForm.locator('[name="priority"]').selectOption("high");
+  await taskForm.locator('[name="dueAt"]').fill("2027-04-10T10:30");
+  await taskForm.locator('[name="description"]').fill("Accepted-response recovery for an Operations delegation.");
+  await taskForm.evaluate(form => form.requestSubmit());
+  await expect(taskForm.locator(".partner-form-status")).toContainText("Operations will delegate it only once");
+  await taskForm.evaluate(form => form.requestSubmit());
+  await expect(taskForm.locator(".partner-form-status")).toContainText("Task delegated");
+  expect(taskKeys[0]).toMatch(/^[A-Za-z0-9][A-Za-z0-9._:-]{15,199}$/);
+  expect(taskKeys[1]).toBe(taskKeys[0]);
+  expect(taskResponses[0].replay).toBe(false);
+  expect(taskResponses[1].replay).toBe(true);
+  expect(taskResponses[1].task.id).toBe(taskResponses[0].task.id);
+  await page.unroute("**/api/admin/partners/tasks");
+
+  const milestoneForm = page.locator("#admin-create-milestone");
+  await milestoneForm.locator('[name="applicationId"]').selectOption(application.id);
+  const milestoneKeys = [];
+  const milestoneResponses = [];
+  let milestoneAttempts = 0;
+  await page.route(/\/api\/admin\/partners\/applications\/[^/]+\/milestones$/, async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    milestoneAttempts++;
+    milestoneKeys.push(route.request().headers()["idempotency-key"]);
+    const serverResponse = await route.fetch();
+    milestoneResponses.push(await serverResponse.json());
+    if (milestoneAttempts === 1) {
+      await route.abort("failed");
+      return;
+    }
+    await route.fulfill({ response: serverResponse });
+  });
+
+  await milestoneForm.locator('[name="label"]').fill(`Recovery key date ${runId}`);
+  await milestoneForm.locator('[name="dueAt"]').fill("2027-03-24T15:00");
+  await milestoneForm.locator('[name="assigneeTeam"]').selectOption("sponsor");
+  await milestoneForm.locator('[name="reminderLeadDays"]').fill("5");
+  await milestoneForm.evaluate(form => form.requestSubmit());
+  await expect(milestoneForm.locator(".partner-form-status")).toContainText("Operations will record it only once");
+  await milestoneForm.evaluate(form => form.requestSubmit());
+  await expect(milestoneForm.locator(".partner-form-status")).toContainText("Partner key date added");
+  expect(milestoneKeys[0]).toMatch(/^[A-Za-z0-9][A-Za-z0-9._:-]{15,199}$/);
+  expect(milestoneKeys[1]).toBe(milestoneKeys[0]);
+  expect(milestoneResponses[0].replay).toBe(false);
+  expect(milestoneResponses[1].replay).toBe(true);
+  expect(milestoneResponses[1].milestone.id).toBe(milestoneResponses[0].milestone.id);
+
+  const partners = await adminApi("/api/admin/partners");
+  expect(partners.data.tasks.filter(item => item.id === taskResponses[0].task.id)).toHaveLength(1);
+  expect(partners.data.milestones.filter(item => item.id === milestoneResponses[0].milestone.id)).toHaveLength(1);
+  expect(partners.data.activity.filter(item => item.type === "task.created"
+    && item.entityId === taskResponses[0].task.id)).toHaveLength(1);
+  expect(partners.data.activity.filter(item => item.type === "milestone.created"
+    && item.entityId === milestoneResponses[0].milestone.id)).toHaveLength(1);
+  const audit = await adminApi("/api/admin/audit?limit=200");
+  expect(audit.data.audit.filter(item => item.record?.action === "partner.task.create"
+    && item.record?.target?.id === taskResponses[0].task.id)).toHaveLength(1);
+  expect(audit.data.audit.filter(item => item.record?.action === "partner.milestone.create"
+    && item.record?.target?.id === milestoneResponses[0].milestone.id)).toHaveLength(1);
+  expect(JSON.stringify({ taskResponses, milestoneResponses, partners, audit })).not.toContain(taskKeys[0]);
+  expect(JSON.stringify({ taskResponses, milestoneResponses, partners, audit })).not.toContain(milestoneKeys[0]);
+});
+
 test("private capability links recover from transient API failures without reloads", async ({ browser }) => {
   test.setTimeout(90_000);
   const runId = randomUUID().slice(0, 8);
@@ -2918,6 +3013,7 @@ test("private capability links recover from transient API failures without reloa
   const taskTitle = `Transient recovery assignment ${runId}`;
   const taskResult = await adminApi("/api/admin/partners/tasks", {
     method: "POST",
+    headers: { "idempotency-key": `browser-private-task-create-${runId}` },
     body: {
       assigneeType: "volunteer",
       assigneeId: volunteer.id,
