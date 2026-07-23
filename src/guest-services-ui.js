@@ -94,7 +94,7 @@ function markup({ eventPhone }) {
     </div>`;
 }
 
-export function createGuestServicesUi({ apiBase, eventPhone, intakeReady, onFailure, turnstileSiteKey = "" }) {
+export function createGuestServicesUi({ apiBase, eventPhone, intakeReady, onFailure, protectUnsavedForm, turnstileSiteKey = "" }) {
   const root = document.querySelector("#guest-services");
   if (!root) return { mount: () => {}, loadStatus: () => null, refresh: () => null };
   let botProtection = { enabled: false, tokenFor: () => "", reset: () => {} };
@@ -224,6 +224,7 @@ export function createGuestServicesUi({ apiBase, eventPhone, intakeReady, onFail
     root.innerHTML = markup({ eventPhone });
     root.setAttribute("aria-busy", "true");
     const intake = root.querySelector("#guest-services-form");
+    protectUnsavedForm?.(intake);
     intake.addEventListener("submit", event => { event.preventDefault(); void submit(intake); });
     if (turnstileSiteKey) {
       intake.addEventListener("focusin", () => { void ensureBotProtection(); }, { once: true });
