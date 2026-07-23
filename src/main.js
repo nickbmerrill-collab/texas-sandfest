@@ -191,6 +191,7 @@ const [
   scheduleDemoPromise
 ]);
 let runtimeDataMode = null;
+let boardCapabilityProofUiPromise = null;
 
 const mediaDerivativeBySource = new Map(
   (mediaDerivatives?.derivatives ?? []).map(derivative => [derivative.sourcePath, derivative])
@@ -1182,20 +1183,6 @@ app.innerHTML = `
           <span id="admin-job-summary">Not checked</span>
         </article>
       </div>
-      ${BOARD_DEMO_ACCESS.enabled ? `
-        <section id="admin-board-stage-summary" class="admin-board-stage-summary" aria-label="Board presentation activation boundary">
-          <div data-board-stage="presentation-ready">
-            <span>Board-ready</span>
-            <strong>Real workflows with synthetic providers</strong>
-            <p>Intake, receivables, key dates, delegated work, sponsor branding, outreach, and Island Conditions use the real application contracts.</p>
-          </div>
-          <div data-board-stage="post-presentation">
-            <span>Post-board</span>
-            <strong>Live provider activation</strong>
-            <p>Connect Stripe, QuickBooks, Brevo, Twilio, NWS, TxDOT, eight webcam edge agents, OIDC, Turnstile, DNS, and managed recovery.</p>
-          </div>
-        </section>
-      ` : ""}
       <div class="admin-launch-readiness" id="admin-launch-readiness">
         <div class="admin-launch-readiness-heading">
           <div>
@@ -2943,11 +2930,20 @@ async function loadAdminSession() {
   return data.session;
 }
 
+function renderBoardCapabilityProof(proof) {
+  if (!import.meta.env.DEV || !BOARD_DEMO_ACCESS.enabled || !document.querySelector("#admin-launch-readiness")) return;
+  boardCapabilityProofUiPromise ||= import("./admin-board-capability-proof.js");
+  void boardCapabilityProofUiPromise.then(module => {
+    module.renderBoardCapabilityProof(proof, { conditionLabel });
+  });
+}
+
 function renderAdminDeployment(deployment) {
   const summary = document.querySelector("#admin-deployment-summary");
   const target = document.querySelector("#admin-deployment-checks");
   if (!summary || !target) return;
   adminDeploymentState = deployment;
+  renderBoardCapabilityProof(deployment.boardCapabilities);
   const state = deployment.ok ? "ready" : "blocked";
   summary.textContent = BOARD_DEMO_ACCESS.enabled
     ? `board demo · ${state} · live providers post-board`

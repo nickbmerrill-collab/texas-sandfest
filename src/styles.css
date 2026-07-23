@@ -1753,44 +1753,6 @@ time {
   margin: 0;
 }
 
-.admin-board-stage-summary {
-  border-bottom: 1px solid var(--line);
-  border-top: 1px solid var(--line);
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  margin-top: 18px;
-}
-
-.admin-board-stage-summary > div {
-  align-content: start;
-  display: grid;
-  gap: 6px;
-  min-width: 0;
-  padding: 17px 18px;
-}
-
-.admin-board-stage-summary > div + div {
-  border-left: 1px solid var(--line);
-}
-
-.admin-board-stage-summary span {
-  color: var(--gulf);
-  font-size: 11px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.admin-board-stage-summary strong {
-  color: var(--deep);
-  font-size: 15px;
-}
-
-.admin-board-stage-summary p {
-  color: var(--muted);
-  line-height: 1.5;
-  margin: 0;
-}
-
 #admin-deployment-summary[data-state="ok"],
 #admin-job-summary[data-state="ok"] {
   color: #14764a;
@@ -3642,15 +3604,6 @@ time {
   }
 
   .admin-document-summary article:nth-child(n + 3) {
-    border-top: 1px solid var(--line);
-  }
-
-  .admin-board-stage-summary {
-    grid-template-columns: 1fr;
-  }
-
-  .admin-board-stage-summary > div + div {
-    border-left: 0;
     border-top: 1px solid var(--line);
   }
 

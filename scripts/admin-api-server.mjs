@@ -440,6 +440,16 @@ import {
   receivablesExport,
   tasksExport
 } from "../lib/operations-export.mjs";
+import {
+  BOARD_CAPABILITY_CERTIFICATE_MAX_AGE_MS,
+  BOARD_CAPABILITY_JOURNEYS,
+  evaluateBoardCapabilityCertificate
+} from "../lib/board-capability-certificate.mjs";
+import {
+  boardDemoSessionPath,
+  boardDemoSessionProcessAlive,
+  readBoardDemoSession
+} from "../lib/board-demo-session.mjs";
 
 await loadDotEnv();
 
@@ -873,6 +883,7 @@ function checkStatus(ok, message, severity = "error") {
 
 const DEPLOYMENT_CHECK_PRESENTATION = Object.freeze({
   environment: ["Runtime environment", "Platform"],
+  boardCapabilityCertificate: ["Board capability certificate", "Platform"],
   capabilityPolicy: ["Required capabilities", "Platform"],
   dataPlane: ["Durable data plane", "Platform"],
   backupRecovery: ["Backup and recovery", "Platform"],
@@ -2428,9 +2439,95 @@ function deploymentTaskSyncRuntimeProfile(now = Date.now()) {
   };
 }
 
+async function boardCapabilityCertificateProfile() {
+  if (!BOARD_DEMO_RUNTIME) return null;
+  const certificateFile = path.join(CODE_ROOT, ".sandfest-runtime", "board-capability-certification.json");
+  const sessionFile = boardDemoSessionPath(process.env, { root: CODE_ROOT });
+  try {
+    const certificate = JSON.parse(await readFile(certificateFile, "utf8"));
+    const session = await readBoardDemoSession(sessionFile);
+    const source = session?.source || null;
+    const links = session?.links || null;
+    const sessionRuntimeRoot = session?.runtimeRoot
+      ? path.resolve(CODE_ROOT, session.runtimeRoot)
+      : null;
+    const sessionReady = Boolean(
+      session
+      && session.status === "ready"
+      && sessionRuntimeRoot === ROOT
+      && boardDemoSessionProcessAlive(session)
+    );
+    const evaluated = sessionReady
+      ? evaluateBoardCapabilityCertificate(certificate, {
+        source,
+        links,
+        now: new Date(),
+        maxAgeMs: BOARD_CAPABILITY_CERTIFICATE_MAX_AGE_MS
+      })
+      : {
+        ok: false,
+        errors: [sessionRuntimeRoot && sessionRuntimeRoot !== ROOT
+          ? "The board capability certificate belongs to a different runtime session."
+          : "The board supervisor session is not ready."],
+        completedAt: certificate?.completedAt || null,
+        ageMs: null,
+        journeyCount: Array.isArray(certificate?.journeys) ? certificate.journeys.length : 0,
+        browsers: []
+      };
+    const journeys = Array.isArray(certificate?.journeys) ? certificate.journeys : [];
+    return {
+      ok: evaluated.ok,
+      status: evaluated.ok ? "certified" : "needs_certification",
+      completedAt: evaluated.completedAt,
+      ageMinutes: Number.isFinite(evaluated.ageMs) ? Math.round(evaluated.ageMs / 60_000) : null,
+      journeyCount: evaluated.journeyCount,
+      requiredJourneyCount: BOARD_CAPABILITY_JOURNEYS.length,
+      browsers: evaluated.browsers,
+      source: source ? {
+        branch: source.branch || null,
+        commit: source.commit || null,
+        originMainCommit: source.originMainCommit || null,
+        matchesOriginMain: source.matchesOriginMain === true,
+        dirty: source.dirty === true
+      } : null,
+      certifiedCapabilities: Array.isArray(certificate?.certifiedCapabilities)
+        ? certificate.certifiedCapabilities
+        : [],
+      deferredProductionGates: Array.isArray(certificate?.deferredProductionGates)
+        ? certificate.deferredProductionGates
+        : [],
+      journeys: journeys.map(item => ({
+        id: item?.id || null,
+        label: item?.label || item?.id || "Board journey",
+        ok: item?.ok === true,
+        capabilities: Array.isArray(item?.capabilities) ? item.capabilities : []
+      })),
+      errors: evaluated.errors
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      status: "missing",
+      completedAt: null,
+      ageMinutes: null,
+      journeyCount: 0,
+      requiredJourneyCount: BOARD_CAPABILITY_JOURNEYS.length,
+      browsers: [],
+      source: null,
+      certifiedCapabilities: [],
+      deferredProductionGates: [],
+      journeys: [],
+      errors: [error?.code === "ENOENT"
+        ? "Run board capability certification before presenting."
+        : `Board capability certificate could not be read: ${error.message}`]
+    };
+  }
+}
+
 async function deploymentProfile(options = {}) {
   const production = SANDFEST_ENV === "production";
   const deploymentTaskAutomation = deploymentTaskSyncRuntimeProfile();
+  const boardCapabilityCertificate = await boardCapabilityCertificateProfile();
   const adminBase = process.env.SANDFEST_ADMIN_BASE_URL || "";
   const publicApiBase = process.env.SANDFEST_API_PUBLIC_BASE_URL || "";
   const corsOrigins = new Set(ALLOWED_ORIGINS);
@@ -2517,6 +2614,15 @@ async function deploymentProfile(options = {}) {
     && ticketPolicy.ready;
   const checks = {
     environment: checkStatus(["development", "staging", "production"].includes(SANDFEST_ENV), `SANDFEST_ENV=${SANDFEST_ENV}`),
+    ...(BOARD_DEMO_RUNTIME ? {
+      boardCapabilityCertificate: checkStatus(
+        boardCapabilityCertificate?.ok === true,
+        boardCapabilityCertificate?.ok
+          ? `Certified ${boardCapabilityCertificate.journeyCount}/${boardCapabilityCertificate.requiredJourneyCount} board journeys with Chromium and WebKit acceptance ${boardCapabilityCertificate.ageMinutes ?? 0} minute${boardCapabilityCertificate.ageMinutes === 1 ? "" : "s"} ago.`
+          : (boardCapabilityCertificate?.errors || ["Run board capability certification before presenting."]).join(" "),
+        "warning"
+      )
+    } : {}),
     capabilityPolicy: checkStatus(
       capabilityPolicy.unknown.length === 0,
       capabilityPolicy.unknown.length
@@ -2853,6 +2959,7 @@ async function deploymentProfile(options = {}) {
     ok: errors.length === 0,
     errors: errors.length,
     warnings: warnings.length,
+    boardCapabilities: boardCapabilityCertificate,
     automation: { deploymentTaskSync: deploymentTaskAutomation },
     quickBooksInvoiceSyncReady: quickbooks.canSyncPartnerInvoices,
     checks: presentedChecks,
