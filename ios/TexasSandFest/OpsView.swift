@@ -161,8 +161,14 @@ final class IncidentStore: ObservableObject {
         severity: String,
         ownerTeam: String,
         publicImpact: Bool,
+        idempotencyKey: String,
         request: URLRequest?
     ) async -> String? {
+        guard NativeReplayKey.isValid(idempotencyKey) else {
+            return "A valid incident replay key is required; no incident request was sent."
+        }
+        var request = request
+        request?.setValue(idempotencyKey, forHTTPHeaderField: "Idempotency-Key")
         let result = await send(
             request: request,
             body: [
@@ -186,7 +192,7 @@ final class IncidentStore: ObservableObject {
             markLive()
             return nil
         } catch {
-            return "Incident response was invalid; local state was not changed."
+            return "Incident response was invalid. Retry safely; the shared ledger will keep one incident."
         }
     }
 
@@ -272,7 +278,7 @@ final class IncidentStore: ObservableObject {
             }
             return (response.data, nil)
         } catch {
-            return (nil, "Incident request failed; no incident state was changed.")
+            return (nil, "Incident response was not received. Retry safely; the shared ledger will keep one incident.")
         }
     }
 
@@ -522,6 +528,7 @@ private struct IncidentCreateSheet: View {
     @State private var publicImpact = false
     @State private var errorMessage: String?
     @State private var submitting = false
+    @State private var creationReplay = NativeCreationReplayState()
 
     var body: some View {
         NavigationStack {
@@ -577,15 +584,25 @@ private struct IncidentCreateSheet: View {
 
     private func submit() {
         let submittedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let submittedSummary = summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        let fingerprint = [
+            submittedTitle,
+            submittedSummary,
+            severity,
+            ownerTeam,
+            publicImpact ? "true" : "false"
+        ].joined(separator: "\u{1F}")
+        let replayKey = creationReplay.key(for: fingerprint)
         submitting = true
         errorMessage = nil
         Task {
             let error = await store.createIncident(
                 title: submittedTitle,
-                summary: summary.trimmingCharacters(in: .whitespacesAndNewlines),
+                summary: submittedSummary,
                 severity: severity,
                 ownerTeam: ownerTeam,
                 publicImpact: publicImpact,
+                idempotencyKey: replayKey,
                 request: dataStore.makeBoardAdminRequest(
                     path: "/api/admin/island-conditions/incidents",
                     method: "POST"

@@ -17,6 +17,34 @@ struct AppDataTransport: Sendable {
     }
 }
 
+enum NativeReplayKey {
+    static func make() -> String {
+        "ios-\(UUID().uuidString.lowercased())"
+    }
+
+    static func isValid(_ value: String) -> Bool {
+        value.range(
+            of: #"^[A-Za-z0-9][A-Za-z0-9._:-]{15,199}$"#,
+            options: .regularExpression
+        ) != nil
+    }
+}
+
+struct NativeCreationReplayState {
+    private var fingerprint: String?
+    private var replayKey: String?
+
+    mutating func key(for fingerprint: String) -> String {
+        if self.fingerprint == fingerprint, let replayKey {
+            return replayKey
+        }
+        let nextKey = NativeReplayKey.make()
+        self.fingerprint = fingerprint
+        replayKey = nextKey
+        return nextKey
+    }
+}
+
 private struct PublicBootstrapCache: Codable {
     let schemaVersion: Int
     let apiScope: String
