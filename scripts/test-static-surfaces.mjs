@@ -528,6 +528,9 @@ assert(visitorSource.includes('window.addEventListener("beforeunload", preventUn
   && visitorSource.includes('["#sponsor-inquiry-form", "#vendor-application-form"]')
   && visitorSource.includes("protectUnsavedForm: protectUnsavedPublicForm")
   && guestServicesSource.includes("protectUnsavedForm?.(intake)"), "Public intake forms do not protect unsaved entries without keeping a permanent unload listener.");
+assert(guestServicesSource.includes("if (error.status === 409) delete form.dataset.idempotencyKey")
+  && guestServicesSource.includes("retry protection remains active")
+  && guestServicesSource.includes("Your entries are still here"), "Guest Services intake does not preserve ambiguous retries or release a definitive conflict key.");
 assert(partnerIntakeSource.includes('href="mailto:sponsors@texassandfest.org"')
   && partnerIntakeSource.includes('href="mailto:vendors@texassandfest.org"')
   && partnerIntakeSource.includes('["loading", "checking"].includes(readinessStatus)')

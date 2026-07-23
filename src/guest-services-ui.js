@@ -220,7 +220,11 @@ export function createGuestServicesUi({ apiBase, eventPhone, intakeReady, onFail
     try {
       const response = await requestWithTimeout(`${apiBase()}/api/public/guest-services`, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": form.dataset.idempotencyKey }, body: JSON.stringify(payload), cache: "no-store" });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || `Request failed with ${response.status}`);
+      if (!response.ok) {
+        const requestError = new Error(data.error || `Request failed with ${response.status}`);
+        requestError.status = response.status;
+        throw requestError;
+      }
       remember(data.access);
       renderStatus(data.request);
       const statusForm = root.querySelector("#guest-services-status-form");
@@ -232,7 +236,13 @@ export function createGuestServicesUi({ apiBase, eventPhone, intakeReady, onFail
       botProtection.reset(form);
       root.querySelector("#guest-services-status-result").focus({ preventScroll: true });
     } catch (error) {
-      setStatus(status, friendlyError(error, "Guest Services request could not be sent."), "error");
+      if (error.status === 409) delete form.dataset.idempotencyKey;
+      const message = error.status === 409
+        ? "These request details changed after an earlier attempt. Review them and select Send request once more."
+        : (!error.status || error.status === 408 || error.status === 429 || error.status >= 500)
+          ? `${friendlyError(error, "Guest Services request could not be sent.")} Your entries are still here, and retry protection remains active.`
+          : friendlyError(error, "Guest Services request could not be sent.");
+      setStatus(status, message, "error");
       botProtection.reset(form);
     } finally {
       button.disabled = !intakeAvailable;

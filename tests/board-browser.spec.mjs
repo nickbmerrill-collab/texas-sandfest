@@ -2495,6 +2495,163 @@ test("public intake warns only while visitor entries are unsaved", async ({ page
   expect(await beforeUnloadPrevented(page)).toBe(false);
 });
 
+test("public signups recover accepted responses lost by the browser without duplicate records", async ({ page }) => {
+  test.setTimeout(90_000);
+  const runId = randomUUID().slice(0, 8);
+  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#sponsors`);
+  await expect(page.locator("#sponsor-inquiry-form")).toHaveAttribute("data-public-intake-state", "ready");
+
+  const submitAfterAcceptedResponseLoss = async ({ formSelector, preset, endpoint, organizationName }) => {
+    const form = page.locator(formSelector);
+    await form.locator(`[data-board-partner-preset="${preset}"]`).click();
+    await expect(form.locator(".partner-form-status")).toContainText("Synthetic details are ready");
+    await form.locator('[name="organizationName"]').fill(organizationName);
+    await form.locator('[name="consentToContact"]').check();
+    await expect(form.locator('[name="consentToContact"]')).toBeChecked();
+    expect(await form.evaluate(node => node.checkValidity())).toBe(true);
+    let attempts = 0;
+    let acceptedStatus = 0;
+    let replayStatus = 0;
+    let replayData = null;
+    await page.route(`**${endpoint}`, async route => {
+      attempts++;
+      if (attempts === 1) {
+        const accepted = await route.fetch();
+        acceptedStatus = accepted.status();
+        await route.abort("failed");
+        return;
+      }
+      const replay = await route.fetch();
+      replayStatus = replay.status();
+      replayData = await replay.json();
+      await route.fulfill({ response: replay });
+    });
+
+    await form.evaluate(node => node.requestSubmit());
+    await expect(form.locator(".partner-form-status")).toContainText("retry protection remains active");
+    await expect(form.locator('[name="organizationName"]')).toHaveValue(organizationName);
+    expect(await form.evaluate(node => node.dataset.idempotencyKey?.length > 15)).toBe(true);
+    expect(acceptedStatus).toBe(201);
+
+    await form.evaluate(node => node.requestSubmit());
+    await expect(form.locator(".partner-form-status")).toContainText("already received");
+    expect(replayStatus).toBe(200);
+    expect(replayData.duplicate).toBe(true);
+    expect(replayData.application.organizationName).toBe(organizationName);
+    expect(attempts).toBe(2);
+    await page.unroute(`**${endpoint}`);
+  };
+
+  const vendorName = `Ambiguous Vendor ${runId}`;
+  await submitAfterAcceptedResponseLoss({
+    formSelector: "#vendor-application-form",
+    preset: "vendor",
+    endpoint: "/api/public/vendor-applications",
+    organizationName: vendorName
+  });
+  const sponsorName = `Ambiguous Sponsor ${runId}`;
+  await submitAfterAcceptedResponseLoss({
+    formSelector: "#sponsor-inquiry-form",
+    preset: "sponsor",
+    endpoint: "/api/public/sponsor-inquiries",
+    organizationName: sponsorName
+  });
+
+  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#guest-services`);
+  const guestForm = page.locator("#guest-services-form");
+  await expect(guestForm).toHaveAttribute("data-public-intake-state", "ready");
+  const guestTitle = `Ambiguous Guest Services ${runId}`;
+  await guestForm.locator('[name="category"]').selectOption({ index: 1 });
+  await guestForm.locator('[name="festivalDay"]').selectOption("Saturday");
+  await guestForm.locator('[name="title"]').fill(guestTitle);
+  await guestForm.locator('[name="details"]').fill("Verify one accepted request safely returns after its first response is lost.");
+  await guestForm.locator('[name="location"]').fill("North Gate");
+  await guestForm.locator('[name="contactName"]').fill("Ambiguous Browser Guest");
+  await guestForm.locator('[name="contactEmail"]').fill(`ambiguous.guest.${runId}@example.com`);
+  await guestForm.locator('[name="contactPreference"]').selectOption("email");
+  await guestForm.locator('[name="consentToContact"]').check();
+  await expect(guestForm.locator('[name="consentToContact"]')).toBeChecked();
+  expect(await guestForm.evaluate(node => node.checkValidity())).toBe(true);
+  let guestAttempts = 0;
+  let guestAcceptedStatus = 0;
+  let guestReplayStatus = 0;
+  let guestReplayData = null;
+  await page.route("**/api/public/guest-services", async route => {
+    guestAttempts++;
+    if (guestAttempts === 1) {
+      const accepted = await route.fetch();
+      guestAcceptedStatus = accepted.status();
+      await route.abort("failed");
+      return;
+    }
+    const replay = await route.fetch();
+    guestReplayStatus = replay.status();
+    guestReplayData = await replay.json();
+    await route.fulfill({ response: replay });
+  });
+  await guestForm.evaluate(node => node.requestSubmit());
+  await expect(guestForm.locator(".partner-form-status")).toContainText("retry protection remains active");
+  await expect(guestForm.locator('[name="title"]')).toHaveValue(guestTitle);
+  expect(await guestForm.evaluate(node => node.dataset.idempotencyKey?.length > 15)).toBe(true);
+  expect(guestAcceptedStatus).toBe(201);
+  await guestForm.evaluate(node => node.requestSubmit());
+  await expect(guestForm.locator(".partner-form-status")).toContainText("was received");
+  expect(guestReplayStatus).toBe(200);
+  expect(guestReplayData.replay).toBe(true);
+  expect(guestAttempts).toBe(2);
+  await page.unroute("**/api/public/guest-services");
+
+  const workspace = await adminApi("/api/admin/partners");
+  expect(workspace.status).toBe(200);
+  expect(workspace.data.applications.filter(item => item.organizationName === vendorName)).toHaveLength(1);
+  expect(workspace.data.applications.filter(item => item.organizationName === sponsorName)).toHaveLength(1);
+  const guestWorkspace = await adminApi("/api/admin/guest-services");
+  expect(guestWorkspace.status).toBe(200);
+  expect(guestWorkspace.data.cases.filter(item => item.title === guestTitle)).toHaveLength(1);
+});
+
+test("Guest Services clears a definitive conflict key while preserving corrected entries", async ({ page }) => {
+  const runId = randomUUID().slice(0, 8);
+  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#guest-services`);
+  const form = page.locator("#guest-services-form");
+  await expect(form).toHaveAttribute("data-public-intake-state", "ready");
+  await form.locator('[name="category"]').selectOption({ index: 1 });
+  await form.locator('[name="title"]').fill(`Corrected Guest Services ${runId}`);
+  await form.locator('[name="details"]').fill("Keep these corrected request details available after a conflict.");
+  await form.locator('[name="contactName"]').fill("Corrected Browser Guest");
+  await form.locator('[name="contactEmail"]').fill(`corrected.guest.${runId}@example.com`);
+  await form.locator('[name="contactPreference"]').selectOption("email");
+  await form.locator('[name="consentToContact"]').check();
+  await expect(form.locator('[name="consentToContact"]')).toBeChecked();
+  expect(await form.evaluate(node => node.checkValidity())).toBe(true);
+  const keys = [];
+  let attempts = 0;
+  let acceptedStatus = 0;
+  await page.route("**/api/public/guest-services", async route => {
+    attempts++;
+    keys.push(route.request().headers()["idempotency-key"]);
+    if (attempts === 1) {
+      await route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ error: "That request key was already used for different details." }) });
+      return;
+    }
+    const accepted = await route.fetch();
+    acceptedStatus = accepted.status();
+    await route.fulfill({ response: accepted });
+  });
+  await form.evaluate(node => node.requestSubmit());
+  await expect(form.locator(".partner-form-status")).toContainText("details changed after an earlier attempt");
+  await expect(form.locator('[name="details"]')).toHaveValue("Keep these corrected request details available after a conflict.");
+  expect(await form.evaluate(node => node.dataset.idempotencyKey || null)).toBeNull();
+  await form.evaluate(node => node.requestSubmit());
+  await expect(form.locator(".partner-form-status")).toContainText("was received");
+  expect(acceptedStatus).toBe(201);
+  expect(keys[0]).toBeTruthy();
+  expect(keys[1]).toBeTruthy();
+  expect(keys[1]).not.toBe(keys[0]);
+  expect(attempts).toBe(2);
+  await page.unroute("**/api/public/guest-services");
+});
+
 test("private capability links recover from transient API failures without reloads", async ({ browser }) => {
   test.setTimeout(90_000);
   const runId = randomUUID().slice(0, 8);
