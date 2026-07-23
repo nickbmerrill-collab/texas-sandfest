@@ -8,6 +8,7 @@ import {
   boardDemoSessionPath,
   readBoardDemoSession
 } from "../lib/board-demo-session.mjs";
+import { createBoardLaunchdController } from "../lib/board-launchd-service.mjs";
 
 const execFileAsync = promisify(execFile);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -32,6 +33,20 @@ if (unknown.length) {
 const sessionFile = sessionValue
   ? path.resolve(ROOT, sessionValue)
   : boardDemoSessionPath(process.env, { root: ROOT });
+
+if (!sessionValue && process.platform === "darwin") {
+  const launchd = createBoardLaunchdController({ root: ROOT });
+  const service = await launchd.inspect();
+  if (service.installed) {
+    if (!service.owned) {
+      console.error(`[board-stop] Refusing to stop ${service.label}; it is not owned by this checkout.`);
+      process.exit(1);
+    }
+    await launchd.stop();
+    console.log(`[board-stop] Persistent launchd owner ${service.label} retired.`);
+  }
+}
+
 const session = await readBoardDemoSession(sessionFile);
 if (!session) {
   console.log(`[board-stop] No board demo session exists at ${sessionFile}.`);
