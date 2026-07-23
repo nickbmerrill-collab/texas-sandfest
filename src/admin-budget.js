@@ -41,6 +41,7 @@ const panelMarkup = `
         <label><span>Annual amount</span><input name="amount" type="number" min="0.01" max="10000000" step="0.01" required /></label>
         <label><span>Notes</span><input name="notes" maxlength="500" placeholder="What this allocation covers" /></label>
         <button class="button secondary" type="submit">Add allocation</button>
+        <p class="partner-form-status admin-finance-form-status" data-finance-create-status role="status" aria-live="polite"></p>
       </form>
       <form id="admin-create-expense" class="admin-inline-form" data-requires-permission="budget:write">
         <strong>Submit expense request</strong>
@@ -50,6 +51,7 @@ const panelMarkup = `
         <label><span>Due date</span><input name="dueDate" type="date" required /></label>
         <label class="admin-import-wide"><span>Description</span><input name="description" required minlength="8" maxlength="500" /></label>
         <button class="button primary" type="submit">Submit for approval</button>
+        <p class="partner-form-status admin-finance-form-status" data-finance-create-status role="status" aria-live="polite"></p>
       </form>
     </div>
   </div>`;
@@ -98,6 +100,15 @@ export function createAdminBudgetUi({
     return (payload?.summary?.lines || []).find(line => line.id === lineId)
       || (payload?.budgetLines || []).find(line => line.id === lineId)
       || null;
+  }
+
+  function setCreationStatus(form, message, state) {
+    const status = form.querySelector("[data-finance-create-status]");
+    status.textContent = message;
+    status.dataset.state = state;
+    status.setAttribute("role", state === "error" ? "alert" : "status");
+    status.setAttribute("aria-live", state === "error" ? "assertive" : "polite");
+    setAdminStatus(message, state);
   }
 
   function lineCard(line) {
@@ -288,11 +299,11 @@ export function createAdminBudgetUi({
         clearCreationRetry(form);
         form.reset();
         await load({ quiet: true });
-        setAdminStatus(`Added ${result.line.name} at ${adminMoney(result.line.budgetCents)}.`, "ok");
+        setCreationStatus(form, `Added ${result.line.name} at ${adminMoney(result.line.budgetCents)}.`, "ok");
       } catch (error) {
         const ambiguous = requestOutcomeIsAmbiguous(error);
         if (!ambiguous) clearCreationRetry(form);
-        setAdminStatus(ambiguous
+        setCreationStatus(form, ambiguous
           ? `${error.message} Try the same allocation again; Finance will record it only once.`
           : error.message, "error");
       } finally {
@@ -323,11 +334,11 @@ export function createAdminBudgetUi({
         form.elements.dueDate.value = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
         await load({ quiet: true });
         if ([...form.elements.budgetLineId.options].some(option => option.value === selectedLine)) form.elements.budgetLineId.value = selectedLine;
-        setAdminStatus(`Submitted ${adminMoney(result.expense.amountCents)} for ${result.expense.vendorName}.`, "ok");
+        setCreationStatus(form, `Submitted ${adminMoney(result.expense.amountCents)} for ${result.expense.vendorName}.`, "ok");
       } catch (error) {
         const ambiguous = requestOutcomeIsAmbiguous(error);
         if (!ambiguous) clearCreationRetry(form);
-        setAdminStatus(ambiguous
+        setCreationStatus(form, ambiguous
           ? `${error.message} Try the same expense again; Finance will record it only once.`
           : error.message, "error");
       } finally {

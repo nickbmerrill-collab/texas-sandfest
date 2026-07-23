@@ -2849,9 +2849,9 @@ test("finance creation recovers accepted responses without duplicate records or 
   await lineForm.locator('[name="amount"]').fill("4200.00");
   await lineForm.locator('[name="notes"]').fill("Accepted-response recovery allocation");
   await lineForm.evaluate(form => form.requestSubmit());
-  await expect(page.locator("#admin-api-status")).toContainText("Finance will record it only once");
+  await expect(lineForm.locator("[data-finance-create-status]")).toContainText("Finance will record it only once");
   await lineForm.evaluate(form => form.requestSubmit());
-  await expect(page.locator("#admin-api-status")).toContainText("Added Recovery finance");
+  await expect(lineForm.locator("[data-finance-create-status]")).toContainText("Added Recovery finance");
   expect(lineKeys[0]).toMatch(/^[A-Za-z0-9][A-Za-z0-9._:-]{15,199}$/);
   expect(lineKeys[1]).toBe(lineKeys[0]);
   expect(lineResponses[0].replay).toBe(false);
@@ -2883,9 +2883,9 @@ test("finance creation recovers accepted responses without duplicate records or 
   await expenseForm.locator('[name="dueDate"]').fill("2027-03-25");
   await expenseForm.locator('[name="description"]').fill("Replay-safe finance equipment request");
   await expenseForm.evaluate(form => form.requestSubmit());
-  await expect(page.locator("#admin-api-status")).toContainText("Finance will record it only once");
+  await expect(expenseForm.locator("[data-finance-create-status]")).toContainText("Finance will record it only once");
   await expenseForm.evaluate(form => form.requestSubmit());
-  await expect(page.locator("#admin-api-status")).toContainText("Submitted $875.00");
+  await expect(expenseForm.locator("[data-finance-create-status]")).toContainText("Submitted $875.00");
   expect(expenseKeys[0]).toMatch(/^[A-Za-z0-9][A-Za-z0-9._:-]{15,199}$/);
   expect(expenseKeys[1]).toBe(expenseKeys[0]);
   expect(expenseResponses[0].replay).toBe(false);

@@ -6613,6 +6613,7 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .admin-inline-form textarea { resize: vertical; }
 .admin-task-wide { grid-column: 1 / -1; }
 .admin-inline-form .button { justify-self: start; }
+.admin-inline-form .admin-finance-form-status { grid-column: 1 / -1; margin: 0; }
 #admin-create-prospect input[name="contactEmail"] { grid-column: 1 / -1; }
 .admin-prospect-community { align-items: center; display: flex !important; flex-direction: row; gap: 8px !important; }
 .admin-prospect-community input { height: 18px; padding: 0; width: 18px; }
