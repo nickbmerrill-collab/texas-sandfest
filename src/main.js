@@ -75,6 +75,12 @@ function friendlyRequestError(error, fallback = "The request could not be comple
   return error?.message || fallback;
 }
 
+function requestOutcomeIsAmbiguous(error) {
+  return ["request_timeout", "network_error"].includes(error?.code)
+    || [408, 429].includes(error?.status)
+    || error?.status >= 500;
+}
+
 const safeExternalHref = value => {
   try {
     const url = new URL(String(value || ""));
@@ -2663,25 +2669,6 @@ function closeTicketDemoCheckout() {
   renderTicketCart();
 }
 
-function showTicketDemoCheckout(checkout) {
-  if (checkout?.mode !== "board_sandbox" || checkout.completeEndpoint !== "/api/public/board-ticket-checkout/complete" || typeof checkout.token !== "string") {
-    throw new Error("The local payment sandbox returned an invalid checkout.");
-  }
-  ticketDemoCheckoutState = checkout;
-  const panel = document.querySelector("#ticket-demo-checkout");
-  const amount = document.querySelector("#ticket-demo-amount");
-  const summary = document.querySelector("#ticket-demo-summary");
-  const sandboxStatus = document.querySelector("#ticket-demo-status");
-  if (!panel || !amount || !summary || !sandboxStatus) throw new Error("The local payment sandbox is unavailable.");
-  amount.textContent = `${formatMoney(checkout.amountCents) || "$0.00"} demo`;
-  summary.innerHTML = checkout.lineItems.map(line => `<p><span>${escapeHtml(`${line.quantity} x ${line.name}`)}</span><strong>${escapeHtml(formatMoney(line.unitAmount * line.quantity) || "$0.00")}</strong></p>`).join("");
-  sandboxStatus.textContent = "Ready to simulate an approved payment. This stays on the local board runtime.";
-  sandboxStatus.dataset.state = "idle";
-  panel.hidden = false;
-  renderTicketCart();
-  document.querySelector("#ticket-demo-pay")?.focus();
-}
-
 async function loadPublicTicketCatalog() {
   try {
     const response = await fetchWithTimeout(`${publicApiBase()}/api/public/tickets`, { cache: "no-store" });
@@ -2723,50 +2710,6 @@ document.querySelector("#ticket-product-grid")?.addEventListener("click", event 
       else form?.scrollIntoView({ behavior: "smooth", block: "start" });
       form?.elements.organizationName?.focus({ preventScroll: true });
     }
-  }
-});
-
-document.querySelector("#ticket-demo-cancel")?.addEventListener("click", () => {
-  closeTicketDemoCheckout();
-  setFormStatus(document.querySelector("#checkout-status"), "Demo checkout closed. Your ticket selection is still here.", "idle");
-});
-
-document.querySelector("#ticket-demo-pay")?.addEventListener("click", async () => {
-  const checkout = ticketDemoCheckoutState;
-  const button = document.querySelector("#ticket-demo-pay");
-  const cancelButton = document.querySelector("#ticket-demo-cancel");
-  const sandboxStatus = document.querySelector("#ticket-demo-status");
-  const checkoutStatus = document.querySelector("#checkout-status");
-  if (!checkout || !button || !sandboxStatus) return;
-  button.disabled = true;
-  if (cancelButton) cancelButton.disabled = true;
-  setFormStatus(sandboxStatus, "Recording the local payment and creating fulfillment...", "loading");
-  try {
-    const response = await fetchWithTimeout(`${publicApiBase()}${checkout.completeEndpoint}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ token: checkout.token })
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || `Demo payment failed with ${response.status}`);
-    const receipt = data.receipt || {};
-    if (data.order?.status !== "paid" || receipt.environment !== "board_sandbox") throw new Error("The local payment did not return a paid receipt.");
-    ticketDemoCheckoutState = null;
-    ticketCart.clear();
-    acceptedTicketPolicyKey = null;
-    const policyAcceptance = document.querySelector("#ticket-policy-acceptance");
-    if (policyAcceptance) policyAcceptance.checked = false;
-    resetTicketCheckoutRetry();
-    document.querySelector("#ticket-demo-summary").innerHTML = `<p><span>Order</span><strong>${escapeHtml(receipt.orderId)}</strong></p><p><span>Fulfillment</span><strong>${escapeHtml(`${receipt.fulfillmentCount} wristband${receipt.fulfillmentCount === 1 ? "" : "s"} queued`)}</strong></p>`;
-    button.hidden = true;
-    if (cancelButton) cancelButton.hidden = true;
-    setFormStatus(sandboxStatus, "Demo payment complete. The order, payment event, fulfillment, and ticket revenue are now visible in operations.", "ok");
-    setFormStatus(checkoutStatus, `Demo payment complete for ${receipt.orderId}. No external charge was sent.`, "ok");
-    renderTicketCart();
-  } catch (error) {
-    setFormStatus(sandboxStatus, friendlyRequestError(error), "error");
-    button.disabled = false;
-    if (cancelButton) cancelButton.disabled = false;
   }
 });
 
@@ -2830,9 +2773,41 @@ document.querySelector("#checkout-btn").addEventListener("click", async () => {
       window.location.href = checkoutUrl;
       return;
     }
-    if (data.demoCheckout) {
-      showTicketDemoCheckout(data.demoCheckout);
+    if (import.meta.env.DEV && data.demoCheckout) {
+      const { showTicketPaymentSandbox } = await import("./board-demo/ticket-payment-sandbox.js");
+      showTicketPaymentSandbox(data.demoCheckout, {
+        complete: async (endpoint, token) => {
+          const paymentResponse = await fetchWithTimeout(`${publicApiBase()}${endpoint}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ token })
+          });
+          const payment = await paymentResponse.json().catch(() => ({}));
+          if (!paymentResponse.ok) {
+            const paymentError = new Error(payment.error || `Demo payment failed with ${paymentResponse.status}`);
+            paymentError.status = paymentResponse.status;
+            throw paymentError;
+          }
+          return payment;
+        },
+        onCancel: () => {
+          closeTicketDemoCheckout();
+          setFormStatus(status, "Demo checkout closed. Your ticket selection is still here.", "idle");
+        },
+        onComplete: result => {
+          ticketDemoCheckoutState = null;
+          ticketCart.clear();
+          acceptedTicketPolicyKey = null;
+          const policyAcceptance = document.querySelector("#ticket-policy-acceptance");
+          if (policyAcceptance) policyAcceptance.checked = false;
+          resetTicketCheckoutRetry();
+          setFormStatus(status, `Demo payment complete for ${result.receipt.orderId}. No external charge was sent.`, "ok");
+          renderTicketCart();
+        }
+      });
+      ticketDemoCheckoutState = data.demoCheckout;
       setFormStatus(status, "Local demo checkout created. Review the sandbox payment below.", "ok");
+      renderTicketCart();
       return;
     }
     const consentNote = data.order?.consent?.consentId
@@ -2845,7 +2820,10 @@ document.querySelector("#checkout-btn").addEventListener("click", async () => {
     setFormStatus(status, (data.message || `Checkout validated and stored as ${data.order?.id ?? "a pending order"}. Stripe is not configured yet.`) + consentNote, "ok");
   } catch (error) {
     if (error.status === 409) resetTicketCheckoutRetry();
-    setFormStatus(status, `${friendlyRequestError(error)} Please review the order and try again.`, "error");
+    const retryGuidance = requestOutcomeIsAmbiguous(error)
+      ? "Your selections are still here. Try again to resume the same checkout without creating a second order."
+      : "Please review the order and try again.";
+    setFormStatus(status, `${friendlyRequestError(error)} ${retryGuidance}`, "error");
   } finally {
     renderTicketCart();
   }
@@ -5115,7 +5093,11 @@ async function partnerPortalJson(endpoint, payload) {
     body: JSON.stringify({ ...activePartnerPortalAccess, ...payload })
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || `Partner update failed with ${response.status}`);
+  if (!response.ok) {
+    const portalError = new Error(data.error || `Partner update failed with ${response.status}`);
+    portalError.status = response.status;
+    throw portalError;
+  }
   return data;
 }
 
@@ -5163,7 +5145,9 @@ function bindPartnerPaymentActions() {
       window.location.assign(checkoutUrl);
     } catch (error) {
       status.dataset.state = "error";
-      status.textContent = error.message;
+      status.textContent = requestOutcomeIsAmbiguous(error)
+        ? `${friendlyRequestError(error)} The invoice is unchanged. Try again to resume the same checkout.`
+        : error.message;
       button.disabled = false;
     }
   });
