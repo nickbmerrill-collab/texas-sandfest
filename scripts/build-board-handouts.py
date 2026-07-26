@@ -114,7 +114,7 @@ def footer(c, left_text):
 
 
 def build_decision_brief():
-    c = canvas.Canvas(str(DECISION_PATH), pagesize=letter)
+    c = canvas.Canvas(str(DECISION_PATH), pagesize=letter, invariant=1)
     c.setTitle("Texas SandFest Board Decision Brief")
     c.setAuthor("Texas SandFest / Heyelab")
     header(
@@ -218,7 +218,7 @@ def build_decision_brief():
 
 
 def build_flight_card():
-    c = canvas.Canvas(str(FLIGHT_PATH), pagesize=letter)
+    c = canvas.Canvas(str(FLIGHT_PATH), pagesize=letter, invariant=1)
     c.setTitle("Texas SandFest Presenter Flight Card")
     c.setAuthor("Texas SandFest / Heyelab")
     header(
