@@ -1492,7 +1492,7 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await page.locator("#admin-load-documents").click();
   const extractedDocumentCard = page.locator(`[data-admin-document="${uploadedDocumentId}"]`);
   await expect(extractedDocumentCard).toContainText("Extraction ready");
-  await expect(extractedDocumentCard).toContainText("5,507 characters");
+  await expect(extractedDocumentCard).toContainText("8,765 characters");
   await extractedDocumentCard.locator(".admin-document-preview summary").click();
   await expect(extractedDocumentCard.locator(".admin-document-preview pre")).toContainText("TEXAS SANDFEST");
   const vendorCard = page.locator("#admin-partner-applications [data-partner-application]").filter({ hasText: vendorName });

@@ -143,7 +143,11 @@ hostname before canonical DNS is ready.
 
 `npm run video:board` captures the running local demo and renders a narrated
 1080p board presentation using local Chrome, macOS speech, and ffmpeg. See
-`docs/board-demo-video.md` for the server setup and output files.
+`docs/board-demo-video.md` for the server setup and output files. Run
+`npm run board:handouts` to build the one-page decision brief and presenter
+flight card, then `npm run board:showtime` to require those PDFs, the briefing
+deck, persistent service, certificate, active links, and fallback video to match
+one clean `origin/main` revision.
 
 Enterprise ops console: open `/admin.html` after `npm run dev`. Production uses
 `npm run build:public` for the visitor-only `dist-public/` artifact and
