@@ -1,65 +1,65 @@
 {
-  "title": "Texas SandFest: One Platform for Visitors and Operations",
+  "title": "Texas SandFest: A Certified Festival Platform",
   "scenes": [
     {
       "title": "Visitor Home",
       "frame": "01-visitor-home.png",
-      "narration": "Texas SandFest can become one connected platform for the entire festival. Visitors get a polished, mobile-friendly guide, while the same underlying information supports the teams running the beach. The experience begins with the event, its mission, dates, location, and the most important visitor actions."
+      "narration": "Texas SandFest now has one connected demonstration platform for visitors and festival operations. The public experience begins with the event, its mission, dates, location, and the most important visitor actions. Every scene in this walkthrough comes from the isolated 2027 board runtime, with no external messages, charges, or live provider calls."
     },
     {
       "title": "Live Beach",
       "frame": "02-live-beach.png",
-      "narration": "Live Beach turns the festival map into a living guide. Guests can see crowd conditions, current performances, sculpture locations, short food lines, and Sandy's suggested route. The timeline can also replay the day, helping visitors choose where to go and helping staff understand demand."
+      "narration": "Live Beach turns the festival map into a living guide. Guests can see crowd conditions, performances, sculpture locations, short food lines, and Sandy's suggested route. For the board demonstration, weather, ferry, camera, and crowd signals are continuously refreshed local simulations, so weak venue internet cannot block the presentation."
     },
     {
       "title": "Ticketing and Consent",
       "frame": "03-ticketing.png",
-      "narration": "Ticketing is shaped for general admission, V I P, Apple Pay, sponsor packages, and guarded raffle flows. The customer sees one clear cart, while marketing and safety consent remain separate and unchecked by default. Live charging stays disabled until approved Stripe keys, prices, and webhooks are connected."
+      "narration": "Ticketing exercises the real cart, policy, consent, payment-event, fulfillment, and revenue contracts through a local payment sandbox. Marketing and safety consent remain separate and unchecked by default. Live charging stays disabled until the board approves activation and the production Stripe account, prices, domains, and signed webhooks are connected."
     },
     {
       "title": "Sculptors",
       "frame": "04-sculptors-passport.png",
-      "narration": "The sculptor experience connects the roster to the actual beach. Guests can filter divisions, tap a marker, meet the artist, read about the work, and see exactly where to find it. That same structured data can power the website, the native app, maps, and event-day signage."
+      "narration": "The sculptor experience connects a governed roster to the beach. Guests can filter divisions, tap a marker, meet the artist, read about the work, and see where to find it. Staff can preview a reviewed C S V, publish or hold the roster, and use the same structured records across the website, native app, maps, and event-day signage."
     },
     {
       "title": "Passport and People's Choice",
       "frame": "05-voting-passport.png",
-      "narration": "The Sculpture Passport makes exploration participatory. Guests scan markers as they visit each work, complete the trail, and become eligible for a prize drawing. People's Choice voting sits beside it with a live tally and the ability to enforce one vote per device or require a ticket reference."
+      "narration": "The Sculpture Passport makes exploration participatory. Guests scan markers as they visit each work, complete the trail, and become eligible for a prize drawing. People's Choice voting sits beside it with a live tally and configurable eligibility. Presentation reset restores the exact baseline, so rehearsal never contaminates the next walkthrough."
     },
     {
-      "title": "Vendor Map",
-      "frame": "06-vendor-map.png",
-      "narration": "Food, vendors, sponsors, and activities become searchable public pins instead of a static list. Booth assignments can be imported from Eventeny, then mirrored into the visitor map while staff retain operational details such as permits, utilities, load-in windows, and inspection status."
+      "title": "Sponsor and Vendor Intake",
+      "frame": "06-partner-intake.png",
+      "narration": "Sponsors and vendors move through current, server-published programs instead of hard-coded prices. Public forms capture consent, generate a private status link, and create the staff review work. Sponsor brand proof, vendor compliance, booth assignment, receivables, milestones, and partner preferences remain connected without exposing private workflow data."
     },
     {
-      "title": "Ask Sandy",
-      "frame": "07-ask-sandy.png",
-      "narration": "Ask Sandy gives guests one trusted place for questions about tickets, parking, accessibility, families, schedules, vendors, and policies. Today the demonstration uses approved local rules. The production path adds source-backed retrieval, live operations context, staff escalation, and an auditable answer history."
+      "title": "Guest Services",
+      "frame": "07-guest-services.png",
+      "narration": "Guest Services closes the loop on accessibility, lost property, family support, vendor questions, and other visitor needs. A guest receives a private status view, while staff see an accountable case queue with priority, ownership, internal notes, and safe public updates. The visitor never sees the internal operations record."
     },
     {
-      "title": "Operations Mode",
-      "frame": "08-operations.png",
-      "narration": "A single switch reveals the staff side without exposing it to visitors. Operations teams can monitor zone load, gate pressure, volunteer coverage, weather, incidents, and accessibility needs. Simulated crowd updates already show how the system can recommend dispatching staff before a small issue becomes a bottleneck."
+      "title": "Operations Command",
+      "frame": "08-operations-command.png",
+      "narration": "The dedicated Operations portal opens on a festival command summary. Eight workflow signals bring together partner readiness, work, revenue, Guest Services, field conditions, messages, key dates, and launch gates. Staff tools stay outside the visitor bundle and remain permission-aware, while the presentation session reconnects automatically."
     },
     {
-      "title": "Admin Readiness",
-      "frame": "09-admin-readiness.png",
-      "narration": "The admin console is permission-aware and connected to a real local application programming interface. It reports deployment readiness, role access, Stripe guardrails, alerts, transactions, audits, and configuration snapshots. Sensitive actions stay behind staff authentication and explicit permissions."
+      "title": "Document Intake",
+      "frame": "09-document-intake.png",
+      "narration": "Board, policy, operations, finance, Eventeny, QuickBooks, and communications files enter one private review queue. The current demonstration proves the briefing deck can be ingested, extracted, routed into delegated work, downloaded with checksum-verified bytes, and kept outside the public surface. Production promotion remains review-gated."
     },
     {
-      "title": "Revenue Operations",
-      "frame": "10-revenue-fleet.png",
-      "narration": "Revenue reporting reconciles ticketing, Eventeny, Square, sponsor, raffle, and manual entries before reviewed totals reach QuickBooks. The goal is not to replace accounting. It is to give the board and event leaders a timely operational view while preserving QuickBooks as the financial ledger."
+      "title": "Partner Operations",
+      "frame": "10-partner-operations.png",
+      "narration": "Partner Operations connects sponsor and vendor applications, outreach, message approvals, brand delivery, compliance, receivables, and key dates. Transactional notices can traverse the local provider sandbox automatically, while prospect outreach and uncertain delivery outcomes remain review-first. Duplicate-send protection and audit evidence stay intact."
     },
     {
-      "title": "Fleet Checkout",
-      "frame": "11-fleet-operations.png",
-      "narration": "Fleet checkout brings golf carts, radios, chargers, keys, and shared gear into the same command surface. Staff can scan an asset, record who has it, capture battery condition or damage, and close the loop at check-in. The native iPhone flow uses the same records."
+      "title": "Incident and Delegation",
+      "frame": "11-incident-delegation.png",
+      "narration": "Incidents and delegated work share a governed operating loop. Staff can open an issue, assign a team or individual, track urgency and deadlines, send a private task link, and close the work with evidence. The same records support staff, volunteers, Guest Services, partner milestones, and the native iPhone workflow."
     },
     {
-      "title": "Volunteer Coverage",
-      "frame": "12-volunteer-coverage.png",
-      "narration": "Volunteer coverage turns roster exports into zone staffing, open gaps, captain briefs, and hours. Together, these capabilities show a practical path from today's website to a coordinated festival platform: simpler for guests, clearer for staff, and more accountable for the board."
+      "title": "Certification and Activation",
+      "frame": "12-readiness-proof.png",
+      "narration": "The final screen separates what is certified now from what activates after board approval. Ten reset-safe journeys, Chromium and WebKit acceptance, the local provider sandboxes, and exact baseline restoration prove the product. Stripe, QuickBooks, live communications, weather, ferry, camera edge agents, identity, Turnstile, domains, and managed recovery remain explicit production gates."
     }
   ]
 }

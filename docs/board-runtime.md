@@ -65,6 +65,7 @@ depending on an open terminal:
 npm run board:service:start
 npm run board:service:status
 npm run board:present
+npm run board:showtime
 ```
 
 `board:service:start` is idempotent. It atomically installs
@@ -93,6 +94,16 @@ revision and exact active links. It requires all ten workflow journeys,
 approved post-board provider deferrals, and a completion time no more than
 seven days old. A missing or stale certificate does not prevent service startup;
 `board:service:status` names the gap and the remediation command.
+
+After generating the narrated fallback with `npm run video:board`, use
+`npm run board:handouts` to build and verify the one-page board decision brief
+and presenter flight card, then run `npm run board:showtime` as the final
+presenter preflight. It reruns the strict persistent-service gate, verifies the
+12-slide briefing and all 12 source-backed presenter notes, validates both
+one-page PDFs and the 1080p fallback video, and requires the deck, certificate,
+active links, and video capture to belong to the same clean `origin/main`
+revision. It reports every failed check with the exact recovery sequence instead
+of allowing a stale fallback to appear presentation-ready.
 
 Every prepared runtime carries an explicit compatibility schema. On startup,
 the supervisor automatically rebuilds a recognized synthetic runtime when its

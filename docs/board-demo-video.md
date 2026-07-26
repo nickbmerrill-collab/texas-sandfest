@@ -4,57 +4,77 @@ Use this to build a local, offline-safe walkthrough for the SandFest board.
 
 ## Goal
 
-Show that the platform is more than a website: it is a visitor guide, live beach layer, ticketing scaffold, sculpture passport, People's Choice voting surface, vendor map, admin console, and operations cockpit.
+Show the certified product story from visitor experience through Operations,
+document intake, partner workflows, delegated work, and controlled production
+activation.
 
 ## Local Prep
 
-```bash
-npm run ready
-SANDFEST_ADMIN_API_TOKEN=dev-admin-token-change-me npm run api:dev
-npm run dev
-```
-
-Open `http://127.0.0.1:5173`.
-
-If `8788` is already occupied, run the API on a clean port and pass it to the
-site:
+Start and certify the persistent board stack:
 
 ```bash
-SANDFEST_API_PORT=8806 SANDFEST_ADMIN_API_TOKEN=dev-admin-token-change-me npm run api:dev
+npm run board:service:start
+npm run board:certify
+npm run board:present
 ```
 
-Then open `http://127.0.0.1:5173/?apiBase=http://127.0.0.1:8806`.
+The recorder fails closed unless the target is exact loopback, the runtime is
+the isolated synthetic 2027 presentation, document ingestion is ready, and the
+active certificate proves all ten journeys plus Chromium and WebKit 14/14.
 
 ## Five-Minute Storyboard
 
 1. Visitor home: event dates, mission, install/offline status, and Live Beach entry.
 2. Live Beach: scrub the festival timeline, hover sculpture pins, and start Sandy's suggested walk.
 3. Tickets: add GA/VIP items, show consent checkboxes, and explain Stripe remains guarded until approved keys/webhooks are connected.
-4. Sculptors: filter the roster, tap a map pin, stamp the Sculpture Passport, then cast a People's Choice vote.
-5. Operations mode: switch to Operations, show crowd simulation, ingestion cockpit, admin API configuration, emergency alert controls, revenue, fleet, volunteer, consent, passport, voting, and booth modules.
+4. Sculptors and engagement: connect the governed roster, beach map, Passport, and People's Choice.
+5. Operations: show command signals, document intake, partner workflows, incident delegation, certification evidence, and the post-board activation boundary.
 
 ## Build the narrated video
 
-With the local app and API running, build the complete video with:
+With the certified stack running on its preferred links, build the complete
+video with:
 
 ```bash
-SANDFEST_DEMO_URL='http://127.0.0.1:5175/?apiBase=http://127.0.0.1:8806' \
-SANDFEST_ADMIN_API_TOKEN=dev-admin-token-change-me \
+npm run video:board
+```
+
+If the supervisor selected alternate ports, copy the Visitor and Operations
+links from `npm run board:check`:
+
+```bash
+SANDFEST_DEMO_URL='http://127.0.0.1:PORT/?apiBase=ENCODED_API&mode=visitor' \
+SANDFEST_OPERATIONS_URL='http://127.0.0.1:PORT/admin.html?apiBase=ENCODED_API' \
 npm run video:board
 ```
 
 This launches a clean headless Chrome session, captures deterministic 1600 by
 900 frames from the real application, generates narration with the Mac's local
-text-to-speech voice, and encodes a 1080p MP4 with local `ffmpeg` compute.
+text-to-speech voice, encodes a 1080p MP4 with local `ffmpeg` compute, and
+verifies the finished video against its source frames and certificate evidence.
 
 Outputs are written to `artifacts/board-demo`:
 
 - `texas-sandfest-board-demo.mp4`
 - `texas-sandfest-board-demo-poster.png`
 - `texas-sandfest-board-demo-transcript.txt`
+- `capture.json`
 
 Set `SANDFEST_VIDEO_VOICE` or `SANDFEST_VIDEO_RATE` to change the local voice
 or pacing. Set `CHROME_PATH` if Google Chrome is installed somewhere else.
+Run `npm run video:board:verify` to recheck existing output without recapturing
+or rerendering it.
+
+Finish with:
+
+```bash
+npm run board:handouts
+npm run board:showtime
+```
+
+That final preflight requires the deck, persistent service, full certificate,
+active Visitor and Operations links, and fallback video to agree on one clean
+`origin/main` revision.
 
 ## Live recording alternative
 
