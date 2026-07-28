@@ -3176,6 +3176,16 @@ staff_production,${importEventId},Jordan Davis,jordan.davis@staff.example,active
     TWILIO_FROM_NUMBER: "+15125550000",
     TWILIO_API_BASE_URL: "http://127.0.0.1:9999",
     TWILIO_STATUS_CALLBACK_URL: "http://127.0.0.1:8806/api/webhooks/twilio/status",
+    TWILIO_SAFETY_INBOUND_WEBHOOK_URL: "http://127.0.0.1:8806/api/webhooks/twilio/inbound/smsSafety",
+    TWILIO_MARKETING_INBOUND_WEBHOOK_URL: "http://127.0.0.1:8806/api/webhooks/twilio/inbound/smsMarketing"
+  });
+  const missingMarketingCallback = smsConfigFromEnv({
+    SMS_ENABLED: "true",
+    TWILIO_ACCOUNT_SID: "AC_test",
+    TWILIO_AUTH_TOKEN: "test-secret",
+    TWILIO_FROM_NUMBER: "+15125550000",
+    TWILIO_API_BASE_URL: "http://127.0.0.1:9999",
+    TWILIO_STATUS_CALLBACK_URL: "http://127.0.0.1:8806/api/webhooks/twilio/status",
     TWILIO_SAFETY_INBOUND_WEBHOOK_URL: "http://127.0.0.1:8806/api/webhooks/twilio/inbound/smsSafety"
   });
   const productionMisconfigured = smsConfigFromEnv({
@@ -3186,10 +3196,11 @@ staff_production,${importEventId},Jordan Davis,jordan.davis@staff.example,active
     TWILIO_FROM_NUMBER: "+15125550000",
     TWILIO_API_BASE_URL: "https://example.test",
     TWILIO_STATUS_CALLBACK_URL: "https://example.test/api/webhooks/twilio/status",
-    TWILIO_SAFETY_INBOUND_WEBHOOK_URL: "https://example.test/api/webhooks/twilio/inbound/smsSafety"
+    TWILIO_SAFETY_INBOUND_WEBHOOK_URL: "https://example.test/api/webhooks/twilio/inbound/smsSafety",
+    TWILIO_MARKETING_INBOUND_WEBHOOK_URL: "https://example.test/api/webhooks/twilio/inbound/smsMarketing"
   });
   const readinessJson = JSON.stringify(publicSmsReadiness(config));
-  ok("SMS readiness requires callbacks and official production transport", config.ready && !productionMisconfigured.ready);
+  ok("SMS readiness requires both inbound callbacks and official production transport", config.ready && !missingMarketingCallback.ready && !productionMisconfigured.ready);
   ok("public SMS readiness omits credentials and identifies local sandbox mode", publicSmsReadiness(config).providerMode === "sandbox" && !readinessJson.includes("test-secret") && !readinessJson.includes("+15125550000"));
   const callbackUrl = smsStatusCallbackUrl(config, { campaignId: "campaign-1", messageId: "message-1" });
   let submittedForm = null;
@@ -6161,7 +6172,8 @@ Research First,construction,Corpus Christi,,78401,,,,Find decision maker,`;
       TWILIO_FROM_NUMBER: fromNumber,
       TWILIO_API_BASE_URL: sandbox.url,
       TWILIO_STATUS_CALLBACK_URL: "http://127.0.0.1:8806/api/webhooks/twilio/status",
-      TWILIO_SAFETY_INBOUND_WEBHOOK_URL: "http://127.0.0.1:8806/api/webhooks/twilio/inbound/smsSafety"
+      TWILIO_SAFETY_INBOUND_WEBHOOK_URL: "http://127.0.0.1:8806/api/webhooks/twilio/inbound/smsSafety",
+      TWILIO_MARKETING_INBOUND_WEBHOOK_URL: "http://127.0.0.1:8806/api/webhooks/twilio/inbound/smsMarketing"
     });
     const callbackUrl = smsStatusCallbackUrl(smsConfig, { campaignId: "board-campaign", messageId: "board-message" });
     const delivery = await sendSms(recipient, "SandFest safety sandbox delivery", { config: smsConfig, statusCallbackUrl: callbackUrl });

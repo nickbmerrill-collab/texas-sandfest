@@ -224,7 +224,8 @@ function processEnvironment(runtimeRoot, endpoints, runtimeOwnerId, runtimeGener
     TWILIO_FROM_NUMBER,
     TWILIO_API_BASE_URL: endpoints.smsBase,
     TWILIO_STATUS_CALLBACK_URL: `${endpoints.apiBase}/api/webhooks/twilio/status`,
-    TWILIO_SAFETY_INBOUND_WEBHOOK_URL: `${endpoints.apiBase}/api/webhooks/twilio/inbound/smsSafety`
+    TWILIO_SAFETY_INBOUND_WEBHOOK_URL: `${endpoints.apiBase}/api/webhooks/twilio/inbound/smsSafety`,
+    TWILIO_MARKETING_INBOUND_WEBHOOK_URL: `${endpoints.apiBase}/api/webhooks/twilio/inbound/smsMarketing`
   };
   return {
     email: {
