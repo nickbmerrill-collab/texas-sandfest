@@ -5095,6 +5095,22 @@ function partnerCheckoutUnavailableLabel(finance, invoice, onlinePayment) {
   }
 }
 
+function adminPartnerCheckoutLabel(invoice, paymentCheckout) {
+  if (!invoice || (!paymentCheckout && Number(invoice.balanceCents || 0) <= 0)) return "";
+  if (!paymentCheckout) {
+    return ["approved", "queued", "synced", "failed"].includes(invoice.status)
+      ? "Payment link not started"
+      : "Payment opens after invoice approval";
+  }
+  const provider = paymentCheckout.provider === "board_sandbox" ? "Local checkout" : "Stripe checkout";
+  const status = paymentCheckout.status;
+  if (status === "open") {
+    if (Date.parse(paymentCheckout.expiresAt || "") <= Date.now()) return `${provider} expired`;
+    return paymentCheckout.provider !== "stripe" || stripeHostedCheckoutUrl(paymentCheckout.checkoutUrl) ? `${provider} open` : `${provider} needs review`;
+  }
+  return `${provider} ${status === "creating" ? "preparing" : ["failed", "reconciliation_required"].includes(status) ? "needs retry" : conditionLabel(status)}`;
+}
+
 async function partnerPortalJson(endpoint, payload) {
   if (!activePartnerPortalAccess) throw new Error("Open the private partner link again before making changes.");
   const response = await fetchWithTimeout(`${publicApiBase()}${endpoint}`, {
@@ -8267,6 +8283,7 @@ function renderAdminPartners(payload, outreach) {
     const expected = application.expectedAmountCents || application.requestedAmountCents || 0;
     const invoice = (payload.invoices || []).find(item => item.applicationId === application.id && item.status !== "voided");
     const paymentCheckout = invoice ? (payload.paymentCheckouts || []).filter(item => item.invoiceId === invoice.id).sort((a, b) => String(b.updatedAt || b.createdAt).localeCompare(String(a.updatedAt || a.createdAt)))[0] : null;
+    const paymentCheckoutLabel = adminPartnerCheckoutLabel(invoice, paymentCheckout);
     const canFinance = adminCan("finance:write");
     const isVendorInterest = application.type === "vendor" && application.intakeMode === "interest";
     const canCreateInvoice = canFinance && !invoice && expected > 0 && ["approved", "contracted", "invoiced", "partial"].includes(application.status);
@@ -8295,7 +8312,7 @@ function renderAdminPartners(payload, outreach) {
         ${invoice.lastError ? `<span class="admin-delivery-error">${escapeHtml(invoice.lastError)}</span>` : ""}
         ${invoice.lastQuickBooksReconciliationError ? `<span class="admin-delivery-error">${escapeHtml(invoice.lastQuickBooksReconciliationError)}</span>` : ""}
         <span>SandFest balance · ${adminMoney(invoice.balanceCents, "$0.00")} open</span>
-        ${paymentCheckout ? `<span>Stripe checkout · ${escapeHtml(conditionLabel(paymentCheckout.status))}${paymentCheckout.expiresAt ? ` · ${escapeHtml(new Date(paymentCheckout.expiresAt).toLocaleString())}` : ""}</span>` : ""}
+        ${paymentCheckoutLabel ? `<span data-partner-checkout-status="${escapeAttr(paymentCheckout?.status || "not_started")}">${escapeHtml(paymentCheckoutLabel)}${paymentCheckout?.expiresAt ? ` · ${escapeHtml(new Date(paymentCheckout.expiresAt).toLocaleString())}` : ""}</span>` : ""}
         ${invoice.quickBooksInvoiceId ? `<span>QuickBooks ${escapeHtml(invoice.quickBooksDocNumber || invoice.quickBooksInvoiceId)} · ${adminMoney(invoice.quickBooksBalanceCents, "not reported")} reported${invoice.quickBooksReconciledAt ? ` · checked ${escapeHtml(new Date(invoice.quickBooksReconciledAt).toLocaleString())}` : " · not refreshed"}</span>` : ""}
         <div class="admin-followup-actions">
           ${invoice.status === "draft" ? `<button type="button" class="button secondary" data-review-invoice="${escapeAttr(invoice.id)}" data-action="approve" ${canFinance ? "" : "disabled"}>Approve invoice</button>` : ""}

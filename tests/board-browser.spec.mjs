@@ -1530,6 +1530,7 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await sponsorInvoice.locator('[data-action="approve"]').click();
   expect((await invoiceApprovalResponse).status()).toBe(200);
   await expect(sponsorCard.locator(`[data-partner-invoice="${createdInvoice.id}"]`)).toContainText("approved");
+  await expect(sponsorCard.locator(`[data-partner-invoice="${createdInvoice.id}"] [data-partner-checkout-status="not_started"]`)).toHaveText("Payment link not started");
 
   await sponsorCard.locator('[name="paymentAmount"]').fill("5000.00");
   await sponsorCard.locator('[data-record-payment]').click();
@@ -1662,6 +1663,7 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await refreshedSponsorPartners;
   await expect(sponsorCard).toContainText("$5,000.00 / $5,000.00");
   await expect(sponsorCard.locator(`[data-partner-invoice="${createdInvoice.id}"]`)).toContainText("$0.00 open");
+  await expect(sponsorCard.locator(`[data-partner-invoice="${createdInvoice.id}"] [data-partner-checkout-status="completed"]`)).toContainText("Local checkout completed");
   const boardPartnerPayment = sponsorCard.locator(`[data-partner-payment="${partnerPayment.receipt.paymentId}"]`);
   await expect(boardPartnerPayment).toContainText("card");
   await expect(boardPartnerPayment).toContainText("board:pi_board_");
