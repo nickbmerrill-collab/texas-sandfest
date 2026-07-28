@@ -4182,6 +4182,52 @@ test("partner invoice checkout refuses lookalike Stripe destinations", async ({ 
   expect(attemptedExternalRequests).toEqual([]);
 });
 
+test("partner invoice portal explains unavailable payment links", async ({ page }) => {
+  await page.route("**/api/public/partner-status", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    await route.fulfill({
+      status: 200,
+      headers: { "access-control-allow-origin": webBase, "cache-control": "no-store" },
+      contentType: "application/json",
+      body: JSON.stringify({
+        application: {
+          reference: "TSF-S-PAYMENT-PENDING",
+          type: "sponsor",
+          intakeMode: "application",
+          status: "invoiced",
+          organizationName: "Payment Pending Sponsor",
+          submittedAt: "2026-07-20T12:00:00.000Z",
+          updatedAt: "2026-07-20T12:00:00.000Z",
+          nextStep: null,
+          contactPreference: { allowed: true, version: 1, updatedAt: "2026-07-20T12:00:00.000Z" },
+          finance: {
+            currency: "usd",
+            expectedAmountCents: 500000,
+            paidAmountCents: 0,
+            balanceCents: 500000,
+            paymentStatus: "unpaid",
+            onlinePayment: { enabled: true, ready: false, provider: "stripe" },
+            invoice: { id: "invoice_payment_pending", status: "approved", amountCents: 500000, balanceCents: 500000, dueAt: "2027-03-01T12:00:00.000Z" },
+            checkout: null,
+            checkoutUnavailableReason: "checkout_not_started"
+          },
+          milestones: [],
+          branding: null,
+          vendorOnboarding: null
+        }
+      })
+    });
+  });
+
+  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#partner-status?reference=TSF-S-PAYMENT-PENDING&token=tsfp_browser_payment_pending`);
+  await expect(page.locator("#partner-status-form .partner-form-status")).toContainText("Secure status loaded");
+  await expect(page.locator("[data-partner-pay-invoice]")).toHaveCount(0);
+  const note = page.locator("[data-partner-checkout-unavailable]");
+  await expect(note).toHaveAttribute("data-partner-checkout-unavailable", "checkout_not_started");
+  await expect(note).toHaveText("Online payment setup is not ready yet.");
+  await assertNoHorizontalOverflow(page);
+});
+
 test("partner invoice checkout explains replay-safe ambiguous payment outcomes", async ({ page }) => {
   const invoiceId = "invoice_ambiguous_payment";
   const checkoutToken = "board_partner_checkout_ambiguous_browser_token";
