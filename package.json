@@ -80,6 +80,7 @@
     "board:service:status": "node scripts/board-service.mjs status",
     "board:present": "node scripts/board-service.mjs present",
     "board:showtime": "node scripts/board-showtime.mjs",
+    "board:site-ready": "node scripts/board-showtime.mjs --site-only",
     "board:service:stop": "node scripts/board-service.mjs stop",
     "board:service:uninstall": "node scripts/board-service.mjs uninstall",
     "board:stop": "node scripts/stop-board-demo.mjs",

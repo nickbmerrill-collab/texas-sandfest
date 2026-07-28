@@ -13,7 +13,8 @@ import {
 const execFileAsync = promisify(execFile);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const jsonOutput = process.argv.includes("--json");
-const unknown = process.argv.slice(2).filter(argument => argument !== "--json");
+const siteOnly = process.argv.includes("--site-only");
+const unknown = process.argv.slice(2).filter(argument => !["--json", "--site-only"].includes(argument));
 const runtimeDir = path.join(ROOT, ".sandfest-runtime");
 const deckPath = path.join(ROOT, "docs", "presentations", "SandFest-Board-Platform-Briefing.pptx");
 const decisionBriefPath = path.join(ROOT, "output", "pdf", "SandFest-Board-Decision-Brief.pdf");
@@ -25,7 +26,7 @@ const sessionPath = path.join(runtimeDir, "board-demo-session.json");
 const certificatePath = path.join(runtimeDir, "board-capability-certification.json");
 
 if (unknown.length) {
-  console.error("Usage: node scripts/board-showtime.mjs [--json]");
+  console.error("Usage: node scripts/board-showtime.mjs [--json] [--site-only]");
   process.exit(1);
 }
 
@@ -169,23 +170,29 @@ const [
   gitState(),
   inspectDeck(),
   verifyHandouts(),
-  verifyVideo(),
+  siteOnly ? Promise.resolve({
+    ok: true,
+    size: 0,
+    detail: "Deferred for the site-functionality gate."
+  }) : verifyVideo(),
   serviceGate(),
   readJson(sessionPath),
   readJson(certificatePath),
-  readJson(capturePath)
+  siteOnly ? Promise.resolve(null) : readJson(capturePath)
 ]);
 
-const binding = assessBoardShowtimeBinding({ git, session, certificate, capture });
+const binding = assessBoardShowtimeBinding({ git, session, certificate, capture, requireCapture: !siteOnly });
 const checks = [
   {
     id: "source_binding",
     label: "Source and artifact binding",
     ok: binding.ok,
     detail: binding.ok
-      ? `${binding.source} · deck, certificate, video, and links agree`
+      ? `${binding.source} · deck, certificate,${siteOnly ? "" : " video,"} and links agree`
       : binding.errors.join(" "),
-    action: "Commit and merge the presentation changes, restart the board service, run board:certify, then rebuild the video."
+    action: siteOnly
+      ? "Commit and merge site changes, restart the board service, and run board:certify from clean main."
+      : "Commit and merge the presentation changes, restart the board service, run board:certify, then rebuild the video."
   },
   {
     id: "persistent_service",
@@ -203,13 +210,19 @@ const checks = [
       : deck.errors.join(" "),
     action: "Repair and re-export docs/presentations/SandFest-Board-Platform-Briefing.pptx."
   },
-  {
+  ...(siteOnly ? [{
+    id: "fallback_video_deferred",
+    label: "Narrated fallback video",
+    ok: true,
+    detail: "Deferred by request; this gate covers live site functionality only.",
+    action: "Run npm run video:board and npm run board:showtime when the video lane resumes."
+  }] : [{
     id: "fallback_video",
     label: "Narrated fallback video",
     ok: video.ok,
     detail: video.detail,
     action: "Run npm run video:board against the current certified presentation service."
-  },
+  }]),
   {
     id: "boardroom_handouts",
     label: "Board decision brief and presenter flight card",
@@ -220,6 +233,7 @@ const checks = [
 ];
 const result = {
   ok: checks.every(check => check.ok),
+  scope: siteOnly ? "site_functionality" : "full_showtime",
   checkedAt: new Date().toISOString(),
   source: binding.source,
   links: {
@@ -238,7 +252,7 @@ const result = {
 if (jsonOutput) {
   console.log(JSON.stringify(result, null, 2));
 } else {
-  console.log(`\nBoard showtime preflight: ${result.ok ? "READY" : "NOT READY"}\n`);
+  console.log(`\nBoard ${siteOnly ? "site readiness" : "showtime"} preflight: ${result.ok ? "READY" : "NOT READY"}\n`);
   for (const check of checks) {
     console.log(`  ${check.ok ? "✓" : "✗"} ${check.label}: ${check.detail}`);
     if (!check.ok) console.log(`    Action: ${check.action}`);
@@ -246,7 +260,7 @@ if (jsonOutput) {
   if (result.links.visitor) console.log(`\nVisitor:    ${result.links.visitor}`);
   if (result.links.operations) console.log(`Operations: ${result.links.operations}`);
   console.log(`Deck:       ${deckPath}`);
-  console.log(`Video:      ${videoPath}\n`);
+  console.log(`Video:      ${siteOnly ? "deferred for site-functionality gate" : videoPath}\n`);
   console.log(`Brief:      ${decisionBriefPath}`);
   console.log(`Flight card: ${flightCardPath}\n`);
 }

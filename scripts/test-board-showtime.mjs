@@ -122,9 +122,28 @@ await check("showtime binding rejects dirty source, stale video, and link drift"
   assert(result.errors.some(error => error.includes("links")));
 });
 
+await check("site-functionality binding keeps source strict while skipping deferred video", () => {
+  const result = assessBoardShowtimeBinding({
+    git,
+    session,
+    certificate,
+    capture: {
+      ...capture,
+      operationsUrl: "http://127.0.0.1:5199/admin.html",
+      certificate: {
+        ...capture.certificate,
+        source: { ...source, commit: "b".repeat(40) }
+      }
+    },
+    requireCapture: false
+  });
+  assert.equal(result.ok, true);
+});
+
 await check("package scripts expose the showtime preflight", async () => {
   const packageJson = JSON.parse(await readFile(path.join(ROOT, "package.json"), "utf8"));
   assert.equal(packageJson.scripts["board:showtime"], "node scripts/board-showtime.mjs");
+  assert.equal(packageJson.scripts["board:site-ready"], "node scripts/board-showtime.mjs --site-only");
   assert.equal(packageJson.scripts["board:handouts"], "npm run board:handouts:build && npm run board:handouts:verify");
 });
 
