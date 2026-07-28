@@ -117,6 +117,7 @@ import {
   verifyTwilioFormRequest
 } from "../lib/sms.mjs";
 import {
+  attachSmsJobs,
   beginSmsSubmission,
   createSmsAlertCampaign,
   emptySmsOperations,
@@ -3272,6 +3273,18 @@ staff_production,${importEventId},Jordan Davis,jordan.davis@staff.example,active
   }, { now: "2026-07-17T14:00:00.000Z", eventId: DEFAULT_EVENT_ID });
   const suppressed = suppressSmsCampaignsForAlert(queuedCampaign.doc, "alert-2", { now: "2026-07-17T14:01:00.000Z" });
   ok("clearing an alert suppresses queued SMS", suppressed.suppressed === 1 && suppressed.doc.messages[0].status === "suppressed");
+  const invalidSmsSnapshot = JSON.stringify(submitted.doc);
+  const invalidSmsCampaign = createSmsAlertCampaign(emptySmsOperations(DEFAULT_EVENT_ID), {
+    alert: { id: "invalid-clock-alert", title: "Invalid clock", severity: "warning" },
+    recipients: [{ id: rec.id, phone: rec.phone }]
+  }, { now: "not-a-date", eventId: DEFAULT_EVENT_ID });
+  const invalidSmsAttach = attachSmsJobs(submitted.doc, [{ messageId, jobId: "sms-job-invalid-clock" }], { now: "not-a-date" });
+  const invalidSmsBegin = beginSmsSubmission(submitted.doc, messageId, { now: "not-a-date" });
+  const invalidSmsSubmission = recordSmsSubmission(submitted.doc, messageId, { ok: false, error: "provider failed" }, { now: "not-a-date" });
+  const invalidSmsCallback = recordSmsStatusCallback(submitted.doc, { messageId, providerMessageSid: "SM_test", status: "failed" }, { now: "not-a-date" });
+  const invalidSmsPreference = recordSmsPreferenceEvent(submitted.doc, { providerMessageSid: "SM_invalid_clock", channel: "smsSafety", action: "STOP", recipientHash: campaignResult.messages[0].recipientHash }, { now: "not-a-date" });
+  const invalidSmsSuppression = suppressSmsCampaignsForAlert(queuedCampaign.doc, "alert-2", { now: "not-a-date" });
+  ok("SMS operations reject invalid clocks without local fallback", !invalidSmsCampaign.ok && invalidSmsCampaign.messages.length === 0 && !invalidSmsAttach.ok && !invalidSmsBegin.ok && !invalidSmsSubmission.ok && !invalidSmsCallback.ok && !invalidSmsPreference.ok && !invalidSmsSuppression.ok && invalidSmsSuppression.suppressed === 0 && JSON.stringify(invalidSmsAttach.doc) === invalidSmsSnapshot && JSON.stringify(invalidSmsCallback.doc) === invalidSmsSnapshot && invalidSmsPreference.doc.preferenceEvents.length === submitted.doc.preferenceEvents.length);
   const staleSmsContext = createSmsAlertCampaign(emptySmsOperations("texas-sandfest-2026"), {
     alert: { id: "alert-stale", title: "Stale", severity: "warning" },
     recipients: [{ id: rec.id, phone: rec.phone }]
