@@ -4117,6 +4117,7 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   ok("open invoice schedules payment follow-up", paymentReminder?.kind === "milestone_reminder" && paymentReminder?.status === "draft_ready");
   const partial = recordPartnerPayment(paymentReminderDrafts.doc, created.application.id, { amountCents: 1000000, method: "ach", externalRef: "ACH-200" }, { idFactory, now });
   ok("partner payment allocation", partial.ok && partial.payment.appliedAmountCents === 1000000 && partial.doc.invoices[0].balanceCents === 1000000 && partial.doc.applications[0].status === "partial");
+  const invalidPaymentNoticeClock = generatePartnerPaymentFollowups(partial.doc, { idFactory, now: "not-a-date", portalUrlForApplication: () => portalUrl });
   const paymentNotices = generatePartnerPaymentFollowups(partial.doc, { idFactory, now, portalUrlForApplication: () => portalUrl });
   const paymentReceipt = paymentNotices.generated.find(item => item.paymentId === partial.payment.id);
   const repeatedPaymentNotices = generatePartnerPaymentFollowups(paymentNotices.doc, { idFactory, now, portalUrlForApplication: () => portalUrl });
@@ -4132,6 +4133,7 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
     && paymentReceipt.body.includes(portalUrl)
     && !paymentReceipt.body.includes("ACH-200")
     && repeatedPaymentNotices.generated.length === 0);
+  ok("payment notice automation fails closed on invalid clock", !invalidPaymentNoticeClock.ok && invalidPaymentNoticeClock.error.includes("time is invalid"));
   ok("payment notices do not backfill legacy ledger entries", legacyPaymentNotices.generated.length === 0);
   const paymentNoticeReversal = reversePartnerPayment(paymentNotices.doc, partial.payment.id, { action: "refund", reason: "Private finance correction" }, { idFactory, actorId: "finance_1", now: "2026-07-16T12:05:00.000Z" });
   const stalePaymentReceiptDoc = {
