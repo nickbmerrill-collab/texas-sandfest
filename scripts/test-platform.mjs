@@ -1761,6 +1761,11 @@ console.log("\n=== Pure library suite ===\n");
     now: "2026-07-22T13:00:00.000Z",
     maxSourceAgeDays: 180
   });
+  const invalidClockReadiness = sculptorRosterReadiness(engagement.roster, {
+    eventId: DEFAULT_EVENT_ID,
+    now: "not-a-date",
+    maxSourceAgeDays: 180
+  });
   const publicRoster = publicSculptorRoster(engagement.roster, {
     eventId: DEFAULT_EVENT_ID,
     now: "2026-07-22T13:00:00.000Z",
@@ -1779,6 +1784,7 @@ console.log("\n=== Pure library suite ===\n");
   ok("sculptor roster CSV normalizes current-event artists, entries, and map markers", parsed.ok && parsed.validRows === 2 && parsed.errors.length === 0 && parsed.roster.sculptors[0].id === "scl_river_delgado" && parsed.roster.entries[1].id === "ent_coral_cathedral" && parsed.roster.pois[0].illustratedMapXY.x === 0.42);
   ok("sculptor roster publication is preview-bound and rejects stale replacement", published.ok && published.roster.meta.publicationStatus === "published" && published.roster.imports[0].previewHash === previewHash && !stale.ok && stale.previewMismatch);
   ok("sculptor roster readiness binds engagement to the reviewed publication", engagement.ok && readiness.ready && readiness.engagement.passportActive && !readiness.engagement.votingOpen);
+  ok("sculptor roster readiness fails closed on invalid clock", !invalidClockReadiness.ready && invalidClockReadiness.missing.includes("clock") && invalidClockReadiness.missing.includes("source") && !invalidClockReadiness.engagement.passportActive);
   ok("public sculptor roster removes private import and reviewer provenance", publicRoster.sculptors.length === 2 && publicRoster.meta.reviewedBy === "Texas SandFest content team" && !Object.hasOwn(publicRoster, "imports") && !JSON.stringify(publicRoster).includes("content-reviewer"));
   ok("passport checkpoints and ballot entries derive from the same roster revision", checkpoints.length === 2 && ballot.length === 2 && checkpoints[0].entryId === ballot[0].id && checkpoints[1].sculptorName === ballot[1].sculptorName);
   ok("holding the roster closes public engagement without deleting review data", held.ok && held.roster.meta.publicationStatus === "unpublished" && held.roster.sculptors.length === 2 && !held.roster.engagement.passportActive && !publicSculptorRosterPublication(held.roster).visible);
@@ -2054,9 +2060,15 @@ const visitorGuidanceFixture = [{
     schedule: published.schedule,
     publication: { status: "board_demo", eventId: "texas-sandfest-2027" }
   }, { now, allowBoardDemo: true });
+  const invalidClockReady = eventScheduleReadiness({
+    eventId: "texas-sandfest-2027",
+    schedule: published.schedule,
+    publication: published.publication
+  }, { now: "not-a-date" });
 
   ok("unpublished event schedule fails closed", !pending.ready && pending.missing.includes("published") && pending.missing.includes("schedule"));
   ok("event schedule publish normalizes records and captures source authority", published.ok && published.schedule[0].id === "fri-9-00-am-beach-gates-open" && published.schedule[0].time === "9:00 AM" && published.publication.publishedBy === "content-test" && ready.ready);
+  ok("event schedule readiness fails closed on invalid clock", !invalidClockReady.ready && invalidClockReady.missing.includes("clock") && invalidClockReady.missing.includes("source"));
   ok("event schedule rejects invalid records, duplicate ids, insecure sources, and future review", !invalid.ok && invalid.errors.some(error => error.includes("identifiers must be unique")) && invalid.errors.some(error => error.includes("HTTPS")) && invalid.errors.some(error => error.includes("future")));
   ok("event schedule hold clears public programming and records accountability", held.ok && held.schedule.length === 0 && held.publication.status === "pending" && held.publication.heldBy === "content-test" && held.publication.holdReason === "Official program is being revised.");
   ok("synthetic event schedule is ready only inside an explicit board runtime", boardReady.ready && !eventScheduleReadiness({ eventId: "texas-sandfest-2027", schedule: published.schedule, publication: { status: "board_demo" } }, { now }).ready);
