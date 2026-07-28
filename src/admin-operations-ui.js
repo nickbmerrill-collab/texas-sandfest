@@ -13,14 +13,14 @@ import { setCreationStatus, submitCreation } from "./admin-creation.js";
 const PENDING_NOTICE_STATUSES = new Set(["pending", "draft_ready", "approved", "queued", "sending"]);
 const OUTREACH_RETRY_MESSAGE = "Retry safely; saved once.";
 
-export function bindTaskCreation(form, deps) {
+export function bindTaskCreation(form, deps, disabled = () => false) {
   if (!form || form.dataset.creationBound === "true") return;
   form.dataset.creationBound = "true";
   form.addEventListener("submit", event => {
     event.preventDefault();
     const values = Object.fromEntries(new FormData(form));
     const body = { ...values, dueAt: values.dueAt ? new Date(values.dueAt).toISOString() : null };
-    void submitCreation(form, "/api/admin/partners/tasks", body, "Try the same task again; Operations will delegate it only once.", "Task delegated.", deps);
+    void submitCreation(form, "/api/admin/partners/tasks", body, "Try the same task again; Operations will delegate it only once.", "Task delegated.", deps, null, disabled);
   });
 }
 
