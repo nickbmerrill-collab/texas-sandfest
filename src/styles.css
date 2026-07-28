@@ -6155,6 +6155,7 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .partner-status-invoice { border-left-color: var(--sun); }
 .partner-status-invoice > div { display: grid; gap: 3px; min-width: 0; }
 .partner-status-invoice .button { justify-self: end; }
+.partner-checkout-note { align-self: center; color: var(--muted); font-size: 12px; font-weight: 800; justify-self: end; max-width: 220px; text-align: right; text-transform: none; }
 .partner-payment-status { color: var(--muted); font-size: 12px; grid-column: 1 / -1; margin: 0; min-height: 16px; }
 .partner-payment-status[data-state="error"] { color: var(--coral); }
 .partner-payment-status[data-state="ok"] { color: var(--gulf); }
@@ -6167,6 +6168,7 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
   .partner-status-next,
   .partner-status-invoice { grid-template-columns: 1fr; }
   .partner-status-invoice .button { justify-self: stretch; }
+  .partner-checkout-note { justify-self: start; max-width: none; text-align: left; }
 }
 .partner-status-milestones { display: grid; gap: 8px; }
 .partner-status-milestones > strong { color: var(--deep); }

@@ -5024,6 +5024,12 @@ function renderPartnerPortalStatus(application) {
     : canPayOnline
       ? `<button class="button primary" type="button" data-partner-pay-invoice="${escapeAttr(invoice.id)}">${localPayment ? "Pay in local sandbox" : "Pay securely"}</button>`
       : "";
+  const checkoutUnavailableLabel = !checkoutAction && Number(finance.balanceCents || 0) > 0
+    ? partnerCheckoutUnavailableLabel(finance, invoice, onlinePayment)
+    : "";
+  const checkoutStatusAction = checkoutAction || (checkoutUnavailableLabel
+    ? `<span class="partner-checkout-note" data-partner-checkout-unavailable="${escapeAttr(finance.checkoutUnavailableReason || "online_payment_unavailable")}">${escapeHtml(checkoutUnavailableLabel)}</span>`
+    : "");
   const milestones = Array.isArray(application.milestones) ? application.milestones : [];
   const nextStep = application.nextStep;
   const isVendorInterest = application.type === "vendor" && application.intakeMode === "interest";
@@ -5051,7 +5057,7 @@ function renderPartnerPortalStatus(application) {
       <button class="button secondary" type="submit" disabled>Save</button>
       <p class="partner-form-status" aria-live="polite"></p>
     </form>
-    ${invoice ? `<div class="partner-status-invoice"><div><span>Invoice</span><strong>${escapeHtml(conditionLabel(invoice.status))}</strong><small>${escapeHtml(adminMoney(invoice.balanceCents, "$0.00"))} open${invoice.dueAt ? ` · due ${escapeHtml(portalDate(invoice.dueAt))}` : ""}</small></div>${checkoutAction}<p class="partner-payment-status" aria-live="polite"></p></div>` : ""}
+    ${invoice ? `<div class="partner-status-invoice"><div><span>Invoice</span><strong>${escapeHtml(conditionLabel(invoice.status))}</strong><small>${escapeHtml(adminMoney(invoice.balanceCents, "$0.00"))} open${invoice.dueAt ? ` · due ${escapeHtml(portalDate(invoice.dueAt))}` : ""}</small></div>${checkoutStatusAction}<p class="partner-payment-status" aria-live="polite"></p></div>` : ""}
     <div class="partner-status-milestones">
       <strong>Key dates</strong>
       <div>${milestones.map(item => `<article data-status="${escapeAttr(item.status)}"><span>${escapeHtml(item.label)}</span><b>${escapeHtml(conditionLabel(item.status))}</b><small>${escapeHtml(portalDate(item.dueAt))}</small></article>`).join("") || "<span>Dates will appear after review.</span>"}</div>
@@ -5063,6 +5069,30 @@ function renderPartnerPortalStatus(application) {
   bindVendorOnboardingActions();
   bindPartnerPaymentActions();
   bindPartnerContactPreference();
+}
+
+function partnerCheckoutUnavailableLabel(finance, invoice, onlinePayment) {
+  if (onlinePayment?.ready === false) return "Online payment setup is not ready yet.";
+  switch (finance?.checkoutUnavailableReason) {
+    case "clock_invalid":
+      return "Payment link status is unavailable until the system clock is valid.";
+    case "invoice_not_ready":
+      return "Finance is preparing the invoice.";
+    case "invoice_not_approved":
+      return "Finance is reviewing the invoice before payment opens.";
+    case "checkout_preparing":
+      return "Finance is preparing the secure payment link.";
+    case "checkout_expired":
+      return "The payment link expired. Request a fresh link.";
+    case "checkout_invalid":
+      return "The payment link needs staff review before it can be shown.";
+    case "checkout_needs_retry":
+      return "The payment link needs to be regenerated.";
+    case "checkout_not_started":
+      return "Payment link is not started yet.";
+    default:
+      return invoice ? "Payment link is not available yet." : "Finance is preparing the invoice.";
+  }
 }
 
 async function partnerPortalJson(endpoint, payload) {
