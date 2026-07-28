@@ -315,6 +315,12 @@ try {
     && deployment.data.deployment?.checks?.transactionalEmail?.message.includes("Brevo activation remains post-board")
     && deployment.data.deployment?.checks?.cameraIngest?.message.includes("synthetic metric playback")
     && deployment.data.deployment?.checks?.cameraIngest?.message.includes("webcam edge agents remain post-board"));
+  check("board deployment exposes capability certification evidence", deployment.data.deployment?.checks?.boardCapabilityCertificate?.label === "Board capability certificate"
+    && deployment.data.deployment?.checks?.boardCapabilityCertificate?.group === "Platform"
+    && deployment.data.deployment?.checks?.boardCapabilityCertificate?.severity === "warning"
+    && deployment.data.deployment?.boardCapabilities?.requiredJourneyCount === 10
+    && Array.isArray(deployment.data.deployment?.boardCapabilities?.errors)
+    && deployment.data.deployment?.boardCapabilities?.errors.length >= 1);
   check("board bootstrap preserves the public privacy boundary", publicAppBootstrapSafety(bootstrap.data, { allowBoardRuntime: true }).ready
     && bootstrap.data.guidance?.length >= 6
     && bootstrap.data.guidance?.every(item => !Object.hasOwn(item, "ownerTeam") && !Object.hasOwn(item, "escalationContact"))
@@ -639,7 +645,7 @@ try {
   const taskPortalParams = taskPortalLink ? new URLSearchParams(taskPortalLink.hash.split("?")[1] || "") : null;
   const taskPortalAccess = taskPortalParams ? { taskId: taskPortalParams.get("task"), token: taskPortalParams.get("token") } : null;
   const openedTaskPortal = taskPortalAccess ? await request(base, "POST", "/api/public/task-status", taskPortalAccess) : null;
-  const acknowledgedTaskPortal = taskPortalAccess ? await request(base, "POST", "/api/public/task-status/update", { ...taskPortalAccess, action: "acknowledge", note: "Synthetic assignee confirms the board-demo handoff." }) : null;
+  const acknowledgedTaskPortal = taskPortalAccess ? await request(base, "POST", "/api/public/task-status/update", { ...taskPortalAccess, action: "acknowledge", note: "Synthetic assignee confirms the board-demo handoff." }, { idempotencyKey: "board-runtime-task-update-0001" }) : null;
   const taskWorkspaceAfterAcknowledgment = await request(base, "GET", "/api/admin/partners", undefined, { auth: true });
   const acknowledgedBoardTask = taskWorkspaceAfterAcknowledgment.data.tasks?.find(item => item.id === taskPortalAccess?.taskId);
   check("private task link closes the assignee-to-Operations loop", openedTaskPortal?.status === 200 && acknowledgedTaskPortal?.status === 200 && acknowledgedTaskPortal.data.task?.acknowledgedAt && acknowledgedBoardTask?.acknowledgedAt && acknowledgedBoardTask?.assigneeUpdates?.at(-1)?.note.includes("Synthetic assignee"));

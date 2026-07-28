@@ -2,6 +2,21 @@ import Foundation
 import XCTest
 @testable import TexasSandFest
 
+final class NativeCreationReplayTests: XCTestCase {
+    func testReplayIdentityStaysStableUntilSubmissionChanges() {
+        var replay = NativeCreationReplayState()
+        let first = replay.key(for: "same-submission")
+        let repeated = replay.key(for: "same-submission")
+        let changed = replay.key(for: "changed-submission")
+
+        XCTAssertTrue(NativeReplayKey.isValid(first))
+        XCTAssertEqual(repeated, first)
+        XCTAssertNotEqual(changed, first)
+        XCTAssertTrue(NativeReplayKey.isValid(changed))
+        XCTAssertFalse(NativeReplayKey.isValid("short"))
+    }
+}
+
 final class CustomerRouteTests: XCTestCase {
     func testCustomSchemeRoutesOnlyPublicDestinations() throws {
         XCTAssertEqual(
@@ -361,7 +376,7 @@ final class IncidentStoreTests: XCTestCase {
             case ("GET", "/api/admin/island-conditions"):
                 return AppDataHTTPResponse(data: dashboard, statusCode: 200)
             case ("POST", "/api/admin/island-conditions/incidents"):
-                return AppDataHTTPResponse(data: created, statusCode: 201)
+                return AppDataHTTPResponse(data: created, statusCode: 200)
             case ("PATCH", "/api/admin/island-conditions/incidents/incident-2"):
                 return AppDataHTTPResponse(data: updated, statusCode: 200)
             case ("POST", "/api/admin/island-conditions/incidents/incident-2/dispatches"):
@@ -382,10 +397,22 @@ final class IncidentStoreTests: XCTestCase {
             severity: "moderate",
             ownerTeam: "operations",
             publicImpact: false,
+            idempotencyKey: "ios-incident-create-replay-0001",
             request: incidentRequest(path: "/api/admin/island-conditions/incidents", method: "POST")
         )
         XCTAssertNil(createError)
         XCTAssertEqual(store.incident(id: "incident-2")?.status, "open")
+        let replayError = await store.createIncident(
+            title: "Lost party report",
+            summary: "Last seen near the south entrance.",
+            severity: "moderate",
+            ownerTeam: "operations",
+            publicImpact: false,
+            idempotencyKey: "ios-incident-create-replay-0001",
+            request: incidentRequest(path: "/api/admin/island-conditions/incidents", method: "POST")
+        )
+        XCTAssertNil(replayError)
+        XCTAssertEqual(store.incidents.filter { $0.id == "incident-2" }.count, 1)
 
         let updateError = await store.updateIncident(
             id: "incident-2",
@@ -410,9 +437,11 @@ final class IncidentStoreTests: XCTestCase {
         XCTAssertEqual(store.dispatches(for: "incident-2").first?.notification.status, "draft_ready")
 
         let requests = await recorder.values()
-        XCTAssertEqual(requests.map(\.method), ["GET", "POST", "PATCH", "POST"])
+        XCTAssertEqual(requests.map(\.method), ["GET", "POST", "POST", "PATCH", "POST"])
         XCTAssertTrue(requests.allSatisfy { $0.authorization == "Bearer local-board-secret" })
-        let dispatchBody = try XCTUnwrap(JSONSerialization.jsonObject(with: requests[3].body) as? [String: Any])
+        XCTAssertEqual(requests[1].idempotencyKey, "ios-incident-create-replay-0001")
+        XCTAssertEqual(requests[2].idempotencyKey, requests[1].idempotencyKey)
+        let dispatchBody = try XCTUnwrap(JSONSerialization.jsonObject(with: requests[4].body) as? [String: Any])
         XCTAssertEqual(dispatchBody["assigneeType"] as? String, "team")
         XCTAssertEqual(dispatchBody["assigneeId"] as? String, "traffic")
         XCTAssertEqual(dispatchBody["channel"] as? String, "email")
@@ -429,6 +458,7 @@ final class IncidentStoreTests: XCTestCase {
             severity: "critical",
             ownerTeam: "operations",
             publicImpact: true,
+            idempotencyKey: "ios-incident-create-replay-0002",
             request: nil
         )
 
@@ -436,6 +466,27 @@ final class IncidentStoreTests: XCTestCase {
         XCTAssertEqual(store.lastError, "Authenticated board incident access is unavailable.")
         XCTAssertTrue(store.incidents.isEmpty)
         XCTAssertTrue(error?.contains("no incident state was changed") == true)
+    }
+
+    @MainActor
+    func testIncidentCreationRejectsMissingReplayIdentityBeforeTransport() async {
+        let store = IncidentStore(transport: AppDataTransport { _ in
+            XCTFail("Invalid replay identity must fail before transport.")
+            return AppDataHTTPResponse(data: Data(), statusCode: 500)
+        })
+
+        let error = await store.createIncident(
+            title: "Do not send",
+            summary: "",
+            severity: "moderate",
+            ownerTeam: "operations",
+            publicImpact: false,
+            idempotencyKey: "short",
+            request: incidentRequest(path: "/api/admin/island-conditions/incidents", method: "POST")
+        )
+
+        XCTAssertTrue(error?.contains("replay key is required") == true)
+        XCTAssertTrue(store.incidents.isEmpty)
     }
 
     @MainActor
@@ -670,7 +721,7 @@ final class NativeTaskBoardStoreTests: XCTestCase {
             case ("GET", "/api/admin/partners"):
                 return AppDataHTTPResponse(data: workspace, statusCode: 200)
             case ("POST", "/api/admin/partners/tasks"):
-                return AppDataHTTPResponse(data: created, statusCode: 201)
+                return AppDataHTTPResponse(data: created, statusCode: 200)
             case ("PATCH", "/api/admin/partners/tasks/task-created"):
                 return AppDataHTTPResponse(data: updated, statusCode: 200)
             case ("POST", "/api/admin/partners/tasks/task-created/assignment-notice"):
@@ -694,13 +745,30 @@ final class NativeTaskBoardStoreTests: XCTestCase {
                 priority: "urgent",
                 assigneeType: "volunteer",
                 assigneeId: "vol-1",
-                dueAt: Date(timeIntervalSince1970: 1_807_880_400)
+                dueAt: Date(timeIntervalSince1970: 1_807_880_400),
+                idempotencyKey: "ios-task-create-replay-0001"
             ),
             request: taskRequest(path: "/api/admin/partners/tasks", method: "POST"),
             refreshRequest: nil
         )
         XCTAssertEqual(createdTask?.assigneeName, "Alex Rivera")
         XCTAssertEqual(store.tasks.first(where: { $0.id == "task-created" })?.priority, "urgent")
+        let replayedTask = await store.createTask(
+            StaffTaskSubmission(
+                title: "Brief volunteer lead",
+                description: "Confirm radio channel.",
+                status: "open",
+                priority: "urgent",
+                assigneeType: "volunteer",
+                assigneeId: "vol-1",
+                dueAt: Date(timeIntervalSince1970: 1_807_880_400),
+                idempotencyKey: "ios-task-create-replay-0001"
+            ),
+            request: taskRequest(path: "/api/admin/partners/tasks", method: "POST"),
+            refreshRequest: nil
+        )
+        XCTAssertEqual(replayedTask?.id, createdTask?.id)
+        XCTAssertEqual(store.tasks.filter { $0.id == "task-created" }.count, 1)
 
         let updateSucceeded = await store.updateTask(
             StaffTaskSubmission(
@@ -726,15 +794,17 @@ final class NativeTaskBoardStoreTests: XCTestCase {
         XCTAssertEqual(store.tasks.first(where: { $0.id == "task-created" })?.assignmentNoticeVersion, 1)
 
         let requests = await recorder.values()
-        XCTAssertEqual(requests.map(\.method), ["GET", "POST", "PATCH", "POST"])
+        XCTAssertEqual(requests.map(\.method), ["GET", "POST", "POST", "PATCH", "POST"])
         XCTAssertTrue(requests.allSatisfy { $0.authorization == "Bearer local-board-secret" })
+        XCTAssertEqual(requests[1].idempotencyKey, "ios-task-create-replay-0001")
+        XCTAssertEqual(requests[2].idempotencyKey, requests[1].idempotencyKey)
         let createBody = try XCTUnwrap(JSONSerialization.jsonObject(with: requests[1].body) as? [String: Any])
         XCTAssertEqual(createBody["assigneeType"] as? String, "volunteer")
         XCTAssertEqual(createBody["assigneeId"] as? String, "vol-1")
-        let updateBody = try XCTUnwrap(JSONSerialization.jsonObject(with: requests[2].body) as? [String: Any])
+        let updateBody = try XCTUnwrap(JSONSerialization.jsonObject(with: requests[3].body) as? [String: Any])
         XCTAssertEqual(updateBody["status"] as? String, "in_progress")
         XCTAssertEqual(updateBody["assigneeType"] as? String, "staff")
-        let noticeBody = try XCTUnwrap(JSONSerialization.jsonObject(with: requests[3].body) as? [String: Any])
+        let noticeBody = try XCTUnwrap(JSONSerialization.jsonObject(with: requests[4].body) as? [String: Any])
         XCTAssertTrue((noticeBody["requestId"] as? String)?.hasPrefix("ios-") == true)
     }
 
@@ -761,6 +831,31 @@ final class NativeTaskBoardStoreTests: XCTestCase {
         XCTAssertTrue(store.tasks.isEmpty)
         XCTAssertEqual(store.source, "Board session required")
         XCTAssertTrue(store.lastError?.contains("no task was created") == true)
+    }
+
+    @MainActor
+    func testTaskCreationRejectsMissingReplayIdentityBeforeTransport() async {
+        let store = NativeTaskBoardStore(transport: AppDataTransport { _ in
+            XCTFail("Invalid replay identity must fail before transport.")
+            return AppDataHTTPResponse(data: Data(), statusCode: 500)
+        })
+        let task = await store.createTask(
+            StaffTaskSubmission(
+                title: "Do not send",
+                description: "",
+                status: "open",
+                priority: "normal",
+                assigneeType: "team",
+                assigneeId: "operations",
+                dueAt: nil
+            ),
+            request: taskRequest(path: "/api/admin/partners/tasks", method: "POST"),
+            refreshRequest: nil
+        )
+
+        XCTAssertNil(task)
+        XCTAssertEqual(store.lastError, "A valid task replay key is required; no task request was sent.")
+        XCTAssertTrue(store.tasks.isEmpty)
     }
 
     @MainActor
@@ -1672,6 +1767,7 @@ private struct AppDataRequestSnapshot: Sendable {
     let path: String
     let method: String
     let authorization: String?
+    let idempotencyKey: String?
     let body: Data
 }
 
@@ -1683,6 +1779,7 @@ private actor AppDataRequestRecorder {
             path: request.url?.path ?? "",
             method: request.httpMethod ?? "GET",
             authorization: request.value(forHTTPHeaderField: "Authorization"),
+            idempotencyKey: request.value(forHTTPHeaderField: "Idempotency-Key"),
             body: request.httpBody ?? Data()
         ))
     }

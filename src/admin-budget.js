@@ -1,4 +1,5 @@
 import { escapeAttr, escapeHtml } from "../lib/html-escape.mjs";
+import { submitCreation } from "./admin-creation.js";
 
 const panelMarkup = `
   <div class="admin-budget-panel" id="admin-budget">
@@ -41,6 +42,7 @@ const panelMarkup = `
         <label><span>Annual amount</span><input name="amount" type="number" min="0.01" max="10000000" step="0.01" required /></label>
         <label><span>Notes</span><input name="notes" maxlength="500" placeholder="What this allocation covers" /></label>
         <button class="button secondary" type="submit">Add allocation</button>
+        <p class="partner-form-status admin-finance-form-status" data-finance-create-status role="status" aria-live="polite"></p>
       </form>
       <form id="admin-create-expense" class="admin-inline-form" data-requires-permission="budget:write">
         <strong>Submit expense request</strong>
@@ -50,6 +52,7 @@ const panelMarkup = `
         <label><span>Due date</span><input name="dueDate" type="date" required /></label>
         <label class="admin-import-wide"><span>Description</span><input name="description" required minlength="8" maxlength="500" /></label>
         <button class="button primary" type="submit">Submit for approval</button>
+        <p class="partner-form-status admin-finance-form-status" data-finance-create-status role="status" aria-live="polite"></p>
       </form>
     </div>
   </div>`;
@@ -73,10 +76,12 @@ export function createAdminBudgetUi({
   adminMoney,
   getAdminSessionState,
   renderAdminSession,
+  requestOutcomeIsAmbiguous,
   revenueKpiCard,
   setAdminStatus
 }) {
   let mounted = false;
+  const creationDeps = { adminFetch, loadAdminPartners: options => load(options), requestOutcomeIsAmbiguous, setAdminStatus };
 
   function lineById(payload, lineId) {
     return (payload?.summary?.lines || []).find(line => line.id === lineId)
@@ -252,57 +257,32 @@ export function createAdminBudgetUi({
 
   function bindStaticActions() {
     document.querySelector("#admin-load-budget")?.addEventListener("click", () => load());
-    document.querySelector("#admin-create-budget-line")?.addEventListener("submit", async event => {
+    document.querySelector("#admin-create-budget-line")?.addEventListener("submit", event => {
       event.preventDefault();
       const form = event.currentTarget;
-      const button = form.querySelector('button[type="submit"]');
-      button.disabled = true;
-      try {
-        const result = await adminFetch("/api/admin/budget/lines", {
-          method: "POST",
-          body: JSON.stringify({
-            name: form.elements.name.value,
-            ownerTeam: form.elements.ownerTeam.value,
-            budgetCents: inputCents(form.elements.amount.value),
-            notes: form.elements.notes.value
-          })
-        });
-        form.reset();
-        await load({ quiet: true });
-        setAdminStatus(`Added ${result.line.name} at ${adminMoney(result.line.budgetCents)}.`, "ok");
-      } catch (error) {
-        setAdminStatus(error.message, "error");
-      } finally {
-        button.disabled = !adminCan("budget:write");
-      }
+      const body = {
+        name: form.elements.name.value,
+        ownerTeam: form.elements.ownerTeam.value,
+        budgetCents: inputCents(form.elements.amount.value),
+        notes: form.elements.notes.value
+      };
+      void submitCreation(form, "/api/admin/budget/lines", body, "Try the same allocation again; Finance will record it only once.", result => `Added ${result.line.name} at ${adminMoney(result.line.budgetCents)}.`, creationDeps, undefined, () => !adminCan("budget:write"));
     });
-    document.querySelector("#admin-create-expense")?.addEventListener("submit", async event => {
+    document.querySelector("#admin-create-expense")?.addEventListener("submit", event => {
       event.preventDefault();
       const form = event.currentTarget;
-      const button = form.querySelector('button[type="submit"]');
-      button.disabled = true;
-      try {
-        const result = await adminFetch("/api/admin/budget/expenses", {
-          method: "POST",
-          body: JSON.stringify({
-            budgetLineId: form.elements.budgetLineId.value,
-            vendorName: form.elements.vendorName.value,
-            description: form.elements.description.value,
-            amountCents: inputCents(form.elements.amount.value),
-            dueDate: form.elements.dueDate.value
-          })
-        });
-        const selectedLine = form.elements.budgetLineId.value;
-        form.reset();
+      const body = {
+        budgetLineId: form.elements.budgetLineId.value,
+        vendorName: form.elements.vendorName.value,
+        description: form.elements.description.value,
+        amountCents: inputCents(form.elements.amount.value),
+        dueDate: form.elements.dueDate.value
+      };
+      const selectedLine = form.elements.budgetLineId.value;
+      void submitCreation(form, "/api/admin/budget/expenses", body, "Try the same expense again; Finance will record it only once.", result => `Submitted ${adminMoney(result.expense.amountCents)} for ${result.expense.vendorName}.`, creationDeps, () => {
         form.elements.dueDate.value = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
-        await load({ quiet: true });
         if ([...form.elements.budgetLineId.options].some(option => option.value === selectedLine)) form.elements.budgetLineId.value = selectedLine;
-        setAdminStatus(`Submitted ${adminMoney(result.expense.amountCents)} for ${result.expense.vendorName}.`, "ok");
-      } catch (error) {
-        setAdminStatus(error.message, "error");
-      } finally {
-        button.disabled = !adminCan("budget:write");
-      }
+      }, () => !adminCan("budget:write"));
     });
     const dueDate = document.querySelector("#admin-create-expense input[name=dueDate]");
     if (dueDate && !dueDate.value) dueDate.value = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);

@@ -450,6 +450,12 @@ import { updateJsonFile } from "../lib/safe-json-store.mjs";
 import { normalizeRequestId, redactAuditValue, safeErrorResponse } from "../lib/security.mjs";
 import { recoveryReadiness } from "../lib/recovery-readiness.mjs";
 import {
+  RECOVERY_REQUIRED_CONFIG_DOCUMENT_KEYS,
+  RECOVERY_REQUIRED_PLATFORM_DOCUMENTS,
+  RECOVERY_REQUIRED_TABLE_COLUMNS,
+  evaluateRecoveryDataContract
+} from "../lib/recovery-contract.mjs";
+import {
   REQUIRED_TICKET_POLICY_NOTICES,
   publicTicketCatalog,
   ticketCheckoutPolicyReadiness,
@@ -2577,6 +2583,133 @@ const visitorGuidanceFixture = [{
   ok("recovery retention and future timestamps fail closed", !incomplete.ready && !incomplete.checks.databaseRecoveryWindow && !incomplete.checks.assetSnapshots && incomplete.reason.includes("cannot be in the future"));
 }
 
+// Restored database content contract
+{
+  const eventId = "texas-sandfest-2027";
+  const tableColumns = new Map(Object.entries(RECOVERY_REQUIRED_TABLE_COLUMNS).map(([table, columns]) => [
+    table,
+    new Set(columns)
+  ]));
+  const configDocuments = RECOVERY_REQUIRED_CONFIG_DOCUMENT_KEYS.map(key => ({
+    key,
+    updatedAt: "2026-07-16T12:00:00.000Z",
+    data: key === "admin-config"
+      ? {
+          sponsorPackagePublication: { eventId },
+          vendorOfferingPublication: { eventId }
+        }
+      : key === "app-bootstrap"
+        ? {
+            guide: { id: eventId, startDate: "2027-04-16" },
+            schedulePublication: { eventId },
+            guidancePublication: { eventId }
+          }
+        : key === "ticket-products"
+          ? { checkoutPolicy: { eventId } }
+          : {}
+  }));
+  const platformDocuments = RECOVERY_REQUIRED_PLATFORM_DOCUMENTS.map(requirement => ({
+    key: requirement.storageKey,
+    updatedAt: "2026-07-16T12:00:00.000Z",
+    data: !requirement.currentEvent
+      ? { entries: [] }
+      : requirement.logicalKey === "sculptorRoster"
+        ? { meta: { eventId } }
+        : requirement.logicalKey === "passportHunt"
+          ? { hunt: { eventId } }
+          : { eventId }
+  }));
+  const counts = Object.fromEntries(Object.keys(RECOVERY_REQUIRED_TABLE_COLUMNS).map((table, index) => [table, index]));
+  const complete = evaluateRecoveryDataContract({
+    tableColumns,
+    configDocuments,
+    platformDocuments,
+    expectedEventId: eventId,
+    counts
+  });
+  const reordered = evaluateRecoveryDataContract({
+    tableColumns: new Map([...tableColumns].reverse().map(([table, columns]) => [table, new Set([...columns].reverse())])),
+    configDocuments: [...configDocuments].reverse(),
+    platformDocuments: [...platformDocuments].reverse(),
+    expectedEventId: eventId,
+    counts: Object.fromEntries(Object.entries(counts).reverse())
+  });
+  ok("recovery data contract covers schema and operational ledgers", complete.ok
+    && complete.contractVersion === 1
+    && complete.requiredTables === 10
+    && complete.requiredColumns === 74
+    && complete.requiredConfigDocuments === 4
+    && complete.requiredOperationalDocuments === 15
+    && Object.values(complete.checks).every(Boolean)
+    && /^[a-f0-9]{64}$/.test(complete.databaseManifestSha256 || ""));
+  ok("recovery database manifest is deterministic", reordered.ok && reordered.databaseManifestSha256 === complete.databaseManifestSha256);
+  const changedContent = evaluateRecoveryDataContract({
+    tableColumns,
+    configDocuments,
+    platformDocuments: platformDocuments.map(row => row.key === "budget-control"
+      ? { ...row, data: { ...row.data, budgetLines: [{ id: "changed-after-restore" }] } }
+      : row),
+    expectedEventId: eventId,
+    counts
+  });
+  ok("recovery database manifest binds restored document content", changedContent.ok
+    && changedContent.databaseManifestSha256 !== complete.databaseManifestSha256);
+
+  const missingColumnTables = new Map([...tableColumns].map(([table, columns]) => [table, new Set(columns)]));
+  missingColumnTables.get("platform_jobs").delete("lease_token");
+  const missingColumn = evaluateRecoveryDataContract({
+    tableColumns: missingColumnTables,
+    configDocuments,
+    platformDocuments,
+    expectedEventId: eventId,
+    counts
+  });
+  ok("recovery data contract rejects incomplete schema", !missingColumn.ok
+    && !missingColumn.checks.schema
+    && missingColumn.errors.some(error => error.includes("platform_jobs") && error.includes("lease_token")));
+
+  const missingGuestServices = evaluateRecoveryDataContract({
+    tableColumns,
+    configDocuments,
+    platformDocuments: platformDocuments.filter(row => row.key !== "guest-services"),
+    expectedEventId: eventId,
+    counts
+  });
+  ok("recovery data contract rejects a missing operational ledger", !missingGuestServices.ok
+    && !missingGuestServices.checks.operationalDocuments
+    && missingGuestServices.errors.some(error => error.includes("guest-services")));
+
+  const crossEventPlatform = platformDocuments.map(row => row.key === "partner-operations"
+    ? { ...row, data: { ...row.data, eventId: "texas-sandfest-2026" } }
+    : row);
+  const crossEventConfig = configDocuments.map(row => row.key === "app-bootstrap"
+    ? { ...row, data: { ...row.data, guidancePublication: { eventId: "texas-sandfest-2026" } } }
+    : row);
+  const crossEvent = evaluateRecoveryDataContract({
+    tableColumns,
+    configDocuments: crossEventConfig,
+    platformDocuments: crossEventPlatform,
+    expectedEventId: eventId,
+    counts
+  });
+  ok("recovery data contract rejects cross-event restoration", !crossEvent.ok
+    && crossEvent.checks.operationalDocuments
+    && !crossEvent.checks.eventAlignment
+    && crossEvent.errors.some(error => error.includes("partner-operations") && error.includes("texas-sandfest-2026"))
+    && crossEvent.errors.some(error => error.includes("visitor guidance publication") && error.includes("texas-sandfest-2026")));
+
+  const malformed = evaluateRecoveryDataContract({
+    tableColumns,
+    configDocuments: configDocuments.map(row => row.key === "emergency-alert" ? { ...row, data: [] } : row),
+    platformDocuments,
+    expectedEventId: eventId,
+    counts
+  });
+  ok("recovery data contract rejects malformed restored documents", !malformed.ok
+    && !malformed.checks.configDocuments
+    && malformed.errors.some(error => error.includes("emergency-alert") && error.includes("not a JSON object")));
+}
+
 // Revenue
 {
   const ledger = await readJson("data/processed/revenue-ledger.json");
@@ -2696,6 +2829,14 @@ bad_money,2026-07-16,eventeny,texas-sandfest-2027,ticket,10.001,0.30,9.70,receip
   }, { actorId: "finance-1", idFactory, now });
   ok("budget lines require accountable, unique whole-cent allocations", firstLine.ok && secondLine.ok
     && duplicateLine.ok === false && duplicateLine.code === "DUPLICATE_BUDGET_LINE");
+  const retryLineFactory = () => "budget_line_retry_safe";
+  const retryLineInput = { name: "Traffic control", ownerTeam: "traffic", budgetCents: 25_000, notes: "Replay proof" };
+  const retryLine = createBudgetLine(secondLine.doc, retryLineInput, { actorId: "finance-1", idFactory: retryLineFactory, now });
+  const replayedLine = createBudgetLine(retryLine.doc, retryLineInput, { actorId: "finance-1", idFactory: retryLineFactory, now });
+  const conflictingLine = createBudgetLine(retryLine.doc, { ...retryLineInput, budgetCents: 26_000 }, { actorId: "finance-1", idFactory: retryLineFactory, now });
+  ok("budget allocation creation is idempotent and conflict safe", retryLine.ok && replayedLine.replay
+    && replayedLine.doc.budgetLines.length === retryLine.doc.budgetLines.length
+    && conflictingLine.code === "IDEMPOTENCY_CONFLICT");
   const missingChangeNote = updateBudgetLine(secondLine.doc, firstLine.line.id, { budgetCents: 110_000 }, { actorId: "finance-2", now });
   const changedLine = updateBudgetLine(secondLine.doc, firstLine.line.id, {
     budgetCents: 110_000,
@@ -2737,6 +2878,20 @@ bad_money,2026-07-16,eventeny,texas-sandfest-2027,ticket,10.001,0.30,9.70,receip
   }, { actorId: "finance-2", now: "2026-07-20T12:04:00.000Z" });
   ok("expense requests preserve approval and payment evidence", submitted.ok && approved.ok && paid.ok
     && invalidPaymentDate.ok === false && paid.expense.status === "paid" && paid.expense.paymentReference === "RAMP-TEST-1001");
+  const retryExpenseFactory = () => "expense_retry_safe";
+  const retryExpenseInput = {
+    budgetLineId: firstLine.line.id,
+    vendorName: "Replay Rentals",
+    description: "Replay-safe equipment reservation",
+    amountCents: 8_000,
+    dueDate: "2027-02-10"
+  };
+  const retryExpense = createExpenseRequest(changedLine.doc, retryExpenseInput, { actorId: "ops-1", idFactory: retryExpenseFactory, now });
+  const replayedExpense = createExpenseRequest(retryExpense.doc, retryExpenseInput, { actorId: "ops-1", idFactory: retryExpenseFactory, now });
+  const conflictingExpense = createExpenseRequest(retryExpense.doc, { ...retryExpenseInput, amountCents: 9_000 }, { actorId: "ops-1", idFactory: retryExpenseFactory, now });
+  ok("expense submission is idempotent and conflict safe", retryExpense.ok && replayedExpense.replay
+    && replayedExpense.doc.expenses.length === retryExpense.doc.expenses.length
+    && conflictingExpense.code === "IDEMPOTENCY_CONFLICT");
 
   const oversized = createExpenseRequest(paid.doc, {
     budgetLineId: firstLine.line.id,
@@ -3565,8 +3720,17 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   const customMilestone = createPartnerMilestone(created.doc, created.application.id, { label: "Hospitality roster due", dueAt: "2026-08-10T17:00:00.000Z", assigneeTeam: "guest-services", reminderLeadDays: 5 }, { idFactory, actorId: "admin_1", now });
   const milestoneSummary = summarizePartnerMilestones(customMilestone.doc, now);
   const invalidMilestone = createPartnerMilestone(created.doc, created.application.id, { label: "Bad date", dueAt: "invalid", reminderLeadDays: 31 }, { idFactory, now });
+  const milestoneRetryFactory = prefix => `${prefix}_retry_safe`;
+  const milestoneRetryInput = { label: "Replay-safe key date", dueAt: "2026-08-12T17:00:00.000Z", assigneeTeam: "sponsor", reminderLeadDays: 4 };
+  const retryMilestone = createPartnerMilestone(created.doc, created.application.id, milestoneRetryInput, { idFactory: milestoneRetryFactory, actorId: "admin_1", now });
+  const replayedMilestone = createPartnerMilestone(retryMilestone.doc, created.application.id, milestoneRetryInput, { idFactory: milestoneRetryFactory, actorId: "admin_1", now });
+  const conflictingMilestone = createPartnerMilestone(retryMilestone.doc, created.application.id, { ...milestoneRetryInput, reminderLeadDays: 5 }, { idFactory: milestoneRetryFactory, actorId: "admin_1", now });
   ok("custom partner milestone", customMilestone.ok && customMilestone.milestone.assigneeTeam === "guest-services" && customMilestone.milestone.reminderLeadDays === 5 && milestoneSummary.totals.open === 5);
   ok("milestone input validation", !invalidMilestone.ok);
+  ok("partner milestone creation is idempotent and activity safe", retryMilestone.ok && replayedMilestone.replay
+    && replayedMilestone.doc.milestones.length === retryMilestone.doc.milestones.length
+    && replayedMilestone.doc.activity.filter(item => item.type === "milestone.created" && item.entityId === retryMilestone.milestone.id).length === 1
+    && conflictingMilestone.code === "IDEMPOTENCY_CONFLICT");
   const drafted = prepareFollowupDraft(created.doc, created.followup.id, { now, portalUrl });
   ok("follow-up review draft", drafted.ok && drafted.followup.status === "draft_ready" && !drafted.followup.sentAt && drafted.followup.body.includes(portalUrl));
   const reviewFirstAutomation = applyTransactionalFollowupAutomation(drafted.doc, { providerReady: true, now });
@@ -4086,6 +4250,26 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   const noProof = updatePartnerDeliverable(changedBrandAsset.doc, created.deliverables[1].id, { status: "complete" }, { actorId: "sponsor_admin_1", idFactory, now });
   ok("sponsor completion requires proof", !noProof.ok && noProof.error.includes("proof"));
   const customDeliverable = createPartnerDeliverable(revisedProof.doc, created.application.id, { label: "VIP welcome banner", dueAt: "2026-08-05T17:00:00.000Z" }, { actorId: "sponsor_admin_1", idFactory, now });
+  const deliverableReplayFactory = prefix => `${prefix}_replay_safe_custom`;
+  const replaySafeDeliverable = createPartnerDeliverable(revisedProof.doc, created.application.id, {
+    label: "Hospitality welcome display",
+    ownerId: "sponsor_admin_1",
+    dueAt: "2026-08-06T17:00:00.000Z",
+    description: "Welcome display for the sponsor hospitality area."
+  }, { actorId: "sponsor_admin_1", idFactory: deliverableReplayFactory, now });
+  const replayedDeliverable = createPartnerDeliverable(replaySafeDeliverable.doc, created.application.id, {
+    label: "Hospitality welcome display",
+    ownerId: "sponsor_admin_1",
+    dueAt: "2026-08-06T17:00:00.000Z",
+    description: "Welcome display for the sponsor hospitality area."
+  }, { actorId: "sponsor_admin_1", idFactory: deliverableReplayFactory, now: "2026-07-16T19:00:00.000Z" });
+  const conflictingDeliverable = createPartnerDeliverable(replaySafeDeliverable.doc, created.application.id, {
+    label: "Changed hospitality display",
+    ownerId: "sponsor_admin_1",
+    dueAt: "2026-08-06T17:00:00.000Z",
+    description: "Welcome display for the sponsor hospitality area."
+  }, { actorId: "sponsor_admin_1", idFactory: deliverableReplayFactory, now });
+  ok("custom sponsor deliverable creation is replay safe", replaySafeDeliverable.ok && !replaySafeDeliverable.replay && replayedDeliverable.ok && replayedDeliverable.replay && replayedDeliverable.deliverable.id === replaySafeDeliverable.deliverable.id && replayedDeliverable.doc.deliverables.length === replaySafeDeliverable.doc.deliverables.length && replayedDeliverable.doc.activity.length === replaySafeDeliverable.doc.activity.length && !conflictingDeliverable.ok && conflictingDeliverable.code === "IDEMPOTENCY_CONFLICT");
   const fulfillmentSummary = summarizeSponsorFulfillment(customDeliverable.doc, now);
   ok("sponsor fulfillment summary", customDeliverable.ok && fulfillmentSummary.deliverables.total === 4 && fulfillmentSummary.deliverables.awaitingPartnerReview === 1 && fulfillmentSummary.assets.changesRequested === 1);
   const publicBranding = publicPartnerPortalStatus(customDeliverable.doc, created.application).branding;
@@ -4421,6 +4605,12 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
     amount: 750000,
     benefits: ["Festival website", "Community stage recognition"]
   });
+  const replayedSponsorPackage = createSponsorPackageConfig(createdSponsorPackage.config, {
+    id: "community-partner",
+    name: "Community Partner",
+    amount: 750000,
+    benefits: ["Festival website", "Community stage recognition"]
+  });
   const duplicateSponsorPackage = createSponsorPackageConfig(createdSponsorPackage.config, {
     id: "community-partner",
     name: "Duplicate Community Partner",
@@ -4435,7 +4625,7 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   ok("checked-in sponsor config matches the managed catalog", JSON.stringify(checkedInAdminConfig.sponsorPackages) === JSON.stringify(DEFAULT_SPONSOR_PACKAGES));
   ok("sponsor package catalog rejects unsafe pricing and fulfillment", !invalidSponsorAmount.ok && invalidSponsorAmount.error.includes("amount") && !invalidSponsorBenefits.ok && invalidSponsorBenefits.error.includes("benefit") && !invalidSponsorStripe.ok && invalidSponsorStripe.error.includes("Stripe Price ID"));
   ok("sponsor package catalog keeps one public tier active", !lastSponsorTierDisabled.ok && lastSponsorTierDisabled.error.includes("At least one active"));
-  ok("sponsor package creation validates and rejects duplicate IDs", createdSponsorPackage.ok && createdSponsorPackage.sponsorPackage.publicLabel === "$7,500 sponsorship" && !duplicateSponsorPackage.ok && duplicateSponsorPackage.conflict === true);
+  ok("sponsor package creation validates, replays exact IDs, and rejects changed duplicates", createdSponsorPackage.ok && createdSponsorPackage.sponsorPackage.publicLabel === "$7,500 sponsorship" && replayedSponsorPackage.ok && replayedSponsorPackage.replay === true && replayedSponsorPackage.config.sponsorPackages.length === createdSponsorPackage.config.sponsorPackages.length && !duplicateSponsorPackage.ok && duplicateSponsorPackage.conflict === true);
   ok("public sponsor package hides accounting mappings", updatedSponsorPackage.ok && publicSponsorTier.amount === 550000 && !Object.hasOwn(publicSponsorTier, "quickBooksItemId") && !Object.hasOwn(publicSponsorTier, "stripePriceId"));
   const sponsorPublicItems = DEFAULT_SPONSOR_PACKAGES.map(publicSponsorPackage);
   const pendingSponsorPublication = partnerCatalogPublicationReadiness({
@@ -4521,6 +4711,14 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
     description: "Expanded marketplace booth for larger retail and artisan activations.",
     inclusions: ["Expanded booth footprint", "Published booth listing"]
   });
+  const replayedVendorOffering = createVendorOfferingConfig(createdVendorOffering.config, {
+    id: "premium-marketplace-booth",
+    name: "Premium marketplace booth",
+    amount: 250000,
+    categories: ["retail", "artisan"],
+    description: "Expanded marketplace booth for larger retail and artisan activations.",
+    inclusions: ["Expanded booth footprint", "Published booth listing"]
+  });
   const duplicateVendorOffering = createVendorOfferingConfig(createdVendorOffering.config, {
     id: "premium-marketplace-booth",
     name: "Duplicate premium booth",
@@ -4567,7 +4765,7 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   ok("production vendor intake is interest-only until applications open", DEFAULT_VENDOR_OFFERINGS.every(item => item.intakeMode === "interest" && item.amount === 0) && JSON.stringify(checkedInAdminConfig.vendorOfferings) === JSON.stringify(DEFAULT_VENDOR_OFFERINGS));
   ok("vendor offering category authority", artisanOffering.ok && artisanOffering.offering.amount === 0 && artisanOffering.offering.intakeMode === "interest" && !categoryMismatch.ok && categoryMismatch.error.includes("not available"));
   ok("vendor offering catalog cannot strand a category", !unsafeCatalogChange.ok && unsafeCatalogChange.error.includes("food"));
-  ok("vendor offering creation validates and rejects duplicate IDs", createdVendorOffering.ok && createdVendorOffering.offering.publicLabel === "$2,500 application fee" && !duplicateVendorOffering.ok && duplicateVendorOffering.conflict === true);
+  ok("vendor offering creation validates, replays exact IDs, and rejects changed duplicates", createdVendorOffering.ok && createdVendorOffering.offering.publicLabel === "$2,500 application fee" && replayedVendorOffering.ok && replayedVendorOffering.replay === true && replayedVendorOffering.config.vendorOfferings.length === createdVendorOffering.config.vendorOfferings.length && !duplicateVendorOffering.ok && duplicateVendorOffering.conflict === true);
   ok("vendor offering pricing and provider mappings fail closed", !invalidVendorCents.ok && invalidVendorCents.error.includes("whole cents") && !invalidVendorProvider.ok && invalidVendorProvider.error.includes("Stripe Price ID"));
   ok("vendor offering state and inclusions fail closed", !invalidVendorState.ok && invalidVendorState.error.includes("active state") && !invalidVendorInclusions.ok && invalidVendorInclusions.error.includes("inclusion"));
   const invalidPricedInterest = updateVendorOfferingConfig({ vendorOfferings: DEFAULT_VENDOR_OFFERINGS }, "marketplace-booth", { amount: 100, intakeMode: "interest" });
@@ -4822,7 +5020,25 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
     priority: "urgent",
     dueAt: "2026-07-16T11:00:00.000Z"
   }, { actorId: "ops_1", idFactory, now: "2026-07-14T12:00:00.000Z" });
+  const taskRetryFactory = prefix => `${prefix}_retry_safe`;
+  const taskRetryInput = {
+    title: "Replay-safe volunteer briefing",
+    description: "Confirm the opening checklist without duplicate delegation.",
+    assigneeType: "volunteer",
+    assigneeId: "vol_001",
+    assigneeName: "Alex Rivera",
+    assigneeRole: "gate",
+    priority: "high",
+    dueAt: "2026-07-17T11:00:00.000Z"
+  };
+  const retryTask = createPartnerTask(paid.doc, taskRetryInput, { actorId: "ops_1", idFactory: taskRetryFactory, now });
+  const replayedTask = createPartnerTask(retryTask.doc, taskRetryInput, { actorId: "ops_1", idFactory: taskRetryFactory, now });
+  const conflictingTask = createPartnerTask(retryTask.doc, { ...taskRetryInput, priority: "urgent" }, { actorId: "ops_1", idFactory: taskRetryFactory, now });
   ok("delegated volunteer task", task.ok && task.task.assigneeType === "volunteer" && task.task.assigneeName === "Alex Rivera" && task.task.createdBy === "ops_1" && task.task.assignmentVersion === 1 && task.task.scheduleVersion === 1);
+  ok("partner task creation is idempotent and activity safe", retryTask.ok && replayedTask.replay
+    && replayedTask.doc.tasks.length === retryTask.doc.tasks.length
+    && replayedTask.doc.activity.filter(item => item.type === "task.created" && item.entityId === retryTask.task.id).length === 1
+    && conflictingTask.code === "IDEMPOTENCY_CONFLICT");
   const taskPortal = taskPortalConfig({
     SANDFEST_ENV: "production",
     SANDFEST_TASK_PORTAL_SECRET: "0123456789abcdef0123456789abcdef-task",
@@ -4929,11 +5145,14 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   const acknowledgedReplay = updatePartnerTaskFromAssignee(acknowledgedTask.doc, task.task.id, { action: "acknowledge" }, { idFactory, now: "2026-07-14T12:21:00.000Z" });
   const startedByAssignee = updatePartnerTaskFromAssignee(acknowledgedTask.doc, task.task.id, { action: "start" }, { idFactory, now: "2026-07-14T12:25:00.000Z" });
   const missingBlocker = updatePartnerTaskFromAssignee(startedByAssignee.doc, task.task.id, { action: "block" }, { idFactory, now: "2026-07-14T12:30:00.000Z" });
-  const blockedByAssignee = updatePartnerTaskFromAssignee(startedByAssignee.doc, task.task.id, { action: "block", note: "Waiting for the vector logo." }, { idFactory, now: "2026-07-14T12:31:00.000Z" });
+  const blockedRequestId = "task-assignee-block-0001";
+  const blockedByAssignee = updatePartnerTaskFromAssignee(startedByAssignee.doc, task.task.id, { action: "block", note: "Waiting for the vector logo." }, { idFactory, now: "2026-07-14T12:31:00.000Z", requestId: blockedRequestId });
+  const blockedReplay = updatePartnerTaskFromAssignee(blockedByAssignee.doc, task.task.id, { action: "block", note: "Waiting for the vector logo." }, { idFactory, now: "2026-07-14T12:32:00.000Z", requestId: blockedRequestId });
+  const blockedConflict = updatePartnerTaskFromAssignee(blockedByAssignee.doc, task.task.id, { action: "block", note: "Waiting for different artwork." }, { idFactory, now: "2026-07-14T12:33:00.000Z", requestId: blockedRequestId });
   const completedByAssignee = updatePartnerTaskFromAssignee(blockedByAssignee.doc, task.task.id, { action: "complete", note: "Print-ready art is approved." }, { idFactory, now: "2026-07-14T12:40:00.000Z" });
   const completionReplay = updatePartnerTaskFromAssignee(completedByAssignee.doc, task.task.id, { action: "complete" }, { idFactory, now: "2026-07-14T12:41:00.000Z" });
   const completedTaskStatus = publicTaskPortalStatus(completedByAssignee.task);
-  ok("assignee task lifecycle is durable and idempotent", acknowledgedTask.task.acknowledgedAt === "2026-07-14T12:20:00.000Z" && acknowledgedReplay.replay && startedByAssignee.task.status === "in_progress" && !missingBlocker.ok && blockedByAssignee.task.status === "blocked" && completedByAssignee.task.status === "done" && completionReplay.replay && completedTaskStatus.allowedActions.length === 0 && completedTaskStatus.updates.length === 4);
+  ok("assignee task lifecycle is durable and idempotent", acknowledgedTask.task.acknowledgedAt === "2026-07-14T12:20:00.000Z" && acknowledgedReplay.replay && startedByAssignee.task.status === "in_progress" && !missingBlocker.ok && blockedByAssignee.task.status === "blocked" && blockedReplay.replay && blockedReplay.task.assigneeUpdates.length === blockedByAssignee.task.assigneeUpdates.length && blockedConflict.conflict && completedByAssignee.task.status === "done" && completionReplay.replay && completedTaskStatus.allowedActions.length === 0 && completedTaskStatus.updates.length === 4 && !JSON.stringify(completedTaskStatus).includes(blockedRequestId));
   ok("assignee activity excludes private note text", completedByAssignee.doc.activity.at(-1).type === "task.assignee_updated" && completedByAssignee.doc.activity.at(-1).detail.noteProvided === true && !JSON.stringify(completedByAssignee.doc.activity.at(-1)).includes("Print-ready art"));
   const reassignedTask = updatePartnerTask(acknowledgedTask.doc, task.task.id, { assigneeType: "staff", assigneeId: "staff_operations", assigneeName: "Jamie Torres" }, { actorId: "ops_1", idFactory, now: "2026-07-14T12:45:00.000Z" });
   const staleTaskPortalAccess = findTaskPortalTask(reassignedTask.doc, task.task.id, taskPortalToken, { config: taskPortal });
@@ -5067,7 +5286,25 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
     nextAction: "Prepare a reviewed sponsor invitation",
     nextActionAt: "2026-07-17T15:00:00.000Z"
   }, { idFactory, now });
+  const prospectRetryFactory = prefix => `${prefix}_outreach_retry`;
+  const prospectRetryInput = {
+    organizationName: "Replay Safe Hotel",
+    industry: "hospitality",
+    city: "Port Aransas",
+    state: "TX",
+    postalCode: "78373",
+    contactEmail: "replay-safe-hotel@example.com",
+    contactBasis: "business_relevance",
+    status: "contact_ready"
+  };
+  const retryProspect = createOutreachProspect(done.doc, prospectRetryInput, { actorId: "sponsor_1", idFactory: prospectRetryFactory, now });
+  const replayedProspect = createOutreachProspect(retryProspect.doc, prospectRetryInput, { actorId: "sponsor_1", idFactory: prospectRetryFactory, now });
+  const conflictingProspect = createOutreachProspect(retryProspect.doc, { ...prospectRetryInput, industry: "banking" }, { actorId: "sponsor_1", idFactory: prospectRetryFactory, now });
   ok("geographic prospect scoring", prospect.ok && prospect.prospect.fitScore >= 60 && prospect.prospect.fitReasons.length === 2 && prospect.prospect.ownerId === "sponsor_lead");
+  ok("outreach prospect creation is idempotent and activity safe", retryProspect.ok && replayedProspect.replay
+    && replayedProspect.doc.prospects.length === retryProspect.doc.prospects.length
+    && replayedProspect.doc.activity.filter(item => item.type === "outreach.prospect.created" && item.entityId === retryProspect.prospect.id).length === 1
+    && conflictingProspect.code === "IDEMPOTENCY_CONFLICT");
   const qualified = updateOutreachProspect(prospect.doc, prospect.prospect.id, {
     status: "contact_ready",
     contactBasis: "business_relevance"
@@ -5225,6 +5462,15 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
       { delayDays: 7, subjectTemplate: "Following up with {{organization}}", bodyTemplate: "Hello {{contactName}},\n\nMay we answer any SandFest sponsorship questions?" }
     ]
   }, { actorId: "sponsor_1", idFactory, now });
+  const campaignRetryFactory = prefix => `${prefix}_outreach_retry`;
+  const campaignRetryInput = {
+    name: "Replay-safe outreach",
+    targeting: { industries: ["hospitality"], states: ["TX"], minFitScore: 50 },
+    sequence: [{ delayDays: 0, subjectTemplate: "A partnership for {{organization}}", bodyTemplate: "Hello {{contactName}}" }]
+  };
+  const retryCampaign = createOutreachCampaign(issuedInvitation.doc, campaignRetryInput, { actorId: "sponsor_1", idFactory: campaignRetryFactory, now });
+  const replayedCampaign = createOutreachCampaign(retryCampaign.doc, campaignRetryInput, { actorId: "sponsor_1", idFactory: campaignRetryFactory, now });
+  const conflictingCampaign = createOutreachCampaign(retryCampaign.doc, { ...campaignRetryInput, dailySendLimit: 10 }, { actorId: "sponsor_1", idFactory: campaignRetryFactory, now });
   const farProspect = createOutreachProspect(qualified.doc, {
     organizationName: "Austin Technology Group",
     industry: "software",
@@ -5267,6 +5513,10 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
     latitude: 27.8
   }, { idFactory, now });
   ok("outreach campaign targeting", campaign.ok && campaign.campaign.targeting.postalCodes[0] === "78373" && campaign.campaign.deliveryMode === "review_first" && campaign.campaign.dailySendLimit === 25 && matchOutreachProspects(campaign.doc, campaign.campaign).length === 1);
+  ok("outreach campaign creation is idempotent and activity safe", retryCampaign.ok && replayedCampaign.replay
+    && replayedCampaign.doc.campaigns.length === retryCampaign.doc.campaigns.length
+    && replayedCampaign.doc.activity.filter(item => item.type === "outreach.campaign.created" && item.entityId === retryCampaign.campaign.id).length === 1
+    && conflictingCampaign.code === "IDEMPOTENCY_CONFLICT");
   ok("outreach radius targeting", radiusCampaign.ok && matchOutreachProspects(radiusCampaign.doc, radiusCampaign.campaign).map(item => item.id).join() === prospect.prospect.id && outreachDistanceMiles(27.8339, -97.0611, 30.2672, -97.7431) > 150);
   ok("outreach campaign preflight is exact, personalized, private, and mutation-free", radiusPreview.ok && radiusPreview.preview.totalProspects === 2 && radiusPreview.preview.matched === 1 && radiusPreview.preview.excluded === 1 && radiusPreview.preview.exclusions.length === 1 && radiusPreview.preview.exclusions[0].reason === "outside_radius" && radiusPreview.preview.matches[0].organizationName === "Island Hotel" && !("contactEmail" in radiusPreview.preview.matches[0]) && radiusPreview.preview.sample.sequence[0].subject === "A partnership for Island Hotel" && radiusPreview.preview.sample.sequence[0].body === "Hello Jordan Lee in Port Aransas" && farProspect.doc.campaigns.length === 0);
   ok("outreach geofence validation", !invalidGeofence.ok && invalidGeofence.error.includes("requires center"));
@@ -6439,6 +6689,43 @@ Research First,construction,Corpus Christi,,78401,,,,Find decision maker,`;
   const incidentSummary = summarizeOperationsIncidents(manual.doc);
   ok("operator incident and summary", manual.ok && incidentSummary.active === 1 && incidentSummary.publicNotices === 1);
   ok("public incident notice is privacy minimized", notice?.title === manual.incident.title && !Object.hasOwn(notice, "ownerName") && !Object.hasOwn(notice, "timeline") && !Object.hasOwn(notice, "sourceType"));
+  const replayIdFactory = prefix => `${prefix}_operator_replay`;
+  const replayInput = {
+    sourceType: "operator",
+    sourceId: "operator-replay-proof",
+    title: "Replay-safe operator incident",
+    summary: "Preserve one command record if the browser loses the accepted response.",
+    severity: "high",
+    ownerTeam: "operations",
+    publicImpact: false,
+    note: "Operator opened incident command."
+  };
+  const replaySafeIncident = createOperationsIncident(seed, replayInput, {
+    actorId: "ops_1",
+    idFactory: replayIdFactory,
+    now: "2026-07-16T12:00:00.000Z"
+  });
+  const replayedIncident = createOperationsIncident(replaySafeIncident.doc, replayInput, {
+    actorId: "ops_1",
+    idFactory: replayIdFactory,
+    now: "2026-07-16T12:01:00.000Z"
+  });
+  const conflictingIncident = createOperationsIncident(replaySafeIncident.doc, {
+    ...replayInput,
+    summary: "Changed incident details must not reuse the accepted key."
+  }, {
+    actorId: "ops_1",
+    idFactory: replayIdFactory,
+    now: "2026-07-16T12:01:00.000Z"
+  });
+  ok("operator incident creation is replay safe", replaySafeIncident.ok
+    && !replaySafeIncident.replay
+    && replayedIncident.ok
+    && replayedIncident.replay
+    && replayedIncident.incident.id === replaySafeIncident.incident.id
+    && replayedIncident.doc.incidents.length === replaySafeIncident.doc.incidents.length
+    && !conflictingIncident.ok
+    && conflictingIncident.code === "IDEMPOTENCY_CONFLICT");
 }
 
 // Incident dispatch assignments and reviewed delivery stay durable and idempotent.
@@ -7059,6 +7346,8 @@ try {
     && publicGuestServicesReadinessSafety(publicGuestServicesReadinessApi.data, { eventId: DEFAULT_EVENT_ID }).ready
     && publicGuestServicesReadinessApi.headers.get("cache-control") === "no-store");
   ok("deployment exposes data plane gate", deployment.status === 200 && deployment.data.deployment?.checks?.dataPlane?.ok === true);
+  ok("deployment exposes the JWT audience gate", deployment.data.deployment?.checks?.authAudience?.ok === true
+    && deployment.data.deployment?.checks?.authAudience?.message.includes("not required"));
   if (sponsorRoleProbe) {
     ok("sponsor role session excludes staff and launch control", sponsorRoleProbe.session.status === 200
       && sponsorRoleProbe.session.data.session?.role === "sponsor_admin"
@@ -7387,6 +7676,11 @@ try {
     "access-control-request-method": "POST",
     "access-control-request-headers": "authorization,content-type,x-document-review-due-at"
   });
+  const untrustedDocumentUploadPreflightApi = await hitRaw("OPTIONS", "/api/admin/documents/upload", undefined, {
+    origin: "https://texassandfest.org.evil.example",
+    "access-control-request-method": "POST",
+    "access-control-request-headers": "authorization,content-type,x-document-review-due-at"
+  });
   const unauthenticatedDocumentsApi = await hitRaw("GET", "/api/admin/documents");
   const unauthenticatedDocumentUploadApi = await hitRaw("POST", "/api/admin/documents/upload", apiDocumentBytes, {
     "content-type": "text/plain",
@@ -7466,6 +7760,7 @@ try {
   const retriedBoardBriefingApi = documentsAfterRetryApi.data.documents?.find(item => item.id === extractedBoardBriefingApi?.id);
   ok("document intake API requires dedicated staff authentication", unauthenticatedDocumentsApi.status === 401 && unauthenticatedDocumentUploadApi.status === 401);
   ok("document intake upload CORS permits the review deadline", documentUploadPreflightApi.status === 204 && documentUploadPreflightApi.headers.get("access-control-allow-origin") === "https://www.texassandfest.org" && documentUploadPreflightApi.headers.get("access-control-allow-headers")?.includes("x-document-review-due-at"));
+  ok("document intake upload CORS withholds untrusted origins", untrustedDocumentUploadPreflightApi.status === 204 && !untrustedDocumentUploadPreflightApi.headers.has("access-control-allow-origin"));
   ok("document intake API stores private metadata and preview", documentUploadApi.status === 201 && documentUploadApi.data.document?.textPreview.includes("Board packet source") && !("storageKey" in (documentUploadApi.data.document || {})) && documentUploadApi.data.document?.checksumSha256?.length === 64 && documentUploadApi.data.document?.reviewDueAt === apiDocumentReviewDueAt);
   ok("document intake API is checksum-idempotent", documentReplayApi.status === 200 && documentReplayApi.data.duplicate === true && documentReplayApi.data.document?.id === documentIdApi && documentReplayApi.data.document?.reviewTask?.id === documentUploadApi.data.document?.reviewTask?.id && documentListApi.data.summary?.total === 1);
   ok("document intake API routes one due-dated work-board task", documentListApi.data.documents?.[0]?.reviewTask?.status === "open" && documentListApi.data.documents?.[0]?.reviewTask?.assigneeId === "operations" && documentListApi.data.documents?.[0]?.reviewTask?.dueAt === apiDocumentReviewDueAt && documentReviewTasksApi.length === 1);
@@ -8085,17 +8380,26 @@ api_square_invalid,2026-07-16,merch,20.00,1.00,20.00,1,square_payout_api_1,2026-
     ownerTeam: "operations",
     budgetCents: 50_000
   });
-  const budgetLineApi = await hit("POST", "/api/admin/budget/lines", {
+  const missingBudgetLineKeyApi = await hit("POST", "/api/admin/budget/lines", {
+    name: "API missing-key allocation",
+    ownerTeam: "operations",
+    budgetCents: 10_000
+  }, true);
+  const budgetLineKey = "api-budget-line-create-0001";
+  const budgetLineBody = {
     name: "API beach operations",
     ownerTeam: "operations",
     budgetCents: 50_000,
     notes: "API workflow verification"
-  }, true);
+  };
+  const budgetLineApi = await hit("POST", "/api/admin/budget/lines", budgetLineBody, true, { "idempotency-key": budgetLineKey });
+  const replayedBudgetLineApi = await hit("POST", "/api/admin/budget/lines", budgetLineBody, true, { "idempotency-key": budgetLineKey });
+  const conflictingBudgetLineApi = await hit("POST", "/api/admin/budget/lines", { ...budgetLineBody, budgetCents: 51_000 }, true, { "idempotency-key": budgetLineKey });
   const duplicateBudgetLineApi = await hit("POST", "/api/admin/budget/lines", {
     name: "api BEACH operations",
     ownerTeam: "finance",
     budgetCents: 10_000
-  }, true);
+  }, true, { "idempotency-key": "api-budget-line-create-0002" });
   const budgetLineUpdateWithoutNoteApi = await hit("PATCH", `/api/admin/budget/lines/${budgetLineApi.data.line?.id}`, {
     budgetCents: 52_000
   }, true);
@@ -8104,13 +8408,17 @@ api_square_invalid,2026-07-16,merch,20.00,1.00,20.00,1,square_payout_api_1,2026-
     active: true,
     changeNote: "No amount change required for API verification."
   }, true);
-  const paidExpenseRequestApi = await hit("POST", "/api/admin/budget/expenses", {
+  const paidExpenseBody = {
     budgetLineId: budgetLineApi.data.line?.id,
     vendorName: "API Private Staging Vendor",
     description: "API staging reservation for beach operations",
     amountCents: 30_000,
     dueDate: "2027-02-15"
-  }, true);
+  };
+  const paidExpenseKey = "api-expense-create-0001";
+  const paidExpenseRequestApi = await hit("POST", "/api/admin/budget/expenses", paidExpenseBody, true, { "idempotency-key": paidExpenseKey });
+  const replayedPaidExpenseApi = await hit("POST", "/api/admin/budget/expenses", paidExpenseBody, true, { "idempotency-key": paidExpenseKey });
+  const conflictingPaidExpenseApi = await hit("POST", "/api/admin/budget/expenses", { ...paidExpenseBody, amountCents: 31_000 }, true, { "idempotency-key": paidExpenseKey });
   const paidExpenseApprovalApi = await hit("POST", `/api/admin/budget/expenses/${paidExpenseRequestApi.data.expense?.id}/approve`, {}, true);
   const paidExpensePaymentApi = await hit("POST", `/api/admin/budget/expenses/${paidExpenseRequestApi.data.expense?.id}/mark-paid`, {
     paymentMethod: "ach",
@@ -8122,7 +8430,7 @@ api_square_invalid,2026-07-16,merch,20.00,1.00,20.00,1,square_payout_api_1,2026-
     description: "API additional safety structures for the beach",
     amountCents: 25_000,
     dueDate: "2027-03-01"
-  }, true);
+  }, true, { "idempotency-key": "api-expense-create-0002" });
   const overBudgetBlockedApi = await hit("POST", `/api/admin/budget/expenses/${overBudgetExpenseRequestApi.data.expense?.id}/approve`, {}, true);
   const overBudgetApprovedApi = await hit("POST", `/api/admin/budget/expenses/${overBudgetExpenseRequestApi.data.expense?.id}/approve`, {
     allowOverBudget: true,
@@ -8131,10 +8439,11 @@ api_square_invalid,2026-07-16,merch,20.00,1.00,20.00,1,square_payout_api_1,2026-
   const repeatedBudgetTransitionApi = await hit("POST", `/api/admin/budget/expenses/${overBudgetExpenseRequestApi.data.expense?.id}/approve`, {}, true);
   const persistedBudgetApi = await hit("GET", "/api/admin/budget", null, true);
   ok("budget API requires finance authentication", unauthenticatedBudgetApi.status === 401 && unauthenticatedBudgetLineApi.status === 401);
+  ok("budget creation API requires replay protection", missingBudgetLineKeyApi.status === 400 && missingBudgetLineKeyApi.data.error?.includes("Idempotency-Key"));
   ok("budget API starts current event without sample finance records", emptyBudgetApi.status === 200 && emptyBudgetApi.data.eventId === DEFAULT_EVENT_ID && emptyBudgetApi.data.summary?.counts?.budgetLines === 0);
-  ok("budget allocation API enforces uniqueness and noted changes", budgetLineApi.status === 201 && duplicateBudgetLineApi.status === 409
+  ok("budget allocation API enforces replay safety, uniqueness, and noted changes", budgetLineApi.status === 201 && replayedBudgetLineApi.status === 200 && replayedBudgetLineApi.data.replay === true && replayedBudgetLineApi.data.line?.id === budgetLineApi.data.line?.id && conflictingBudgetLineApi.status === 409 && duplicateBudgetLineApi.status === 409
     && budgetLineUpdateWithoutNoteApi.status === 400 && budgetLineUpdateApi.status === 200 && budgetLineUpdateApi.data.line?.createdBy && budgetLineUpdateApi.data.line?.lastChangedBy);
-  ok("expense API persists approval and payment evidence", paidExpenseRequestApi.status === 201 && paidExpenseApprovalApi.status === 200
+  ok("expense API persists replay-safe approval and payment evidence", paidExpenseRequestApi.status === 201 && replayedPaidExpenseApi.status === 200 && replayedPaidExpenseApi.data.replay === true && replayedPaidExpenseApi.data.expense?.id === paidExpenseRequestApi.data.expense?.id && conflictingPaidExpenseApi.status === 409 && paidExpenseApprovalApi.status === 200
     && paidExpensePaymentApi.status === 200 && paidExpensePaymentApi.data.expense?.status === "paid" && paidExpensePaymentApi.data.expense?.paymentReference === "PRIVATE-ACH-API-1001");
   ok("budget approval fails closed and records explicit overrides", overBudgetBlockedApi.status === 409 && overBudgetBlockedApi.data.code === "OVER_BUDGET"
     && overBudgetApprovedApi.status === 200 && overBudgetApprovedApi.data.expense?.overBudgetOverride === true && repeatedBudgetTransitionApi.status === 409);
@@ -8327,12 +8636,24 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     ok("camera recovery moves incident to monitoring", recoveryMetric.data.incidentAction === "monitoring" && recoveredState.data.incidents?.find(item => item.id === cameraIncident?.id)?.status === "monitoring");
 
     const unauthorizedIncident = await hit("POST", "/api/admin/island-conditions/incidents", { title: "Unauthorized incident" });
-    const manualIncident = await hit("POST", "/api/admin/island-conditions/incidents", {
+    const manualIncidentBody = {
       title: "Manual beach access incident",
       summary: "Operator verification in progress.",
       severity: "moderate",
       ownerTeam: "operations"
-    }, true);
+    };
+    const manualIncidentKey = "api-conditions-incident-create-0001";
+    const missingIncidentKey = await hit("POST", "/api/admin/island-conditions/incidents", manualIncidentBody, true);
+    const manualIncident = await hit("POST", "/api/admin/island-conditions/incidents", manualIncidentBody, true, {
+      "idempotency-key": manualIncidentKey
+    });
+    const replayedManualIncident = await hit("POST", "/api/admin/island-conditions/incidents", manualIncidentBody, true, {
+      "idempotency-key": manualIncidentKey
+    });
+    const conflictingManualIncident = await hit("POST", "/api/admin/island-conditions/incidents", {
+      ...manualIncidentBody,
+      summary: "Changed operator verification details."
+    }, true, { "idempotency-key": manualIncidentKey });
     const dispatchPath = `/api/admin/island-conditions/incidents/${manualIncident.data.incident?.id}/dispatches`;
     const dispatchInput = {
       assigneeType: "team",
@@ -8356,6 +8677,17 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     const persistedDispatch = dispatchWorkspace.data.dispatches?.find(item => item.id === dispatchId);
     const dispatchAudit = await hit("GET", "/api/admin/audit?limit=100", null, true);
     const dispatchAuditRecords = dispatchAudit.data.audit?.map(item => item.record).filter(record => record?.target?.type === "incident_dispatch" && record.target.id === dispatchId) || [];
+    const incidentAuditRecords = dispatchAudit.data.audit?.map(item => item.record).filter(record => record?.action === "conditions.incident.create" && record.target?.id === manualIncident.data.incident?.id) || [];
+    ok("operator incident creation requires replay protection", unauthorizedIncident.status === 401 && missingIncidentKey.status === 400 && missingIncidentKey.data.error?.includes("Idempotency-Key"));
+    ok("operator incident creation replays once", manualIncident.status === 201
+      && manualIncident.data.replay === false
+      && replayedManualIncident.status === 200
+      && replayedManualIncident.data.replay === true
+      && replayedManualIncident.data.incident?.id === manualIncident.data.incident?.id
+      && conflictingManualIncident.status === 409
+      && dispatchWorkspace.data.incidents?.filter(item => item.id === manualIncident.data.incident?.id).length === 1
+      && incidentAuditRecords.length === 1
+      && !JSON.stringify({ dispatchWorkspace, dispatchAudit }).includes(manualIncidentKey));
     ok("incident dispatch routes enforce auth and idempotency", unauthorizedDispatch.status === 401 && createdDispatch.status === 201 && repeatedDispatch.status === 200 && repeatedDispatch.data.duplicate === true && dispatchWorkspace.data.dispatches?.filter(item => item.id === dispatchId).length === 1);
     ok("incident dispatch review and readiness gate", editedDispatch.status === 200 && editedDispatch.data.dispatch?.notification?.status === "draft_ready" && approvedDispatch.data.dispatch?.notification?.status === "approved" && disabledDispatchSend.status === 409);
     ok("incident dispatch uses governed team route", createdDispatch.data.dispatch?.assigneeName === "Traffic and parking" && createdDispatch.data.dispatch?.notification?.recipientAvailable === true);
@@ -8445,10 +8777,10 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
         dispatchApiChild.stderr.on("data", onData);
         dispatchApiChild.once("error", reject);
       });
-      const dispatchHit = async (method, pathName, body = null) => {
+      const dispatchHit = async (method, pathName, body = null, headers = {}) => {
         const response = await fetch(`${dispatchApiBase}${pathName}`, {
           method,
-          headers: { "content-type": "application/json", authorization: `Bearer ${TOKEN}` },
+          headers: { "content-type": "application/json", authorization: `Bearer ${TOKEN}`, ...headers },
           body: body ? JSON.stringify(body) : undefined
         });
         return { status: response.status, data: await response.json().catch(() => ({})) };
@@ -8458,7 +8790,7 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
         summary: "Verify the durable incident email outbox.",
         severity: "high",
         ownerTeam: "traffic"
-      });
+      }, { "idempotency-key": "api-dispatch-recovery-incident-0001" });
       const recoveryDispatchPath = `/api/admin/island-conditions/incidents/${recoveryIncident.data.incident?.id}/dispatches`;
       const recoveryDispatch = await dispatchHit("POST", recoveryDispatchPath, {
         assigneeType: "team",
@@ -8568,10 +8900,16 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
       stripePriceId: "price_api_community_champion",
       quickBooksItemId: "api-community-champion-item"
     };
+    const sponsorPackageCreateKey = "api-sponsor-package-create-0001";
+    const missingSponsorPackageCreateKey = await hit("POST", "/api/admin/sponsor-packages", sponsorPackageCreateBody, true);
     const concurrentSponsorCreates = await Promise.all([
-      hit("POST", "/api/admin/sponsor-packages", sponsorPackageCreateBody, true),
-      hit("POST", "/api/admin/sponsor-packages", sponsorPackageCreateBody, true)
+      hit("POST", "/api/admin/sponsor-packages", sponsorPackageCreateBody, true, { "idempotency-key": sponsorPackageCreateKey }),
+      hit("POST", "/api/admin/sponsor-packages", sponsorPackageCreateBody, true, { "idempotency-key": sponsorPackageCreateKey })
     ]);
+    const conflictingSponsorCreate = await hit("POST", "/api/admin/sponsor-packages", {
+      ...sponsorPackageCreateBody,
+      amount: 800000
+    }, true, { "idempotency-key": sponsorPackageCreateKey });
     const publicSponsorCatalogAfterCreate = await hit("GET", "/api/public/sponsors");
     const invalidSponsorAmountPatch = await hit("PATCH", "/api/admin/sponsor-packages/tarpon", { amount: 0 }, true);
     const invalidSponsorBenefitPatch = await hit("PATCH", "/api/admin/sponsor-packages/tarpon", { benefits: [] }, true);
@@ -8589,7 +8927,7 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     }, true);
     const publicSponsorCatalogAfterPatch = await hit("GET", "/api/public/sponsors");
     const publicTarponAfterPatch = publicSponsorCatalogAfterPatch.data.sponsorPackages?.find(item => item.id === "tarpon");
-    ok("admin sponsor package creation is atomic and returns public catalog to review", concurrentSponsorCreates.map(item => item.status).sort((a, b) => a - b).join(",") === "201,409" && publicSponsorCatalogAfterCreate.data.publication?.available === false && publicSponsorCatalogAfterCreate.data.sponsorPackages?.length === 0);
+    ok("admin sponsor package creation is replay safe and returns public catalog to review", missingSponsorPackageCreateKey.status === 400 && concurrentSponsorCreates.map(item => item.status).sort((a, b) => a - b).join(",") === "200,201" && concurrentSponsorCreates.some(item => item.data.replay === true) && new Set(concurrentSponsorCreates.map(item => item.data.sponsorPackage?.id)).size === 1 && conflictingSponsorCreate.status === 409 && publicSponsorCatalogAfterCreate.data.publication?.available === false && publicSponsorCatalogAfterCreate.data.sponsorPackages?.length === 0);
     ok("admin sponsor catalog publish exposes the exact reviewed catalog", sponsorCatalogPublish.status === 200 && sponsorCatalogPublish.data.readiness?.ready === true && publicCommunityChampion?.amount === 750000);
     ok("admin sponsor package validation", invalidSponsorAmountPatch.status === 400 && invalidSponsorAmountPatch.data.error?.includes("amount") && invalidSponsorBenefitPatch.status === 400 && invalidSponsorBenefitPatch.data.error?.includes("benefit") && publicTarponAfterPatch?.amount === 500000);
     ok("admin sponsor package accounting mapping stays private and published", sponsorPackagePatch.status === 200 && sponsorPackagePatch.data.readiness?.ready === true && sponsorPackagePatch.data.publicationReadiness?.ready === true && sponsorPackagePatch.data.sponsorPackage?.quickBooksItemId === "api-sponsor-tarpon-item" && publicSponsorCatalogAfterPatch.data.publication?.available === true && !Object.hasOwn(publicTarponAfterPatch || {}, "quickBooksItemId") && !Object.hasOwn(publicTarponAfterPatch || {}, "stripePriceId") && !Object.hasOwn(publicCommunityChampion || {}, "quickBooksItemId") && !Object.hasOwn(publicCommunityChampion || {}, "stripePriceId"));
@@ -8608,16 +8946,22 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
       stripePriceId: "price_api_premium_marketplace",
       quickBooksItemId: "api-premium-marketplace-item"
     };
+    const vendorOfferingCreateKey = "api-vendor-offering-create-0001";
+    const missingVendorOfferingCreateKey = await hit("POST", "/api/admin/vendor-offerings", vendorOfferingCreateBody, true);
     const concurrentVendorOfferingCreates = await Promise.all([
-      hit("POST", "/api/admin/vendor-offerings", vendorOfferingCreateBody, true),
-      hit("POST", "/api/admin/vendor-offerings", vendorOfferingCreateBody, true)
+      hit("POST", "/api/admin/vendor-offerings", vendorOfferingCreateBody, true, { "idempotency-key": vendorOfferingCreateKey }),
+      hit("POST", "/api/admin/vendor-offerings", vendorOfferingCreateBody, true, { "idempotency-key": vendorOfferingCreateKey })
     ]);
+    const conflictingVendorOfferingCreate = await hit("POST", "/api/admin/vendor-offerings", {
+      ...vendorOfferingCreateBody,
+      amount: 275000
+    }, true, { "idempotency-key": vendorOfferingCreateKey });
     const publicVendorCatalogAfterCreate = await hit("GET", "/api/public/vendors");
     const invalidVendorOfferingCreate = await hit("POST", "/api/admin/vendor-offerings", {
       ...vendorOfferingCreateBody,
       id: "invalid-vendor-fee",
       amount: 100.5
-    }, true);
+    }, true, { "idempotency-key": "api-vendor-offering-create-0002" });
     const invalidVendorOfferingPatch = await hit("PATCH", "/api/admin/vendor-offerings/marketplace-booth", { categories: [] }, true);
     const vendorCatalogPublish = await hit("POST", "/api/admin/partner-catalog-publication", {
       catalog: "vendor",
@@ -8629,7 +8973,7 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     const publicPremiumMarketplace = publicVendorCatalogAfterPublish.data.vendorOfferings?.find(item => item.id === "premium-marketplace-booth");
     const vendorOfferingPatch = await hit("PATCH", "/api/admin/vendor-offerings/marketplace-booth", { quickBooksItemId: "api-vendor-marketplace-item" }, true);
     const publicVendorCatalogAfterPatch = await hit("GET", "/api/public/vendors");
-    ok("admin vendor offering creation is atomic and returns public catalog to review", concurrentVendorOfferingCreates.map(item => item.status).sort((a, b) => a - b).join(",") === "201,409" && invalidVendorOfferingCreate.status === 400 && publicVendorCatalogAfterCreate.data.publication?.available === false && publicVendorCatalogAfterCreate.data.vendorOfferings?.length === 0);
+    ok("admin vendor offering creation is replay safe and returns public catalog to review", missingVendorOfferingCreateKey.status === 400 && concurrentVendorOfferingCreates.map(item => item.status).sort((a, b) => a - b).join(",") === "200,201" && concurrentVendorOfferingCreates.some(item => item.data.replay === true) && new Set(concurrentVendorOfferingCreates.map(item => item.data.vendorOffering?.id)).size === 1 && conflictingVendorOfferingCreate.status === 409 && invalidVendorOfferingCreate.status === 400 && publicVendorCatalogAfterCreate.data.publication?.available === false && publicVendorCatalogAfterCreate.data.vendorOfferings?.length === 0);
     ok("admin vendor catalog publish exposes the exact reviewed catalog", vendorCatalogPublish.status === 200 && vendorCatalogPublish.data.readiness?.ready === true && publicPremiumMarketplace?.amount === 250000);
     ok("admin vendor offering validation", invalidVendorOfferingPatch.status === 400 && invalidVendorOfferingPatch.data.error?.includes("category"));
     ok("admin vendor offering accounting mapping stays private and published", vendorOfferingPatch.status === 200 && vendorOfferingPatch.data.publicationReadiness?.ready === true && vendorOfferingPatch.data.vendorOffering?.quickBooksItemId === "api-vendor-marketplace-item" && publicVendorCatalogAfterPatch.data.publication?.available === true && !Object.hasOwn(publicVendorCatalogAfterPatch.data.vendorOfferings?.find(item => item.id === "marketplace-booth") || {}, "quickBooksItemId") && !Object.hasOwn(publicPremiumMarketplace || {}, "quickBooksItemId") && !Object.hasOwn(publicPremiumMarketplace || {}, "stripePriceId"));
@@ -9000,6 +9344,23 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
   ok("private sponsor asset download", downloadedAsset.status === 200 && Buffer.isBuffer(downloadedAsset.data) && downloadedAsset.data.equals(apiPng) && downloadedAsset.headers.get("cache-control") === "private, no-store");
   const updatedSponsorWorkspace = await hit("GET", "/api/admin/partners", null, true);
   ok("sponsor fulfillment API summary", updatedSponsorWorkspace.data.fulfillment?.profiles?.approved === 1 && updatedSponsorWorkspace.data.fulfillment?.assets?.approved === 1 && updatedSponsorWorkspace.data.deliverables?.filter(item => item.applicationId === sponsorApplication?.id).length === 6);
+  const customDeliverableBody = {
+    label: "API sponsor hospitality display",
+    ownerId: "staff_sponsor",
+    dueAt: "2026-08-06T17:00:00.000Z",
+    description: "Track the approved hospitality display through delivery."
+  };
+  const customDeliverableKey = "api-partner-deliverable-create-0001";
+  const customDeliverablePath = `/api/admin/partners/applications/${encodeURIComponent(sponsorApplication?.id)}/deliverables`;
+  const missingDeliverableKeyApi = await hit("POST", customDeliverablePath, customDeliverableBody, true);
+  const customDeliverableApi = await hit("POST", customDeliverablePath, customDeliverableBody, true, { "idempotency-key": customDeliverableKey });
+  const replayedDeliverableApi = await hit("POST", customDeliverablePath, customDeliverableBody, true, { "idempotency-key": customDeliverableKey });
+  const conflictingDeliverableApi = await hit("POST", customDeliverablePath, { ...customDeliverableBody, label: "Changed API sponsor display" }, true, { "idempotency-key": customDeliverableKey });
+  const customDeliverableWorkspaceApi = await hit("GET", "/api/admin/partners", null, true);
+  const customDeliverableAuditApi = await hit("GET", "/api/admin/audit?limit=500", null, true);
+  const customDeliverableAudits = customDeliverableAuditApi.data.audit?.filter(item => item.record?.action === "partner.deliverable.create" && item.record?.target?.id === customDeliverableApi.data.deliverable?.id) || [];
+  ok("admin custom sponsor deliverable creation requires replay protection", missingDeliverableKeyApi.status === 400 && missingDeliverableKeyApi.data.error?.includes("Idempotency-Key"));
+  ok("admin custom sponsor deliverable creation replays once", customDeliverableApi.status === 201 && customDeliverableApi.data.replay === false && replayedDeliverableApi.status === 200 && replayedDeliverableApi.data.replay === true && replayedDeliverableApi.data.deliverable?.id === customDeliverableApi.data.deliverable?.id && conflictingDeliverableApi.status === 409 && customDeliverableWorkspaceApi.data.deliverables?.filter(item => item.id === customDeliverableApi.data.deliverable?.id).length === 1 && customDeliverableAudits.length === 1 && !JSON.stringify({ customDeliverableWorkspaceApi, customDeliverableAuditApi }).includes(customDeliverableKey));
 
   const sponsorMilestone = updatedSponsorWorkspace.data.milestones?.find(item => item.applicationId === sponsorApplication?.id);
   const rescheduledMilestoneApi = await hit("PATCH", `/api/admin/partners/milestones/${encodeURIComponent(sponsorMilestone?.id)}`, {
@@ -9008,21 +9369,26 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     reminderLeadDays: 5,
     notes: "Confirm the package handoff with finance."
   }, true);
-  const customMilestoneApi = await hit("POST", `/api/admin/partners/applications/${encodeURIComponent(sponsorApplication?.id)}/milestones`, {
+  const customMilestoneBody = {
     label: "Hospitality roster due",
     dueAt: "2026-09-15T17:00:00.000Z",
     assigneeTeam: "guest-services",
     reminderLeadDays: 4,
     notes: "Collect attendee names and dietary needs."
-  }, true);
+  };
+  const customMilestoneKey = "api-partner-milestone-create-0001";
+  const missingMilestoneKeyApi = await hit("POST", `/api/admin/partners/applications/${encodeURIComponent(sponsorApplication?.id)}/milestones`, customMilestoneBody, true);
+  const customMilestoneApi = await hit("POST", `/api/admin/partners/applications/${encodeURIComponent(sponsorApplication?.id)}/milestones`, customMilestoneBody, true, { "idempotency-key": customMilestoneKey });
+  const replayedMilestoneApi = await hit("POST", `/api/admin/partners/applications/${encodeURIComponent(sponsorApplication?.id)}/milestones`, customMilestoneBody, true, { "idempotency-key": customMilestoneKey });
+  const conflictingMilestoneApi = await hit("POST", `/api/admin/partners/applications/${encodeURIComponent(sponsorApplication?.id)}/milestones`, { ...customMilestoneBody, reminderLeadDays: 5 }, true, { "idempotency-key": customMilestoneKey });
   const invalidMilestoneApi = await hit("POST", `/api/admin/partners/applications/${encodeURIComponent(sponsorApplication?.id)}/milestones`, {
     label: "Invalid date",
     dueAt: "not-a-date",
     assigneeTeam: "sponsor"
-  }, true);
+  }, true, { "idempotency-key": "api-partner-milestone-create-0002" });
   const milestoneWorkspaceApi = await hit("GET", "/api/admin/partners", null, true);
   const persistedCustomMilestone = milestoneWorkspaceApi.data.milestones?.find(item => item.id === customMilestoneApi.data.milestone?.id);
-  ok("admin milestone create and reschedule API", rescheduledMilestoneApi.status === 200 && rescheduledMilestoneApi.data.milestone?.scheduleVersion === 2 && rescheduledMilestoneApi.data.milestone?.assigneeTeam === "finance" && customMilestoneApi.status === 201 && persistedCustomMilestone?.assigneeTeam === "guest-services" && !("ok" in (persistedCustomMilestone || {})));
+  ok("admin milestone create and reschedule API", rescheduledMilestoneApi.status === 200 && rescheduledMilestoneApi.data.milestone?.scheduleVersion === 2 && rescheduledMilestoneApi.data.milestone?.assigneeTeam === "finance" && missingMilestoneKeyApi.status === 400 && customMilestoneApi.status === 201 && replayedMilestoneApi.status === 200 && replayedMilestoneApi.data.replay === true && replayedMilestoneApi.data.milestone?.id === customMilestoneApi.data.milestone?.id && conflictingMilestoneApi.status === 409 && persistedCustomMilestone?.assigneeTeam === "guest-services" && !("ok" in (persistedCustomMilestone || {})));
   ok("admin milestone validation and summary API", invalidMilestoneApi.status === 400 && milestoneWorkspaceApi.data.milestoneSummary?.totals?.open >= 7);
   const completedMilestoneApi = await hit("PATCH", `/api/admin/partners/milestones/${encodeURIComponent(customMilestoneApi.data.milestone?.id)}`, { status: "completed" }, true);
   const completedMilestoneWorkspaceApi = await hit("GET", "/api/admin/partners", null, true);
@@ -9091,15 +9457,20 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
   const restoredInvoice = reversedWorkspace.data.invoices?.find(item => item.id === invoiceApi.data.invoice?.id);
   ok("payment reversal API restores balance", reversedPaymentApi.status === 200 && reversedPaymentApi.data.payment?.status === "voided" && restoredInvoice?.balanceCents === restoredInvoice?.amountCents && reversedWorkspace.data.receivables?.accounts?.find(item => item.applicationId === sponsorApplication?.id)?.paidAmountCents === 0);
 
-  const staffTaskApi = await hit("POST", "/api/admin/partners/tasks", {
+  const staffTaskBody = {
     title: "Confirm operations briefing",
     description: "Review the opening checklist with command.",
     assigneeType: "staff",
     assigneeId: "staff_operations",
     priority: "high",
     dueAt: "2026-07-17T12:30:00.000Z"
-  }, true);
-  ok("POST governed staff task assignment", staffTaskApi.status === 201 && staffTaskApi.data.task?.assigneeName === "Jamie Torres" && staffTaskApi.data.task?.assigneeRole === "ops_admin");
+  };
+  const staffTaskKey = "api-partner-task-create-0001";
+  const missingTaskKeyApi = await hit("POST", "/api/admin/partners/tasks", staffTaskBody, true);
+  const staffTaskApi = await hit("POST", "/api/admin/partners/tasks", staffTaskBody, true, { "idempotency-key": staffTaskKey });
+  const replayedStaffTaskApi = await hit("POST", "/api/admin/partners/tasks", staffTaskBody, true, { "idempotency-key": staffTaskKey });
+  const conflictingStaffTaskApi = await hit("POST", "/api/admin/partners/tasks", { ...staffTaskBody, priority: "urgent" }, true, { "idempotency-key": staffTaskKey });
+  ok("POST governed staff task assignment", missingTaskKeyApi.status === 400 && staffTaskApi.status === 201 && replayedStaffTaskApi.status === 200 && replayedStaffTaskApi.data.replay === true && replayedStaffTaskApi.data.task?.id === staffTaskApi.data.task?.id && conflictingStaffTaskApi.status === 409 && staffTaskApi.data.task?.assigneeName === "Jamie Torres" && staffTaskApi.data.task?.assigneeRole === "ops_admin");
   const delegatedTask = await hit("POST", "/api/admin/partners/tasks", {
     title: "Brief the volunteer gate lead",
     description: "Confirm radio channel and opening checklist.",
@@ -9107,7 +9478,7 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     assigneeId: "vol_001",
     priority: "high",
     dueAt: "2026-07-17T13:00:00.000Z"
-  }, true);
+  }, true, { "idempotency-key": "api-partner-task-create-0002" });
   ok("POST volunteer task assignment", delegatedTask.status === 201 && delegatedTask.data.task?.assigneeName === "Alex Rivera");
   const taskNoticeRequestId = "api-task-notice-request-0001";
   const requestedTaskNoticeApi = await hit("POST", `/api/admin/partners/tasks/${encodeURIComponent(delegatedTask.data.task?.id)}/assignment-notice`, { requestId: taskNoticeRequestId }, true);
@@ -9119,14 +9490,22 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
   const apiTaskToken = issueTaskPortalToken(delegatedTask.data.task, { config: apiTaskPortalConfig });
   const taskPortalStatusApi = await hit("POST", "/api/public/task-status", { taskId: delegatedTask.data.task?.id, token: apiTaskToken });
   const invalidTaskPortalApi = await hit("POST", "/api/public/task-status", { taskId: delegatedTask.data.task?.id, token: `${apiTaskToken}invalid` });
-  const acknowledgedTaskApi = await hit("POST", "/api/public/task-status/update", { taskId: delegatedTask.data.task?.id, token: apiTaskToken, action: "acknowledge", note: "Gate briefing received." });
-  const startedTaskApi = await hit("POST", "/api/public/task-status/update", { taskId: delegatedTask.data.task?.id, token: apiTaskToken, action: "start" });
-  const rejectedBlockerApi = await hit("POST", "/api/public/task-status/update", { taskId: delegatedTask.data.task?.id, token: apiTaskToken, action: "block" });
-  const blockedTaskApi = await hit("POST", "/api/public/task-status/update", { taskId: delegatedTask.data.task?.id, token: apiTaskToken, action: "block", note: "Radio inventory is short by two units." });
-  const completedTaskApi = await hit("POST", "/api/public/task-status/update", { taskId: delegatedTask.data.task?.id, token: apiTaskToken, action: "complete", note: "Radios reassigned and briefing complete." });
-  const completedTaskReplayApi = await hit("POST", "/api/public/task-status/update", { taskId: delegatedTask.data.task?.id, token: apiTaskToken, action: "complete" });
+  const missingTaskUpdateKeyApi = await hit("POST", "/api/public/task-status/update", { taskId: delegatedTask.data.task?.id, token: apiTaskToken, action: "acknowledge" });
+  const acknowledgedTaskApi = await hit("POST", "/api/public/task-status/update", { taskId: delegatedTask.data.task?.id, token: apiTaskToken, action: "acknowledge", note: "Gate briefing received." }, false, { "idempotency-key": "api-task-update-acknowledge-0001" });
+  const startedTaskApi = await hit("POST", "/api/public/task-status/update", { taskId: delegatedTask.data.task?.id, token: apiTaskToken, action: "start" }, false, { "idempotency-key": "api-task-update-start-0001" });
+  const rejectedBlockerApi = await hit("POST", "/api/public/task-status/update", { taskId: delegatedTask.data.task?.id, token: apiTaskToken, action: "block" }, false, { "idempotency-key": "api-task-update-block-invalid-0001" });
+  const blockerKey = "api-task-update-block-0001";
+  const blockerBody = { taskId: delegatedTask.data.task?.id, token: apiTaskToken, action: "block", note: "Radio inventory is short by two units." };
+  const blockedTaskApi = await hit("POST", "/api/public/task-status/update", blockerBody, false, { "idempotency-key": blockerKey });
+  const replayedBlockedTaskApi = await hit("POST", "/api/public/task-status/update", blockerBody, false, { "idempotency-key": blockerKey });
+  const conflictingBlockedTaskApi = await hit("POST", "/api/public/task-status/update", { ...blockerBody, note: "Radio inventory is short by three units." }, false, { "idempotency-key": blockerKey });
+  const completedBody = { taskId: delegatedTask.data.task?.id, token: apiTaskToken, action: "complete", note: "Radios reassigned and briefing complete." };
+  const completedKey = "api-task-update-complete-0001";
+  const completedTaskApi = await hit("POST", "/api/public/task-status/update", completedBody, false, { "idempotency-key": completedKey });
+  const completedTaskReplayApi = await hit("POST", "/api/public/task-status/update", completedBody, false, { "idempotency-key": completedKey });
   ok("public task portal authenticates without enumerating assignments", taskPortalStatusApi.status === 200 && taskPortalStatusApi.data.task?.assignee?.name === "Alex Rivera" && !("assigneeId" in taskPortalStatusApi.data.task.assignee) && invalidTaskPortalApi.status === 404 && invalidTaskPortalApi.data.error === "Task assignment not found or access link invalid.");
-  ok("public task portal persists the assignee lifecycle", acknowledgedTaskApi.status === 200 && acknowledgedTaskApi.data.task?.acknowledgedAt && startedTaskApi.data.task?.status === "in_progress" && rejectedBlockerApi.status === 400 && blockedTaskApi.data.task?.status === "blocked" && blockedTaskApi.data.task?.updates?.at(-1)?.note.includes("Radio inventory") && completedTaskApi.data.task?.status === "done" && completedTaskApi.data.task?.allowedActions?.length === 0 && completedTaskReplayApi.data.replay === true);
+  ok("public task portal requires replay protection", missingTaskUpdateKeyApi.status === 400 && missingTaskUpdateKeyApi.data.error?.includes("Idempotency-Key"));
+  ok("public task portal persists the assignee lifecycle", acknowledgedTaskApi.status === 200 && acknowledgedTaskApi.data.task?.acknowledgedAt && startedTaskApi.data.task?.status === "in_progress" && rejectedBlockerApi.status === 400 && blockedTaskApi.data.task?.status === "blocked" && blockedTaskApi.data.task?.updates?.at(-1)?.note.includes("Radio inventory") && replayedBlockedTaskApi.data.replay === true && replayedBlockedTaskApi.data.task?.updates?.length === blockedTaskApi.data.task?.updates?.length && conflictingBlockedTaskApi.status === 409 && completedTaskApi.data.task?.status === "done" && completedTaskApi.data.task?.allowedActions?.length === 0 && completedTaskReplayApi.data.replay === true && !JSON.stringify(completedTaskReplayApi.data).includes(blockerKey));
   const advancedTask = await hit("PATCH", `/api/admin/partners/tasks/${encodeURIComponent(delegatedTask.data.task?.id)}`, {
     status: "blocked",
     assigneeType: "team",
@@ -9140,7 +9519,7 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
   const assignmentNoticeAudit = taskAuditApi.data.audit?.find(item => item.record?.action === "partner.task.assignment_notice.request")?.record;
   ok("PATCH task lifecycle", advancedTask.status === 200 && advancedTask.data.task?.status === "blocked" && advancedTask.data.task?.assigneeName === "Operations team");
   ok("task board API summary", taskWorkspace.data.taskBoard?.totals?.blocked === 1 && taskWorkspace.data.assignmentDirectory?.volunteers?.some(item => item.id === "vol_001" && item.emailAvailable === true && !("email" in item)) && staleTaskPortalApi.status === 404 && taskWorkspace.data.tasks?.find(item => item.id === delegatedTask.data.task?.id)?.acknowledgedAt === null);
-  ok("task assignee audit is capability- and note-minimized", assigneeAudit?.actor?.type === "capability-link" && assigneeAudit.metadata?.noteProvided === true && !JSON.stringify(assigneeAudit).includes(apiTaskToken) && !JSON.stringify(assigneeAudit).includes("Radio inventory"));
+  ok("task assignee audit is capability- and note-minimized", assigneeAudit?.actor?.type === "capability-link" && assigneeAudit.metadata?.noteProvided === true && !JSON.stringify(assigneeAudit).includes(apiTaskToken) && !JSON.stringify(assigneeAudit).includes("Radio inventory") && !/requestId|requestFingerprint/.test(JSON.stringify(taskWorkspace.data.tasks)));
   ok("assignment notice request is audited without capability disclosure", assignmentNoticeAudit?.target?.id === delegatedTask.data.task?.id && assignmentNoticeAudit.metadata?.assignmentNoticeVersion === 1 && !JSON.stringify(assignmentNoticeAudit).includes(apiTaskToken));
   const staffDirectoryApiOk = taskWorkspace.data.staffDirectory?.ready === false
     && taskWorkspace.data.staffDirectory?.routedTeams === 7
@@ -9153,7 +9532,7 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     staffDirectoryApiOk ? "" : JSON.stringify({ readiness: taskWorkspace.data.staffDirectory, assignmentDirectory: taskWorkspace.data.assignmentDirectory })
   );
 
-  const geoProspectApi = await hit("POST", "/api/admin/outreach/prospects", {
+  const geoProspectBodyApi = {
     organizationName: "API Port Aransas Hotel",
     contactName: "Geo Test",
     contactEmail: "geo-api@example.com",
@@ -9169,17 +9548,22 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     ownerId: "sponsor_lead",
     nextAction: "Review the Tarpon sponsor invitation",
     nextActionAt: "2027-01-15T15:00:00.000Z"
-  }, true);
+  };
+  const geoProspectKeyApi = "api-outreach-prospect-create-0001";
+  const missingGeoProspectKeyApi = await hit("POST", "/api/admin/outreach/prospects", geoProspectBodyApi, true);
+  const geoProspectApi = await hit("POST", "/api/admin/outreach/prospects", geoProspectBodyApi, true, { "idempotency-key": geoProspectKeyApi });
+  const replayedGeoProspectApi = await hit("POST", "/api/admin/outreach/prospects", geoProspectBodyApi, true, { "idempotency-key": geoProspectKeyApi });
+  const conflictingGeoProspectApi = await hit("POST", "/api/admin/outreach/prospects", { ...geoProspectBodyApi, industry: "banking" }, true, { "idempotency-key": geoProspectKeyApi });
   const invalidGeoProspectApi = await hit("POST", "/api/admin/outreach/prospects", {
     organizationName: "Invalid API Coordinates",
     contactEmail: "invalid-geo-api@example.com",
     latitude: 27.8
-  }, true);
+  }, true, { "idempotency-key": "api-outreach-prospect-create-0002" });
   const invalidScheduleProspectApi = await hit("POST", "/api/admin/outreach/prospects", {
     organizationName: "Invalid API Follow-up",
     contactEmail: "invalid-schedule-api@example.com",
     nextActionAt: "not-a-date"
-  }, true);
+  }, true, { "idempotency-key": "api-outreach-prospect-create-0003" });
   const geoCampaignPayloadApi = {
     name: "API Port Aransas geofence",
     targeting: {
@@ -9193,12 +9577,16 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
   const unauthenticatedGeoCampaignPreviewApi = await hit("POST", "/api/admin/outreach/campaigns/preview", geoCampaignPayloadApi);
   const geoCampaignPreviewApi = await hit("POST", "/api/admin/outreach/campaigns/preview", geoCampaignPayloadApi, true);
   const outreachAfterPreviewApi = await hit("GET", "/api/admin/outreach", null, true);
-  const geoCampaignApi = await hit("POST", "/api/admin/outreach/campaigns", geoCampaignPayloadApi, true);
+  const geoCampaignKeyApi = "api-outreach-campaign-create-0001";
+  const missingGeoCampaignKeyApi = await hit("POST", "/api/admin/outreach/campaigns", geoCampaignPayloadApi, true);
+  const geoCampaignApi = await hit("POST", "/api/admin/outreach/campaigns", geoCampaignPayloadApi, true, { "idempotency-key": geoCampaignKeyApi });
+  const replayedGeoCampaignApi = await hit("POST", "/api/admin/outreach/campaigns", geoCampaignPayloadApi, true, { "idempotency-key": geoCampaignKeyApi });
+  const conflictingGeoCampaignApi = await hit("POST", "/api/admin/outreach/campaigns", { ...geoCampaignPayloadApi, dailySendLimit: 10 }, true, { "idempotency-key": geoCampaignKeyApi });
   const invalidGeoCampaignApi = await hit("POST", "/api/admin/outreach/campaigns", {
     name: "Invalid API geofence",
     targeting: { geofence: { latitude: 27.8339, radiusMiles: 25 } },
     sequence: [{ delayDays: 0, subjectTemplate: "Invalid", bodyTemplate: "Invalid" }]
-  }, true);
+  }, true, { "idempotency-key": "api-outreach-campaign-create-0002" });
   const invalidGeoCampaignPreviewApi = await hit("POST", "/api/admin/outreach/campaigns/preview", {
     name: "Invalid API geofence preview",
     targeting: { geofence: { latitude: 27.8339, radiusMiles: 25 } },
@@ -9210,7 +9598,7 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
   const geoCampaignWorkspaceApi = geoOutreachWorkspaceApi.data.campaigns?.find(item => item.id === geoCampaignApi.data.campaign?.id);
   const geoDraftApi = geoOutreachWorkspaceApi.data.followups?.find(item => item.campaignId === geoCampaignApi.data.campaign?.id);
   ok("campaign preflight API is authorized, private, personalized, and mutation-free", unauthenticatedGeoCampaignPreviewApi.status === 401 && geoCampaignPreviewApi.status === 200 && geoCampaignPreviewApi.data.preview?.matched === 1 && geoCampaignPreviewApi.data.preview?.matches?.[0]?.id === geoProspectApi.data.prospect?.id && !("contactEmail" in geoCampaignPreviewApi.data.preview.matches[0]) && geoCampaignPreviewApi.data.preview.sample?.sequence?.[0]?.subject === "A local partnership for API Port Aransas Hotel" && !outreachAfterPreviewApi.data.campaigns?.some(item => item.name === geoCampaignPayloadApi.name) && invalidGeoCampaignPreviewApi.status === 400);
-  ok("geofenced outreach API", geoProspectApi.status === 201 && geoCampaignApi.status === 201 && activatedGeoCampaignApi.status === 200 && activatedGeoCampaignApi.data.generated === 1 && generatedGeoCampaignApi.data.generated === 0 && geoCampaignWorkspaceApi?.metrics?.matched === 1 && geoCampaignWorkspaceApi?.metrics?.funnel?.enrolled === 1 && geoCampaignWorkspaceApi?.metrics?.funnel?.reached === 0 && geoCampaignWorkspaceApi?.metrics?.funnel?.applications === 0 && geoCampaignWorkspaceApi?.targeting?.postalCodes?.[0] === "78373");
+  ok("geofenced outreach API", missingGeoProspectKeyApi.status === 400 && geoProspectApi.status === 201 && replayedGeoProspectApi.status === 200 && replayedGeoProspectApi.data.replay === true && replayedGeoProspectApi.data.prospect?.id === geoProspectApi.data.prospect?.id && conflictingGeoProspectApi.status === 409 && missingGeoCampaignKeyApi.status === 400 && geoCampaignApi.status === 201 && replayedGeoCampaignApi.status === 200 && replayedGeoCampaignApi.data.replay === true && replayedGeoCampaignApi.data.campaign?.id === geoCampaignApi.data.campaign?.id && conflictingGeoCampaignApi.status === 409 && activatedGeoCampaignApi.status === 200 && activatedGeoCampaignApi.data.generated === 1 && generatedGeoCampaignApi.data.generated === 0 && geoCampaignWorkspaceApi?.metrics?.matched === 1 && geoCampaignWorkspaceApi?.metrics?.funnel?.enrolled === 1 && geoCampaignWorkspaceApi?.metrics?.funnel?.reached === 0 && geoCampaignWorkspaceApi?.metrics?.funnel?.applications === 0 && geoCampaignWorkspaceApi?.targeting?.postalCodes?.[0] === "78373");
   ok("outreach accountability API", geoProspectApi.data.prospect?.ownerId === "sponsor_lead" && geoProspectApi.data.prospect?.nextActionAt === "2027-01-15T15:00:00.000Z" && geoOutreachWorkspaceApi.data.summary?.nextActionsScheduled >= 1);
   ok("geofenced outreach API validation", invalidGeoProspectApi.status === 400 && invalidScheduleProspectApi.status === 400 && invalidScheduleProspectApi.data.error?.includes("follow-up date") && invalidGeoCampaignApi.status === 400);
   const invitedSponsorProspectApi = await hit("POST", "/api/admin/outreach/prospects", {
@@ -9224,7 +9612,7 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     postalCode: "78401",
     contactBasis: "business_relevance",
     status: "contact_ready"
-  }, true);
+  }, true, { "idempotency-key": "api-outreach-prospect-create-0004" });
   const invitedProspectIdApi = invitedSponsorProspectApi.data.prospect?.id;
   const unauthenticatedInvitationApi = await hit("POST", `/api/admin/outreach/prospects/${encodeURIComponent(invitedProspectIdApi)}/sponsor-invitation`, { action: "issue", packageId: "tarpon" });
   const firstInvitationApi = await hit("POST", `/api/admin/outreach/prospects/${encodeURIComponent(invitedProspectIdApi)}/sponsor-invitation`, { action: "issue", packageId: "tarpon" }, true);
@@ -9245,7 +9633,7 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     name: "API invited sponsor conversion",
     targeting: { industries: ["banking"], postalCodes: ["78401"], minFitScore: 0 },
     sequence: [{ delayDays: 0, subjectTemplate: "A SandFest sponsor invitation", bodyTemplate: "Hello {{contactName}}" }]
-  }, true);
+  }, true, { "idempotency-key": "api-outreach-campaign-create-0003" });
   const activatedInvitedSponsorCampaignApi = await hit("POST", `/api/admin/outreach/campaigns/${encodeURIComponent(invitedSponsorCampaignApi.data.campaign?.id)}/activate`, {}, true);
   const generatedInvitationDraftApi = await hit("POST", `/api/admin/outreach/campaigns/${encodeURIComponent(invitedSponsorCampaignApi.data.campaign?.id)}/generate`, {}, true);
   const invitedWorkspaceBeforeConversionApi = await hit("GET", "/api/admin/outreach", null, true);
@@ -9284,7 +9672,7 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     postalCode: "78382",
     contactBasis: "business_relevance",
     status: "contact_ready"
-  }, true);
+  }, true, { "idempotency-key": "api-outreach-prospect-create-0005" });
   const revocableProspectIdApi = revocableSponsorProspectApi.data.prospect?.id;
   const revocableInvitationApi = await hit("POST", `/api/admin/outreach/prospects/${encodeURIComponent(revocableProspectIdApi)}/sponsor-invitation`, { action: "issue", packageId: "tarpon" }, true);
   const revokedInvitationApi = await hit("POST", `/api/admin/outreach/prospects/${encodeURIComponent(revocableProspectIdApi)}/sponsor-invitation`, { action: "revoke" }, true);
@@ -9337,7 +9725,7 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     name: "API discovered business review gate",
     targeting: { industries: [selectedDiscoveryCandidateApi?.industry], states: ["TX"], minFitScore: 0 },
     sequence: [{ delayDays: 0, subjectTemplate: "Regional SandFest partnership", bodyTemplate: "Hello {{contactName}}" }]
-  }, true);
+  }, true, { "idempotency-key": "api-outreach-campaign-create-0004" });
   const discoveryWorkspaceBeforeResearchApi = await hit("GET", "/api/admin/outreach", null, true);
   const discoveredProspectApi = discoveryWorkspaceBeforeResearchApi.data.prospects?.find(item => item.id === discoveryImportApi.data.prospects?.[0]?.id);
   const discoveryCampaignBeforeResearchApi = discoveryWorkspaceBeforeResearchApi.data.campaigns?.find(item => item.id === discoveryCampaignApi.data.campaign?.id);
@@ -9379,7 +9767,7 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
     categories: ["service"],
     description: "Register interest in a future Texas SandFest service-vendor opportunity.",
     inclusions: ["Application-opening notice", "Operations review"]
-  }, true);
+  }, true, { "idempotency-key": "api-vendor-offering-create-0003" });
   const apiInterestCatalogPublish = await hit("POST", "/api/admin/partner-catalog-publication", {
     catalog: "vendor",
     publish: true,

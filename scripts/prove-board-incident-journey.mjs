@@ -282,6 +282,14 @@ function responseIsPrivate(value) {
     && !serialized.includes("deliveryClaimId");
 }
 
+function publicIncidentNotice(payload, incidentId) {
+  const notice = payload.notices?.find(item => item.id === incidentId);
+  return notice
+    && JSON.stringify(Object.keys(notice).sort()) === JSON.stringify(["id", "severity", "summary", "title", "updatedAt"])
+    ? notice
+    : null;
+}
+
 async function updateIncidentFromOperations(page, incident, runId) {
   const card = incidentCard(page, incident.id);
   await expect(card).toHaveCount(1);
@@ -319,8 +327,8 @@ async function updateIncidentFromOperations(page, incident, runId) {
 
 async function provePublicNotice(context, endpoints, incident) {
   const { response, payload } = await requestJson(endpoints.apiBase, "/api/public/island-conditions");
-  const notice = payload.notices?.find(item => item.id === incident.id);
-  if (!response.ok || !notice || JSON.stringify(Object.keys(notice).sort()) !== JSON.stringify(["id", "severity", "summary", "title", "updatedAt"])) {
+  const notice = publicIncidentNotice(payload, incident.id);
+  if (!response.ok || !notice) {
     throw new Error("The approved incident did not produce the privacy-safe public notice projection.");
   }
   const visitorPage = await context.newPage();
@@ -332,16 +340,21 @@ async function provePublicNotice(context, endpoints, incident) {
     && item.request().method() === "GET"
   ), { timeout: timeoutMs });
   await visitorPage.locator("#refresh-island-conditions").click();
-  await refreshPromise;
+  const refreshResponse = await refreshPromise;
+  const renderedPayload = await refreshResponse.json().catch(() => ({}));
+  const renderedNotice = publicIncidentNotice(renderedPayload, incident.id);
+  if (!refreshResponse.ok() || !renderedNotice) {
+    throw new Error("The visitor refresh did not return the privacy-safe incident notice projection.");
+  }
   const notices = visitorPage.locator("#island-condition-notices");
   const noticeCard = notices.locator(`[data-public-incident="${incident.id}"]`);
   await expect(notices).toBeVisible();
-  await expect(noticeCard).toContainText(incident.title);
-  await expect(noticeCard).toContainText(incident.summary);
-  await expect(noticeCard.locator("time")).toHaveAttribute("datetime", notice.updatedAt);
+  await expect(noticeCard).toContainText(renderedNotice.title);
+  await expect(noticeCard).toContainText(renderedNotice.summary);
+  await expect(noticeCard.locator("time")).toHaveAttribute("datetime", renderedNotice.updatedAt);
   await expect(noticeCard.locator("time")).toContainText("Updated");
   await expect(noticeCard).not.toContainText("Board traffic desk");
-  return { notice, visitorPage };
+  return { notice: renderedNotice, visitorPage };
 }
 
 async function createDispatchFromOperations(page, incident, runId) {

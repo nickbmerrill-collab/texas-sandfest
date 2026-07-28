@@ -1753,44 +1753,6 @@ time {
   margin: 0;
 }
 
-.admin-board-stage-summary {
-  border-bottom: 1px solid var(--line);
-  border-top: 1px solid var(--line);
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  margin-top: 18px;
-}
-
-.admin-board-stage-summary > div {
-  align-content: start;
-  display: grid;
-  gap: 6px;
-  min-width: 0;
-  padding: 17px 18px;
-}
-
-.admin-board-stage-summary > div + div {
-  border-left: 1px solid var(--line);
-}
-
-.admin-board-stage-summary span {
-  color: var(--gulf);
-  font-size: 11px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.admin-board-stage-summary strong {
-  color: var(--deep);
-  font-size: 15px;
-}
-
-.admin-board-stage-summary p {
-  color: var(--muted);
-  line-height: 1.5;
-  margin: 0;
-}
-
 #admin-deployment-summary[data-state="ok"],
 #admin-job-summary[data-state="ok"] {
   color: #14764a;
@@ -3586,15 +3548,6 @@ time {
   }
 
   .admin-document-summary article:nth-child(n + 3) {
-    border-top: 1px solid var(--line);
-  }
-
-  .admin-board-stage-summary {
-    grid-template-columns: 1fr;
-  }
-
-  .admin-board-stage-summary > div + div {
-    border-left: 0;
     border-top: 1px solid var(--line);
   }
 
@@ -5989,6 +5942,7 @@ body.mode-ops header nav a[data-audience="public"] {
 .sponsor-invitation[hidden] { display: none; }
 .sponsor-invitation strong { color: var(--deep); font-size: 13px; }
 .sponsor-invitation span { color: var(--muted); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.sponsor-invitation .button { justify-self: start; margin-top: 4px; min-height: 44px; }
 .sponsor-invitation[data-state="ok"] { background: #eef6f5; border-left-color: var(--gulf); }
 .sponsor-invitation[data-state="error"] { background: #fff0ee; border-left-color: #a62929; }
 .partner-consent { align-items: flex-start; color: var(--muted); display: flex; font-size: 12px; gap: 8px; line-height: 1.45; min-height: 24px; }
@@ -6129,6 +6083,7 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .task-status-result > span,
 .task-status-owner,
 .task-status-description { color: var(--muted); line-height: 1.55; margin: 0; overflow-wrap: anywhere; }
+.task-status-result > .button { justify-self: start; min-height: 44px; }
 .task-status-owner { font-size: 13px; font-weight: 700; }
 .task-status-facts { display: grid; gap: 1px; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; }
 .task-status-facts div { background: #f4f7f6; display: grid; gap: 4px; min-width: 0; padding: 11px; }
@@ -6555,6 +6510,7 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .admin-inline-form textarea { resize: vertical; }
 .admin-task-wide { grid-column: 1 / -1; }
 .admin-inline-form .button { justify-self: start; }
+.admin-inline-form .admin-finance-form-status { grid-column: 1 / -1; margin: 0; }
 #admin-create-prospect input[name="contactEmail"] { grid-column: 1 / -1; }
 .admin-prospect-community { align-items: center; display: flex !important; flex-direction: row; gap: 8px !important; }
 .admin-prospect-community input { height: 18px; padding: 0; width: 18px; }

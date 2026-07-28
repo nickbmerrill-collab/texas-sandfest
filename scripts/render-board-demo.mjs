@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -14,14 +14,28 @@ const manifestPath = join(root, "docs/board-demo-scenes.json");
 const outputPath = join(artifactDir, "texas-sandfest-board-demo.mp4");
 const posterPath = join(artifactDir, "texas-sandfest-board-demo-poster.png");
 const transcriptPath = join(artifactDir, "texas-sandfest-board-demo-transcript.txt");
+const stagingOutputPath = join(artifactDir, "texas-sandfest-board-demo.rendering.mp4");
+const stagingPosterPath = join(artifactDir, "texas-sandfest-board-demo-poster.rendering.png");
+const stagingTranscriptPath = join(artifactDir, "texas-sandfest-board-demo-transcript.rendering.txt");
 const voice = process.env.SANDFEST_VIDEO_VOICE || "Samantha";
 const speakingRate = process.env.SANDFEST_VIDEO_RATE || "168";
 
 await mkdir(audioDir, { recursive: true });
 await rm(segmentDir, { recursive: true, force: true });
+await Promise.all([
+  rm(stagingOutputPath, { force: true }),
+  rm(stagingPosterPath, { force: true }),
+  rm(stagingTranscriptPath, { force: true })
+]);
 await mkdir(segmentDir, { recursive: true });
 
 const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+if (!manifest?.title || !Array.isArray(manifest.scenes) || manifest.scenes.length !== 12) {
+  throw new Error("The board video manifest must contain a title and exactly 12 scenes.");
+}
+if (new Set(manifest.scenes.map(scene => scene.frame)).size !== manifest.scenes.length) {
+  throw new Error("Every board video scene must use a unique frame.");
+}
 const concatLines = [];
 const transcript = [manifest.title, "", ...manifest.scenes.flatMap((scene, index) => [
   `${index + 1}. ${scene.title}`,
@@ -71,18 +85,22 @@ await writeFile(concatPath, `${concatLines.join("\n")}\n`);
 await run("ffmpeg", [
   "-hide_banner", "-loglevel", "error", "-y",
   "-f", "concat", "-safe", "0", "-i", concatPath,
-  "-c", "copy", "-movflags", "+faststart", outputPath
+  "-c", "copy", "-movflags", "+faststart", stagingOutputPath
 ]);
 
-await copyFile(join(frameDir, manifest.scenes[0].frame), posterPath);
-await writeFile(transcriptPath, transcript.join("\n"));
+await copyFile(join(frameDir, manifest.scenes[0].frame), stagingPosterPath);
+await writeFile(stagingTranscriptPath, transcript.join("\n"));
 
 const { stdout: probe } = await run("ffprobe", [
   "-v", "error",
   "-show_entries", "format=duration,size:stream=codec_name,width,height",
   "-of", "json",
-  outputPath
+  stagingOutputPath
 ]);
+
+await rename(stagingOutputPath, outputPath);
+await rename(stagingPosterPath, posterPath);
+await rename(stagingTranscriptPath, transcriptPath);
 
 console.log(`Video: ${outputPath}`);
 console.log(`Poster: ${posterPath}`);

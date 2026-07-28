@@ -159,7 +159,7 @@ SANDFEST_ROLLOVER_MAINTENANCE=true \
 npm run event:rollover -- --from texas-sandfest-2026 --to texas-sandfest-2027 --apply
 ```
 
-The command writes a complete private archive snapshot before changing any active document, verifies every new document by reading it back, and restores already-written documents if a later write or verification fails. Postgres passport scans and votes are included in the archive and retained in their append tables; annual hunt and event filters keep them out of the new season. Never retag historical order, payment, fulfillment, or audit records. Restart both services only after `/health` reports `currentEventReady: true` and `currentEventId` matches the published guide.
+In production Postgres mode, the command takes one platform-wide rollover lock and performs the archive snapshot, all 15 governed document replacements, and read-back verification in one serializable transaction. A failure or process interruption before commit leaves both the archive table and every active ledger unchanged; successful output must report `storage: "postgres"`, `atomic: true`, `isolation: "serializable"`, and 15 verified documents. Postgres passport scans and votes are included in the bound archive and retained in their append tables; annual hunt and event filters keep them out of the new season. File mode is for local development only and uses a compensating document restore rather than a production transaction. Never retag historical order, payment, fulfillment, or audit records. Restart both services only after `/health` reports `currentEventReady: true` and `currentEventId` matches the published guide.
 
 1. Go to https://render.com/deploy?repo=https://github.com/nickbmerrill-collab/texas-sandfest
 2. Render reads `render.yaml` and initially prompts only for the registered admin OIDC client ID and the private Turnstile secret protecting public intake. The Blueprint generates the partner portal, outreach-preference, document-extraction, and QuickBooks token-encryption capabilities and provisions private Key Value plus Postgres itself. Every post-board provider remains disabled and its credential variables are deliberately absent; do not enter placeholders for outreach discovery, Stripe, Brevo, QuickBooks, cameras, model approval, NWS/TxDOT refresh, or Twilio. The required-capabilities policy intentionally keeps `/ready` red for those launch-critical providers.
@@ -199,7 +199,7 @@ The paid database receives managed point-in-time recovery, and Render snapshots 
    SANDFEST_RECOVERY_DATABASE_SSL=no-verify \
    npm run recovery:verify
    ```
-3. Confirm the JSON result has `ok: true`, all ten required tables, all four config documents, and plausible row counts.
+3. Confirm the JSON result has `ok: true`, `isolation: "repeatable-read"`, the expected `eventId`, all ten tables and 74 required columns, all four config documents, all 15 operational ledgers, four green contract checks, plausible row counts, and a `databaseManifestSha256`. Retain that manifest with the drill record.
 4. Restore a partner-asset disk snapshot at an isolated path in a disposable staging service. Do not restore over the production disk or reuse `SANDFEST_PARTNER_ASSET_DIR`.
 5. Verify every uploaded sponsor and vendor file referenced by the restored database:
    ```bash
@@ -209,7 +209,7 @@ The paid database receives managed point-in-time recovery, and Render snapshots 
    SANDFEST_RECOVERY_ASSET_MIN_FILES=1 \
    npm run recovery:verify:assets
    ```
-6. Confirm the JSON result has `ok: true`, `referenced` equals `verified`, both sponsor/vendor category counts are plausible, and retain the manifest SHA-256 with the drill record. The verifier checks every upload's existence, byte count, and checksum; it refuses the active database and active asset directory.
+6. Confirm the JSON result has `ok: true`, `isolation: "repeatable-read"`, `referenced` equals `verified`, the sponsor, vendor, and incoming-document category counts are plausible, and retain the manifest SHA-256 with the drill record. The verifier checks every upload's existence, byte count, and checksum; it refuses the active database and active asset directory.
 7. Set `SANDFEST_DATABASE_RESTORE_DRILL_AT` and `SANDFEST_ASSET_RESTORE_DRILL_AT` to the respective successful verifier timestamps. Repeat both drills at least every 90 days.
 
 Render documents paid Postgres recovery windows and isolated PITR instances in its [Postgres recovery guide](https://render.com/docs/postgresql-backups). Daily encrypted disk snapshots and their retention are documented in [Persistent Disks](https://render.com/docs/disks).

@@ -54,12 +54,19 @@ export function createTaskPortalController(options) {
   let activeAccess = null;
   let activeTask = null;
   let loadVersion = 0;
+  let pendingUpdate = null;
 
   function mount() {
     if (document.querySelector("#task-status")) return;
     const surfaces = document.querySelector("#surfaces");
     if (surfaces) surfaces.insertAdjacentHTML("beforebegin", taskPortalMarkup());
     else document.querySelector("main")?.insertAdjacentHTML("beforeend", taskPortalMarkup());
+    document.querySelector("#task-status-result")?.addEventListener("click", event => {
+      const button = event.target instanceof window.Element ? event.target.closest("[data-task-status-retry]") : null;
+      if (!button) return;
+      button.disabled = true;
+      Promise.resolve(options.onManualRetry?.() ?? reload()).catch(() => {});
+    });
     document.querySelector("#task-status-update")?.addEventListener("click", event => {
       const button = event.target instanceof window.Element ? event.target.closest("[data-task-action]") : null;
       if (button) submit(button.dataset.taskAction);
@@ -78,6 +85,7 @@ export function createTaskPortalController(options) {
     if (!access || (activeAccess?.taskId === access.taskId && activeAccess?.token === access.token)) {
       activeAccess = null;
       activeTask = null;
+      pendingUpdate = null;
     }
   }
 
@@ -119,6 +127,7 @@ export function createTaskPortalController(options) {
     const form = document.querySelector("#task-status-update");
     if (!section || !result || !form || !access?.taskId || !access?.token) return;
     const currentLoadVersion = ++loadVersion;
+    if (activeAccess?.taskId !== access.taskId || activeAccess?.token !== access.token) pendingUpdate = null;
     activeAccess = access;
     section.hidden = false;
     form.hidden = true;
@@ -148,11 +157,14 @@ export function createTaskPortalController(options) {
       if (currentLoadVersion !== loadVersion) return;
       const rejected = shouldForgetTaskPortalAccess(error.status);
       if (rejected) forget(access);
-      else remember(access);
+      else {
+        remember(access);
+        options.onTransientFailure?.();
+      }
       result.dataset.state = "error";
       result.innerHTML = rejected
         ? "<strong>This assignment link is no longer valid.</strong><span>Ask the SandFest operations team to send the current private link.</span>"
-        : "<strong>Task status is temporarily unavailable.</strong><span>Your private access is saved in this browser. Try again when the connection recovers.</span>";
+        : '<strong>Task status is temporarily unavailable.</strong><span>Your private access is saved in this browser.</span><button class="button secondary" type="button" data-task-status-retry>Retry now</button>';
     }
   }
 
@@ -168,13 +180,20 @@ export function createTaskPortalController(options) {
       return;
     }
     const buttons = [...form.querySelectorAll("[data-task-action]")];
+    const updateFingerprint = JSON.stringify({ taskId: activeAccess.taskId, action, note });
+    if (pendingUpdate?.fingerprint !== updateFingerprint) {
+      pendingUpdate = {
+        fingerprint: updateFingerprint,
+        key: globalThis.crypto?.randomUUID?.() || `task-update-${Date.now()}-${Math.random().toString(16).slice(2)}`
+      };
+    }
     buttons.forEach(button => { button.disabled = true; });
     status.dataset.state = "loading";
     status.textContent = "Updating Operations...";
     try {
       const response = await options.fetchWithTimeout(`${options.publicApiBase()}/api/public/task-status/update`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", "idempotency-key": pendingUpdate.key },
         body: JSON.stringify({ ...activeAccess, action, note })
       });
       const data = await response.json().catch(() => ({}));
@@ -183,14 +202,20 @@ export function createTaskPortalController(options) {
         error.status = response.status;
         throw error;
       }
+      pendingUpdate = null;
       render(data.task);
       form.elements.note.value = "";
       status.dataset.state = "ok";
       status.textContent = data.replay ? "Operations already has this update." : "Operations has your update.";
     } catch (error) {
-      if (shouldForgetTaskPortalAccess(error.status)) forget(activeAccess);
+      const accessRejected = shouldForgetTaskPortalAccess(error.status);
+      const ambiguous = options.requestOutcomeIsAmbiguous?.(error) === true;
+      if (accessRejected) forget(activeAccess);
+      else if (!ambiguous) pendingUpdate = null;
       status.dataset.state = "error";
-      status.textContent = options.friendlyRequestError(error, "This task could not be updated.");
+      status.textContent = ambiguous
+        ? `${options.friendlyRequestError(error, "This task could not be updated.")} Try the same update again; Operations will record it only once.`
+        : options.friendlyRequestError(error, "This task could not be updated.");
     } finally {
       buttons.forEach(button => { button.disabled = false; });
     }

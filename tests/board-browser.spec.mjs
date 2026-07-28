@@ -25,6 +25,7 @@ import {
   recordFollowupDelivery,
   reviewFollowup
 } from "../lib/partner-ops.mjs";
+import { outreachPreferenceUrlForProspect, outreachPreferencesConfig } from "../lib/outreach-preferences.mjs";
 import { updatePlatformDoc } from "../lib/platform-data.mjs";
 import { taskPortalConfig, taskPortalUrlForTask } from "../lib/task-portal.mjs";
 
@@ -133,10 +134,18 @@ async function submitAndCapture(page, form, pathname) {
   return response.json();
 }
 
-async function adminApi(pathname, { method = "GET", body } = {}) {
+async function beforeUnloadPrevented(page) {
+  return page.evaluate(() => {
+    const event = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(event);
+    return event.defaultPrevented;
+  });
+}
+
+async function adminApi(pathname, { method = "GET", body, headers = {} } = {}) {
   const response = await fetch(`${apiBase}${pathname}`, {
     method,
-    headers: { authorization: `Bearer ${TOKEN}`, ...(body === undefined ? {} : { "content-type": "application/json" }) },
+    headers: { authorization: `Bearer ${TOKEN}`, ...(body === undefined ? {} : { "content-type": "application/json" }), ...headers },
     body: body === undefined ? undefined : JSON.stringify(body)
   });
   return { status: response.status, data: await response.json().catch(() => ({})) };
@@ -501,7 +510,7 @@ test("board workflows operate through the public and staff interfaces", async ({
     process.env.SANDFEST_WEBKIT_COMPAT_ONLY === "true",
     "The full state-mutating workflow runs in Chromium CI and local WebKit; Linux WebKit runs the focused compatibility workflows."
   );
-  test.setTimeout(300_000);
+  test.setTimeout(420_000);
   const pageErrors = [];
   page.on("pageerror", error => pageErrors.push(error.message));
   const runId = randomUUID().slice(0, 8);
@@ -929,6 +938,20 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   const activationBoundary = page.locator("#admin-board-stage-summary");
   await expect(activationBoundary.locator('[data-board-stage="presentation-ready"]')).toContainText("Real workflows with synthetic providers");
   await expect(activationBoundary.locator('[data-board-stage="post-presentation"]')).toContainText("Stripe, QuickBooks, Brevo, Twilio, NWS, TxDOT, eight webcam edge agents, OIDC, Turnstile, DNS, and managed recovery");
+  const boardCapabilityProof = page.locator("#admin-board-capability-proof");
+  await expect(boardCapabilityProof).toBeVisible();
+  await expect(boardCapabilityProof.locator("#admin-board-capability-proof-title")).toHaveText("Board capability proof");
+  await expect(boardCapabilityProof.locator("#admin-board-capability-proof-copy")).toBeEnabled();
+  const proofSummaryText = await boardCapabilityProof.locator("#admin-board-capability-proof-summary").textContent();
+  if (proofSummaryText?.includes("certified journeys")) {
+    await expect(boardCapabilityProof.locator("#admin-board-capability-proof-summary")).toContainText("certified capabilities");
+    await expect(boardCapabilityProof.locator("#admin-board-capability-proof-scope span")).toHaveCount(12);
+    await expect(boardCapabilityProof.locator("#admin-board-capability-proof-scope")).toContainText("vendor signup");
+  } else {
+    expect(proofSummaryText || "").toMatch(/Run board capability certification|different runtime session/);
+  }
+  await expect(boardCapabilityProof.locator("#admin-board-capability-proof-kpis article").filter({ hasText: "Journeys" })).toContainText("/10");
+  await expect(boardCapabilityProof.locator("#admin-board-capability-proof-kpis article").filter({ hasText: "Deferred" })).toContainText("post-board gates");
   await expect(page.locator("#admin-load-partners")).toHaveText("Refresh partner workspace");
   await expect(page.locator("#admin-load-conditions")).toHaveText("Refresh island operations");
   await expect(page.locator("#admin-island-conditions > strong").first()).toHaveText("Source health");
@@ -1110,6 +1133,12 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await expect(partnerActivity).toContainText(/assignment notices prepared/i);
   await expect(partnerActivity).toContainText("Brand profile approved");
   expect(await partnerActivity.textContent()).not.toMatch(/activity_|demo_[sv]app|followup_/);
+  const partnerMessageSummary = page.locator("#admin-partner-followups-summary p");
+  await expect(partnerMessageSummary).toHaveCount(1);
+  await expect(partnerMessageSummary).toHaveAttribute("data-state", /attention|tracking|idle/);
+  await expect(partnerMessageSummary).toContainText(/automated/);
+  await expect(partnerMessageSummary).toContainText(/in flight/);
+  await expect(partnerMessageSummary).toContainText(/key date/);
   const partnerMessages = page.locator("#admin-partner-followups");
   await expect(partnerMessages).toContainText(`Texas SandFest vendor application ${vendorResult.application.reference}`);
   await expect(partnerMessages).toContainText(`Texas SandFest sponsorship application ${sponsorResult.application.reference}`);
@@ -1395,7 +1424,11 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await page.locator("#admin-sync-deployment-tasks").click();
   const launchTaskSyncResult = await launchTaskSyncResponse;
   expect(launchTaskSyncResult.status()).toBe(200);
-  expect((await launchTaskSyncResult.json()).sync.created).toBe(1);
+  expect((await launchTaskSyncResult.json()).sync.created).toBe(2);
+  const certificateLaunchTask = page.locator("#admin-partner-tasks .admin-task-card").filter({ hasText: "[Launch] Board capability certificate" });
+  await expect(certificateLaunchTask).toHaveCount(1);
+  await expect(certificateLaunchTask).toContainText("Operations team");
+  await expect(certificateLaunchTask).toContainText("high priority");
   const backupLaunchTask = page.locator("#admin-partner-tasks .admin-task-card").filter({ hasText: "[Launch] Backup and recovery" });
   await expect(backupLaunchTask).toHaveCount(1);
   await expect(backupLaunchTask).toContainText("Operations team");
@@ -1404,6 +1437,7 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await page.locator("#admin-sync-deployment-tasks").click();
   const launchTaskReplayResult = await launchTaskReplayResponse;
   expect((await launchTaskReplayResult.json()).sync.changed).toBe(false);
+  await expect(certificateLaunchTask).toHaveCount(1);
   await expect(backupLaunchTask).toHaveCount(1);
   const sponsorTierForm = page.locator("#admin-create-sponsor-package");
   await sponsorTierForm.locator('[name="name"]').fill(`Community Champion ${runId}`);
@@ -1415,7 +1449,7 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   const sponsorTierCreateResponse = await sponsorTierResponse;
   expect(sponsorTierCreateResponse.status()).toBe(201);
   expect((await sponsorTierCreateResponse.json()).sponsorPackage.publicLabel).toBe("$7,500 sponsorship");
-  await expect(page.locator("#admin-api-status")).toContainText("Added Community Champion");
+  await expect(page.locator("#admin-api-status")).toContainText("Saved");
   await expect(page.locator(`[data-admin-sponsor="${sponsorTierId}"]`)).toContainText("$7,500.00");
   const vendorOfferingForm = page.locator("#admin-create-vendor-offering");
   await vendorOfferingForm.locator('[name="name"]').fill(`Premium marketplace ${runId}`);
@@ -1431,7 +1465,7 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   const vendorOfferingCreateResponse = await vendorOfferingResponse;
   expect(vendorOfferingCreateResponse.status()).toBe(201);
   expect((await vendorOfferingCreateResponse.json()).vendorOffering.publicLabel).toBe("$2,500 application fee");
-  await expect(page.locator("#admin-api-status")).toContainText("Added Premium marketplace");
+  await expect(page.locator("#admin-api-status")).toContainText("Saved");
   await expect(page.locator(`[data-admin-vendor-offering="${vendorOfferingId}"]`)).toContainText("$2,500.00");
   const documentUploadForm = page.locator("#admin-document-upload");
   const presentation = await readFile(path.join(ROOT, "docs", "presentations", "SandFest-Board-Platform-Briefing.pptx"));
@@ -1458,7 +1492,7 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await page.locator("#admin-load-documents").click();
   const extractedDocumentCard = page.locator(`[data-admin-document="${uploadedDocumentId}"]`);
   await expect(extractedDocumentCard).toContainText("Extraction ready");
-  await expect(extractedDocumentCard).toContainText("5,507 characters");
+  await expect(extractedDocumentCard).toContainText("8,765 characters");
   await extractedDocumentCard.locator(".admin-document-preview summary").click();
   await expect(extractedDocumentCard.locator(".admin-document-preview pre")).toContainText("TEXAS SANDFEST");
   const vendorCard = page.locator("#admin-partner-applications [data-partner-application]").filter({ hasText: vendorName });
@@ -2387,8 +2421,12 @@ test("Guest Services moves a visitor request through staff response and private 
 });
 
 test("Guest Services intake fails closed when server readiness is unavailable", async ({ page }) => {
+  let unavailable = true;
+  let readinessAttempts = 0;
   await page.route("**/api/public/guest-services", async route => {
     if (route.request().method() !== "GET") return route.continue();
+    readinessAttempts += 1;
+    if (!unavailable) return route.continue();
     await route.fulfill({
       status: 503,
       contentType: "application/json",
@@ -2405,12 +2443,22 @@ test("Guest Services intake fails closed when server readiness is unavailable", 
   await expect(form.locator('button[type="submit"]')).toHaveText("Guest Services unavailable");
   await expect(form.locator(".partner-form-status")).toContainText("Call Guest Services for help");
   await expect(page.locator('#guest-services-status-form button[type="submit"]')).toBeEnabled();
+
+  unavailable = false;
+  await expect(form).toHaveAttribute("data-public-intake-state", "ready", { timeout: 15_000 });
+  await expect(form.locator('[name="category"]')).toBeEnabled();
+  await expect(form.locator('button[type="submit"]')).toHaveText("Send request");
+  expect(readinessAttempts).toBeGreaterThanOrEqual(2);
   await assertNoHorizontalOverflow(page);
 });
 
 test("partner intake and private-access recovery fail closed when server readiness is unavailable", async ({ page }) => {
-  await page.route("**/api/public/partner-intake", async route => {
+  let unavailable = true;
+  const attempts = new Map();
+  for (const endpoint of ["partner-intake", "sponsors", "vendors"]) await page.route(`**/api/public/${endpoint}`, async route => {
     if (route.request().method() === "GET") {
+      attempts.set(endpoint, (attempts.get(endpoint) || 0) + 1);
+      if (!unavailable) return route.continue();
       await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "temporarily unavailable" }) });
       return;
     }
@@ -2428,11 +2476,994 @@ test("partner intake and private-access recovery fail closed when server readine
   await expect(sponsorForm.locator('button[type="submit"]')).toBeDisabled();
   await expect(vendorForm.locator('button[type="submit"]')).toBeDisabled();
   await expect(recoveryForm.locator('button[type="submit"]')).toBeDisabled();
-  await expect(sponsorForm.locator("[data-sponsor-program-unavailable]")).toContainText("Online partner applications are temporarily unavailable");
-  await expect(page.locator("#vendor-intake-availability")).toContainText("Online partner applications are temporarily unavailable");
+  await expect(sponsorForm.locator("[data-sponsor-program-unavailable]")).toContainText("We could not confirm the current sponsorship program");
+  await expect(page.locator("#vendor-intake-availability")).toContainText("We could not confirm the current vendor program");
+  await expect(sponsorForm.locator('a[href="mailto:sponsors@texassandfest.org"]')).toHaveText("email the sponsorship team");
+  await expect(sponsorForm.locator('a[href="mailto:sponsors@texassandfest.org"]')).toBeVisible();
+  await expect(vendorForm.locator('a[href="mailto:vendors@texassandfest.org"]')).toHaveText("email the vendor team");
+  await expect(vendorForm.locator('a[href="mailto:vendors@texassandfest.org"]')).toBeVisible();
   await expect(recoveryForm.locator("[data-partner-recovery-availability]")).toContainText("Private-access email is temporarily unavailable");
   await expect(page.locator('#partner-status-form button[type="submit"]')).toBeEnabled();
+
+  unavailable = false;
+  await expect(sponsorForm).toHaveAttribute("data-public-intake-state", "ready", { timeout: 15_000 });
+  await expect(vendorForm).toHaveAttribute("data-public-intake-state", "ready", { timeout: 15_000 });
+  await expect(recoveryForm).toHaveAttribute("data-public-intake-state", "ready");
+  await expect(sponsorForm.locator('a[href="mailto:sponsors@texassandfest.org"]')).toHaveCount(0);
+  await expect(vendorForm.locator('a[href="mailto:vendors@texassandfest.org"]')).toHaveCount(0);
+  for (const endpoint of ["partner-intake", "sponsors", "vendors"]) expect(attempts.get(endpoint)).toBeGreaterThanOrEqual(2);
   await assertNoHorizontalOverflow(page);
+});
+
+test("public intake warns only while visitor entries are unsaved", async ({ page }) => {
+  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#sponsors`);
+  const sponsorForm = page.locator("#sponsor-inquiry-form");
+  const vendorForm = page.locator("#vendor-application-form");
+  await expect(sponsorForm).toHaveAttribute("data-public-intake-state", "ready");
+  await expect(vendorForm).toHaveAttribute("data-public-intake-state", "ready");
+  expect(await beforeUnloadPrevented(page)).toBe(false);
+
+  await sponsorForm.locator('[name="organizationName"]').fill("Unsaved sponsor draft");
+  expect(await beforeUnloadPrevented(page)).toBe(true);
+  await vendorForm.locator('[name="organizationName"]').fill("Unsaved vendor draft");
+  expect(await beforeUnloadPrevented(page)).toBe(true);
+  await sponsorForm.evaluate(form => form.reset());
+  expect(await beforeUnloadPrevented(page)).toBe(true);
+  await vendorForm.evaluate(form => form.reset());
+  expect(await beforeUnloadPrevented(page)).toBe(false);
+
+  const guestServicesForm = page.locator("#guest-services-form");
+  await expect(guestServicesForm).toHaveAttribute("data-public-intake-state", "ready");
+  await guestServicesForm.locator('[name="title"]').fill("Unsaved Guest Services request");
+  expect(await beforeUnloadPrevented(page)).toBe(true);
+  await guestServicesForm.evaluate(form => form.reset());
+  expect(await beforeUnloadPrevented(page)).toBe(false);
+});
+
+test("public signups recover accepted responses lost by the browser without duplicate records", async ({ page }) => {
+  test.setTimeout(90_000);
+  const runId = randomUUID().slice(0, 8);
+  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#sponsors`);
+  await expect(page.locator("#sponsor-inquiry-form")).toHaveAttribute("data-public-intake-state", "ready");
+
+  const submitAfterAcceptedResponseLoss = async ({ formSelector, preset, endpoint, organizationName }) => {
+    const form = page.locator(formSelector);
+    await form
+      .locator(`[data-board-partner-preset="${preset}"]`)
+      .evaluate((button) => button.click());
+    await expect(form.locator(".partner-form-status")).toContainText("Synthetic details are ready");
+    await form.locator('[name="organizationName"]').fill(organizationName);
+    await form.locator('[name="consentToContact"]').check();
+    await expect(form.locator('[name="consentToContact"]')).toBeChecked();
+    expect(await form.evaluate(node => node.checkValidity())).toBe(true);
+    let attempts = 0;
+    let acceptedStatus = 0;
+    let replayStatus = 0;
+    let replayData = null;
+    await page.route(`**${endpoint}`, async route => {
+      attempts++;
+      if (attempts === 1) {
+        const accepted = await route.fetch();
+        acceptedStatus = accepted.status();
+        await route.abort("failed");
+        return;
+      }
+      const replay = await route.fetch();
+      replayStatus = replay.status();
+      replayData = await replay.json();
+      await route.fulfill({ response: replay });
+    });
+
+    await form.evaluate(node => node.requestSubmit());
+    await expect(form.locator(".partner-form-status")).toContainText("retry protection remains active");
+    await expect(form.locator('[name="organizationName"]')).toHaveValue(organizationName);
+    expect(await form.evaluate(node => node.dataset.idempotencyKey?.length > 15)).toBe(true);
+    expect(acceptedStatus).toBe(201);
+
+    await form.evaluate(node => node.requestSubmit());
+    await expect(form.locator(".partner-form-status")).toContainText("already received");
+    expect(replayStatus).toBe(200);
+    expect(replayData.duplicate).toBe(true);
+    expect(replayData.application.organizationName).toBe(organizationName);
+    expect(attempts).toBe(2);
+    await page.unroute(`**${endpoint}`);
+  };
+
+  const vendorName = `Ambiguous Vendor ${runId}`;
+  await submitAfterAcceptedResponseLoss({
+    formSelector: "#vendor-application-form",
+    preset: "vendor",
+    endpoint: "/api/public/vendor-applications",
+    organizationName: vendorName
+  });
+  const sponsorName = `Ambiguous Sponsor ${runId}`;
+  await submitAfterAcceptedResponseLoss({
+    formSelector: "#sponsor-inquiry-form",
+    preset: "sponsor",
+    endpoint: "/api/public/sponsor-inquiries",
+    organizationName: sponsorName
+  });
+
+  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#guest-services`);
+  const guestForm = page.locator("#guest-services-form");
+  await expect(guestForm).toHaveAttribute("data-public-intake-state", "ready");
+  const guestTitle = `Ambiguous Guest Services ${runId}`;
+  await guestForm.locator('[name="category"]').selectOption({ index: 1 });
+  await guestForm.locator('[name="festivalDay"]').selectOption("Saturday");
+  await guestForm.locator('[name="title"]').fill(guestTitle);
+  await guestForm.locator('[name="details"]').fill("Verify one accepted request safely returns after its first response is lost.");
+  await guestForm.locator('[name="location"]').fill("North Gate");
+  await guestForm.locator('[name="contactName"]').fill("Ambiguous Browser Guest");
+  await guestForm.locator('[name="contactEmail"]').fill(`ambiguous.guest.${runId}@example.com`);
+  await guestForm.locator('[name="contactPreference"]').selectOption("email");
+  await guestForm.locator('[name="consentToContact"]').check();
+  await expect(guestForm.locator('[name="consentToContact"]')).toBeChecked();
+  expect(await guestForm.evaluate(node => node.checkValidity())).toBe(true);
+  let guestAttempts = 0;
+  let guestAcceptedStatus = 0;
+  let guestReplayStatus = 0;
+  let guestReplayData = null;
+  await page.route("**/api/public/guest-services", async route => {
+    guestAttempts++;
+    if (guestAttempts === 1) {
+      const accepted = await route.fetch();
+      guestAcceptedStatus = accepted.status();
+      await route.abort("failed");
+      return;
+    }
+    const replay = await route.fetch();
+    guestReplayStatus = replay.status();
+    guestReplayData = await replay.json();
+    await route.fulfill({ response: replay });
+  });
+  await guestForm.evaluate(node => node.requestSubmit());
+  await expect(guestForm.locator(".partner-form-status")).toContainText("retry protection remains active");
+  await expect(guestForm.locator('[name="title"]')).toHaveValue(guestTitle);
+  expect(await guestForm.evaluate(node => node.dataset.idempotencyKey?.length > 15)).toBe(true);
+  expect(guestAcceptedStatus).toBe(201);
+  await guestForm.evaluate(node => node.requestSubmit());
+  await expect(guestForm.locator(".partner-form-status")).toContainText("was received");
+  expect(guestReplayStatus).toBe(200);
+  expect(guestReplayData.replay).toBe(true);
+  expect(guestAttempts).toBe(2);
+  await page.unroute("**/api/public/guest-services");
+
+  const workspace = await adminApi("/api/admin/partners");
+  expect(workspace.status).toBe(200);
+  expect(workspace.data.applications.filter(item => item.organizationName === vendorName)).toHaveLength(1);
+  expect(workspace.data.applications.filter(item => item.organizationName === sponsorName)).toHaveLength(1);
+  const guestWorkspace = await adminApi("/api/admin/guest-services");
+  expect(guestWorkspace.status).toBe(200);
+  expect(guestWorkspace.data.cases.filter(item => item.title === guestTitle)).toHaveLength(1);
+});
+
+test("Guest Services clears a definitive conflict key while preserving corrected entries", async ({ page }) => {
+  const runId = randomUUID().slice(0, 8);
+  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#guest-services`);
+  const form = page.locator("#guest-services-form");
+  await expect(form).toHaveAttribute("data-public-intake-state", "ready");
+  await form.locator('[name="category"]').selectOption({ index: 1 });
+  await form.locator('[name="title"]').fill(`Corrected Guest Services ${runId}`);
+  await form.locator('[name="details"]').fill("Keep these corrected request details available after a conflict.");
+  await form.locator('[name="contactName"]').fill("Corrected Browser Guest");
+  await form.locator('[name="contactEmail"]').fill(`corrected.guest.${runId}@example.com`);
+  await form.locator('[name="contactPreference"]').selectOption("email");
+  await form.locator('[name="consentToContact"]').check();
+  await expect(form.locator('[name="consentToContact"]')).toBeChecked();
+  expect(await form.evaluate(node => node.checkValidity())).toBe(true);
+  const keys = [];
+  let attempts = 0;
+  let acceptedStatus = 0;
+  await page.route("**/api/public/guest-services", async route => {
+    attempts++;
+    keys.push(route.request().headers()["idempotency-key"]);
+    if (attempts === 1) {
+      await route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ error: "That request key was already used for different details." }) });
+      return;
+    }
+    const accepted = await route.fetch();
+    acceptedStatus = accepted.status();
+    await route.fulfill({ response: accepted });
+  });
+  await form.evaluate(node => node.requestSubmit());
+  await expect(form.locator(".partner-form-status")).toContainText("details changed after an earlier attempt");
+  await expect(form.locator('[name="details"]')).toHaveValue("Keep these corrected request details available after a conflict.");
+  expect(await form.evaluate(node => node.dataset.idempotencyKey || null)).toBeNull();
+  await form.evaluate(node => node.requestSubmit());
+  await expect(form.locator(".partner-form-status")).toContainText("was received");
+  expect(acceptedStatus).toBe(201);
+  expect(keys[0]).toBeTruthy();
+  expect(keys[1]).toBeTruthy();
+  expect(keys[1]).not.toBe(keys[0]);
+  expect(attempts).toBe(2);
+  await page.unroute("**/api/public/guest-services");
+});
+
+test("ticket checkout and payment recover accepted responses lost by the browser", async ({ page }) => {
+  test.setTimeout(90_000);
+  const runId = randomUUID().slice(0, 8);
+  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#tickets`);
+  const ticketCard = page.locator(".ticket-card").filter({ has: page.locator('[data-ticket-id="general-admission-3-day"]') });
+  await ticketCard.locator('[data-ticket-action="increase"]').click();
+  await page.locator("#ticket-policy-acceptance").check();
+  await page.locator("#checkout-email").fill(`ambiguous.ticket.${runId}@example.com`);
+  await expect(page.locator("#checkout-btn")).toBeEnabled();
+
+  const checkoutKeys = [];
+  let checkoutAttempts = 0;
+  let acceptedCheckout = null;
+  let replayedCheckout = null;
+  await page.route("**/api/stripe/create-checkout-session", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    checkoutAttempts++;
+    checkoutKeys.push(route.request().headers()["idempotency-key"]);
+    const providerResponse = await route.fetch();
+    const data = await providerResponse.json();
+    if (checkoutAttempts === 1) {
+      acceptedCheckout = data;
+      await route.abort("failed");
+      return;
+    }
+    replayedCheckout = data;
+    await route.fulfill({ response: providerResponse });
+  });
+
+  await page.locator("#checkout-btn").evaluate(button => button.click());
+  await expect(page.locator("#checkout-status")).toContainText("resume the same checkout without creating a second order");
+  await expect(page.locator("#ticket-subtotal")).toHaveText("$30.00");
+  await expect(page.locator("#checkout-email")).toHaveValue(`ambiguous.ticket.${runId}@example.com`);
+  await expect(page.locator("#checkout-btn")).toBeEnabled();
+  await page.locator("#checkout-btn").evaluate(button => button.click());
+  await expect(page.locator("#ticket-demo-checkout")).toBeVisible();
+  expect(checkoutAttempts).toBe(2);
+  expect(checkoutKeys[0]).toBeTruthy();
+  expect(checkoutKeys[1]).toBe(checkoutKeys[0]);
+  expect(acceptedCheckout.duplicate).toBe(false);
+  expect(replayedCheckout.duplicate).toBe(true);
+  expect(replayedCheckout.orderId).toBe(acceptedCheckout.orderId);
+  expect(replayedCheckout.demoCheckout.token).toBe(acceptedCheckout.demoCheckout.token);
+  await page.unroute("**/api/stripe/create-checkout-session");
+
+  let paymentAttempts = 0;
+  let acceptedPayment = null;
+  let replayedPayment = null;
+  await page.route("**/api/public/board-ticket-checkout/complete", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    paymentAttempts++;
+    const providerResponse = await route.fetch();
+    const data = await providerResponse.json();
+    if (paymentAttempts === 1) {
+      acceptedPayment = data;
+      await route.abort("failed");
+      return;
+    }
+    replayedPayment = data;
+    await route.fulfill({ response: providerResponse });
+  });
+
+  await page.locator("#ticket-demo-pay").evaluate(button => button.click());
+  await expect(page.locator("#ticket-demo-status")).toContainText("the same order will be reused");
+  await expect(page.locator("#ticket-demo-pay")).toBeEnabled();
+  await page.locator("#ticket-demo-pay").evaluate(button => button.click());
+  await expect(page.locator("#ticket-demo-status")).toContainText("Demo payment complete");
+  expect(paymentAttempts).toBe(2);
+  expect(acceptedPayment.duplicate).toBe(false);
+  expect(replayedPayment.duplicate).toBe(true);
+  expect(replayedPayment.receipt.orderId).toBe(acceptedPayment.receipt.orderId);
+  expect(replayedPayment.receipt.fulfillmentCount).toBe(1);
+  await page.unroute("**/api/public/board-ticket-checkout/complete");
+
+  const orders = await adminApi("/api/admin/orders?limit=200");
+  expect(orders.status).toBe(200);
+  const matchingOrders = orders.data.pendingOrders.filter(item => item.record?.id === acceptedCheckout.orderId);
+  expect(matchingOrders).toHaveLength(1);
+  expect(matchingOrders[0].record.status).toBe("paid");
+  const events = await adminApi("/api/admin/payment-events?limit=200");
+  expect(events.status).toBe(200);
+  expect(events.data.paymentEvents.filter(item => item.record?.ticketReconciliation?.orderId === acceptedCheckout.orderId)).toHaveLength(1);
+  const fulfillment = await adminApi("/api/admin/fulfillment?limit=200");
+  expect(fulfillment.status).toBe(200);
+  expect(fulfillment.data.fulfillment.filter(item => item.record?.orderId === acceptedCheckout.orderId)).toHaveLength(1);
+});
+
+test("task updates recover accepted responses lost by the browser without duplicate history", async ({ page }) => {
+  const runId = randomUUID().slice(0, 8);
+  const partners = await adminApi("/api/admin/partners");
+  expect(partners.status).toBe(200);
+  const volunteer = partners.data.assignmentDirectory.volunteers.find(item => item.emailAvailable);
+  const blockerNote = `Need two additional radios for recovery proof ${runId}.`;
+  const created = await adminApi("/api/admin/partners/tasks", {
+    method: "POST",
+    headers: { "idempotency-key": `browser-task-create-${runId}` },
+    body: {
+      assigneeType: "volunteer",
+      assigneeId: volunteer.id,
+      title: `Replay-safe task update ${runId}`,
+      description: "Confirm an accepted blocker reaches Operations exactly once.",
+      priority: "high",
+      dueAt: "2027-04-10T15:00:00.000Z"
+    }
+  });
+  expect(created.status).toBe(201);
+
+  const taskUrl = new URL(taskPortalUrlForTask(created.data.task, {
+    config: taskPortalConfig({
+      SANDFEST_ENV: "development",
+      SANDFEST_TASK_PORTAL_SECRET: PORTAL_SECRET,
+      SANDFEST_PUBLIC_SITE_URL: webBase
+    })
+  }));
+  taskUrl.searchParams.set("apiBase", apiBase);
+  await page.goto(taskUrl.toString());
+  await expect(page).toHaveURL(/#task-status$/);
+  await expect(page.locator("#task-status-result")).toContainText(created.data.task.title);
+
+  const retryKeys = [];
+  const responses = [];
+  let attempts = 0;
+  await page.route("**/api/public/task-status/update", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    attempts++;
+    retryKeys.push(route.request().headers()["idempotency-key"]);
+    const providerResponse = await route.fetch();
+    responses.push(await providerResponse.json());
+    if (attempts === 1) {
+      await route.abort("failed");
+      return;
+    }
+    await route.fulfill({ response: providerResponse });
+  });
+
+  await page.locator('#task-status-update [name="note"]').fill(blockerNote);
+  await page.locator('[data-task-action="block"]').click();
+  await expect(page.locator(".task-status-message")).toContainText("Operations will record it only once");
+  await expect(page.locator('[data-task-action="block"]')).toBeEnabled();
+  await page.locator('[data-task-action="block"]').click();
+  await expect(page.locator(".task-status-message")).toContainText("Operations already has this update");
+  await expect(page.locator("#task-status-result")).toContainText(blockerNote);
+
+  expect(attempts).toBe(2);
+  expect(retryKeys[0]).toMatch(/^[A-Za-z0-9][A-Za-z0-9._:-]{15,199}$/);
+  expect(retryKeys[1]).toBe(retryKeys[0]);
+  expect(responses[0].replay).toBe(false);
+  expect(responses[1].replay).toBe(true);
+  expect(JSON.stringify(responses)).not.toContain(retryKeys[0]);
+  expect(JSON.stringify(responses)).not.toMatch(/requestId|requestFingerprint/);
+  await page.unroute("**/api/public/task-status/update");
+
+  const updatedPartners = await adminApi("/api/admin/partners");
+  const updatedTask = updatedPartners.data.tasks.find(item => item.id === created.data.task.id);
+  expect(updatedTask.status).toBe("blocked");
+  expect(updatedTask.assigneeUpdates.filter(item => item.note === blockerNote)).toHaveLength(1);
+  expect(updatedPartners.data.activity.filter(item => item.entityType === "task"
+    && item.entityId === created.data.task.id
+    && item.type === "task.assignee_updated")).toHaveLength(1);
+  expect(JSON.stringify(updatedTask)).not.toContain(retryKeys[0]);
+  expect(JSON.stringify(updatedTask)).not.toMatch(/requestId|requestFingerprint/);
+
+  const audit = await adminApi("/api/admin/audit?limit=200");
+  expect(audit.status).toBe(200);
+  expect(audit.data.audit.filter(item => item.record?.target?.id === created.data.task.id
+    && item.record?.action === "task.assignee.block")).toHaveLength(1);
+});
+
+test("finance creation recovers accepted responses without duplicate records or audits", async ({ page }) => {
+  const runId = randomUUID().slice(0, 8);
+  await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#admin-budget`);
+  await expect(page.locator("#admin-api-status")).toContainText("Loaded", { timeout: 25_000 });
+  const lineForm = page.locator("#admin-create-budget-line");
+  await expect(lineForm).toBeVisible();
+
+  const lineKeys = [];
+  const lineResponses = [];
+  let lineAttempts = 0;
+  await page.route("**/api/admin/budget/lines", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    lineAttempts++;
+    lineKeys.push(route.request().headers()["idempotency-key"]);
+    const providerResponse = await route.fetch();
+    lineResponses.push(await providerResponse.json());
+    if (lineAttempts === 1) {
+      await route.abort("failed");
+      return;
+    }
+    await route.fulfill({ response: providerResponse });
+  });
+
+  await lineForm.locator('[name="name"]').fill(`Recovery finance ${runId}`);
+  await lineForm.locator('[name="ownerTeam"]').selectOption("finance");
+  await lineForm.locator('[name="amount"]').fill("4200.00");
+  await lineForm.locator('[name="notes"]').fill("Accepted-response recovery allocation");
+  await lineForm.evaluate(form => form.requestSubmit());
+  await expect(lineForm.locator("[data-finance-create-status]")).toContainText("Finance will record it only once");
+  await lineForm.evaluate(form => form.requestSubmit());
+  await expect(lineForm.locator("[data-finance-create-status]")).toContainText("Added Recovery finance");
+  expect(lineKeys[0]).toMatch(/^[A-Za-z0-9][A-Za-z0-9._:-]{15,199}$/);
+  expect(lineKeys[1]).toBe(lineKeys[0]);
+  expect(lineResponses[0].replay).toBe(false);
+  expect(lineResponses[1].replay).toBe(true);
+  expect(lineResponses[1].line.id).toBe(lineResponses[0].line.id);
+  await page.unroute("**/api/admin/budget/lines");
+
+  const createdLine = lineResponses[0].line;
+  const expenseForm = page.locator("#admin-create-expense");
+  await expenseForm.locator('[name="budgetLineId"]').selectOption(createdLine.id);
+  const expenseKeys = [];
+  const expenseResponses = [];
+  let expenseAttempts = 0;
+  await page.route("**/api/admin/budget/expenses", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    expenseAttempts++;
+    expenseKeys.push(route.request().headers()["idempotency-key"]);
+    const providerResponse = await route.fetch();
+    expenseResponses.push(await providerResponse.json());
+    if (expenseAttempts === 1) {
+      await route.abort("failed");
+      return;
+    }
+    await route.fulfill({ response: providerResponse });
+  });
+
+  await expenseForm.locator('[name="vendorName"]').fill(`Recovery Vendor ${runId}`);
+  await expenseForm.locator('[name="amount"]').fill("875.00");
+  await expenseForm.locator('[name="dueDate"]').fill("2027-03-25");
+  await expenseForm.locator('[name="description"]').fill("Replay-safe finance equipment request");
+  await expenseForm.evaluate(form => form.requestSubmit());
+  await expect(expenseForm.locator("[data-finance-create-status]")).toContainText("Finance will record it only once");
+  await expenseForm.evaluate(form => form.requestSubmit());
+  await expect(expenseForm.locator("[data-finance-create-status]")).toContainText("Submitted $875.00");
+  expect(expenseKeys[0]).toMatch(/^[A-Za-z0-9][A-Za-z0-9._:-]{15,199}$/);
+  expect(expenseKeys[1]).toBe(expenseKeys[0]);
+  expect(expenseResponses[0].replay).toBe(false);
+  expect(expenseResponses[1].replay).toBe(true);
+  expect(expenseResponses[1].expense.id).toBe(expenseResponses[0].expense.id);
+  await page.unroute("**/api/admin/budget/expenses");
+
+  const budget = await adminApi("/api/admin/budget");
+  expect(budget.data.budgetLines.filter(item => item.id === createdLine.id)).toHaveLength(1);
+  expect(budget.data.expenses.filter(item => item.id === expenseResponses[0].expense.id)).toHaveLength(1);
+  const audit = await adminApi("/api/admin/audit?limit=200");
+  expect(audit.data.audit.filter(item => item.record?.action === "budget.line.create"
+    && item.record?.target?.id === createdLine.id)).toHaveLength(1);
+  expect(audit.data.audit.filter(item => item.record?.action === "budget.expense.submit"
+    && item.record?.target?.id === expenseResponses[0].expense.id)).toHaveLength(1);
+  expect(JSON.stringify({ lineResponses, expenseResponses })).not.toContain(lineKeys[0]);
+  expect(JSON.stringify({ lineResponses, expenseResponses })).not.toContain(expenseKeys[0]);
+});
+
+test("catalog creation recovers accepted responses without duplicate tiers, offerings, snapshots, or audits", async ({ page }) => {
+  const runId = randomUUID().slice(0, 8);
+  const sponsorTierId = `recovery-sponsor-${runId}`;
+  const sponsorTierName = `Recovery Sponsor ${runId}`;
+  const vendorOfferingId = `recovery-vendor-${runId}`;
+  const vendorOfferingName = `Recovery Marketplace ${runId}`;
+
+  await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#admin-config`);
+  const sponsorForm = page.locator("#admin-create-sponsor-package");
+  await expect(sponsorForm).toBeVisible({ timeout: 25_000 });
+
+  const sponsorKeys = [];
+  const sponsorResponses = [];
+  let sponsorAttempts = 0;
+  await page.route("**/api/admin/sponsor-packages", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    sponsorAttempts++;
+    sponsorKeys.push(route.request().headers()["idempotency-key"]);
+    const serverResponse = await route.fetch();
+    sponsorResponses.push(await serverResponse.json());
+    if (sponsorAttempts === 1) {
+      await route.abort("failed");
+      return;
+    }
+    await route.fulfill({ response: serverResponse });
+  });
+
+  await sponsorForm.locator('[name="name"]').fill(sponsorTierName);
+  await sponsorForm.locator('[name="id"]').fill(sponsorTierId);
+  await sponsorForm.locator('[name="amount"]').fill("6500.00");
+  await sponsorForm.locator('[name="benefits"]').fill("Board recognition\nPublic sponsor showcase");
+  await sponsorForm.evaluate(form => form.requestSubmit());
+  await expect(sponsorForm.locator(".partner-form-status")).toContainText("Retry safely; saved once");
+  await sponsorForm.evaluate(form => form.requestSubmit());
+  await expect(sponsorForm.locator(".partner-form-status")).toContainText("Saved");
+  expect(sponsorKeys[0]).toMatch(/^[A-Za-z0-9][A-Za-z0-9._:-]{15,199}$/);
+  expect(sponsorKeys[1]).toBe(sponsorKeys[0]);
+  expect(sponsorResponses[0].replay).toBe(false);
+  expect(sponsorResponses[1].replay).toBe(true);
+  expect(sponsorResponses[1].sponsorPackage.id).toBe(sponsorResponses[0].sponsorPackage.id);
+  await page.unroute("**/api/admin/sponsor-packages");
+
+  const vendorForm = page.locator("#admin-create-vendor-offering");
+  const vendorKeys = [];
+  const vendorResponses = [];
+  let vendorAttempts = 0;
+  await page.route("**/api/admin/vendor-offerings", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    vendorAttempts++;
+    vendorKeys.push(route.request().headers()["idempotency-key"]);
+    const serverResponse = await route.fetch();
+    vendorResponses.push(await serverResponse.json());
+    if (vendorAttempts === 1) {
+      await route.abort("failed");
+      return;
+    }
+    await route.fulfill({ response: serverResponse });
+  });
+
+  await vendorForm.locator('[name="name"]').fill(vendorOfferingName);
+  await vendorForm.locator('[name="id"]').fill(vendorOfferingId);
+  await vendorForm.locator('[name="amount"]').fill("1800.00");
+  await vendorForm.locator('[name="intakeMode"]').selectOption("application");
+  await vendorForm.locator('[name="categories"][value="retail"]').check();
+  await vendorForm.locator('[name="categories"][value="artisan"]').check();
+  await vendorForm.locator('[name="description"]').fill("Replay-safe marketplace offering for board presentation readiness.");
+  await vendorForm.locator('[name="inclusions"]').fill("Expanded booth footprint\nPublic vendor listing");
+  await vendorForm.evaluate(form => form.requestSubmit());
+  await expect(vendorForm.locator(".partner-form-status")).toContainText("Retry safely; saved once");
+  await vendorForm.evaluate(form => form.requestSubmit());
+  await expect(vendorForm.locator(".partner-form-status")).toContainText("Saved");
+  expect(vendorKeys[0]).toMatch(/^[A-Za-z0-9][A-Za-z0-9._:-]{15,199}$/);
+  expect(vendorKeys[1]).toBe(vendorKeys[0]);
+  expect(vendorResponses[0].replay).toBe(false);
+  expect(vendorResponses[1].replay).toBe(true);
+  expect(vendorResponses[1].vendorOffering.id).toBe(vendorResponses[0].vendorOffering.id);
+  await page.unroute("**/api/admin/vendor-offerings");
+
+  const config = await adminApi("/api/admin/config");
+  expect(config.data.config.sponsorPackages.filter(item => item.id === sponsorTierId)).toHaveLength(1);
+  expect(config.data.config.vendorOfferings.filter(item => item.id === vendorOfferingId)).toHaveLength(1);
+  const audit = await adminApi("/api/admin/audit?limit=500");
+  expect(audit.data.audit.filter(item => item.record?.action === "sponsor-package.create"
+    && item.record?.target?.id === sponsorTierId)).toHaveLength(1);
+  expect(audit.data.audit.filter(item => item.record?.action === "vendor-offering.create"
+    && item.record?.target?.id === vendorOfferingId)).toHaveLength(1);
+  const snapshots = await adminApi("/api/admin/snapshots?limit=500");
+  expect(snapshots.data.snapshots.filter(item => item.record?.reason === `Before sponsor package creation: ${sponsorTierId}`)).toHaveLength(1);
+  expect(snapshots.data.snapshots.filter(item => item.record?.reason === `Before vendor offering creation: ${vendorOfferingId}`)).toHaveLength(1);
+  expect(JSON.stringify({ sponsorResponses, vendorResponses, config, audit, snapshots })).not.toContain(sponsorKeys[0]);
+  expect(JSON.stringify({ sponsorResponses, vendorResponses, config, audit, snapshots })).not.toContain(vendorKeys[0]);
+});
+
+test("task and key-date creation recover accepted responses without duplicate work or audits", async ({ page }) => {
+  const runId = randomUUID().slice(0, 8);
+  const initialPartners = await adminApi("/api/admin/partners");
+  expect(initialPartners.status).toBe(200);
+  const application = initialPartners.data.applications.find(item => item.type === "sponsor")
+    || initialPartners.data.applications[0];
+  expect(application?.id).toBeTruthy();
+
+  await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#admin-partner-milestones-workspace`);
+  const taskForm = page.locator("#admin-create-task");
+  await expect(taskForm).toBeVisible({ timeout: 25_000 });
+  await taskForm.locator('[name="assigneeType"]').selectOption("team");
+  await expect(taskForm.locator('[name="assigneeId"] option[value="operations"]')).toHaveCount(1);
+  await taskForm.locator('[name="assigneeId"]').selectOption("operations");
+
+  const taskKeys = [];
+  const taskResponses = [];
+  let taskAttempts = 0;
+  await page.route("**/api/admin/partners/tasks", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    taskAttempts++;
+    taskKeys.push(route.request().headers()["idempotency-key"]);
+    const serverResponse = await route.fetch();
+    taskResponses.push(await serverResponse.json());
+    if (taskAttempts === 1) {
+      await route.abort("failed");
+      return;
+    }
+    await route.fulfill({ response: serverResponse });
+  });
+
+  await taskForm.locator('[name="title"]').fill(`Recovery delegation ${runId}`);
+  await taskForm.locator('[name="priority"]').selectOption("high");
+  await taskForm.locator('[name="dueAt"]').fill("2027-04-10T10:30");
+  await taskForm.locator('[name="description"]').fill("Accepted-response recovery for an Operations delegation.");
+  await taskForm.evaluate(form => form.requestSubmit());
+  await expect(taskForm.locator(".partner-form-status")).toContainText("Operations will delegate it only once");
+  await taskForm.evaluate(form => form.requestSubmit());
+  await expect(taskForm.locator(".partner-form-status")).toContainText("Task delegated");
+  expect(taskKeys[0]).toMatch(/^[A-Za-z0-9][A-Za-z0-9._:-]{15,199}$/);
+  expect(taskKeys[1]).toBe(taskKeys[0]);
+  expect(taskResponses[0].replay).toBe(false);
+  expect(taskResponses[1].replay).toBe(true);
+  expect(taskResponses[1].task.id).toBe(taskResponses[0].task.id);
+  await page.unroute("**/api/admin/partners/tasks");
+
+  const milestoneForm = page.locator("#admin-create-milestone");
+  await milestoneForm.locator('[name="applicationId"]').selectOption(application.id);
+  const milestoneKeys = [];
+  const milestoneResponses = [];
+  let milestoneAttempts = 0;
+  await page.route(/\/api\/admin\/partners\/applications\/[^/]+\/milestones$/, async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    milestoneAttempts++;
+    milestoneKeys.push(route.request().headers()["idempotency-key"]);
+    const serverResponse = await route.fetch();
+    milestoneResponses.push(await serverResponse.json());
+    if (milestoneAttempts === 1) {
+      await route.abort("failed");
+      return;
+    }
+    await route.fulfill({ response: serverResponse });
+  });
+
+  await milestoneForm.locator('[name="label"]').fill(`Recovery key date ${runId}`);
+  await milestoneForm.locator('[name="dueAt"]').fill("2027-03-24T15:00");
+  await milestoneForm.locator('[name="assigneeTeam"]').selectOption("sponsor");
+  await milestoneForm.locator('[name="reminderLeadDays"]').fill("5");
+  await milestoneForm.evaluate(form => form.requestSubmit());
+  await expect(milestoneForm.locator(".partner-form-status")).toContainText("Operations will record it only once");
+  await milestoneForm.evaluate(form => form.requestSubmit());
+  await expect(milestoneForm.locator(".partner-form-status")).toContainText("Partner key date added");
+  expect(milestoneKeys[0]).toMatch(/^[A-Za-z0-9][A-Za-z0-9._:-]{15,199}$/);
+  expect(milestoneKeys[1]).toBe(milestoneKeys[0]);
+  expect(milestoneResponses[0].replay).toBe(false);
+  expect(milestoneResponses[1].replay).toBe(true);
+  expect(milestoneResponses[1].milestone.id).toBe(milestoneResponses[0].milestone.id);
+
+  const partners = await adminApi("/api/admin/partners");
+  expect(partners.data.tasks.filter(item => item.id === taskResponses[0].task.id)).toHaveLength(1);
+  expect(partners.data.milestones.filter(item => item.id === milestoneResponses[0].milestone.id)).toHaveLength(1);
+  expect(partners.data.activity.filter(item => item.type === "task.created"
+    && item.entityId === taskResponses[0].task.id)).toHaveLength(1);
+  expect(partners.data.activity.filter(item => item.type === "milestone.created"
+    && item.entityId === milestoneResponses[0].milestone.id)).toHaveLength(1);
+  const audit = await adminApi("/api/admin/audit?limit=200");
+  expect(audit.data.audit.filter(item => item.record?.action === "partner.task.create"
+    && item.record?.target?.id === taskResponses[0].task.id)).toHaveLength(1);
+  expect(audit.data.audit.filter(item => item.record?.action === "partner.milestone.create"
+    && item.record?.target?.id === milestoneResponses[0].milestone.id)).toHaveLength(1);
+  expect(JSON.stringify({ taskResponses, milestoneResponses, partners, audit })).not.toContain(taskKeys[0]);
+  expect(JSON.stringify({ taskResponses, milestoneResponses, partners, audit })).not.toContain(milestoneKeys[0]);
+});
+
+test("custom sponsor deliverable creation recovers an accepted response without duplicate fulfillment or audit", async ({ page }) => {
+  const runId = randomUUID().slice(0, 8);
+  const label = `Recovery sponsor display ${runId}`;
+  await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#admin-sponsor-fulfillment-workspace`);
+  await expect(page.locator("#admin-api-status")).toContainText("Loaded", { timeout: 25_000 });
+  const form = page.locator("#admin-sponsor-fulfillment [data-create-deliverable]").first();
+  await expect(form).toBeVisible();
+  const applicationId = await form.getAttribute("data-create-deliverable");
+  const endpoint = `/api/admin/partners/applications/${applicationId}/deliverables`;
+  const keys = [];
+  const responses = [];
+  let attempts = 0;
+  await page.route(`**${endpoint}`, async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    attempts++;
+    keys.push(route.request().headers()["idempotency-key"]);
+    const serverResponse = await route.fetch();
+    responses.push(await serverResponse.json());
+    if (attempts === 1) {
+      await route.abort("failed");
+      return;
+    }
+    await route.fulfill({ response: serverResponse });
+  });
+
+  await form.locator('[name="label"]').fill(label);
+  await form.locator('[name="ownerId"]').fill("staff_sponsor");
+  await form.locator('[name="dueAt"]').fill("2027-03-26T15:00");
+  await form.locator('[name="description"]').fill("Track one custom board sponsor display through fulfillment.");
+  await form.evaluate(node => node.requestSubmit());
+  await expect(page.locator("#admin-api-status")).toContainText("Retry safely; saved once");
+  await expect(form.locator('[name="label"]')).toHaveValue(label);
+  expect(await form.evaluate(node => node.dataset.idempotencyKey?.length > 15)).toBe(true);
+
+  await form.evaluate(node => node.requestSubmit());
+  await expect(page.locator("#admin-api-status")).toContainText("Sponsor deliverable saved");
+  expect(keys[0]).toMatch(/^[A-Za-z0-9][A-Za-z0-9._:-]{15,199}$/);
+  expect(keys[1]).toBe(keys[0]);
+  expect(responses[0].replay).toBe(false);
+  expect(responses[1].replay).toBe(true);
+  expect(responses[1].deliverable.id).toBe(responses[0].deliverable.id);
+  expect(attempts).toBe(2);
+  await page.unroute(`**${endpoint}`);
+
+  const partners = await adminApi("/api/admin/partners");
+  expect(partners.data.deliverables.filter(item => item.id === responses[0].deliverable.id)).toHaveLength(1);
+  expect(partners.data.deliverables.filter(item => item.label === label)).toHaveLength(1);
+  expect(partners.data.activity.filter(item => item.type === "deliverable.created"
+    && item.entityId === responses[0].deliverable.id)).toHaveLength(1);
+  const audit = await adminApi("/api/admin/audit?limit=200");
+  expect(audit.data.audit.filter(item => item.record?.action === "partner.deliverable.create"
+    && item.record?.target?.id === responses[0].deliverable.id)).toHaveLength(1);
+  expect(JSON.stringify({ responses, partners, audit })).not.toContain(keys[0]);
+});
+
+test("outreach creation recovers accepted responses without duplicate targets, campaigns, or audits", async ({ page }) => {
+  const runId = randomUUID().slice(0, 8);
+  const prospectName = `Recovery outreach target ${runId}`;
+  const industry = `recovery-industry-${runId}`;
+  const campaignName = `Recovery outreach campaign ${runId}`;
+
+  await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#admin-outreach-workspace`);
+  const prospectForm = page.locator("#admin-create-prospect");
+  await expect(prospectForm).toBeVisible({ timeout: 25_000 });
+
+  const prospectKeys = [];
+  const prospectResponses = [];
+  let prospectAttempts = 0;
+  await page.route("**/api/admin/outreach/prospects", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    prospectAttempts++;
+    prospectKeys.push(route.request().headers()["idempotency-key"]);
+    const serverResponse = await route.fetch();
+    prospectResponses.push(await serverResponse.json());
+    if (prospectAttempts === 1) {
+      await route.abort("failed");
+      return;
+    }
+    await route.fulfill({ response: serverResponse });
+  });
+
+  await prospectForm.locator('[name="organizationName"]').fill(prospectName);
+  await prospectForm.locator('[name="contactName"]').fill("Recovery Outreach");
+  await prospectForm.locator('[name="industry"]').fill(industry);
+  await prospectForm.locator('[name="city"]').fill("Port Aransas");
+  await prospectForm.locator('[name="postalCode"]').fill("78373");
+  await prospectForm.locator('[name="latitude"]').fill("27.8339");
+  await prospectForm.locator('[name="longitude"]').fill("-97.0611");
+  await prospectForm.locator('[name="contactEmail"]').fill(`recovery-outreach-${runId}@example.com`);
+  await prospectForm.locator('[name="communityFit"]').check();
+  await prospectForm.locator('[name="contactBasis"]').selectOption("business_relevance");
+  await prospectForm.locator('[name="status"]').selectOption("contact_ready");
+  await prospectForm.evaluate(form => form.requestSubmit());
+  await expect(prospectForm.locator(".partner-form-status")).toContainText("Retry safely; saved once");
+  await prospectForm.evaluate(form => form.requestSubmit());
+  await expect(prospectForm.locator(".partner-form-status")).toContainText(`Scored ${prospectName}`);
+  expect(prospectKeys[0]).toMatch(/^[A-Za-z0-9][A-Za-z0-9._:-]{15,199}$/);
+  expect(prospectKeys[1]).toBe(prospectKeys[0]);
+  expect(prospectResponses[0].replay).toBe(false);
+  expect(prospectResponses[1].replay).toBe(true);
+  expect(prospectResponses[1].prospect.id).toBe(prospectResponses[0].prospect.id);
+  await page.unroute("**/api/admin/outreach/prospects");
+
+  const campaignForm = page.locator("#admin-create-campaign");
+  await campaignForm.locator('[name="name"]').fill(campaignName);
+  await campaignForm.locator('[name="industries"]').fill(industry);
+  await campaignForm.locator('[name="cities"]').fill("Port Aransas");
+  await campaignForm.locator('[name="minFitScore"]').fill("0");
+  const previewResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/admin/outreach/campaigns/preview"
+    && response.request().method() === "POST");
+  await campaignForm.locator("#admin-preview-campaign").click();
+  expect((await previewResponse).status()).toBe(200);
+  await expect(campaignForm.locator('button[type="submit"]')).toBeEnabled();
+
+  const campaignKeys = [];
+  const campaignResponses = [];
+  let campaignAttempts = 0;
+  await page.route("**/api/admin/outreach/campaigns", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    campaignAttempts++;
+    campaignKeys.push(route.request().headers()["idempotency-key"]);
+    const serverResponse = await route.fetch();
+    campaignResponses.push(await serverResponse.json());
+    if (campaignAttempts === 1) {
+      await route.abort("failed");
+      return;
+    }
+    await route.fulfill({ response: serverResponse });
+  });
+
+  await campaignForm.evaluate(form => form.requestSubmit());
+  await expect(campaignForm.locator(".partner-form-status")).toContainText("Retry safely; saved once");
+  await campaignForm.evaluate(form => form.requestSubmit());
+  await expect(campaignForm.locator(".partner-form-status")).toContainText(`${campaignName} saved`);
+  expect(campaignKeys[0]).toMatch(/^[A-Za-z0-9][A-Za-z0-9._:-]{15,199}$/);
+  expect(campaignKeys[1]).toBe(campaignKeys[0]);
+  expect(campaignResponses[0].replay).toBe(false);
+  expect(campaignResponses[1].replay).toBe(true);
+  expect(campaignResponses[1].campaign.id).toBe(campaignResponses[0].campaign.id);
+
+  const outreach = await adminApi("/api/admin/outreach");
+  expect(outreach.data.prospects.filter(item => item.id === prospectResponses[0].prospect.id)).toHaveLength(1);
+  expect(outreach.data.campaigns.filter(item => item.id === campaignResponses[0].campaign.id)).toHaveLength(1);
+  const partners = await adminApi("/api/admin/partners");
+  expect(partners.data.activity.filter(item => item.type === "outreach.prospect.created"
+    && item.entityId === prospectResponses[0].prospect.id)).toHaveLength(1);
+  expect(partners.data.activity.filter(item => item.type === "outreach.campaign.created"
+    && item.entityId === campaignResponses[0].campaign.id)).toHaveLength(1);
+  const audit = await adminApi("/api/admin/audit?limit=200");
+  expect(audit.data.audit.filter(item => item.record?.action === "outreach.prospect.create"
+    && item.record?.target?.id === prospectResponses[0].prospect.id)).toHaveLength(1);
+  expect(audit.data.audit.filter(item => item.record?.action === "outreach.campaign.create"
+    && item.record?.target?.id === campaignResponses[0].campaign.id)).toHaveLength(1);
+  expect(JSON.stringify({ prospectResponses, campaignResponses, outreach, partners, audit })).not.toContain(prospectKeys[0]);
+  expect(JSON.stringify({ prospectResponses, campaignResponses, outreach, partners, audit })).not.toContain(campaignKeys[0]);
+});
+
+test("private capability links recover from transient API failures without reloads", async ({ browser }) => {
+  test.setTimeout(90_000);
+  const runId = randomUUID().slice(0, 8);
+  const partners = await adminApi("/api/admin/partners");
+  expect(partners.status).toBe(200);
+  const application = partners.data.applications.find(item => item.type === "sponsor") || partners.data.applications[0];
+  const portalAccess = await adminApi(`/api/admin/partners/applications/${application.id}/portal-access`, { method: "POST", body: {} });
+  expect(portalAccess.status).toBe(200);
+
+  const volunteer = partners.data.assignmentDirectory.volunteers.find(item => item.emailAvailable);
+  const taskTitle = `Transient recovery assignment ${runId}`;
+  const taskResult = await adminApi("/api/admin/partners/tasks", {
+    method: "POST",
+    headers: { "idempotency-key": `browser-private-task-create-${runId}` },
+    body: {
+      assigneeType: "volunteer",
+      assigneeId: volunteer.id,
+      title: taskTitle,
+      description: "Confirm the private task link recovers without replaying a task update.",
+      priority: "medium",
+      dueAt: "2027-04-10T15:00:00.000Z"
+    }
+  });
+  expect(taskResult.status).toBe(201);
+  const taskPortalConfigForBrowser = taskPortalConfig({
+    SANDFEST_ENV: "development",
+    SANDFEST_TASK_PORTAL_SECRET: PORTAL_SECRET,
+    SANDFEST_PUBLIC_SITE_URL: webBase
+  });
+  const taskUrl = taskPortalUrlForTask(taskResult.data.task, { config: taskPortalConfigForBrowser });
+
+  const prospectName = `Recovery Coast Sponsor ${runId}`;
+  const prospectResult = await adminApi("/api/admin/outreach/prospects", {
+    method: "POST",
+    headers: { "idempotency-key": `browser-private-prospect-create-${runId}` },
+    body: {
+      organizationName: prospectName,
+      contactName: "Recovery Browser",
+      contactEmail: `recovery.${runId}@example.com`,
+      industry: "hospitality",
+      city: "Port Aransas",
+      postalCode: "78373",
+      latitude: 27.8339,
+      longitude: -97.0611,
+      communityFit: true,
+      contactBasis: "business_relevance",
+      status: "contact_ready"
+    }
+  });
+  expect(prospectResult.status).toBe(201);
+  const prospect = prospectResult.data.prospect;
+  const preferenceUrl = outreachPreferenceUrlForProspect(prospect, {
+    config: outreachPreferencesConfig({
+      SANDFEST_ENV: "development",
+      SANDFEST_OUTREACH_PREFERENCES_SECRET: OUTREACH_SECRET,
+      SANDFEST_PUBLIC_SITE_URL: webBase
+    })
+  });
+  const sponsorCatalog = await fetch(`${apiBase}/api/public/sponsors`).then(response => response.json());
+  const invitationResult = await adminApi(`/api/admin/outreach/prospects/${prospect.id}/sponsor-invitation`, {
+    method: "POST",
+    body: { action: "issue", packageId: sponsorCatalog.sponsorPackages[0].id }
+  });
+  expect(invitationResult.status).toBe(200);
+
+  const guestTitle = `Transient Guest Services request ${runId}`;
+  const guestReadiness = await fetch(`${apiBase}/api/public/guest-services`).then(response => response.json());
+  const guestResponse = await fetch(`${apiBase}/api/public/guest-services`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "idempotency-key": `browser-recovery-${runId}` },
+    body: JSON.stringify({
+      category: guestReadiness.categories[0].id,
+      festivalDay: "Saturday",
+      title: guestTitle,
+      details: "Verify that a private Guest Services lookup recovers after one temporary API failure.",
+      location: "North Gate",
+      contactName: "Recovery Browser Guest",
+      contactEmail: `guest.recovery.${runId}@example.com`,
+      contactPreference: "email",
+      consentToContact: true
+    })
+  });
+  expect(guestResponse.status).toBe(201);
+  const guest = await guestResponse.json();
+
+  const addApiBase = value => {
+    const url = new URL(value);
+    url.searchParams.set("apiBase", apiBase);
+    return url.toString();
+  };
+  const context = await browser.newContext();
+  const openWithFirstFailure = async ({ url, endpoint, failureSelector, failureText, retrySelector, success }) => {
+    const page = await context.newPage();
+    let attempts = 0;
+    await page.route(`**${endpoint}`, async route => {
+      attempts++;
+      if (attempts === 1) {
+        await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "temporarily unavailable" }) });
+        return;
+      }
+      await route.continue();
+    });
+    await page.goto(addApiBase(url));
+    await expect(page.locator(failureSelector)).toContainText(failureText);
+    if (retrySelector) {
+      const retryButton = page.locator(retrySelector);
+      await expect(retryButton).toBeVisible();
+      await expect(retryButton).toBeEnabled();
+      await expect(retryButton).toHaveText("Retry now");
+      expect((await retryButton.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+      await retryButton.click();
+    }
+    await success(page);
+    expect(attempts).toBeGreaterThanOrEqual(2);
+    expect(await page.evaluate(() => performance.getEntriesByType("navigation")[0]?.type)).toBe("navigate");
+    await page.close();
+  };
+
+  await openWithFirstFailure({
+    url: portalAccess.data.portalAccess.url,
+    endpoint: "/api/public/partner-status",
+    failureSelector: "#partner-status-form .partner-form-status",
+    failureText: "retry automatically",
+    success: page => expect(page.locator("#partner-status-result")).toContainText(application.organizationName, { timeout: 15_000 })
+  });
+  await openWithFirstFailure({
+    url: taskUrl,
+    endpoint: "/api/public/task-status",
+    failureSelector: "#task-status-result",
+    failureText: "temporarily unavailable",
+    retrySelector: "[data-task-status-retry]",
+    success: page => expect(page.locator("#task-status-result")).toContainText(taskTitle, { timeout: 15_000 })
+  });
+  await openWithFirstFailure({
+    url: preferenceUrl,
+    endpoint: "/api/public/outreach-preferences",
+    failureSelector: "#outreach-preferences-status",
+    failureText: "temporarily unavailable",
+    retrySelector: "#outreach-preferences-unsubscribe",
+    success: page => expect(page.locator("#outreach-preferences-copy")).toContainText(prospectName, { timeout: 15_000 })
+  });
+  await openWithFirstFailure({
+    url: invitationResult.data.invitation.url,
+    endpoint: "/api/public/sponsor-invitation",
+    failureSelector: "#sponsor-invitation-copy",
+    failureText: "temporarily unavailable",
+    retrySelector: "[data-sponsor-retry]",
+    success: page => expect(page.locator('#sponsor-inquiry-form [name="organizationName"]')).toHaveValue(prospectName, { timeout: 15_000 })
+  });
+
+  const rejectedInvitationUrl = new URL(invitationResult.data.invitation.url);
+  const rejectedInvitationParams = new URLSearchParams(rejectedInvitationUrl.hash.split("?")[1]);
+  rejectedInvitationParams.set("token", `${rejectedInvitationParams.get("token")}x`);
+  rejectedInvitationUrl.hash = `sponsor-invitation?${rejectedInvitationParams}`;
+  const rejectedInvitationPage = await context.newPage();
+  let rejectedInvitationAttempts = 0;
+  await rejectedInvitationPage.route("**/api/public/sponsor-invitation", async route => {
+    rejectedInvitationAttempts++;
+    await route.continue();
+  });
+  await rejectedInvitationPage.goto(addApiBase(rejectedInvitationUrl));
+  await expect(rejectedInvitationPage.locator("#sponsor-invitation")).toHaveAttribute("data-state", "error");
+  await expect(rejectedInvitationPage).toHaveURL(/#sponsors$/);
+  await rejectedInvitationPage.waitForTimeout(2_500);
+  expect(rejectedInvitationAttempts).toBe(1);
+  await rejectedInvitationPage.close();
+
+  const guestPage = await context.newPage();
+  let guestAttempts = 0;
+  await guestPage.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#guest-services`);
+  await expect(guestPage.locator("#guest-services-form")).toHaveAttribute("data-public-intake-state", "ready");
+  await guestPage.route("**/api/public/guest-services/status", async route => {
+    guestAttempts++;
+    if (guestAttempts === 1) {
+      await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "temporarily unavailable" }) });
+      return;
+    }
+    await route.continue();
+  });
+  const guestStatusForm = guestPage.locator("#guest-services-status-form");
+  await guestStatusForm.locator('[name="reference"]').fill(guest.access.reference);
+  await guestStatusForm.locator('[name="token"]').fill(guest.access.token);
+  await guestStatusForm.locator('button[type="submit"]').click();
+  await expect(guestStatusForm.locator(".partner-form-status")).toContainText("temporarily unavailable");
+  await expect(guestPage.locator("#guest-services-status-result")).toContainText(guestTitle, { timeout: 15_000 });
+  expect(guestAttempts).toBeGreaterThanOrEqual(2);
+  expect(await guestPage.evaluate(() => performance.getEntriesByType("navigation")[0]?.type)).toBe("navigate");
+  await guestPage.close();
+  await context.close();
 });
 
 test("incident delivery verification safely resolves ambiguous provider outcomes", async ({ page }) => {
@@ -2441,6 +3472,7 @@ test("incident delivery verification safely resolves ambiguous provider outcomes
   const title = `Provider verification drill ${runId}`;
   const incidentResult = await adminApi("/api/admin/island-conditions/incidents", {
     method: "POST",
+    headers: { "idempotency-key": `browser-provider-incident-${runId}` },
     body: {
       title,
       summary: "Verify ambiguous provider outcomes without duplicate operational email.",
@@ -2669,6 +3701,60 @@ test("partner delivery verification prevents duplicate automated messages", asyn
   await assertNoAccessibilityViolations(page, "Partner provider verification");
 });
 
+test("incident creation recovers an accepted response without duplicate command records or audits", async ({ page }) => {
+  const runId = randomUUID().slice(0, 8);
+  const title = `Recovery island incident ${runId}`;
+  await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#operations`);
+  await expect(page.locator("#admin-api-status")).toContainText("Loaded", { timeout: 25_000 });
+  const form = page.locator("#admin-create-incident");
+  await expect(form).toBeVisible();
+  const keys = [];
+  const responses = [];
+  let attempts = 0;
+  await page.route("**/api/admin/island-conditions/incidents", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    attempts++;
+    keys.push(route.request().headers()["idempotency-key"]);
+    const serverResponse = await route.fetch();
+    responses.push(await serverResponse.json());
+    if (attempts === 1) {
+      await route.abort("failed");
+      return;
+    }
+    await route.fulfill({ response: serverResponse });
+  });
+
+  await form.locator('[name="title"]').fill(title);
+  await form.locator('[name="severity"]').selectOption("high");
+  await form.locator('[name="ownerTeam"]').selectOption("traffic");
+  await form.locator('[name="ownerName"]').fill("Traffic command");
+  await form.locator('[name="summary"]').fill("Keep one command record when the accepted response is lost.");
+  await form.locator('[name="publicImpact"]').check();
+  await form.evaluate(node => node.requestSubmit());
+  await expect(page.locator("#admin-api-status")).toContainText("Retry safely; saved once");
+  await expect(form.locator('[name="title"]')).toHaveValue(title);
+  expect(await form.evaluate(node => node.dataset.idempotencyKey?.length > 15)).toBe(true);
+
+  await form.evaluate(node => node.requestSubmit());
+  await expect(page.locator("#admin-api-status")).toContainText("Incident opened");
+  expect(keys[0]).toMatch(/^[A-Za-z0-9][A-Za-z0-9._:-]{15,199}$/);
+  expect(keys[1]).toBe(keys[0]);
+  expect(responses[0].replay).toBe(false);
+  expect(responses[1].replay).toBe(true);
+  expect(responses[1].incident.id).toBe(responses[0].incident.id);
+  expect(responses[1].incident.publicImpact).toBe(true);
+  expect(attempts).toBe(2);
+  await page.unroute("**/api/admin/island-conditions/incidents");
+
+  const conditions = await adminApi("/api/admin/island-conditions");
+  const audit = await adminApi("/api/admin/audit?limit=200");
+  expect(conditions.data.incidents.filter(item => item.id === responses[0].incident.id)).toHaveLength(1);
+  expect(conditions.data.incidents.filter(item => item.title === title)).toHaveLength(1);
+  expect(audit.data.audit.filter(item => item.record?.action === "conditions.incident.create"
+    && item.record?.target?.id === responses[0].incident.id)).toHaveLength(1);
+  expect(JSON.stringify({ responses, conditions, audit })).not.toContain(keys[0]);
+});
+
 test("operations command summary fits and navigates across board viewports", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}`);
@@ -2892,6 +3978,28 @@ test("visitor view switch opens the dedicated operations portal", async ({ page 
   await assertNoHorizontalOverflow(page);
 });
 
+test("Operations automatically reconnects after a transient API interruption", async ({ page }) => {
+  let sessionAttempts = 0;
+  await page.route(`${apiBase}/api/admin/session`, async route => {
+    sessionAttempts += 1;
+    if (sessionAttempts === 1) await route.abort("connectionrefused");
+    else await route.continue();
+  });
+
+  await page.goto(`${webBase}/admin.html?apiBase=${encodeURIComponent(apiBase)}#admin-partners`);
+  const status = page.locator("#admin-api-status");
+  await expect(status).toHaveAttribute("data-workspace-state", "failed", { timeout: 10_000 });
+  await expect(status).toContainText("Retrying automatically.");
+  await expect(status).toHaveAttribute("role", "alert");
+  await expect(status).toHaveAttribute("aria-busy", "false");
+
+  await expectAdminWorkspaceReady(page);
+  await expect(status).toContainText("Loaded");
+  expect(sessionAttempts).toBeGreaterThanOrEqual(2);
+  await expect(page.locator("#admin-partner-kpis article").first()).toBeVisible();
+  await assertNoHorizontalOverflow(page);
+});
+
 test("canonical iOS links retain safe visitor web fallbacks", async ({ page }) => {
   let conciergeRequests = 0;
   page.on("request", request => {
@@ -3071,6 +4179,130 @@ test("partner invoice checkout refuses lookalike Stripe destinations", async ({ 
   await expect(payButton).toBeEnabled();
   expect(page.url()).toContain(webBase);
   expect(attemptedExternalRequests).toEqual([]);
+});
+
+test("partner invoice checkout explains replay-safe ambiguous payment outcomes", async ({ page }) => {
+  const invoiceId = "invoice_ambiguous_payment";
+  const checkoutToken = "board_partner_checkout_ambiguous_browser_token";
+  const application = {
+    reference: "TSF-S-AMBIGUOUS-PAYMENT",
+    type: "sponsor",
+    intakeMode: "application",
+    status: "invoiced",
+    organizationName: "Ambiguous Payment Sponsor",
+    submittedAt: "2026-07-20T12:00:00.000Z",
+    updatedAt: "2026-07-20T12:00:00.000Z",
+    nextStep: null,
+    contactPreference: { allowed: true, version: 1, updatedAt: "2026-07-20T12:00:00.000Z" },
+    finance: {
+      currency: "usd",
+      expectedAmountCents: 500000,
+      paidAmountCents: 0,
+      balanceCents: 500000,
+      paymentStatus: "unpaid",
+      onlinePayment: { enabled: true, ready: true, provider: "board_sandbox" },
+      invoice: { id: invoiceId, status: "approved", amountCents: 500000, balanceCents: 500000, dueAt: "2027-03-01T12:00:00.000Z" },
+      checkout: null
+    },
+    milestones: [],
+    branding: null,
+    vendorOnboarding: null
+  };
+  await page.route("**/api/public/partner-status", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    await route.fulfill({
+      status: 200,
+      headers: { "access-control-allow-origin": webBase, "cache-control": "no-store" },
+      contentType: "application/json",
+      body: JSON.stringify({ application })
+    });
+  });
+
+  let checkoutAttempts = 0;
+  await page.route("**/api/public/partner-payment-checkout", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    checkoutAttempts++;
+    if (checkoutAttempts === 1) {
+      await route.abort("failed");
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      headers: { "access-control-allow-origin": webBase, "cache-control": "no-store" },
+      contentType: "application/json",
+      body: JSON.stringify({
+        duplicate: true,
+        demoCheckout: {
+          mode: "board_sandbox",
+          checkoutId: "partner_checkout_ambiguous",
+          invoiceId,
+          amountCents: 500000,
+          currency: "usd",
+          completeEndpoint: "/api/public/board-partner-checkout/complete",
+          token: checkoutToken
+        }
+      })
+    });
+  });
+
+  await page.goto(`${webBase}/?apiBase=${encodeURIComponent(apiBase)}&mode=visitor#partner-status?reference=${application.reference}&token=tsfp_ambiguous_payment_browser`);
+  await expect(page.locator("#partner-status-form .partner-form-status")).toContainText("Secure status loaded");
+  const payInvoice = page.locator(`[data-partner-pay-invoice="${invoiceId}"]`);
+  await payInvoice.evaluate(button => button.click());
+  await expect(page.locator(".partner-payment-status")).toContainText("The invoice is unchanged. Try again to resume the same checkout.");
+  await expect(payInvoice).toBeEnabled();
+  await payInvoice.evaluate(button => button.click());
+  const sandbox = page.locator("[data-partner-payment-sandbox]");
+  await expect(sandbox).toBeVisible();
+  expect(checkoutAttempts).toBe(2);
+
+  let completionAttempts = 0;
+  await page.route("**/api/public/board-partner-checkout/complete", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    completionAttempts++;
+    expect(route.request().postDataJSON().token).toBe(checkoutToken);
+    if (completionAttempts === 1) {
+      await route.abort("failed");
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      headers: { "access-control-allow-origin": webBase, "cache-control": "no-store" },
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        duplicate: true,
+        application: {
+          ...application,
+          status: "paid",
+          finance: {
+            ...application.finance,
+            paidAmountCents: 500000,
+            balanceCents: 0,
+            paymentStatus: "paid",
+            invoice: { ...application.finance.invoice, status: "paid", balanceCents: 0 }
+          }
+        },
+        receipt: {
+          invoiceId,
+          paymentId: "payment_ambiguous_once",
+          amountCents: 500000,
+          currency: "usd",
+          paidAt: "2027-03-01T12:05:00.000Z",
+          environment: "board_sandbox"
+        }
+      })
+    });
+  });
+
+  const completePayment = sandbox.locator("[data-complete-partner-demo-payment]");
+  await completePayment.evaluate(button => button.click());
+  await expect(sandbox.locator(".partner-payment-status")).toContainText("the same invoice payment will be reused");
+  await expect(completePayment).toBeEnabled();
+  await completePayment.evaluate(button => button.click());
+  await expect(page.locator(".partner-status-invoice > .partner-payment-status")).toContainText("$5,000.00 demonstration payment recorded");
+  await expect(page.locator("[data-partner-pay-invoice]")).toHaveCount(0);
+  expect(completionAttempts).toBe(2);
 });
 
 test("critical public and operations views fit a mobile viewport", async ({ page }) => {

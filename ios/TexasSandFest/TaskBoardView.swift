@@ -100,6 +100,20 @@ struct StaffTaskSubmission {
     let assigneeType: String
     let assigneeId: String?
     let dueAt: Date?
+    var idempotencyKey: String? = nil
+
+    var creationFingerprint: String {
+        [
+            title.trimmingCharacters(in: .whitespacesAndNewlines),
+            description.trimmingCharacters(in: .whitespacesAndNewlines),
+            priority,
+            assigneeType,
+            assigneeType == "unassigned"
+                ? ""
+                : assigneeId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
+            dueAt.map { String($0.timeIntervalSince1970) } ?? ""
+        ].joined(separator: "\u{1F}")
+    }
 }
 
 private struct StaffTaskCreateBody: Encodable {
@@ -177,8 +191,13 @@ final class NativeTaskBoardStore: ObservableObject {
         request: URLRequest?,
         refreshRequest: URLRequest?
     ) async -> StaffTask? {
-        guard let request else {
+        guard var request else {
             lastError = "Authenticated board task access is unavailable; no task was created."
+            return nil
+        }
+        guard let replayKey = submission.idempotencyKey,
+              NativeReplayKey.isValid(replayKey) else {
+            lastError = "A valid task replay key is required; no task request was sent."
             return nil
         }
         let title = submission.title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -194,7 +213,13 @@ final class NativeTaskBoardStore: ObservableObject {
             assigneeId: Self.ownerID(submission),
             dueAt: submission.dueAt
         )
-        guard let task = await mutate(request: request, body: body, allowedStatuses: [201]) else { return nil }
+        request.setValue(replayKey, forHTTPHeaderField: "Idempotency-Key")
+        guard let task = await mutate(
+            request: request,
+            body: body,
+            allowedStatuses: [200, 201],
+            failureMessage: "Task response was not received. Retry safely; the shared work board will keep one task."
+        ) else { return nil }
         await refreshAfterMutation(refreshRequest)
         return task
     }
@@ -241,7 +266,8 @@ final class NativeTaskBoardStore: ObservableObject {
     private func mutate<Body: Encodable>(
         request inputRequest: URLRequest,
         body: Body,
-        allowedStatuses: Set<Int>
+        allowedStatuses: Set<Int>,
+        failureMessage: String = "Task request failed; no local task state was changed."
     ) async -> StaffTask? {
         guard !isMutating else {
             lastError = "Another task change is still in progress."
@@ -264,7 +290,7 @@ final class NativeTaskBoardStore: ObservableObject {
             lastError = nil
             return payload.task
         } catch {
-            lastError = errorMessage(error, fallback: "Task request failed; no local task state was changed.")
+            lastError = errorMessage(error, fallback: failureMessage)
             return nil
         }
     }
@@ -575,6 +601,7 @@ private struct NativeTaskEditor: View {
     @State private var isSaving = false
     @State private var isPreparingNotice = false
     @State private var errorMessage: String?
+    @State private var creationReplay = NativeCreationReplayState()
 
     init(
         task: StaffTask?,
@@ -704,7 +731,7 @@ private struct NativeTaskEditor: View {
         guard canSave else { return }
         isSaving = true
         errorMessage = nil
-        let submission = StaffTaskSubmission(
+        var submission = StaffTaskSubmission(
             title: title,
             description: description,
             status: status,
@@ -713,6 +740,9 @@ private struct NativeTaskEditor: View {
             assigneeId: assigneeType == "unassigned" ? nil : assigneeId,
             dueAt: hasDueDate ? dueAt : nil
         )
+        if task == nil {
+            submission.idempotencyKey = creationReplay.key(for: submission.creationFingerprint)
+        }
         Task {
             let error = await onSave(submission)
             isSaving = false

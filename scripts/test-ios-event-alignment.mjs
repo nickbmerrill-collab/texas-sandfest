@@ -25,6 +25,8 @@ const entitlements = await read("ios/TexasSandFest/TexasSandFest.entitlements");
 const project = parseYaml(await read("ios/project.yml"));
 const xcodeProject = await read("ios/TexasSandFest.xcodeproj/project.pbxproj");
 const appDataStore = await read("ios/TexasSandFest/AppDataStore.swift");
+const nativeIncidents = await read("ios/TexasSandFest/OpsView.swift");
+const nativeTasks = await read("ios/TexasSandFest/TaskBoardView.swift");
 
 assert.deepEqual(
   iosSeed,
@@ -41,6 +43,12 @@ assert.ok(canonical.guidance.every(item => item.sourceUrl.startsWith("https://ww
 assert.equal(appDataStore.includes("loaded.schedule.count < 10"), false, "The iOS app must not fill a governed public schedule with sample programming.");
 assert.match(appDataStore, /guidance: publicPayload\.guidance \?\? bundled\.guidance/, "The iOS app must preserve validated public guidance across refreshes.");
 assert.match(appDataStore, /runtime\?\.mode == "board_demo"/, "Sample iOS programming must require explicit board runtime metadata.");
+assert.match(appDataStore, /struct NativeCreationReplayState/, "Native creation workflows must share stable replay identity state.");
+assert.match(nativeIncidents, /forHTTPHeaderField: "Idempotency-Key"/, "Native incident creation must send its stable replay identity.");
+assert.match(nativeIncidents, /creationReplay\.key\(for: fingerprint\)/, "Native incident creation must retain its replay identity until submitted details change.");
+assert.match(nativeTasks, /forHTTPHeaderField: "Idempotency-Key"/, "Native task creation must send its stable replay identity.");
+assert.match(nativeTasks, /allowedStatuses: \[200, 201\]/, "Native task creation must accept both first-create and replay responses.");
+assert.match(nativeTasks, /creationReplay\.key\(for: submission\.creationFingerprint\)/, "Native task creation must rotate replay identity only when submitted details change.");
 
 const timeline = await read("ios/TexasSandFest/LiveTimeline.swift");
 const schedule = await read("ios/TexasSandFest/ScheduleView.swift");

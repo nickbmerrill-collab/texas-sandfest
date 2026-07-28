@@ -44,6 +44,10 @@ const config = deploymentVerificationConfig({
   SANDFEST_LIVE_EXPECTED_EVENT_ID: "texas-sandfest-2027",
   SANDFEST_APPLE_APP_ID_PREFIX: "ABCDE12345"
 });
+const allowedCorsOrigins = new Set([
+  new URL(config.publicUrl).origin,
+  new URL(config.adminUrl).origin
+]);
 
 function jsonResponse(value, extraHeaders = {}) {
   return new Response(JSON.stringify(value), {
@@ -54,6 +58,11 @@ function jsonResponse(value, extraHeaders = {}) {
 
 function textResponse(value, extraHeaders = {}) {
   return new Response(value, { status: 200, headers: { "content-type": "text/html", ...securityHeaders, ...extraHeaders } });
+}
+
+function originCorsHeaders(options = {}) {
+  const origin = String(options?.headers?.origin || "");
+  return allowedCorsOrigins.has(origin) ? { "access-control-allow-origin": origin } : {};
 }
 
 const readyBody = {
@@ -123,7 +132,7 @@ const routes = new Map([
   [config.adminUrl, () => textResponse(adminHtml)],
   [new URL("health", config.apiUrl).toString(), () => jsonResponse(healthBody)],
   [new URL("ready", config.apiUrl).toString(), () => jsonResponse(readyBody)],
-  [new URL("api/public/bootstrap", config.apiUrl).toString(), options => jsonResponse({ guide: { id: "texas-sandfest-2027" }, guidance: publicGuidance }, options?.headers?.origin ? { "access-control-allow-origin": options.headers.origin } : {})],
+  [new URL("api/public/bootstrap", config.apiUrl).toString(), options => jsonResponse({ guide: { id: "texas-sandfest-2027" }, guidance: publicGuidance }, originCorsHeaders(options))],
   [new URL("api/public/tickets", config.apiUrl).toString(), () => jsonResponse({ products: [{ availableForCheckout: true }] })],
   [new URL("api/public/sponsors", config.apiUrl).toString(), () => jsonResponse({ sponsorPackages: [{ id: "whale", name: "Whale", amount: 2500000, currency: "usd", publicLabel: "$25k+", active: true, requiresApproval: true, benefits: ["Main-stage recognition"] }] })],
   [new URL("api/public/vendors", config.apiUrl).toString(), () => jsonResponse({ vendorOfferings: [{ id: "food" }] })],
@@ -204,7 +213,7 @@ const unsafeBootstrapFetch = async (url, options = {}) => {
       guide: { id: "texas-sandfest-2027" },
       schedule: [{ id: "briefing", title: "Volunteer captain briefing", category: "Staff" }],
       sponsors: [{ invoiceStatus: "overdue" }]
-    }, options?.headers?.origin ? { "access-control-allow-origin": options.headers.origin } : {});
+    }, originCorsHeaders(options));
   }
   return fetchImpl(url, options);
 };
@@ -212,6 +221,16 @@ const unsafeBootstrap = await verifyLiveDeployment({ config, artifacts, fetchImp
 check("private static and API bootstrap fields fail closed", !unsafeBootstrap.ok
   && unsafeBootstrap.checks.some(item => item.id === "public.static_bootstrap_privacy" && !item.ok)
   && unsafeBootstrap.checks.some(item => item.id === "api.public_bootstrap_privacy" && !item.ok));
+
+const reflectingCorsFetch = async (url, options = {}) => {
+  if (String(url) === new URL("api/public/bootstrap", config.apiUrl).toString()) {
+    return jsonResponse({ guide: { id: "texas-sandfest-2027" }, guidance: publicGuidance }, options?.headers?.origin ? { "access-control-allow-origin": options.headers.origin } : {});
+  }
+  return fetchImpl(url, options);
+};
+const unsafeCors = await verifyLiveDeployment({ config, artifacts, fetchImpl: reflectingCorsFetch });
+check("API release gate rejects reflected untrusted CORS origins", !unsafeCors.ok
+  && unsafeCors.checks.some(item => item.id === "api.cors_rejects_untrusted_origin" && !item.ok));
 
 const unsafeMediaFetch = async (url, options = {}) => {
   if (String(url) === new URL("assets/sandfest-media/media-manifest.json", config.publicUrl).toString()) {

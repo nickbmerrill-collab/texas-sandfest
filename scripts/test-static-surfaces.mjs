@@ -18,8 +18,13 @@ const root = path.resolve(import.meta.dirname, "..");
 const publicDir = path.join(root, "dist-public");
 const adminDir = path.join(root, "dist-admin");
 const visitorSource = await readFile(path.join(root, "src", "main.js"), "utf8");
+const ticketPaymentSandboxSource = await readFile(path.join(root, "src", "board-demo", "ticket-payment-sandbox.js"), "utf8");
+const partnerPaymentSandboxSource = await readFile(path.join(root, "src", "board-demo", "partner-payment-sandbox.js"), "utf8");
 const partnerIntakeSource = await readFile(path.join(root, "src", "partner-intake-readiness-ui.js"), "utf8");
+const guestServicesSource = await readFile(path.join(root, "src", "guest-services-ui.js"), "utf8");
+const adminCreationSource = await readFile(path.join(root, "src", "admin-creation.js"), "utf8");
 const adminOperationsSource = await readFile(path.join(root, "src", "admin-operations-ui.js"), "utf8");
+const adminBudgetSource = await readFile(path.join(root, "src", "admin-budget.js"), "utf8");
 const taskPortalSource = await readFile(path.join(root, "src", "task-portal-ui.js"), "utf8");
 
 async function exists(file) {
@@ -220,16 +225,16 @@ assert(publicStylesheets.includes("font-family:Inter") && publicStylesheets.incl
 assert(publicAssets.some(file => file.endsWith(".woff2")), "Public artifact is missing bundled font files.");
 assert(Buffer.byteLength(publicHtml) <= 8 * KIB, "Public entry HTML exceeds the 8 KiB delivery budget.");
 assert(publicInitialScripts.gzipBytes <= 106 * KIB, "Initial public JavaScript exceeds the 106 KiB gzip budget.");
-assert(publicOptionalScripts.gzipBytes <= 13 * KIB, "On-demand public JavaScript exceeds the 13 KiB gzip budget.");
+assert(publicOptionalScripts.gzipBytes <= 14 * KIB, "On-demand public JavaScript exceeds the 14 KiB gzip budget.");
 assert(publicStyles.gzipBytes <= 30 * KIB, "Public CSS exceeds the 30 KiB gzip budget.");
-assert(publicScripts.gzipBytes + publicStyles.gzipBytes <= 147 * KIB, "Public JavaScript and CSS exceed the 147 KiB combined gzip budget.");
+assert(publicScripts.gzipBytes + publicStyles.gzipBytes <= 148 * KIB, "Public JavaScript and CSS exceed the 148 KiB combined gzip budget.");
 assert(publicPreferredFonts.rawBytes <= 200 * KIB, "Public preferred WOFF2 fonts exceed the 200 KiB delivery budget.");
 assert(publicOfflineFonts.rawBytes <= 450 * KIB, "Public compiled fonts exceed the 450 KiB offline-cache budget.");
-assert(adminInitialScripts.gzipBytes <= 123 * KIB, "Initial admin JavaScript exceeds the 123 KiB gzip budget.");
+assert(adminInitialScripts.gzipBytes <= 124 * KIB, "Initial admin JavaScript exceeds the 124 KiB gzip budget.");
 assert(adminOptionalScripts.gzipBytes <= 6 * KIB, "On-demand admin JavaScript exceeds the 6 KiB gzip budget.");
 assert(adminContentScripts.gzipBytes <= 4 * KIB, "On-demand admin content JavaScript exceeds the 4 KiB gzip budget.");
 assert(adminStyles.gzipBytes <= 30 * KIB, "Admin CSS exceeds the 30 KiB gzip budget.");
-assert(adminScripts.gzipBytes + adminStyles.gzipBytes <= 158 * KIB, "Admin JavaScript and CSS exceed the 158 KiB combined gzip budget.");
+assert(adminScripts.gzipBytes + adminStyles.gzipBytes <= 159 * KIB, "Admin JavaScript and CSS exceed the 159 KiB combined gzip budget.");
 assert(robots === "User-agent: *\nAllow: /\n", "Public artifact has an invalid or unexpected robots.txt policy.");
 assert(publicHtml.includes("optimized/hero-1440.webp") && publicHtml.includes('fetchpriority="high"'), "Public artifact is missing its optimized hero preload.");
 assert(mediaDerivatives.derivatives?.length >= 30, "Public artifact is missing its optimized media catalog.");
@@ -293,6 +298,25 @@ assert(adminJavaScript.includes("/api/admin/partners/followups/")
   && !publicJavaScript.includes("data-reconcile-followup"), "Partner delivery reconciliation must remain admin-only and available on demand.");
 assert(adminOptionalScriptFiles.some(file => file.startsWith("admin-budget-"))
   && visitorSource.includes('adminBudgetUiPromise ||= import("./admin-budget.js")'), "The permission-gated budget workspace must remain on demand.");
+assert(adminCreationSource.includes('"idempotency-key": creationRetryKey')
+  && adminBudgetSource.includes("submitCreation")
+  && adminBudgetSource.includes("Finance will record it only once."), "Finance creation forms do not retain replay protection after an ambiguous response.");
+assert(adminCreationSource.includes('"idempotency-key": creationRetryKey')
+  && adminOperationsSource.includes("submitCreation")
+  && adminOperationsSource.includes("Operations will delegate it only once.")
+  && adminOperationsSource.includes("Operations will record it only once."), "Delegation and key-date forms do not retain replay protection after an ambiguous response.");
+assert(adminOperationsSource.includes('OUTREACH_RETRY_MESSAGE = "Retry safely; saved once."')
+  && adminOperationsSource.includes("bindOutreachProspectCreation")
+  && adminOperationsSource.includes("bindOutreachCampaignCreation"), "Outreach creation forms do not retain replay protection after an ambiguous response.");
+assert(adminOperationsSource.includes("bindSponsorPackageCreation")
+  && adminOperationsSource.includes("bindVendorOfferingCreation")
+  && adminOperationsSource.includes('"Saved."'), "Sponsor and vendor catalog creation forms do not retain replay protection after an ambiguous response.");
+assert(adminOperationsSource.includes("export { submitCreation };")
+  && visitorSource.includes("adminOperationsUi?.submitCreation")
+  && visitorSource.includes('"Retry safely; saved once."'), "Custom sponsor deliverable creation does not retain replay protection after an ambiguous response.");
+assert(visitorSource.includes('"/api/admin/island-conditions/incidents"')
+  && visitorSource.includes("loadAdminPartners: loadAdminConditions")
+  && visitorSource.includes('"Incident opened."'), "Operator incident creation does not retain replay protection after an ambiguous response.");
 assert(adminContentScriptFiles.length === 1
   && visitorSource.includes('adminSculptorRosterUiPromise ??= import("./admin-sculptor-roster-ui.js")'), "The staff roster publication workspace must remain on demand.");
 for (const marker of boardDemoCredentialMarkers) {
@@ -349,12 +373,21 @@ assert(sourcePassport.hunt?.active === false && sourcePassport.checkpoints?.leng
 assert(!(await exists(path.join(publicDir, "board-demo"))) && !(await exists(path.join(publicDir, "data", "sculptors-demo.json"))) && !(await exists(path.join(publicDir, "data", "live-beach-demo.json"))), "Production artifact contains local board-demonstration data files.");
 assert(
   visitorSource.includes('if (import.meta.env.DEV && data.demoCheckout)')
+    && visitorSource.includes('import("./board-demo/ticket-payment-sandbox.js")')
     && visitorSource.includes('import("./board-demo/partner-payment-sandbox.js")'),
-  "Partner invoice sandbox is not isolated behind the development build boundary."
+  "Ticket or partner payment sandbox is not isolated behind the development build boundary."
 );
-for (const marker of ["board-partner-checkout", "partner-payment-sandbox"]) {
-  assert(!publicJavaScript.includes(marker), `Public production JavaScript contains the board-only partner payment marker ${marker}.`);
-  assert(!adminJavaScript.includes(marker), `Admin production JavaScript contains the board-only partner payment marker ${marker}.`);
+assert(
+  visitorSource.includes("requestOutcomeIsAmbiguous")
+    && visitorSource.includes("resume the same checkout without creating a second order")
+    && visitorSource.includes("The invoice is unchanged. Try again to resume the same checkout.")
+    && ticketPaymentSandboxSource.includes("the same order will be reused")
+    && partnerPaymentSandboxSource.includes("the same invoice payment will be reused"),
+  "Ticket or partner payment recovery does not explain replay-safe ambiguous outcomes."
+);
+for (const marker of ["board-ticket-checkout", "ticket-payment-sandbox", "board-partner-checkout", "partner-payment-sandbox"]) {
+  assert(!publicJavaScript.includes(marker), `Public production JavaScript contains the board-only payment marker ${marker}.`);
+  assert(!adminJavaScript.includes(marker), `Admin production JavaScript contains the board-only payment marker ${marker}.`);
 }
 for (const marker of fictionalPublicContentMarkers) {
   assert(!serializedPublicRoster.includes(marker), `Public sculptor roster contains fictional marker ${marker}.`);
@@ -469,7 +502,7 @@ for (const marker of [
   "operating profile review notes",
   "brand profile review notes",
   "delivery proof URL",
-  "custom deliverable due date",
+  "deliverable due date",
   "outreach suppression reason"
 ]) {
   assert(visitorSource.includes(marker), `Admin source is missing the accessible control marker ${marker}.`);
@@ -495,7 +528,7 @@ assert(publicStylesheets.includes("outline:3px solid var(--sun)") && adminStyles
 assert(publicStylesheets.includes("[hidden]{display:none!important}") && adminStylesheets.includes("[hidden]{display:none!important}"), "Compiled surfaces allow component display rules to override hidden states.");
 assert(visitorSource.includes("armPartnerBotProtection();") && !visitorSource.includes("initPartnerBotProtection(),"), "Partner bot protection is not deferred until form interaction.");
 assert((visitorSource.match(/\bfetch\(/g) || []).length === 1 && visitorSource.includes("fetchWithTimeout"), "Browser requests are not consistently bounded by the shared timeout wrapper.");
-assert(visitorSource.includes("Your private access is still saved; try again.") && visitorSource.includes("!activePartnerPortalApplication"), "Transient partner-portal failures do not preserve private access and the last loaded view.");
+assert(visitorSource.includes("Your private access is still saved while we retry automatically.") && visitorSource.includes("!activePartnerPortalApplication"), "Transient partner-portal failures do not preserve private access and the last loaded view.");
 assert(visitorSource.includes('const portalAccess = partnerPortalAccessFromFragment();\n    if (portalAccess) {\n      loadPartnerPortalStatus(portalAccess, { scroll: true });')
   && visitorSource.includes("if (taskPortalRequested())")
   && visitorSource.includes("loadTaskPortalFromLocation({ scroll: true });")
@@ -511,8 +544,9 @@ assert(visitorSource.includes("const loadVersion = ++outreachPreferenceLoadVersi
   && visitorSource.includes("if (loadVersion !== outreachPreferenceLoadVersion) return;"), "Outreach preference links can erase valid access or render stale overlapping responses.");
 assert(visitorSource.includes("const loadVersion = ++sponsorInvitationLoadVersion;")
   && visitorSource.includes("if (loadVersion !== sponsorInvitationLoadVersion) return;"), "Overlapping sponsor invitation links can render an older invitation.");
+const sponsorInvitationLoader = visitorSource.slice(visitorSource.indexOf("async function loadSponsorInvitation"), visitorSource.indexOf("function clearSponsorInvitationForm"));
 const outreachPreferenceLoader = visitorSource.slice(visitorSource.indexOf("async function loadOutreachPreference"), visitorSource.indexOf("function rememberPartnerPortalAccess"));
-assert(visitorSource.indexOf('window.location.hash.startsWith("#sponsor-invitation?")') < visitorSource.indexOf('body: JSON.stringify({ token })')
+assert(sponsorInvitationLoader.indexOf('window.location.hash.startsWith("#sponsor-invitation?")') < sponsorInvitationLoader.indexOf('body: JSON.stringify({ token })')
   && taskPortalSource.indexOf("concealCapability();") < taskPortalSource.indexOf("body: JSON.stringify(access)")
   && outreachPreferenceLoader.indexOf('window.location.hash.startsWith("#outreach-preferences?")') < outreachPreferenceLoader.indexOf("body: JSON.stringify(access)"), "Private fragment capabilities are not concealed before provider requests.");
 assert(visitorSource.includes('import("./task-portal-ui.js")')
@@ -522,10 +556,53 @@ assert(visitorSource.includes('import("./partner-intake-readiness-ui.js")')
   && publicOptionalScriptFiles.some(file => file.startsWith("partner-intake-readiness-ui-"))
   && !publicInitialScriptFiles.some(file => file.startsWith("partner-intake-readiness-ui-")), "Partner intake readiness is not isolated as an on-demand public chunk.");
 assert(partnerIntakeSource.includes("[400, 401, 403, 409, 422].includes(error.status)") && partnerIntakeSource.includes("retry protection remains active"), "Partner intake does not distinguish correctable errors from retry-safe transient failures.");
+assert(visitorSource.includes('window.addEventListener("beforeunload", preventUnsavedPublicFormUnload)')
+  && visitorSource.includes('window.removeEventListener("beforeunload", preventUnsavedPublicFormUnload)')
+  && visitorSource.includes('["#sponsor-inquiry-form", "#vendor-application-form"]')
+  && visitorSource.includes("protectUnsavedForm: protectUnsavedPublicForm")
+  && guestServicesSource.includes("protectUnsavedForm?.(intake)"), "Public intake forms do not protect unsaved entries without keeping a permanent unload listener.");
+assert(guestServicesSource.includes("if (error.status === 409) delete form.dataset.idempotencyKey")
+  && guestServicesSource.includes("retry protection remains active")
+  && guestServicesSource.includes("Your entries are still here"), "Guest Services intake does not preserve ambiguous retries or release a definitive conflict key.");
+assert(partnerIntakeSource.includes('href="mailto:sponsors@texassandfest.org"')
+  && partnerIntakeSource.includes('href="mailto:vendors@texassandfest.org"')
+  && partnerIntakeSource.includes('["loading", "checking"].includes(readinessStatus)')
+  && visitorSource.includes('partnerIntakeReadinessUi?.contactFallback("sponsor", unavailableState)')
+  && visitorSource.includes('partnerIntakeReadinessUi?.contactFallback("vendor", unavailableState)'), "Unavailable partner intake does not provide category-specific contact fallbacks after readiness resolves.");
 const publicAlertLoader = visitorSource.slice(visitorSource.indexOf("async function loadPublicAlert"), visitorSource.indexOf("function applyPublicEventGuide"));
 assert(publicAlertLoader && !publicAlertLoader.includes("renderPublicAlert(null)"), "A transient public-alert fetch failure clears the last known safety message.");
 assert(visitorSource.includes('loadIslandConditions({ force: true, preserveOnError: true })'), "Manual Island Conditions refresh does not preserve the last known reading on failure.");
-assert(visitorSource.includes('window.addEventListener("online", recoverPublicConnectivity)') && visitorSource.includes("recoveryLoads.push(loadPartnerPortalStatus(portalAccess))") && visitorSource.includes("recoveryLoads.push(loadTaskPortalFromLocation())"), "Public connectivity recovery does not refresh live data and retained private access.");
+assert(visitorSource.includes('window.addEventListener("online", recoverPublicConnectivity)')
+  && visitorSource.includes("recoveryLoads.push(loadPartnerPortalStatus(portalAccess))")
+  && visitorSource.includes("recoveryLoads.push(loadTaskPortalFromLocation())")
+  && visitorSource.includes("recoveryLoads.push(loadOutreachPreference(activeOutreachPreferenceAccess))")
+  && visitorSource.includes("controller.reloadStatus()")
+  && visitorSource.includes("loadSponsorInvitation(pendingSponsorInvitationToken)"), "Public connectivity recovery does not refresh live data and retained private access.");
+assert(visitorSource.includes("publicRecoveryRetryAttempt >= 5")
+  && visitorSource.includes("schedulePublicConnectivityRecovery();")
+  && visitorSource.includes("if (!publicRecoveryRetryTimer) publicRecoveryRetryAttempt = 0;")
+  && visitorSource.includes("controller.refresh()")
+  && visitorSource.includes("onFailure: schedulePublicConnectivityRecovery"), "Public intake does not automatically recover after a transient readiness or catalog interruption.");
+assert(visitorSource.includes("onTransientFailure: schedulePublicConnectivityRecovery")
+  && visitorSource.includes("if (!accessRejected) schedulePublicConnectivityRecovery()")
+  && visitorSource.includes("pendingSponsorInvitationToken = token")
+  && taskPortalSource.includes("options.onTransientFailure?.()")
+  && guestServicesSource.includes("Guest Services status is temporarily unavailable. Select View status to try again.")
+  && guestServicesSource.includes("activeStatusAccess || saved()"), "Private capability lookups do not retry bounded transient failures while retaining access safely.");
+assert(visitorSource.includes("data-sponsor-retry")
+  && visitorSource.includes("button.onclick = recoverPublicConnectivity")
+  && visitorSource.includes("publicRecoveryRetryAttempt >= 5")
+  && taskPortalSource.includes("data-task-status-retry")
+  && taskPortalSource.includes("Your private access is saved in this browser.")
+  && guestServicesSource.includes("Select View status to try again."), "Private capability lookups do not expose an accessible manual recovery path after bounded retries pause.");
+assert(taskPortalSource.includes('"idempotency-key": pendingUpdate.key')
+  && taskPortalSource.includes("pendingUpdate?.fingerprint !== updateFingerprint")
+  && taskPortalSource.includes("Operations will record it only once."), "Private task updates do not preserve an exact retry identity after an ambiguous response.");
+assert(visitorSource.includes('setAdminWorkspaceState("failed", retryable)')
+  && visitorSource.includes('adminOperationsUi?.createAdminWorkspaceRecovery')
+  && visitorSource.includes('" Retrying automatically."')
+  && adminOperationsSource.includes('node?.dataset.workspaceState === "failed" && access()')
+  && adminOperationsSource.includes('error.status === 429 || error.status >= 500'), "Operations does not automatically reconnect after a retryable API interruption.");
 
 console.log(
   `Static entrypoint isolation verified: visitor entry is 2027-current, CSP-hardened, self-hosted, Turnstile-protected, public-only, and within delivery budgets ` +

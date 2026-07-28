@@ -15,7 +15,7 @@ This doc is the contract that Heyelab's auth service must satisfy for the SandFe
 | Key rotation | Publish new keys on the JWKS endpoint **before** signing with them; keep old keys for at least one token-lifetime window after rotation. The SandFest API caches the JWKS with `jose`'s default policy and refetches on `kid` miss. |
 | Discovery | `GET https://auth.heyelab.com/.well-known/openid-configuration` is required by the browser admin client. It must advertise the issuer, authorization endpoint, token endpoint, JWKS URI, `code` response type, and `S256` PKCE support. The token and discovery endpoints must allow CORS from `https://sandfest-admin.heyelab.com`. |
 
-The API still reads `SANDFEST_AUTH_JWKS_URL` directly. Discovery is required for the admin browser login, not for API token verification.
+The API still reads `SANDFEST_AUTH_JWKS_URL` directly. Discovery is required for the admin browser login, not for API token verification. JWT mode refuses every request unless both `SANDFEST_AUTH_ISSUER` and `SANDFEST_AUTH_AUDIENCE` are configured, and accepts only asymmetric signatures. A valid signature alone is never sufficient.
 
 ## Browser client registration
 
@@ -102,7 +102,7 @@ SANDFEST_AUTH_ROLE_CLAIM=sandfest_role
 SANDFEST_AUTH_ACTOR_CLAIM=sub
 ```
 
-`GET /api/admin/deployment` returns the readiness profile and surfaces `authMode`, `authJwks`, and `authIssuer` checks. Until Heyelab's IdP is live, those checks fail with `error` severity and `/ready` returns 503 — which is the right behavior, because no admin should be able to use the API until the IdP is real.
+`GET /api/admin/deployment` returns the readiness profile and surfaces `authMode`, `authJwks`, `authIssuer`, and `authAudience` checks. Until Heyelab's IdP is live, those checks fail with `error` severity and `/ready` returns 503 — which is the right behavior, because no admin should be able to use the API until the IdP is real. `npm run test:auth` serves an isolated JWKS, signs real tokens, and proves issuer, audience, asymmetric algorithm, subject, lifetime, and role enforcement without contacting the live provider.
 
 ## Interim: Clerk dev instance
 

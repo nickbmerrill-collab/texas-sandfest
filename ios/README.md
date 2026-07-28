@@ -135,7 +135,9 @@ The native command screen reads the shared Island Conditions incident ledger,
 creates operator incidents, records status and resolution changes, and creates
 team dispatch assignments with optional email drafts. It does not expose a send
 action, and failed or unauthenticated requests never create local incident or
-dispatch state.
+dispatch state. Native task and incident creation retain one replay key for an
+unchanged retry, accept the API's first-create and replay responses, and rotate
+that key when the operator edits the submission.
 
 ## Ask Sandy
 

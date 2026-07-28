@@ -75,6 +75,12 @@ function friendlyRequestError(error, fallback = "The request could not be comple
   return error?.message || fallback;
 }
 
+function requestOutcomeIsAmbiguous(error) {
+  return ["request_timeout", "network_error"].includes(error?.code)
+    || [408, 429].includes(error?.status)
+    || error?.status >= 500;
+}
+
 const safeExternalHref = value => {
   try {
     const url = new URL(String(value || ""));
@@ -185,6 +191,7 @@ const [
   scheduleDemoPromise
 ]);
 let runtimeDataMode = null;
+let boardCapabilityProofUiPromise = null;
 
 const mediaDerivativeBySource = new Map(
   (mediaDerivatives?.derivatives ?? []).map(derivative => [derivative.sourcePath, derivative])
@@ -276,6 +283,7 @@ let partnerImportPreview = null;
 let outreachImportPreview = null;
 let outreachDiscoveryPreview = null;
 let activeSponsorInvitationToken = null;
+let pendingSponsorInvitationToken = null;
 let sponsorInvitationLoadVersion = 0;
 let activePartnerPortalAccess = null;
 let activePartnerPortalApplication = null;
@@ -295,6 +303,8 @@ let publicVendorProgram = {
 let partnerIntakeReadinessUi = null;
 let partnerIntakeReadinessUiPromise = null;
 let partnerIntakeReadinessUiFailed = false;
+let publicRecoveryRetryTimer = null;
+let publicRecoveryRetryAttempt = 0;
 const sponsorContactNotice = partnerContactNotice("sponsor");
 const vendorInterestContactNotice = partnerContactNotice("vendor", "interest");
 const taskBoardFilters = { status: "active", assignment: "all", query: "" };
@@ -1057,7 +1067,7 @@ app.innerHTML = `
         </div>
       </div>
       <div class="booth-map-layout">
-        <div class="booth-corridor" id="booth-corridor" aria-label="Vendor booth map"></div>
+        <div class="booth-corridor" id="booth-corridor" role="region" aria-label="Vendor booth map"></div>
         <div class="booth-list keyboard-scroll-region" id="booth-list" role="region" aria-label="Vendor booth directory" tabindex="0"></div>
       </div>
     </section>
@@ -1165,20 +1175,6 @@ app.innerHTML = `
           <span id="admin-job-summary">Not checked</span>
         </article>
       </div>
-      ${BOARD_DEMO_ACCESS.enabled ? `
-        <section id="admin-board-stage-summary" class="admin-board-stage-summary" aria-label="Board presentation activation boundary">
-          <div data-board-stage="presentation-ready">
-            <span>Board-ready</span>
-            <strong>Real workflows with synthetic providers</strong>
-            <p>Intake, receivables, key dates, delegated work, sponsor branding, outreach, and Island Conditions use the real application contracts.</p>
-          </div>
-          <div data-board-stage="post-presentation">
-            <span>Post-board</span>
-            <strong>Live provider activation</strong>
-            <p>Connect Stripe, QuickBooks, Brevo, Twilio, NWS, TxDOT, eight webcam edge agents, OIDC, Turnstile, DNS, and managed recovery.</p>
-          </div>
-        </section>
-      ` : ""}
       <div class="admin-launch-readiness" id="admin-launch-readiness">
         <div class="admin-launch-readiness-heading">
           <div>
@@ -1638,6 +1634,7 @@ app.innerHTML = `
             <select name="assigneeTeam" aria-label="Responsible team"><option value="operations">Operations</option><option value="sponsor">Sponsor</option><option value="finance">Finance</option><option value="volunteer-captains">Volunteer captains</option><option value="traffic">Traffic and parking</option><option value="guest-services">Guest services</option><option value="production">Production</option></select>
             <input name="reminderLeadDays" type="number" min="0" max="30" step="1" value="3" aria-label="Reminder lead days" />
             <button class="button primary" type="submit">Add key date</button>
+            <p class="partner-form-status admin-import-wide"></p>
           </form>
           <div id="admin-partner-milestones" class="admin-key-date-list keyboard-scroll-region" role="region" aria-label="Partner key dates" tabindex="0"></div>
         </div>
@@ -1659,7 +1656,7 @@ app.innerHTML = `
         </div>
         <div class="admin-partner-columns">
           <div id="admin-partner-applications-workspace"><strong>Applications and accounting</strong><div id="admin-partner-applications" class="admin-partner-list keyboard-scroll-region" role="region" aria-label="Partner applications and accounting" tabindex="0"></div></div>
-          <div id="admin-partner-followups-workspace"><strong>Message drafts</strong><div id="admin-partner-followups" class="admin-partner-list keyboard-scroll-region" role="region" aria-label="Partner message drafts" tabindex="0"></div></div>
+          <div id="admin-partner-followups-workspace"><strong>Message drafts</strong><div id="admin-partner-followups-summary"></div><div id="admin-partner-followups" class="admin-partner-list keyboard-scroll-region" role="region" aria-label="Partner message drafts" tabindex="0"></div></div>
         </div>
         <div class="admin-partner-create">
           <form id="admin-import-partners" class="admin-inline-form admin-outreach-import" data-requires-permission="partners:write">
@@ -1684,6 +1681,7 @@ app.innerHTML = `
             <label class="admin-task-wide"><span>Description</span><textarea name="description" rows="3" maxlength="1000"></textarea></label>
             <datalist id="admin-task-assignee-options"></datalist>
             <button class="button primary" type="submit">Assign task</button>
+            <p class="partner-form-status admin-task-wide"></p>
           </form>
           <form id="admin-create-prospect" class="admin-inline-form" data-requires-permission="outreach:write">
             <strong>Add outreach target</strong>
@@ -1710,6 +1708,7 @@ app.innerHTML = `
             <label><span>Follow-up due</span><input name="nextActionAt" type="datetime-local" /></label>
             <label class="admin-task-wide"><span>Next action</span><input name="nextAction" maxlength="300" value="Research decision maker" /></label>
             <button class="button primary" type="submit">Score prospect</button>
+            <p class="partner-form-status admin-task-wide"></p>
           </form>
           <form id="admin-import-prospects" class="admin-inline-form admin-outreach-import" data-requires-permission="outreach:write">
             <strong>Import outreach list</strong>
@@ -1795,6 +1794,7 @@ app.innerHTML = `
             <section id="admin-campaign-audience-preview" class="admin-campaign-audience-preview" data-state="idle" aria-live="polite">
               <strong>Audience preview required</strong><span>Check exact server-qualified businesses and message personalization before saving this campaign draft.</span>
             </section>
+            <p class="partner-form-status"></p>
           </form>
           <div>
             <strong>Campaigns</strong>
@@ -1863,7 +1863,7 @@ app.innerHTML = `
               <label class="admin-check"><input name="requiresApproval" type="checkbox" checked /><span>Approval required</span></label>
             </div>
             <div class="admin-edit-actions">
-              <span>Provider mappings remain private</span>
+              <span class="partner-form-status" aria-live="polite">Provider mappings remain private</span>
               <button class="button primary" type="submit">Add tier</button>
             </div>
           </form>
@@ -1924,7 +1924,7 @@ app.innerHTML = `
               <label class="admin-check"><input name="requiresApproval" type="checkbox" checked /><span>Approval required</span></label>
             </div>
             <div class="admin-edit-actions">
-              <span></span>
+              <span class="partner-form-status" aria-live="polite"></span>
               <button class="button primary" type="submit">Add offering</button>
             </div>
           </form>
@@ -2158,7 +2158,7 @@ app.innerHTML = `
             ${import.meta.env.DEV && BOARD_DEMO_ACCESS.enabled ? '<button class="button secondary partner-demo-preset" type="button" data-board-partner-preset="sponsor">Use demo sponsor</button>' : ""}
           </div>
           <p class="partner-availability-note" data-sponsor-program-unavailable>Loading the current sponsorship program. You can also view the <a href="https://www.texassandfest.org/sponsorship" target="_blank" rel="noopener noreferrer">official sponsorship page</a>.</p>
-          <div id="sponsor-invitation" class="sponsor-invitation" hidden><strong>SandFest invitation</strong><span id="sponsor-invitation-copy"></span></div>
+          <div id="sponsor-invitation" class="sponsor-invitation" hidden><strong>SandFest invitation</strong><span id="sponsor-invitation-copy"></span><button data-sponsor-retry class="button secondary" type="button" hidden>Retry now</button></div>
           <div class="partner-fields">
             <label>Business or organization<input name="organizationName" required maxlength="160" autocomplete="organization" /></label>
             <label>Contact name<input name="contactName" required maxlength="120" autocomplete="name" /></label>
@@ -2365,6 +2365,12 @@ app.innerHTML = `
     </footer>`}
   </main>
 `;
+
+const adminWorkspaceRecovery = adminOperationsUi?.createAdminWorkspaceRecovery({
+  access: adminToken,
+  load: loadAdminWorkspace,
+  status: () => document.querySelector("#admin-api-status")
+});
 
 renderPublicVolunteerProgram(event.volunteer);
 
@@ -2628,25 +2634,6 @@ function closeTicketDemoCheckout() {
   renderTicketCart();
 }
 
-function showTicketDemoCheckout(checkout) {
-  if (checkout?.mode !== "board_sandbox" || checkout.completeEndpoint !== "/api/public/board-ticket-checkout/complete" || typeof checkout.token !== "string") {
-    throw new Error("The local payment sandbox returned an invalid checkout.");
-  }
-  ticketDemoCheckoutState = checkout;
-  const panel = document.querySelector("#ticket-demo-checkout");
-  const amount = document.querySelector("#ticket-demo-amount");
-  const summary = document.querySelector("#ticket-demo-summary");
-  const sandboxStatus = document.querySelector("#ticket-demo-status");
-  if (!panel || !amount || !summary || !sandboxStatus) throw new Error("The local payment sandbox is unavailable.");
-  amount.textContent = `${formatMoney(checkout.amountCents) || "$0.00"} demo`;
-  summary.innerHTML = checkout.lineItems.map(line => `<p><span>${escapeHtml(`${line.quantity} x ${line.name}`)}</span><strong>${escapeHtml(formatMoney(line.unitAmount * line.quantity) || "$0.00")}</strong></p>`).join("");
-  sandboxStatus.textContent = "Ready to simulate an approved payment. This stays on the local board runtime.";
-  sandboxStatus.dataset.state = "idle";
-  panel.hidden = false;
-  renderTicketCart();
-  document.querySelector("#ticket-demo-pay")?.focus();
-}
-
 async function loadPublicTicketCatalog() {
   try {
     const response = await fetchWithTimeout(`${publicApiBase()}/api/public/tickets`, { cache: "no-store" });
@@ -2688,50 +2675,6 @@ document.querySelector("#ticket-product-grid")?.addEventListener("click", event 
       else form?.scrollIntoView({ behavior: "smooth", block: "start" });
       form?.elements.organizationName?.focus({ preventScroll: true });
     }
-  }
-});
-
-document.querySelector("#ticket-demo-cancel")?.addEventListener("click", () => {
-  closeTicketDemoCheckout();
-  setFormStatus(document.querySelector("#checkout-status"), "Demo checkout closed. Your ticket selection is still here.", "idle");
-});
-
-document.querySelector("#ticket-demo-pay")?.addEventListener("click", async () => {
-  const checkout = ticketDemoCheckoutState;
-  const button = document.querySelector("#ticket-demo-pay");
-  const cancelButton = document.querySelector("#ticket-demo-cancel");
-  const sandboxStatus = document.querySelector("#ticket-demo-status");
-  const checkoutStatus = document.querySelector("#checkout-status");
-  if (!checkout || !button || !sandboxStatus) return;
-  button.disabled = true;
-  if (cancelButton) cancelButton.disabled = true;
-  setFormStatus(sandboxStatus, "Recording the local payment and creating fulfillment...", "loading");
-  try {
-    const response = await fetchWithTimeout(`${publicApiBase()}${checkout.completeEndpoint}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ token: checkout.token })
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || `Demo payment failed with ${response.status}`);
-    const receipt = data.receipt || {};
-    if (data.order?.status !== "paid" || receipt.environment !== "board_sandbox") throw new Error("The local payment did not return a paid receipt.");
-    ticketDemoCheckoutState = null;
-    ticketCart.clear();
-    acceptedTicketPolicyKey = null;
-    const policyAcceptance = document.querySelector("#ticket-policy-acceptance");
-    if (policyAcceptance) policyAcceptance.checked = false;
-    resetTicketCheckoutRetry();
-    document.querySelector("#ticket-demo-summary").innerHTML = `<p><span>Order</span><strong>${escapeHtml(receipt.orderId)}</strong></p><p><span>Fulfillment</span><strong>${escapeHtml(`${receipt.fulfillmentCount} wristband${receipt.fulfillmentCount === 1 ? "" : "s"} queued`)}</strong></p>`;
-    button.hidden = true;
-    if (cancelButton) cancelButton.hidden = true;
-    setFormStatus(sandboxStatus, "Demo payment complete. The order, payment event, fulfillment, and ticket revenue are now visible in operations.", "ok");
-    setFormStatus(checkoutStatus, `Demo payment complete for ${receipt.orderId}. No external charge was sent.`, "ok");
-    renderTicketCart();
-  } catch (error) {
-    setFormStatus(sandboxStatus, friendlyRequestError(error), "error");
-    button.disabled = false;
-    if (cancelButton) cancelButton.disabled = false;
   }
 });
 
@@ -2795,9 +2738,41 @@ document.querySelector("#checkout-btn").addEventListener("click", async () => {
       window.location.href = checkoutUrl;
       return;
     }
-    if (data.demoCheckout) {
-      showTicketDemoCheckout(data.demoCheckout);
+    if (import.meta.env.DEV && data.demoCheckout) {
+      const { showTicketPaymentSandbox } = await import("./board-demo/ticket-payment-sandbox.js");
+      showTicketPaymentSandbox(data.demoCheckout, {
+        complete: async (endpoint, token) => {
+          const paymentResponse = await fetchWithTimeout(`${publicApiBase()}${endpoint}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ token })
+          });
+          const payment = await paymentResponse.json().catch(() => ({}));
+          if (!paymentResponse.ok) {
+            const paymentError = new Error(payment.error || `Demo payment failed with ${paymentResponse.status}`);
+            paymentError.status = paymentResponse.status;
+            throw paymentError;
+          }
+          return payment;
+        },
+        onCancel: () => {
+          closeTicketDemoCheckout();
+          setFormStatus(status, "Demo checkout closed. Your ticket selection is still here.", "idle");
+        },
+        onComplete: result => {
+          ticketDemoCheckoutState = null;
+          ticketCart.clear();
+          acceptedTicketPolicyKey = null;
+          const policyAcceptance = document.querySelector("#ticket-policy-acceptance");
+          if (policyAcceptance) policyAcceptance.checked = false;
+          resetTicketCheckoutRetry();
+          setFormStatus(status, `Demo payment complete for ${result.receipt.orderId}. No external charge was sent.`, "ok");
+          renderTicketCart();
+        }
+      });
+      ticketDemoCheckoutState = data.demoCheckout;
       setFormStatus(status, "Local demo checkout created. Review the sandbox payment below.", "ok");
+      renderTicketCart();
       return;
     }
     const consentNote = data.order?.consent?.consentId
@@ -2810,7 +2785,10 @@ document.querySelector("#checkout-btn").addEventListener("click", async () => {
     setFormStatus(status, (data.message || `Checkout validated and stored as ${data.order?.id ?? "a pending order"}. Stripe is not configured yet.`) + consentNote, "ok");
   } catch (error) {
     if (error.status === 409) resetTicketCheckoutRetry();
-    setFormStatus(status, `${friendlyRequestError(error)} Please review the order and try again.`, "error");
+    const retryGuidance = requestOutcomeIsAmbiguous(error)
+      ? "Your selections are still here. Try again to resume the same checkout without creating a second order."
+      : "Please review the order and try again.";
+    setFormStatus(status, `${friendlyRequestError(error)} ${retryGuidance}`, "error");
   } finally {
     renderTicketCart();
   }
@@ -2866,10 +2844,11 @@ function setAdminStatus(message, state = "idle") {
   pill.dataset.state = state;
 }
 
-function setAdminWorkspaceState(state) {
+function setAdminWorkspaceState(state, retry = false) {
   const status = document.querySelector("#admin-api-status");
   status.dataset.workspaceState = state;
   status.setAttribute("aria-busy", state === "loading" ? "true" : "false");
+  adminWorkspaceRecovery?.transition(state, retry);
 }
 
 async function writeClipboardText(value) {
@@ -2925,11 +2904,20 @@ async function loadAdminSession() {
   return data.session;
 }
 
+function renderBoardCapabilityProof(proof) {
+  if (!import.meta.env.DEV || !BOARD_DEMO_ACCESS.enabled || !document.querySelector("#admin-launch-readiness")) return;
+  boardCapabilityProofUiPromise ||= import("./admin-board-capability-proof.js");
+  void boardCapabilityProofUiPromise.then(module => {
+    module.renderBoardCapabilityProof(proof, { conditionLabel });
+  });
+}
+
 function renderAdminDeployment(deployment) {
   const summary = document.querySelector("#admin-deployment-summary");
   const target = document.querySelector("#admin-deployment-checks");
   if (!summary || !target) return;
   adminDeploymentState = deployment;
+  renderBoardCapabilityProof(deployment.boardCapabilities);
   const state = deployment.ok ? "ready" : "blocked";
   summary.textContent = BOARD_DEMO_ACCESS.enabled
     ? `board demo · ${state} · live providers post-board`
@@ -3280,7 +3268,11 @@ async function loadAdminDocuments({ quiet = false } = {}) {
 async function adminFetch(path, options = {}) {
   const response = await adminRawFetch(path, options);
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || `Request failed with ${response.status}`);
+  if (!response.ok) {
+    const error = new Error(data.error || `Request failed with ${response.status}`);
+    error.status = response.status;
+    throw error;
+  }
   return data;
 }
 
@@ -3301,7 +3293,9 @@ async function adminRawFetch(path, options = {}) {
       headers
     });
   } catch (error) {
-    throw new Error(friendlyRequestError(error, "The operations API request failed."));
+    const requestError = new Error(friendlyRequestError(error, "The operations API request failed."));
+    requestError.code = error?.code;
+    throw requestError;
   }
   if (response.status === 401 && ADMIN_AUTH_MODE === "oidc") {
     await adminAuthClient?.clear().catch(() => {});
@@ -3323,7 +3317,10 @@ async function downloadAdminExport(name) {
   const link = document.createElement("a");
   link.href = url;
   link.download = fileName;
+  link.hidden = true;
+  document.body.append(link);
   link.click();
+  link.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   return fileName;
 }
@@ -4383,6 +4380,34 @@ async function loadBooths() {
   }
 }
 
+const dirtyPublicIntakeForms = new Set();
+const protectedPublicIntakeForms = new WeakSet();
+
+function preventUnsavedPublicFormUnload(event) {
+  event.preventDefault();
+  event.returnValue = "";
+}
+
+function syncUnsavedPublicFormGuard() {
+  if (dirtyPublicIntakeForms.size) window.addEventListener("beforeunload", preventUnsavedPublicFormUnload);
+  else window.removeEventListener("beforeunload", preventUnsavedPublicFormUnload);
+}
+
+function protectUnsavedPublicForm(form) {
+  if (!form || protectedPublicIntakeForms.has(form)) return;
+  protectedPublicIntakeForms.add(form);
+  const markDirty = () => {
+    dirtyPublicIntakeForms.add(form);
+    syncUnsavedPublicFormGuard();
+  };
+  form.addEventListener("input", markDirty);
+  form.addEventListener("change", markDirty);
+  form.addEventListener("reset", () => {
+    dirtyPublicIntakeForms.delete(form);
+    syncUnsavedPublicFormGuard();
+  });
+}
+
 function formPayload(form) {
   const payload = Object.fromEntries(new FormData(form).entries());
   payload.consentToContact = form.elements.consentToContact?.checked === true;
@@ -4502,7 +4527,9 @@ async function loadTaskPortalFromLocation(options = {}) {
         publicApiBase,
         fetchWithTimeout,
         friendlyRequestError,
+        requestOutcomeIsAmbiguous,
         conditionLabel,
+        onTransientFailure: schedulePublicConnectivityRecovery,
         stabilizeRenderedHashTarget
       });
       return taskPortalController;
@@ -4533,9 +4560,11 @@ function sponsorInvitationTokenFromFragment() {
 async function loadSponsorInvitation(token, options = {}) {
   const banner = document.querySelector("#sponsor-invitation");
   const copy = document.querySelector("#sponsor-invitation-copy");
+  const retryButton = document.querySelector("[data-sponsor-retry]");
   const form = document.querySelector("#sponsor-inquiry-form");
-  if (!banner || !copy || !form || !token) return;
+  if (!banner || !copy || !retryButton || !form || !token) return;
   const loadVersion = ++sponsorInvitationLoadVersion;
+  pendingSponsorInvitationToken = token;
   if (activeSponsorInvitationToken && activeSponsorInvitationToken !== token) clearSponsorInvitationForm(form);
   if (window.location.hash.startsWith("#sponsor-invitation?")) {
     history.replaceState(null, "", `${window.location.pathname}${window.location.search}#sponsors`);
@@ -4543,15 +4572,19 @@ async function loadSponsorInvitation(token, options = {}) {
   banner.hidden = false;
   banner.dataset.state = "loading";
   copy.textContent = "Opening your sponsor invitation...";
+  retryButton.hidden = true;
+  let responseStatus = 0;
   try {
     const response = await fetchWithTimeout(`${publicApiBase()}/api/public/sponsor-invitation`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ token })
     });
+    responseStatus = response.status;
     const data = await response.json().catch(() => ({}));
     if (loadVersion !== sponsorInvitationLoadVersion) return;
     if (!response.ok) throw new Error(data.error || `Invitation lookup failed with ${response.status}`);
+    pendingSponsorInvitationToken = null;
     history.replaceState(null, "", `${window.location.pathname}${window.location.search}#sponsors`);
     if (data.converted && data.portalAccess?.reference && data.portalAccess?.token) {
       clearSponsorInvitationForm(form);
@@ -4577,11 +4610,21 @@ async function loadSponsorInvitation(token, options = {}) {
     if (options.scroll) form.scrollIntoView({ behavior: "smooth", block: "center" });
   } catch (error) {
     if (loadVersion !== sponsorInvitationLoadVersion) return;
+    const definitiveFailure = [400, 401, 403, 404, 409, 410, 422].includes(responseStatus);
     clearSponsorInvitationForm(form);
     history.replaceState(null, "", `${window.location.pathname}${window.location.search}#sponsors`);
     banner.hidden = false;
     banner.dataset.state = "error";
-    copy.textContent = error.message;
+    if (definitiveFailure) {
+      pendingSponsorInvitationToken = null;
+      copy.textContent = error.message;
+    } else {
+      pendingSponsorInvitationToken = token;
+      schedulePublicConnectivityRecovery();
+      copy.textContent = "This sponsor invitation is temporarily unavailable.";
+      retryButton.onclick = recoverPublicConnectivity;
+      retryButton.hidden = false;
+    }
   }
 }
 
@@ -4611,8 +4654,16 @@ function renderOutreachPreference(preference) {
     : `${preference.organizationName} is currently eligible for reviewed Texas SandFest sponsor outreach.`;
   status.dataset.state = unsubscribed ? "ok" : "ready";
   status.textContent = unsubscribed ? "Preference saved. Any unsent outreach has been canceled." : "You can stop future sponsor outreach below.";
+  button.onclick = unsubscribeOutreachPreference;
+  button.textContent = "Stop sponsor outreach";
   button.hidden = unsubscribed;
   button.disabled = false;
+}
+
+function showOutreachPreferenceRetry(button) {
+  button.onclick = recoverPublicConnectivity;
+  button.textContent = "Retry now";
+  button.hidden = button.disabled = false;
 }
 
 function sameOutreachPreferenceAccess(left, right) {
@@ -4662,6 +4713,7 @@ async function loadOutreachPreference(access, options = {}) {
   } catch (error) {
     if (loadVersion !== outreachPreferenceLoadVersion) return;
     const accessRejected = shouldForgetPartnerPortalAccess(responseStatus);
+    if (!accessRejected) schedulePublicConnectivityRecovery();
     if (accessRejected && previous?.access && previous?.preference) {
       if (switchingAccess) {
         activeOutreachPreferenceAccess = previous.access;
@@ -4675,18 +4727,22 @@ async function loadOutreachPreference(access, options = {}) {
     if (!accessRejected && previous?.preference && sameOutreachPreferenceAccess(previous.access, access)) {
       activeOutreachPreferenceAccess = previous.access;
       renderOutreachPreference(previous.preference);
+      showOutreachPreferenceRetry(button);
       status.dataset.state = "error";
-      status.textContent = "Outreach preferences are temporarily unavailable. Showing the last verified preference so you can retry.";
+      status.textContent = "Outreach preferences are temporarily unavailable. Showing the last verified preference.";
       return;
     }
     if (accessRejected) {
       activeOutreachPreferenceAccess = null;
       copy.textContent = "No outreach recipient is shown because this private link could not be verified.";
     }
+    if (!accessRejected) {
+      showOutreachPreferenceRetry(button);
+    }
     status.dataset.state = "error";
     status.textContent = accessRejected
       ? "This outreach preference link is invalid. Use the latest link from the SandFest message."
-      : "Outreach preferences are temporarily unavailable. This private access remains available to retry.";
+      : "Outreach preferences are temporarily unavailable. Select Retry now.";
   }
 }
 
@@ -5017,7 +5073,11 @@ async function partnerPortalJson(endpoint, payload) {
     body: JSON.stringify({ ...activePartnerPortalAccess, ...payload })
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || `Partner update failed with ${response.status}`);
+  if (!response.ok) {
+    const portalError = new Error(data.error || `Partner update failed with ${response.status}`);
+    portalError.status = response.status;
+    throw portalError;
+  }
   return data;
 }
 
@@ -5065,7 +5125,9 @@ function bindPartnerPaymentActions() {
       window.location.assign(checkoutUrl);
     } catch (error) {
       status.dataset.state = "error";
-      status.textContent = error.message;
+      status.textContent = requestOutcomeIsAmbiguous(error)
+        ? `${friendlyRequestError(error)} The invoice is unchanged. Try again to resume the same checkout.`
+        : error.message;
       button.disabled = false;
     }
   });
@@ -5370,10 +5432,11 @@ async function loadPartnerPortalStatus(access, options = {}) {
       if (result) result.innerHTML = '<div class="partner-status-empty"><strong>We could not open this application.</strong><span>Check the private link or ask the SandFest team to issue a new one.</span></div>';
     } else {
       rememberPartnerPortalAccess(access);
+      schedulePublicConnectivityRecovery();
       if (forgetButton) forgetButton.hidden = false;
-      setFormStatus(status, "SandFest status is temporarily unavailable. Your private access is still saved; try again.", "error");
+      setFormStatus(status, "SandFest status is temporarily unavailable. Your private access is still saved while we retry automatically.", "error");
       if (result && !activePartnerPortalApplication) {
-        result.innerHTML = '<div class="partner-status-empty"><strong>Status is temporarily unavailable.</strong><span>Your private access is still saved in this browser. Try again when the connection recovers.</span></div>';
+        result.innerHTML = '<div class="partner-status-empty"><strong>Status is temporarily unavailable.</strong><span>Your private access is still saved in this browser while SandFest retries automatically.</span></div>';
       }
     }
   } finally {
@@ -5413,6 +5476,12 @@ function partnerIntakeUnavailableMessage() {
     : PUBLIC_PARTNER_INTAKE.message;
 }
 
+function partnerIntakeAvailabilityState(programReady, programStatus) {
+  if (!programReady) return programStatus;
+  if (!PUBLIC_PARTNER_INTAKE.ready) return "unavailable";
+  return partnerIntakeReadinessUi?.status() || (partnerIntakeReadinessUiFailed ? "unavailable" : "checking");
+}
+
 function ensurePartnerIntakeReadinessUi() {
   if (import.meta.env.VITE_SANDFEST_SURFACE === "admin") {
     return Promise.reject(new Error("Partner intake readiness is public-only."));
@@ -5450,9 +5519,13 @@ function ensurePartnerIntakeReadinessUi() {
 
 async function loadPublicPartnerReadiness() {
   try {
-    return await (await ensurePartnerIntakeReadinessUi()).load();
+    const ui = await ensurePartnerIntakeReadinessUi();
+    const readiness = await ui.load();
+    if (ui.status() === "unavailable") schedulePublicConnectivityRecovery();
+    return readiness;
   } catch {
     partnerIntakeReadinessUiFailed = true;
+    schedulePublicConnectivityRecovery();
     const recoveryForm = document.querySelector("#partner-portal-recovery-form");
     if (recoveryForm) {
       recoveryForm.dataset.publicIntakeState = "unavailable";
@@ -5527,9 +5600,7 @@ function renderSponsorPackageChoices(selectedId = "") {
   const programReady = publicSponsorProgram.available && Boolean(selected);
   const ready = partnerIntakeAvailable() && programReady;
   const unavailableMessage = programReady ? partnerIntakeUnavailableMessage() : publicSponsorProgram.message;
-  const unavailableState = programReady
-    ? PUBLIC_PARTNER_INTAKE.ready ? partnerIntakeReadinessUi?.status() || (partnerIntakeReadinessUiFailed ? "unavailable" : "checking") : "unavailable"
-    : publicSponsorProgram.status;
+  const unavailableState = partnerIntakeAvailabilityState(programReady, publicSponsorProgram.status);
   select.innerHTML = sponsorPackageOptions(publicSponsorPackages, selected?.id || "");
   select.disabled = !publicSponsorPackages.length || Boolean(activeSponsorInvitationToken);
   if (tiers) tiers.innerHTML = sponsorPackageCards(publicSponsorPackages, selected?.id || "");
@@ -5546,7 +5617,10 @@ function renderSponsorPackageChoices(selectedId = "") {
   }
   if (unavailable) {
     unavailable.hidden = ready;
-    unavailable.firstChild.textContent = ready ? "" : `${unavailableMessage} Use the `;
+    const contactFallback = partnerIntakeReadinessUi?.contactFallback("sponsor", unavailableState) || "";
+    unavailable.innerHTML = ready
+      ? ""
+      : `${escapeHtml(unavailableMessage)} View the <a href="https://www.texassandfest.org/sponsorship" target="_blank" rel="noopener noreferrer">official sponsorship page</a>${contactFallback}.`;
   }
   bindSponsorTierButtons();
   renderSponsorPackageSummary();
@@ -5603,6 +5677,7 @@ async function loadPublicSponsorPackages() {
       status: "unavailable",
       message: "We could not confirm the current sponsorship program."
     };
+    schedulePublicConnectivityRecovery();
     renderSponsorPackageChoices();
   }
 }
@@ -5619,6 +5694,8 @@ function renderVendorIntakeMode(offering) {
   const programReady = publicVendorProgram.available && Boolean(offering);
   const ready = partnerIntakeAvailable() && programReady;
   const unavailableMessage = programReady ? partnerIntakeUnavailableMessage() : publicVendorProgram.message;
+  const unavailableState = partnerIntakeAvailabilityState(programReady, publicVendorProgram.status);
+  const contactFallback = partnerIntakeReadinessUi?.contactFallback("vendor", unavailableState) || "";
   const notice = partnerContactNotice("vendor", isInterest ? "interest" : "application");
   const label = document.querySelector("#vendor-intake-label");
   const heading = document.querySelector("#vendor-intake-heading");
@@ -5634,7 +5711,7 @@ function renderVendorIntakeMode(offering) {
       ? isInterest
         ? 'Applications closed. Join the interest list for an opening notice or see the <a href="https://www.texassandfest.org/vendors" target="_blank" rel="noopener noreferrer">official vendor page</a>.'
         : 'Applications open. Fees and placement require approval; see the <a href="https://www.texassandfest.org/vendors" target="_blank" rel="noopener noreferrer">official vendor page</a>.'
-      : `${escapeHtml(unavailableMessage)} View the <a href="https://www.texassandfest.org/vendors" target="_blank" rel="noopener noreferrer">official vendor page</a>.`;
+      : `${escapeHtml(unavailableMessage)} View the <a href="https://www.texassandfest.org/vendors" target="_blank" rel="noopener noreferrer">official vendor page</a>${contactFallback}.`;
   }
   if (disclosure) disclosure.textContent = notice.disclosure;
   if (consent) consent.textContent = notice.checkboxLabel;
@@ -5699,6 +5776,7 @@ async function loadPublicVendorOfferings() {
       status: "unavailable",
       message: "We could not confirm the current vendor program."
     };
+    schedulePublicConnectivityRecovery();
     renderVendorOfferingChoices();
   }
 }
@@ -5941,6 +6019,7 @@ async function loadAdminBudget(options = {}) {
       adminMoney,
       getAdminSessionState: () => adminSessionState,
       renderAdminSession,
+      requestOutcomeIsAmbiguous,
       revenueKpiCard,
       setAdminStatus
     }));
@@ -7045,28 +7124,12 @@ function renderAdminMilestones(payload) {
       setAdminStatus(result.dismissedFollowups ? `Key date saved; ${result.dismissedFollowups} stale reminder${result.dismissedFollowups === 1 ? "" : "s"} dismissed.` : "Key date saved.", "ok");
     } catch (error) { setAdminStatus(error.message, "error"); } finally { button.disabled = false; }
   }));
-  createForm.onsubmit = async event => {
-    event.preventDefault();
-    const button = createForm.querySelector('button[type="submit"]');
-    const dueAt = createForm.elements.dueAt.value;
-    if (!createForm.elements.applicationId.value || !dueAt) { setAdminStatus("Choose a partner and due date.", "error"); return; }
-    button.disabled = true;
-    try {
-      await adminFetch(`/api/admin/partners/applications/${encodeURIComponent(createForm.elements.applicationId.value)}/milestones`, {
-        method: "POST",
-        body: JSON.stringify({
-          label: createForm.elements.label.value.trim(),
-          dueAt: new Date(dueAt).toISOString(),
-          assigneeTeam: createForm.elements.assigneeTeam.value,
-          reminderLeadDays: Number(createForm.elements.reminderLeadDays.value)
-        })
-      });
-      createForm.reset();
-      createForm.elements.reminderLeadDays.value = "3";
-      await loadAdminPartners({ quiet: true });
-      setAdminStatus("Partner key date added.", "ok");
-    } catch (error) { setAdminStatus(error.message, "error"); } finally { button.disabled = false; }
-  };
+  adminOperationsUi?.bindMilestoneCreation(createForm, {
+    adminFetch,
+    loadAdminPartners,
+    requestOutcomeIsAmbiguous,
+    setAdminStatus
+  });
 }
 
 function deliverableStatusOptions(selected) {
@@ -7236,11 +7299,11 @@ function renderAdminSponsorFulfillment(payload) {
         </div>
       </div>`).join("") || '<span class="empty-state">No package benefits configured.</span>'}</div>
       <form class="admin-custom-deliverable" data-create-deliverable="${escapeAttr(application.id)}">
-        <strong>Add custom deliverable</strong>
-        <input name="label" required maxlength="160" placeholder="Deliverable" aria-label="${escapeAttr(application.organizationName)} custom deliverable" />
-        <input name="ownerId" maxlength="100" placeholder="Owner" aria-label="${escapeAttr(application.organizationName)} custom deliverable owner" />
-        <input name="dueAt" type="datetime-local" aria-label="${escapeAttr(application.organizationName)} custom deliverable due date" />
-        <input name="description" maxlength="1000" placeholder="Scope" aria-label="${escapeAttr(application.organizationName)} custom deliverable scope" />
+        <strong>Add deliverable</strong>
+        <input name="label" required maxlength="160" placeholder="Deliverable" aria-label="${escapeAttr(application.organizationName)} deliverable" />
+        <input name="ownerId" maxlength="100" placeholder="Owner" aria-label="${escapeAttr(application.organizationName)} deliverable owner" />
+        <input name="dueAt" type="datetime-local" aria-label="${escapeAttr(application.organizationName)} deliverable due date" />
+        <input name="description" maxlength="1000" placeholder="Scope" aria-label="${escapeAttr(application.organizationName)} deliverable scope" />
         <button class="button secondary" type="submit" ${adminCan("partners:write") ? "" : "disabled"}>Add</button>
       </form>
     </article>`;
@@ -7305,19 +7368,20 @@ function renderAdminSponsorFulfillment(payload) {
       setAdminStatus("Sponsor deliverable saved.", "ok");
     } catch (error) { setAdminStatus(error.message, "error"); } finally { button.disabled = false; }
   }));
-  target.querySelectorAll("[data-create-deliverable]").forEach(form => form.addEventListener("submit", async event => {
+  target.querySelectorAll("[data-create-deliverable]").forEach(form => form.addEventListener("submit", event => {
     event.preventDefault();
-    const button = form.querySelector('button[type="submit"]');
-    const dueAt = form.elements.dueAt.value;
-    button.disabled = true;
-    try {
-      await adminFetch(`/api/admin/partners/applications/${encodeURIComponent(form.dataset.createDeliverable)}/deliverables`, {
-        method: "POST",
-        body: JSON.stringify({ label: form.elements.label.value.trim(), ownerId: form.elements.ownerId.value.trim(), dueAt: dueAt ? new Date(dueAt).toISOString() : null, description: form.elements.description.value.trim() })
-      });
-      await loadAdminPartners({ quiet: true });
-      setAdminStatus("Custom sponsor deliverable added.", "ok");
-    } catch (error) { setAdminStatus(error.message, "error"); } finally { button.disabled = false; }
+    const body = Object.fromEntries(new FormData(form));
+    body.dueAt &&= new Date(body.dueAt).toISOString();
+    void adminOperationsUi?.submitCreation(
+      form,
+      `/api/admin/partners/applications/${encodeURIComponent(form.dataset.createDeliverable)}/deliverables`,
+      body,
+      "Retry safely; saved once.",
+      "Sponsor deliverable saved.",
+      { adminFetch, loadAdminPartners, requestOutcomeIsAmbiguous, setAdminStatus },
+      null,
+      () => !adminCan("partners:write")
+    );
   }));
 }
 
@@ -8048,7 +8112,7 @@ function renderAdminOutreachCoverage(outreach) {
       </div>
       <div class="admin-outreach-map-detail">
         <div class="admin-outreach-map-legend" aria-label="Campaign coverage legend"><span data-kind="center"><i></i>Center</span><span data-kind="inside"><i></i>Inside radius</span><span data-kind="outside"><i></i>Outside radius</span></div>
-        <ul class="admin-outreach-map-list" aria-label="Located outreach businesses">${prospectRows || '<li><span><strong>No located businesses</strong></span><span>Add coordinates to a prospect to include it here.</span></li>'}</ul>
+        <ul class="admin-outreach-map-list" aria-label="Located outreach businesses" tabindex="0">${prospectRows || '<li><span><strong>No located businesses</strong></span><span>Add coordinates to a prospect to include it here.</span></li>'}</ul>
         ${plotted.length > 8 ? `<span class="admin-outreach-map-more">${plotted.length - 8} additional located business${plotted.length - 8 === 1 ? "" : "es"}</span>` : ""}
         <p>Geography shows radius coverage. Server matching also enforces industry, city, state, ZIP, fit, qualification, contact basis, and suppression.</p>
       </div>
@@ -8070,6 +8134,7 @@ function renderAdminPartners(payload, outreach) {
   const kpis = document.querySelector("#admin-partner-kpis");
   const applications = document.querySelector("#admin-partner-applications");
   const followups = document.querySelector("#admin-partner-followups");
+  const followupSummary = document.querySelector("#admin-partner-followups-summary");
   const prospects = document.querySelector("#admin-outreach-prospects");
   const campaigns = document.querySelector("#admin-outreach-campaigns");
   const automationForm = document.querySelector("#admin-partner-automation");
@@ -8227,6 +8292,21 @@ function renderAdminPartners(payload, outreach) {
     ["sent", 7],
     ["dismissed", 8]
   ]);
+  if (followupSummary) {
+    const items = payload.followups || [];
+    const count = status => items.filter(item => item.status === status).length;
+    const review = summary.operations.draftsAwaitingReview || 0;
+    const attention = (summary.operations.unknownDeliveryMessages || 0) + count("failed");
+    const queue = count("approved") + count("failed");
+    const flight = count("pending") + count("queued") + count("sending");
+    const sent = count("sent");
+    const automated = items.filter(item => item.automationPolicy && !item.manualReviewRequiredAt && item.status !== "dismissed").length;
+    const overdue = summary.operations.overdueMilestones || 0;
+    const soon = summary.operations.dueSoonMilestones || 0;
+    const state = attention || overdue ? "attention" : review || queue || flight ? "tracking" : "idle";
+    const headline = attention ? `${attention} delivery review` : review ? `${review} staff approval` : queue ? `${queue} ready to queue` : `${sent} sent`;
+    followupSummary.innerHTML = `<p class="partner-form-status" data-state="${state}"><strong>${headline}</strong> · ${automated} automated · ${flight} in flight · ${overdue} overdue key date${overdue === 1 ? "" : "s"} · ${soon} due soon</p>`;
+  }
   followups.innerHTML = [...(payload.followups || [])].sort((left, right) => {
     const priority = (followupPriority.get(left.status) ?? 99) - (followupPriority.get(right.status) ?? 99);
     if (priority) return priority;
@@ -9191,8 +9271,9 @@ async function loadAdminWorkspace() {
     stabilizeRenderedHashTarget();
   } catch (error) {
     const localHint = ADMIN_AUTH_MODE === "token" ? " Confirm the local API is running and the token matches." : "";
-    setAdminStatus(`${error.message}${localHint}`, "error");
-    setAdminWorkspaceState("failed");
+    const retryable = adminWorkspaceRecovery?.retryable(error) || false;
+    setAdminStatus(`${error.message}${localHint}${retryable ? " Retrying automatically." : ""}`, "error");
+    setAdminWorkspaceState("failed", retryable);
   } finally {
     button.disabled = ADMIN_AUTH_MODE === "oidc" && !adminToken();
   }
@@ -9289,90 +9370,20 @@ document.querySelectorAll("[data-partner-catalog-publication]").forEach(form => 
   form.querySelector("[data-hold-partner-catalog]")?.addEventListener("click", () => updatePartnerCatalogPublication(form, false));
 });
 const adminCreateSponsorPackageForm = document.querySelector("#admin-create-sponsor-package");
-adminCreateSponsorPackageForm?.elements.name.addEventListener("input", event => {
-  const idInput = adminCreateSponsorPackageForm.elements.id;
-  if (idInput.dataset.manuallyEdited === "true") return;
-  idInput.value = event.currentTarget.value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-});
-adminCreateSponsorPackageForm?.elements.id.addEventListener("input", event => {
-  event.currentTarget.dataset.manuallyEdited = event.currentTarget.value ? "true" : "false";
-});
-adminCreateSponsorPackageForm?.addEventListener("submit", async event => {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const values = Object.fromEntries(new FormData(form).entries());
-  const button = form.querySelector('button[type="submit"]');
-  button.disabled = true;
-  try {
-    const result = await adminFetch("/api/admin/sponsor-packages", {
-      method: "POST",
-      body: JSON.stringify({
-        id: values.id,
-        name: values.name,
-        amount: centsFromInput(values.amount),
-        publicLabel: values.publicLabel,
-        stripePriceId: values.stripePriceId || null,
-        quickBooksItemId: values.quickBooksItemId || null,
-        benefits: values.benefits.split("\n").map(item => item.trim()).filter(Boolean),
-        active: form.elements.active.checked,
-        requiresApproval: form.elements.requiresApproval.checked
-      })
-    });
-    form.reset();
-    delete form.elements.id.dataset.manuallyEdited;
-    await reloadAdminConfigEditors();
-    await loadAdminDeployment();
-    setAdminStatus(`Added ${result.sponsorPackage.name} as a draft sponsor tier. Review and publish the catalog before it appears publicly.`, "ok");
-  } catch (error) {
-    setAdminStatus(error.message, "error");
-  } finally {
-    button.disabled = !adminCan("sponsor:write");
-  }
-});
 const adminCreateVendorOfferingForm = document.querySelector("#admin-create-vendor-offering");
-adminCreateVendorOfferingForm?.elements.name.addEventListener("input", event => {
-  const idInput = adminCreateVendorOfferingForm.elements.id;
-  if (idInput.dataset.manuallyEdited === "true") return;
-  idInput.value = event.currentTarget.value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-});
-adminCreateVendorOfferingForm?.elements.id.addEventListener("input", event => {
-  event.currentTarget.dataset.manuallyEdited = event.currentTarget.value ? "true" : "false";
-});
-adminCreateVendorOfferingForm?.addEventListener("submit", async event => {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const values = new FormData(form);
-  const button = form.querySelector('button[type="submit"]');
-  button.disabled = true;
-  try {
-    const result = await adminFetch("/api/admin/vendor-offerings", {
-      method: "POST",
-      body: JSON.stringify({
-        id: values.get("id"),
-        name: values.get("name"),
-        amount: centsFromInput(values.get("amount")),
-        intakeMode: values.get("intakeMode"),
-        publicLabel: values.get("publicLabel"),
-        stripePriceId: values.get("stripePriceId") || null,
-        quickBooksItemId: values.get("quickBooksItemId") || null,
-        categories: values.getAll("categories"),
-        description: values.get("description"),
-        inclusions: values.get("inclusions").split("\n").map(item => item.trim()).filter(Boolean),
-        active: form.elements.active.checked,
-        requiresApproval: form.elements.requiresApproval.checked
-      })
-    });
-    form.reset();
-    delete form.elements.id.dataset.manuallyEdited;
+const adminCatalogCreationDeps = {
+  adminCan,
+  adminFetch,
+  centsFromInput,
+  loadAdminPartners: async () => {
     await reloadAdminConfigEditors();
     await loadAdminDeployment();
-    setAdminStatus(`Added ${result.vendorOffering.name} as a draft vendor offering. Review and publish the catalog before it appears publicly.`, "ok");
-  } catch (error) {
-    setAdminStatus(error.message, "error");
-  } finally {
-    button.disabled = !adminCan("finance:write");
-  }
-});
+  },
+  requestOutcomeIsAmbiguous,
+  setAdminStatus
+};
+adminOperationsUi?.bindSponsorPackageCreation(adminCreateSponsorPackageForm, adminCatalogCreationDeps);
+adminOperationsUi?.bindVendorOfferingCreation(adminCreateVendorOfferingForm, adminCatalogCreationDeps);
 document.querySelector("#admin-load-documents")?.addEventListener("click", () => loadAdminDocuments());
 document.querySelector("#admin-launch-readiness")?.addEventListener("click", event => {
   const button = event.target.closest("[data-deployment-filter]");
@@ -9813,21 +9824,19 @@ document.querySelector("#admin-incident-filter")?.addEventListener("change", eve
   incidentBoardFilter = event.currentTarget.value;
   if (adminConditionsState) renderAdminConditions(adminConditionsState);
 });
-document.querySelector("#admin-create-incident")?.addEventListener("submit", async event => {
+document.querySelector("#admin-create-incident")?.addEventListener("submit", event => {
   event.preventDefault();
   const form = event.currentTarget;
-  const values = Object.fromEntries(new FormData(form).entries());
-  const button = form.querySelector('button[type="submit"]');
-  button.disabled = true;
-  try {
-    await adminFetch("/api/admin/island-conditions/incidents", {
-      method: "POST",
-      body: JSON.stringify({ ...values, publicImpact: form.querySelector('[name="publicImpact"]').checked })
-    });
-    form.reset();
-    await loadAdminConditions({ quiet: true });
-    setAdminStatus("Incident opened.", "ok");
-  } catch (error) { setAdminStatus(error.message, "error"); } finally { button.disabled = !adminCan("conditions:write"); }
+  void adminOperationsUi?.submitCreation(
+    form,
+    "/api/admin/island-conditions/incidents",
+    Object.fromEntries(new FormData(form)),
+    "Retry safely; saved once.",
+    "Incident opened.",
+    { adminFetch, loadAdminPartners: loadAdminConditions, requestOutcomeIsAmbiguous, setAdminStatus },
+    null,
+    () => !adminCan("conditions:write")
+  );
 });
 document.querySelector("#admin-task-status-filter")?.addEventListener("change", event => {
   taskBoardFilters.status = event.currentTarget.value;
@@ -9845,43 +9854,19 @@ document.querySelector('#admin-create-task [name="assigneeType"]')?.addEventList
   populateTaskCreateOwners(adminPartnerState?.payload || {}, { preserve: false });
 });
 
-document.querySelector("#admin-create-task")?.addEventListener("submit", async event => {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const values = Object.fromEntries(new FormData(form).entries());
-  const button = form.querySelector('button[type="submit"]');
-  button.disabled = true;
-  try {
-    await adminFetch("/api/admin/partners/tasks", {
-      method: "POST",
-      body: JSON.stringify({ ...values, dueAt: values.dueAt ? new Date(values.dueAt).toISOString() : null })
-    });
-    form.reset();
-    await loadAdminPartners({ quiet: true });
-    setAdminStatus("Task delegated.", "ok");
-  } catch (error) { setAdminStatus(error.message, "error"); } finally { button.disabled = !adminCan("tasks:write"); }
-});
+adminOperationsUi?.bindTaskCreation(document.querySelector("#admin-create-task"), {
+  adminFetch,
+  loadAdminPartners,
+  requestOutcomeIsAmbiguous,
+  setAdminStatus
+}, () => !adminCan("tasks:write"));
 
-document.querySelector("#admin-create-prospect")?.addEventListener("submit", async event => {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const values = Object.fromEntries(new FormData(form).entries());
-  try {
-    const data = await adminFetch("/api/admin/outreach/prospects", {
-      method: "POST",
-      body: JSON.stringify({
-        ...values,
-        latitude: values.latitude || null,
-        longitude: values.longitude || null,
-        communityFit: form.elements.communityFit.checked,
-        nextActionAt: localDateTimeToIso(values.nextActionAt)
-      })
-    });
-    form.reset();
-    form.elements.state.value = "TX";
-    await loadAdminPartners({ quiet: true });
-    setAdminStatus(`Scored ${data.prospect.organizationName} at ${data.prospect.fitScore}/100.`, "ok");
-  } catch (error) { setAdminStatus(error.message, "error"); }
+adminOperationsUi?.bindOutreachProspectCreation(document.querySelector("#admin-create-prospect"), {
+  adminFetch,
+  loadAdminPartners,
+  localDateTimeToIso,
+  requestOutcomeIsAmbiguous,
+  setAdminStatus
 });
 
 document.querySelector("#admin-discover-businesses")?.addEventListener("input", event => {
@@ -10091,29 +10076,20 @@ document.querySelector("#admin-preview-campaign")?.addEventListener("click", asy
   }
 });
 
-document.querySelector("#admin-create-campaign")?.addEventListener("submit", async event => {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const button = form.querySelector('button[type="submit"]');
-  if (!form.dataset.audiencePreviewFingerprint || form.dataset.audiencePreviewFingerprint !== campaignFormFingerprint(form)) {
-    invalidateCampaignAudiencePreview(form, { force: true });
-    setAdminStatus("Preview the current campaign audience before saving the draft.", "warning");
-    return;
-  }
-  button.disabled = true;
-  try {
-    const data = await adminFetch("/api/admin/outreach/campaigns", {
-      method: "POST",
-      body: JSON.stringify(campaignFormPayload(form))
-    });
-    await loadAdminPartners({ quiet: true });
-    invalidateCampaignAudiencePreview(form, { force: true, message: "Campaign draft saved. Change the campaign name or targeting, then preview again before creating another draft." });
-    setAdminStatus(`${data.campaign.name} saved as a reviewable campaign draft.`, "ok");
-  } catch (error) { setAdminStatus(error.message, "error"); } finally {
-    button.disabled = !adminCan("outreach:write") || !form.dataset.audiencePreviewFingerprint;
-  }
+adminOperationsUi?.bindOutreachCampaignCreation(document.querySelector("#admin-create-campaign"), {
+  adminCan,
+  adminFetch,
+  campaignFormFingerprint,
+  campaignFormPayload,
+  invalidateCampaignAudiencePreview,
+  loadAdminPartners,
+  requestOutcomeIsAmbiguous,
+  setAdminStatus
 });
 
+["#sponsor-inquiry-form", "#vendor-application-form"].forEach(selector => {
+  protectUnsavedPublicForm(document.querySelector(selector));
+});
 document.querySelector("#sponsor-inquiry-form")?.addEventListener("submit", event => {
   event.preventDefault();
   submitPartnerForm(event.currentTarget, "/api/public/sponsor-inquiries");
@@ -10137,7 +10113,6 @@ document.querySelector("#partner-portal-recovery-form")?.addEventListener("submi
   submitPartnerPortalRecovery(event.currentTarget);
 });
 document.querySelector("#partner-status-forget")?.addEventListener("click", clearPartnerPortalView);
-document.querySelector("#outreach-preferences-unsubscribe")?.addEventListener("click", unsubscribeOutreachPreference);
 document.querySelector("#admin-command-signals")?.addEventListener("click", navigateAdminCommandSignal);
 bindSponsorTierButtons();
 bindSponsorPackageChoices();
@@ -10152,6 +10127,8 @@ function loadGuestServicesUi() {
       apiBase: publicApiBase,
       eventPhone: event.phone,
       intakeReady: PUBLIC_PARTNER_INTAKE.ready,
+      onFailure: schedulePublicConnectivityRecovery,
+      protectUnsavedForm: protectUnsavedPublicForm,
       turnstileSiteKey: TURNSTILE_SITE_KEY
     });
     await controller.mount();
@@ -10259,24 +10236,50 @@ function updateNetworkStatus() {
   status.dataset.state = online ? "online" : "offline";
 }
 
-function recoverPublicConnectivity() {
+function schedulePublicConnectivityRecovery() {
+  if (publicRecoveryRetryTimer || publicRecoveryRetryAttempt >= 5) return;
+  const delay = Math.min(30_000, 2_000 * (2 ** publicRecoveryRetryAttempt));
+  publicRecoveryRetryTimer = setTimeout(() => {
+    publicRecoveryRetryTimer = null;
+    publicRecoveryRetryAttempt++;
+    refreshPublicConnectivity().then(() => {
+      if (!publicRecoveryRetryTimer) publicRecoveryRetryAttempt = 0;
+    });
+  }, delay);
+}
+
+function refreshPublicConnectivity() {
   updateNetworkStatus();
-  if (ADMIN_ENTRY) return;
+  if (ADMIN_ENTRY) return Promise.resolve([]);
+  const sponsorPackagesLoad = loadPublicSponsorPackages();
   const recoveryLoads = [
     loadPublicBootstrap(),
     loadPublicTicketCatalog(),
     loadBooths(),
     loadIslandConditions({ force: true, preserveOnError: true }),
     loadPublicPartnerReadiness(),
-    loadPublicSponsorPackages(),
+    sponsorPackagesLoad,
     loadPublicVendorOfferings(),
     loadPublicAlert()
   ];
+  recoveryLoads.push(loadGuestServicesUi().then(async controller => {
+    await controller.refresh();
+    return controller.reloadStatus();
+  }));
   if (sculptorRosterVisible) recoveryLoads.push(loadVoting());
   if (taskPortalController?.hasAccess() || taskPortalRequested()) recoveryLoads.push(loadTaskPortalFromLocation());
   const portalAccess = activePartnerPortalAccess || savedPartnerPortalAccess();
   if (portalAccess) recoveryLoads.push(loadPartnerPortalStatus(portalAccess));
-  Promise.allSettled(recoveryLoads);
+  if (activeOutreachPreferenceAccess) recoveryLoads.push(loadOutreachPreference(activeOutreachPreferenceAccess));
+  if (pendingSponsorInvitationToken) recoveryLoads.push(sponsorPackagesLoad.then(() => loadSponsorInvitation(pendingSponsorInvitationToken)));
+  return Promise.allSettled(recoveryLoads);
+}
+
+function recoverPublicConnectivity() {
+  clearTimeout(publicRecoveryRetryTimer);
+  publicRecoveryRetryTimer = null;
+  publicRecoveryRetryAttempt = 0;
+  return refreshPublicConnectivity();
 }
 
 function setupInstallAndOfflineSupport() {

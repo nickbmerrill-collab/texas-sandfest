@@ -115,6 +115,7 @@ Routes:
 | `POST` | `/api/admin/partners/applications/:id/payments` | `finance:write` | Record and reconcile a partner payment |
 | `POST` | `/api/admin/partners/payments/:id/reverse` | `finance:write` | Void or record a provider-completed refund with a required reason |
 | `POST` | `/api/admin/partners/applications/:id/invoices` | `finance:write` | Create a draft from the server-authoritative approved amount |
+| `POST` | `/api/admin/partners/applications/:id/deliverables` | `partners:write` + `Idempotency-Key` | Add one replay-safe custom sponsor fulfillment item |
 | `POST` | `/api/admin/partners/invoices/:id/review` | `finance:write` | Approve or void an unsynced invoice |
 | `POST` | `/api/admin/partners/invoices/:id/sync` | `finance:write` | Queue an approved invoice for idempotent QuickBooks sync |
 | `POST` | `/api/admin/partners/tasks` | `partners:write` | Delegate a validated staff, volunteer, team, or unassigned task |
@@ -281,7 +282,7 @@ Restore Postgres into an isolated database, never the active source, then run:
 SANDFEST_RECOVERY_DATABASE_URL='postgresql://...' npm run recovery:verify
 ```
 
-The database verifier opens a read-only transaction, checks all required tables and seeded config documents, and reports row counts without returning records or credentials. Restore the private upload-disk snapshot at a different path in disposable staging, then prove every Postgres-referenced upload:
+The database verifier opens one repeatable-read, read-only transaction. It requires all ten tables and 74 current schema columns, four governed configuration documents, and 15 named operational ledgers spanning Guest Services, partners, accounting, staffing, documents, communications, and Island Conditions. Every event-bound catalog, publication, and operational document must match `SANDFEST_RECOVERY_EVENT_ID`, `SANDFEST_EVENT_ID`, or the current default event in that order. The aggregate result reports row counts and a deterministic content-bound `databaseManifestSha256` without returning records or credentials. Restore the private upload-disk snapshot at a different path in disposable staging, then prove every Postgres-referenced upload:
 
 ```bash
 SANDFEST_RECOVERY_DATABASE_URL='postgresql://...' \
@@ -290,7 +291,7 @@ SANDFEST_RECOVERY_ASSET_MIN_FILES=1 \
 npm run recovery:verify:assets
 ```
 
-The asset verifier refuses the active database and `SANDFEST_PARTNER_ASSET_DIR`, rejects symlinks and paths outside the restored root, and checks every uploaded sponsor logo, vendor document, and incoming source file against its recorded byte count and SHA-256. Its aggregate JSON includes category counts, verified bytes, and a deterministic manifest checksum without returning partner contacts or file contents. Record `SANDFEST_ASSET_RESTORE_DRILL_AT` only after `referenced` equals `verified`. See Render's [Postgres recovery](https://render.com/docs/postgresql-backups) and [persistent disk snapshot](https://render.com/docs/disks) documentation.
+The asset verifier uses the same repeatable-read database isolation, refuses the active database and `SANDFEST_PARTNER_ASSET_DIR`, rejects symlinks and paths outside the restored root, and checks every uploaded sponsor logo, vendor document, and incoming source file against its recorded byte count and SHA-256. Its aggregate JSON includes category counts, verified bytes, and a deterministic manifest checksum without returning partner contacts or file contents. Record `SANDFEST_ASSET_RESTORE_DRILL_AT` only after `referenced` equals `verified`. See Render's [Postgres recovery](https://render.com/docs/postgresql-backups) and [persistent disk snapshot](https://render.com/docs/disks) documentation.
 
 Neither restore timestamp belongs in the initial Blueprint. Add the exact
 successful timestamps to the API environment only after the two isolated drills
@@ -368,7 +369,7 @@ acceptance step, public and admin endpoints serve only the stored governed
 snapshot and make no NWS or TxDOT request. Synthetic conditions remain confined
 to the isolated local board runtime.
 
-`SANDFEST_EVENT_ID` is the annual namespace for new operational records and must use `texas-sandfest-YYYY`. It must match both the published guide and every active operational document. Production readiness fails closed on any mismatch. Use `npm run event:rollover` in maintenance mode to archive the prior season and reset season-specific state; the API and worker intentionally refuse partner mutations while their document is assigned to another event. The archive includes Postgres passport and voting append rows, which remain stored as historical evidence and are isolated from current reads by hunt and event ID.
+`SANDFEST_EVENT_ID` is the annual namespace for new operational records and must use `texas-sandfest-YYYY`. It must match both the published guide and every active operational document. Production readiness fails closed on any mismatch. Use `npm run event:rollover` in maintenance mode to archive the prior season and reset season-specific state; the API and worker intentionally refuse partner mutations while their document is assigned to another event. Production Postgres rollover holds a platform-wide advisory lock and binds the source archive, all 15 replacement ledgers, and read-back verification in one serializable transaction. Failed attempts leave no archive or mixed-year document writes. The archive includes Postgres passport and voting append rows, which remain stored as historical evidence and are isolated from current reads by hunt and event ID. File rollover uses compensating restore for local development and is not a production data plane.
 
 Turnstile tokens expire after five minutes and are single-use. The API derives Siteverify's UUID retry key from the browser application retry key plus the challenge token, so a transport replay can receive the original verification result while a different submission cannot reuse it. Provider errors fail closed with `503`; invalid, expired, wrong-action, and wrong-host challenges fail before any application, task, milestone, draft, or queue job is created.
 
@@ -420,6 +421,8 @@ Governed staff, volunteer, and team assignment notices also contain a fragment-p
 Sponsor package changes pass through a governed catalog before persistence. IDs, names, whole-cent USD amounts, public labels, benefits, boolean state, and optional Stripe Price IDs are normalized and validated; a change cannot remove the last active tier. Invalid edits return `400` without changing Postgres or the local document. The production readiness profile and live deployment verifier require a valid catalog, while public package responses contain only display, pricing, approval, and benefit fields and never expose Stripe or QuickBooks mappings.
 
 Every sponsor tier benefit is copied into the sponsor's durable fulfillment checklist when the inquiry is accepted. Package changes later do not silently rewrite an existing agreement. Sponsors can submit a display profile, colors, usage requirements, social links, and either private files or HTTPS asset references. Profile and asset approvals are independent, and requested changes require a visible review note.
+
+Staff-created custom deliverables require a browser retry key. The API derives a deterministic private record identity from that key, returns the original record on an exact replay, rejects changed reuse with `409`, and writes the activity and audit records only on the first accepted request. The browser keeps the same key and entered fulfillment details after a timeout or network failure, so retrying cannot add a duplicate sponsor obligation. Raw retry keys are not stored or returned.
 
 Private uploads accept only content-validated PNG, JPEG, WebP, and PDF files. The default limit is 10 MB, filenames are sanitized, files are written with private permissions, browser responses use `no-store` and `nosniff`, and download endpoints require either the current partner capability or an authenticated `partners:read` session. Storage keys and checksums are never returned by the public portal.
 
@@ -495,7 +498,7 @@ See `docs/scale-and-reliability.md`.
 
 Set `SANDFEST_ENV=production` when deploying to Heyelab. In production, these checks are blocking:
 
-- `SANDFEST_AUTH_MODE=jwt` with a HTTPS `SANDFEST_AUTH_JWKS_URL` and an `SANDFEST_AUTH_ISSUER` — bearer-token mode is not allowed in production.
+- `SANDFEST_AUTH_MODE=jwt` with a HTTPS `SANDFEST_AUTH_JWKS_URL`, `SANDFEST_AUTH_ISSUER`, and `SANDFEST_AUTH_AUDIENCE` — bearer-token mode and partially pinned JWT verification are not allowed in production.
 - The static admin build must use OIDC with a registered SPA client and HTTPS issuer, redirect, logout, and API URLs. The production build fails before publishing when these values are absent.
 - `SANDFEST_API_PUBLIC_BASE_URL` and `SANDFEST_ADMIN_BASE_URL` must be HTTPS.
 - `SANDFEST_PARTNER_PORTAL_SECRET` must be at least 32 characters and `SANDFEST_PUBLIC_SITE_URL` must be HTTPS.

@@ -94,12 +94,14 @@ function markup({ eventPhone }) {
     </div>`;
 }
 
-export function createGuestServicesUi({ apiBase, eventPhone, intakeReady, turnstileSiteKey = "" }) {
+export function createGuestServicesUi({ apiBase, eventPhone, intakeReady, onFailure, protectUnsavedForm, turnstileSiteKey = "" }) {
   const root = document.querySelector("#guest-services");
-  if (!root) return { mount: () => {}, loadStatus: () => null };
+  if (!root) return { mount: () => {}, loadStatus: () => null, refresh: () => null, reloadStatus: () => null };
   let botProtection = { enabled: false, tokenFor: () => "", reset: () => {} };
   let botPromise = null;
   let intakeAvailable = false;
+  let activeStatusAccess = null;
+  let statusLoadVersion = 0;
 
   function applyReadiness(payload = {}) {
     const form = root.querySelector("#guest-services-form");
@@ -127,6 +129,7 @@ export function createGuestServicesUi({ apiBase, eventPhone, intakeReady, turnst
       return payload;
     } catch {
       applyReadiness();
+      onFailure?.();
       return null;
     } finally {
       root.setAttribute("aria-busy", "false");
@@ -153,25 +156,51 @@ export function createGuestServicesUi({ apiBase, eventPhone, intakeReady, turnst
     const status = form.querySelector(".partner-form-status");
     const button = form.querySelector('button[type="submit"]');
     if (!access?.reference || !access?.token) return null;
+    const loadVersion = ++statusLoadVersion;
+    activeStatusAccess = access;
     form.elements.reference.value = access.reference;
     form.elements.token.value = access.token;
     button.disabled = true;
     setStatus(status, "Checking private status...", "loading");
+    let responseStatus = 0;
     try {
       const response = await requestWithTimeout(`${apiBase()}/api/public/guest-services/status`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(access), cache: "no-store" });
+      responseStatus = response.status;
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || `Status request failed with ${response.status}`);
+      if (loadVersion !== statusLoadVersion) return null;
+      if (!response.ok) {
+        const statusError = new Error(data.error || `Status request failed with ${response.status}`);
+        statusError.status = response.status;
+        throw statusError;
+      }
       remember(access);
       renderStatus(data.request);
       setStatus(status, "Private status loaded.", "ok");
       if (focus) root.querySelector("#guest-services-status-result").focus({ preventScroll: true });
       return data.request;
     } catch (error) {
-      setStatus(status, friendlyError(error, "Private status could not be loaded."), "error");
-      throw error;
+      if (loadVersion !== statusLoadVersion) return null;
+      const rejected = [400, 401, 403, 404].includes(responseStatus);
+      if (rejected) {
+        const existing = saved();
+        if (existing?.reference === access.reference && existing?.token === access.token) {
+          try { sessionStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
+        }
+        activeStatusAccess = null;
+        setStatus(status, "This private Guest Services link is no longer valid.", "error");
+      } else {
+        onFailure?.();
+        setStatus(status, "Guest Services status is temporarily unavailable. Select View status to try again.", "error");
+      }
+      return null;
     } finally {
-      button.disabled = false;
+      if (loadVersion === statusLoadVersion) button.disabled = false;
     }
+  }
+
+  function reloadStatus() {
+    const access = activeStatusAccess || saved();
+    return access ? loadStatus(access) : Promise.resolve(null);
   }
 
   async function submit(form) {
@@ -191,7 +220,11 @@ export function createGuestServicesUi({ apiBase, eventPhone, intakeReady, turnst
     try {
       const response = await requestWithTimeout(`${apiBase()}/api/public/guest-services`, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": form.dataset.idempotencyKey }, body: JSON.stringify(payload), cache: "no-store" });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || `Request failed with ${response.status}`);
+      if (!response.ok) {
+        const requestError = new Error(data.error || `Request failed with ${response.status}`);
+        requestError.status = response.status;
+        throw requestError;
+      }
       remember(data.access);
       renderStatus(data.request);
       const statusForm = root.querySelector("#guest-services-status-form");
@@ -203,7 +236,13 @@ export function createGuestServicesUi({ apiBase, eventPhone, intakeReady, turnst
       botProtection.reset(form);
       root.querySelector("#guest-services-status-result").focus({ preventScroll: true });
     } catch (error) {
-      setStatus(status, friendlyError(error, "Guest Services request could not be sent."), "error");
+      if (error.status === 409) delete form.dataset.idempotencyKey;
+      const message = error.status === 409
+        ? "These request details changed after an earlier attempt. Review them and select Send request once more."
+        : (!error.status || error.status === 408 || error.status === 429 || error.status >= 500)
+          ? `${friendlyError(error, "Guest Services request could not be sent.")} Your entries are still here, and retry protection remains active.`
+          : friendlyError(error, "Guest Services request could not be sent.");
+      setStatus(status, message, "error");
       botProtection.reset(form);
     } finally {
       button.disabled = !intakeAvailable;
@@ -211,6 +250,8 @@ export function createGuestServicesUi({ apiBase, eventPhone, intakeReady, turnst
   }
 
   function forget() {
+    statusLoadVersion++;
+    activeStatusAccess = null;
     try { sessionStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
     const form = root.querySelector("#guest-services-status-form");
     form.reset();
@@ -223,6 +264,7 @@ export function createGuestServicesUi({ apiBase, eventPhone, intakeReady, turnst
     root.innerHTML = markup({ eventPhone });
     root.setAttribute("aria-busy", "true");
     const intake = root.querySelector("#guest-services-form");
+    protectUnsavedForm?.(intake);
     intake.addEventListener("submit", event => { event.preventDefault(); void submit(intake); });
     if (turnstileSiteKey) {
       intake.addEventListener("focusin", () => { void ensureBotProtection(); }, { once: true });
@@ -235,9 +277,9 @@ export function createGuestServicesUi({ apiBase, eventPhone, intakeReady, turnst
     });
     root.querySelector("#guest-services-forget").addEventListener("click", forget);
     const existing = saved();
-    if (existing) void loadStatus(existing).catch(() => null);
+    if (existing) void loadStatus(existing);
     return loadReadiness();
   }
 
-  return { loadStatus, mount };
+  return { loadStatus, mount, refresh: loadReadiness, reloadStatus };
 }

@@ -8,8 +8,148 @@ import {
   VISITOR_GUIDANCE_RISK_LEVELS
 } from "../lib/visitor-guidance.mjs";
 import { REQUIRED_TICKET_POLICY_NOTICES } from "../lib/ticket-policy-schema.mjs";
+import { setCreationStatus, submitCreation } from "./admin-creation.js";
 
 const PENDING_NOTICE_STATUSES = new Set(["pending", "draft_ready", "approved", "queued", "sending"]);
+const OUTREACH_RETRY_MESSAGE = "Retry safely; saved once.";
+
+export function bindTaskCreation(form, deps, disabled = () => false) {
+  if (!form || form.dataset.creationBound === "true") return;
+  form.dataset.creationBound = "true";
+  form.addEventListener("submit", event => {
+    event.preventDefault();
+    const values = Object.fromEntries(new FormData(form));
+    const body = { ...values, dueAt: values.dueAt ? new Date(values.dueAt).toISOString() : null };
+    void submitCreation(form, "/api/admin/partners/tasks", body, "Try the same task again; Operations will delegate it only once.", "Task delegated.", deps, null, disabled);
+  });
+}
+
+export function bindMilestoneCreation(form, deps) {
+  if (!form) return;
+  form.onsubmit = event => {
+    event.preventDefault();
+    const dueAt = form.elements.dueAt.value;
+    if (!form.elements.applicationId.value || !dueAt) {
+      setCreationStatus(form, "Choose a partner and due date.", "error", deps.setAdminStatus);
+      return;
+    }
+    const body = {
+      label: form.elements.label.value.trim(),
+      dueAt: new Date(dueAt).toISOString(),
+      assigneeTeam: form.elements.assigneeTeam.value,
+      reminderLeadDays: Number(form.elements.reminderLeadDays.value)
+    };
+    void submitCreation(form, `/api/admin/partners/applications/${encodeURIComponent(form.elements.applicationId.value)}/milestones`, body, "Try the same key date again; Operations will record it only once.", "Partner key date added.", deps, () => {
+      form.elements.reminderLeadDays.value = "3";
+    });
+  };
+}
+
+export function bindOutreachProspectCreation(form, deps) {
+  if (!form) return;
+  form.onsubmit = event => {
+    event.preventDefault();
+    const values = Object.fromEntries(new FormData(form));
+    const body = {
+      ...values,
+      latitude: values.latitude || null,
+      longitude: values.longitude || null,
+      communityFit: form.elements.communityFit.checked,
+      nextActionAt: deps.localDateTimeToIso(values.nextActionAt)
+    };
+    void submitCreation(form, "/api/admin/outreach/prospects", body, OUTREACH_RETRY_MESSAGE, data => `Scored ${data.prospect.organizationName} at ${data.prospect.fitScore}/100.`, deps, () => {
+      form.elements.state.value = "TX";
+    });
+  };
+}
+
+export { submitCreation };
+
+export function bindOutreachCampaignCreation(form, deps) {
+  if (!form) return;
+  form.onsubmit = event => {
+    event.preventDefault();
+    if (!form.dataset.audiencePreviewFingerprint || form.dataset.audiencePreviewFingerprint !== deps.campaignFormFingerprint(form)) {
+      deps.invalidateCampaignAudiencePreview(form, { force: true });
+      setCreationStatus(form, "Preview the current campaign audience before saving the draft.", "error", deps.setAdminStatus);
+      return;
+    }
+    const body = deps.campaignFormPayload(form);
+    void submitCreation(form, "/api/admin/outreach/campaigns", body, OUTREACH_RETRY_MESSAGE, data => `${data.campaign.name} saved.`, deps, () => {
+      deps.invalidateCampaignAudiencePreview(form, { force: true, message: "Campaign draft saved. Change the campaign name or targeting, then preview again before creating another draft." });
+    }, () => !deps.adminCan("outreach:write") || !form.dataset.audiencePreviewFingerprint, false);
+  };
+}
+
+function bindGeneratedCatalogId(form) {
+  form.elements.name.addEventListener("input", event => {
+    const idInput = form.elements.id;
+    if (idInput.dataset.manuallyEdited === "true") return;
+    idInput.value = event.currentTarget.value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  });
+  form.elements.id.addEventListener("input", event => {
+    event.currentTarget.dataset.manuallyEdited = event.currentTarget.value ? "true" : "false";
+  });
+}
+
+export function bindSponsorPackageCreation(form, deps) {
+  if (!form) return;
+  bindGeneratedCatalogId(form);
+  form.onsubmit = () => {
+    const values = Object.fromEntries(new FormData(form));
+    const body = {
+      ...values,
+      amount: deps.centsFromInput(values.amount),
+      benefits: values.benefits.split("\n").map(item => item.trim()).filter(Boolean),
+      active: Boolean(values.active),
+      requiresApproval: Boolean(values.requiresApproval)
+    };
+    void submitCreation(form, "/api/admin/sponsor-packages", body, OUTREACH_RETRY_MESSAGE, "Saved.", deps, null, () => !deps.adminCan("sponsor:write"));
+    return false;
+  };
+}
+
+export function bindVendorOfferingCreation(form, deps) {
+  if (!form) return;
+  bindGeneratedCatalogId(form);
+  form.onsubmit = () => {
+    const values = new FormData(form);
+    const body = {
+      ...Object.fromEntries(values),
+      amount: deps.centsFromInput(values.get("amount")),
+      categories: values.getAll("categories"),
+      inclusions: values.get("inclusions").split("\n").map(item => item.trim()).filter(Boolean),
+      active: values.has("active"),
+      requiresApproval: values.has("requiresApproval")
+    };
+    void submitCreation(form, "/api/admin/vendor-offerings", body, OUTREACH_RETRY_MESSAGE, "Saved.", deps, null, () => !deps.adminCan("finance:write"));
+    return false;
+  };
+}
+
+export function createAdminWorkspaceRecovery({ access, load, status }) {
+  let timer = null;
+  let attempt = 0;
+
+  return {
+    retryable(error) {
+      return Boolean(access()) && (!error.status || error.status === 408 || error.status === 429 || error.status >= 500);
+    },
+    transition(state, retry = false) {
+      const node = status();
+      globalThis.clearTimeout(timer);
+      timer = null;
+      if (state === "ready" || (state === "failed" && !retry)) attempt = 0;
+      if (!retry) return;
+
+      const delay = Math.min(30_000, 2_000 * (2 ** attempt++));
+      timer = globalThis.setTimeout(() => {
+        timer = null;
+        if (node?.dataset.workspaceState === "failed" && access()) void load();
+      }, delay);
+    }
+  };
+}
 
 export function operationsNavigationLinks({ islandLabel = "Island conditions" } = {}) {
   return `<a href="#admin-config">Overview</a>

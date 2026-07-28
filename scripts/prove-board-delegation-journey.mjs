@@ -117,10 +117,11 @@ function activeSession(session, report) {
   return { apiBase, webBase, visitor: visitor.toString(), operations: operations.toString() };
 }
 
-async function requestJson(apiBase, pathname, { admin = false, method = "GET", body } = {}) {
+async function requestJson(apiBase, pathname, { admin = false, method = "GET", body, headers = {} } = {}) {
   const response = await fetch(`${apiBase}${pathname}`, {
     method,
     headers: {
+      ...headers,
       ...(admin ? { authorization: `Bearer ${ADMIN_TOKEN}` } : {}),
       ...(body === undefined ? {} : { "content-type": "application/json" })
     },
@@ -431,6 +432,7 @@ async function exerciseAssigneePortal(context, endpoints, operationsPage, delega
 
   const replay = await requestJson(endpoints.apiBase, "/api/public/task-status/update", {
     method: "POST",
+    headers: { "idempotency-key": `delegation-complete-replay-${runId}` },
     body: {
       taskId: delegated.task.id,
       token: delivery.access.token,

@@ -7,10 +7,17 @@ import { createServer } from "node:net";
 import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
 import twilio from "twilio";
 import { emptyBudgetControl } from "../lib/budget-control.mjs";
+import {
+  CURRENT_EVENT_OPERATIONAL_DOCUMENT_KEYS,
+  operationalDocumentEventId
+} from "../lib/event-context.mjs";
+import { ROLLOVER_DOCUMENT_KEYS } from "../lib/event-rollover.mjs";
+import { platformDocumentStorageKey } from "../lib/platform-data.mjs";
 import { REQUIRED_TICKET_POLICY_NOTICES } from "../lib/ticket-policy-schema.mjs";
 import { partnerCatalogDigest } from "../lib/partner-catalog-publication.mjs";
 import { publicSponsorPackage, sponsorPackageCatalog } from "../lib/sponsor-packages.mjs";
@@ -578,6 +585,40 @@ async function main() {
   await writePlatformDoc(ROOT, "consent", { eventId: EVENT_ID, lastUpdated: null, records: [] });
   await writePlatformDoc(ROOT, "booths", { eventId: EVENT_ID, lastUpdated: null, source: "empty", booths: [], vendors: [], imports: [] });
   await writePlatformDoc(ROOT, "budgetControl", emptyBudgetControl(EVENT_ID));
+  const fleetFixture = JSON.parse(await readFile(path.join(ROOT, "data", "processed", "fleet.json"), "utf8"));
+  await writePlatformDoc(ROOT, "fleet", {
+    ...fleetFixture,
+    eventId: EVENT_ID,
+    assets: (fleetFixture.assets || []).map(item => ({ ...item, eventId: EVENT_ID })),
+    checkouts: [],
+    locations: []
+  });
+  const volunteerFixture = JSON.parse(await readFile(path.join(ROOT, "data", "processed", "volunteer-mirror.json"), "utf8"));
+  await writePlatformDoc(ROOT, "volunteers", {
+    ...volunteerFixture,
+    eventId: EVENT_ID,
+    volunteers: (volunteerFixture.volunteers || []).map(item => ({ ...item, eventId: EVENT_ID })),
+    shifts: [],
+    hourLogs: []
+  });
+  const conditionsFixture = JSON.parse(await readFile(path.join(ROOT, "data", "processed", "island-conditions.json"), "utf8"));
+  await writePlatformDoc(ROOT, "islandConditions", {
+    ...conditionsFixture,
+    eventId: EVENT_ID,
+    cameras: (conditionsFixture.cameras || []).map(item => ({
+      ...item,
+      eventId: EVENT_ID,
+      observation: null,
+      health: null
+    })),
+    observations: [],
+    incidents: [],
+    dispatches: []
+  });
+  const revenueFixture = JSON.parse(await readFile(path.join(ROOT, "data", "processed", "revenue-ledger.json"), "utf8"));
+  await writePlatformDoc(ROOT, "revenue", revenueFixture);
+  const { emptyGuestServices } = await import("../lib/guest-services.mjs");
+  await writePlatformDoc(ROOT, "guestServices", emptyGuestServices(EVENT_ID));
   const { emptyIncomingDocumentIntake } = await import("../lib/incoming-documents.mjs");
   await writePlatformDoc(ROOT, "incomingDocuments", emptyIncomingDocumentIntake(EVENT_ID));
   const { emptySmsOperations } = await import("../lib/sms-operations.mjs");
@@ -735,8 +776,8 @@ async function main() {
     quickBooksItemId: "postgres-community-champion-item"
   };
   const postgresSponsorCreates = await Promise.all([
-    request(base, "POST", "/api/admin/sponsor-packages", postgresSponsorCreateBody, { auth: true }),
-    request(base, "POST", "/api/admin/sponsor-packages", postgresSponsorCreateBody, { auth: true })
+    request(base, "POST", "/api/admin/sponsor-packages", postgresSponsorCreateBody, { auth: true, headers: { "idempotency-key": "postgres-sponsor-package-create-0001" } }),
+    request(base, "POST", "/api/admin/sponsor-packages", postgresSponsorCreateBody, { auth: true, headers: { "idempotency-key": "postgres-sponsor-package-create-0001" } })
   ]);
   const postgresSponsorCatalogPending = await request(base, "GET", "/api/public/sponsors");
   const postgresInvalidSponsorPatch = await request(base, "PATCH", "/api/admin/sponsor-packages/tarpon", {
@@ -756,7 +797,7 @@ async function main() {
   const postgresPublicTarpon = postgresPublicSponsorCatalog.data.sponsorPackages?.find(item => item.id === "tarpon");
   const postgresPublicCommunityChampion = postgresPublicSponsorCatalog.data.sponsorPackages?.find(item => item.id === "postgres-community-champion");
   check("sponsor package catalog reads from Postgres", postgresSponsorCatalog.status === 200 && postgresSponsorCatalog.data.publication?.available === true && postgresSponsorCatalog.data.sponsorPackages?.find(item => item.id === "tarpon")?.amount === 500000);
-  check("concurrent sponsor package creation is atomic in Postgres", postgresSponsorCreates.map(item => item.status).sort((a, b) => a - b).join(",") === "201,409" && postgresSponsorCatalogPending.data.publication?.available === false && postgresSponsorCatalogPending.data.sponsorPackages?.length === 0 && postgresSponsorCatalogPublish.status === 200 && postgresPublicCommunityChampion?.amount === 750000);
+  check("concurrent sponsor package creation is replay safe in Postgres", postgresSponsorCreates.map(item => item.status).sort((a, b) => a - b).join(",") === "200,201" && postgresSponsorCreates.some(item => item.data.replay === true) && postgresSponsorCatalogPending.data.publication?.available === false && postgresSponsorCatalogPending.data.sponsorPackages?.length === 0 && postgresSponsorCatalogPublish.status === 200 && postgresPublicCommunityChampion?.amount === 750000);
   check("sponsor package config validates and keeps accounting private", postgresInvalidSponsorPatch.status === 400 && postgresSponsorPackagePatch.status === 200 && postgresSponsorPackagePatch.data.publicationReadiness?.ready === true && postgresSponsorPackagePatch.data.sponsorPackage?.quickBooksItemId === "postgres-sponsor-tarpon-item" && postgresPublicTarpon?.amount === 500000 && !Object.hasOwn(postgresPublicTarpon || {}, "quickBooksItemId") && !Object.hasOwn(postgresPublicTarpon || {}, "stripePriceId") && !Object.hasOwn(postgresPublicCommunityChampion || {}, "quickBooksItemId") && !Object.hasOwn(postgresPublicCommunityChampion || {}, "stripePriceId"));
 
   const postgresVendorCatalog = await request(base, "GET", "/api/public/vendors");
@@ -771,8 +812,8 @@ async function main() {
     quickBooksItemId: "postgres-premium-marketplace-item"
   };
   const postgresVendorOfferingCreates = await Promise.all([
-    request(base, "POST", "/api/admin/vendor-offerings", postgresVendorOfferingCreateBody, { auth: true }),
-    request(base, "POST", "/api/admin/vendor-offerings", postgresVendorOfferingCreateBody, { auth: true })
+    request(base, "POST", "/api/admin/vendor-offerings", postgresVendorOfferingCreateBody, { auth: true, headers: { "idempotency-key": "postgres-vendor-offering-create-0001" } }),
+    request(base, "POST", "/api/admin/vendor-offerings", postgresVendorOfferingCreateBody, { auth: true, headers: { "idempotency-key": "postgres-vendor-offering-create-0001" } })
   ]);
   const postgresVendorCatalogPending = await request(base, "GET", "/api/public/vendors");
   const postgresVendorCatalogPublish = await request(base, "POST", "/api/admin/partner-catalog-publication", {
@@ -787,7 +828,7 @@ async function main() {
   const postgresPublicVendorCatalog = await request(base, "GET", "/api/public/vendors");
   const postgresPublicPremiumMarketplace = postgresPublicVendorCatalog.data.vendorOfferings?.find(item => item.id === "postgres-premium-marketplace");
   check("vendor offering catalog reads from Postgres", postgresVendorCatalog.status === 200 && postgresVendorCatalog.data.publication?.available === true && postgresVendorCatalog.data.vendorOfferings?.find(item => item.id === "marketplace-booth")?.amount === 125000);
-  check("concurrent vendor offering creation is atomic in Postgres", postgresVendorOfferingCreates.map(item => item.status).sort((a, b) => a - b).join(",") === "201,409" && postgresVendorCatalogPending.data.publication?.available === false && postgresVendorCatalogPending.data.vendorOfferings?.length === 0 && postgresVendorCatalogPublish.status === 200 && postgresPublicPremiumMarketplace?.amount === 250000);
+  check("concurrent vendor offering creation is replay safe in Postgres", postgresVendorOfferingCreates.map(item => item.status).sort((a, b) => a - b).join(",") === "200,201" && postgresVendorOfferingCreates.some(item => item.data.replay === true) && postgresVendorCatalogPending.data.publication?.available === false && postgresVendorCatalogPending.data.vendorOfferings?.length === 0 && postgresVendorCatalogPublish.status === 200 && postgresPublicPremiumMarketplace?.amount === 250000);
   check("vendor offering config persists without exposing accounting IDs", postgresVendorOfferingPatch.status === 200 && postgresVendorOfferingPatch.data.publicationReadiness?.ready === true && postgresVendorOfferingPatch.data.vendorOffering?.quickBooksItemId === "postgres-vendor-marketplace-item" && !Object.hasOwn(postgresPublicVendorCatalog.data.vendorOfferings?.find(item => item.id === "marketplace-booth") || {}, "quickBooksItemId") && !Object.hasOwn(postgresPublicPremiumMarketplace || {}, "quickBooksItemId") && !Object.hasOwn(postgresPublicPremiumMarketplace || {}, "stripePriceId"));
 
   const postgresStaffContents = JSON.stringify({
@@ -1124,6 +1165,29 @@ PG-B-01,${EVENT_ID},PG-EV-V-01,PG-EV-V-01,Postgres Booth Vendor,retail,vendor,po
   const fulfillmentWorkspace = await request(base, "GET", "/api/admin/partners", undefined, { auth: true });
   check("sponsor fulfillment summary persists", fulfillmentWorkspace.data.fulfillment?.profiles?.approved === 1 && fulfillmentWorkspace.data.fulfillment?.assets?.approved === 1 && fulfillmentWorkspace.data.deliverables?.filter(item => item.applicationId === sponsorApplication.id).length === 6);
   check("sponsor proof notice resolves durably", fulfillmentWorkspace.data.followups?.find(item => item.id === publishedBenefit.data.followup?.id)?.status === "dismissed");
+  const postgresCustomDeliverableBody = {
+    label: "Postgres sponsor hospitality display",
+    ownerId: "staff_sponsor",
+    dueAt: "2026-08-06T17:00:00.000Z",
+    description: "Track the hospitality display through sponsor fulfillment."
+  };
+  const postgresCustomDeliverableKey = "postgres-partner-deliverable-create-0001";
+  const postgresCustomDeliverablePath = `/api/admin/partners/applications/${sponsorApplication.id}/deliverables`;
+  const missingPostgresDeliverableKey = await request(base, "POST", postgresCustomDeliverablePath, postgresCustomDeliverableBody, { auth: true });
+  const concurrentPostgresDeliverables = await Promise.all([
+    request(base, "POST", postgresCustomDeliverablePath, postgresCustomDeliverableBody, { auth: true, headers: { "idempotency-key": postgresCustomDeliverableKey } }),
+    request(base, "POST", postgresCustomDeliverablePath, postgresCustomDeliverableBody, { auth: true, headers: { "idempotency-key": postgresCustomDeliverableKey } })
+  ]);
+  const conflictingPostgresDeliverable = await request(base, "POST", postgresCustomDeliverablePath, {
+    ...postgresCustomDeliverableBody,
+    label: "Changed Postgres sponsor display"
+  }, { auth: true, headers: { "idempotency-key": postgresCustomDeliverableKey } });
+  const postgresCustomDeliverableId = concurrentPostgresDeliverables[0].data.deliverable?.id || concurrentPostgresDeliverables[1].data.deliverable?.id;
+  const postgresDeliverableWorkspace = await request(base, "GET", "/api/admin/partners", undefined, { auth: true });
+  const postgresDeliverableAudit = await request(base, "GET", "/api/admin/audit?limit=200", undefined, { auth: true });
+  const postgresDeliverableAudits = postgresDeliverableAudit.data.audit?.filter(item => item.record?.action === "partner.deliverable.create" && item.record?.target?.id === postgresCustomDeliverableId) || [];
+  check("Postgres custom sponsor deliverable requires replay protection", missingPostgresDeliverableKey.status === 400 && missingPostgresDeliverableKey.data.error?.includes("Idempotency-Key"));
+  check("Postgres custom sponsor deliverable concurrent replay converges", concurrentPostgresDeliverables.map(item => item.status).sort((left, right) => left - right).join(",") === "200,201" && concurrentPostgresDeliverables.some(item => item.data.replay === true) && new Set(concurrentPostgresDeliverables.map(item => item.data.deliverable?.id)).size === 1 && conflictingPostgresDeliverable.status === 409 && postgresDeliverableWorkspace.data.deliverables?.filter(item => item.id === postgresCustomDeliverableId).length === 1 && postgresDeliverableWorkspace.data.activity?.filter(item => item.type === "deliverable.created" && item.entityId === postgresCustomDeliverableId).length === 1 && postgresDeliverableAudits.length === 1 && !JSON.stringify({ postgresDeliverableWorkspace, postgresDeliverableAudit }).includes(postgresCustomDeliverableKey));
 
   const defaultSponsorMilestone = fulfillmentWorkspace.data.milestones?.find(item => item.applicationId === sponsorApplication.id);
   const reminderDueAt = new Date(Date.now() + 86_400_000).toISOString();
@@ -1133,12 +1197,14 @@ PG-B-01,${EVENT_ID},PG-EV-V-01,PG-EV-V-01,Postgres Booth Vendor,retail,vendor,po
     reminderLeadDays: 3,
     notes: "Verify the sponsor finance handoff."
   }, { auth: true });
-  const postgresCustomMilestone = await request(base, "POST", `/api/admin/partners/applications/${sponsorApplication.id}/milestones`, {
+  const postgresCustomMilestoneBody = {
     label: "Postgres hospitality roster",
     dueAt: new Date(Date.now() + 5 * 86_400_000).toISOString(),
     assigneeTeam: "guest-services",
     reminderLeadDays: 5
-  }, { auth: true });
+  };
+  const postgresCustomMilestone = await request(base, "POST", `/api/admin/partners/applications/${sponsorApplication.id}/milestones`, postgresCustomMilestoneBody, { auth: true, headers: { "idempotency-key": "postgres-partner-milestone-create-0001" } });
+  const replayedPostgresMilestone = await request(base, "POST", `/api/admin/partners/applications/${sponsorApplication.id}/milestones`, postgresCustomMilestoneBody, { auth: true, headers: { "idempotency-key": "postgres-partner-milestone-create-0001" } });
   const postgresCustomReschedule = await request(base, "PATCH", `/api/admin/partners/milestones/${postgresCustomMilestone.data.milestone?.id}`, {
     dueAt: new Date(Date.now() + 6 * 86_400_000).toISOString(),
     reminderLeadDays: 4
@@ -1146,7 +1212,7 @@ PG-B-01,${EVENT_ID},PG-EV-V-01,PG-EV-V-01,Postgres Booth Vendor,retail,vendor,po
   const postgresCustomCompletion = await request(base, "PATCH", `/api/admin/partners/milestones/${postgresCustomMilestone.data.milestone?.id}`, { status: "completed" }, { auth: true });
   const postgresMilestoneWorkspace = await request(base, "GET", "/api/admin/partners", undefined, { auth: true });
   const persistedCustomMilestone = postgresMilestoneWorkspace.data.milestones?.find(item => item.id === postgresCustomMilestone.data.milestone?.id);
-  check("milestone lifecycle persists", postgresMilestoneReschedule.status === 200 && postgresMilestoneReschedule.data.milestone?.scheduleVersion === 2 && postgresCustomMilestone.status === 201 && postgresCustomReschedule.data.milestone?.scheduleVersion === 2 && postgresCustomCompletion.data.milestone?.completedBy === "postgres-test-admin" && persistedCustomMilestone?.status === "completed" && !("ok" in (persistedCustomMilestone || {})));
+  check("milestone lifecycle persists", postgresMilestoneReschedule.status === 200 && postgresMilestoneReschedule.data.milestone?.scheduleVersion === 2 && postgresCustomMilestone.status === 201 && replayedPostgresMilestone.status === 200 && replayedPostgresMilestone.data.replay === true && replayedPostgresMilestone.data.milestone?.id === postgresCustomMilestone.data.milestone?.id && postgresCustomReschedule.data.milestone?.scheduleVersion === 2 && postgresCustomCompletion.data.milestone?.completedBy === "postgres-test-admin" && persistedCustomMilestone?.status === "completed" && !("ok" in (persistedCustomMilestone || {})));
   check("milestone summary persists", postgresMilestoneWorkspace.data.milestoneSummary?.totals?.completed === 1 && postgresMilestoneWorkspace.data.milestoneSummary?.totals?.open === 40);
 
   const approvedForBilling = await request(base, "PATCH", `/api/admin/partners/applications/${sponsorApplication.id}`, { status: "approved" }, { auth: true });
@@ -1226,19 +1292,21 @@ postgres_eventeny_settlement_1,2026-07-16,vendor_fee,250.00,7.50,242.50,eventeny
     notes: "Postgres durability verification"
   };
   const concurrentBudgetLineResponses = await Promise.all([
-    request(base, "POST", "/api/admin/budget/lines", concurrentBudgetLineBody, { auth: true }),
-    request(base, "POST", "/api/admin/budget/lines", concurrentBudgetLineBody, { auth: true })
+    request(base, "POST", "/api/admin/budget/lines", concurrentBudgetLineBody, { auth: true, headers: { "idempotency-key": "postgres-budget-create-0001" } }),
+    request(base, "POST", "/api/admin/budget/lines", concurrentBudgetLineBody, { auth: true, headers: { "idempotency-key": "postgres-budget-create-0002" } })
   ]);
   const postgresBudgetLine = concurrentBudgetLineResponses.find(item => item.status === 201);
   check("Postgres budget allocation serializes concurrent duplicate writes", concurrentBudgetLineResponses.filter(item => item.status === 201).length === 1
     && concurrentBudgetLineResponses.filter(item => item.status === 409).length === 1 && postgresBudgetLine?.data.line?.eventId === EVENT_ID);
-  const postgresExpenseRequest = await request(base, "POST", "/api/admin/budget/expenses", {
+  const postgresExpenseBody = {
     budgetLineId: postgresBudgetLine?.data.line?.id,
     vendorName: "Postgres Private Staging Vendor",
     description: "Postgres beach staging reservation",
     amountCents: 30_000,
     dueDate: "2027-02-15"
-  }, { auth: true });
+  };
+  const postgresExpenseRequest = await request(base, "POST", "/api/admin/budget/expenses", postgresExpenseBody, { auth: true, headers: { "idempotency-key": "postgres-expense-create-0001" } });
+  const replayedPostgresExpense = await request(base, "POST", "/api/admin/budget/expenses", postgresExpenseBody, { auth: true, headers: { "idempotency-key": "postgres-expense-create-0001" } });
   const postgresExpenseApproval = await request(base, "POST", `/api/admin/budget/expenses/${postgresExpenseRequest.data.expense?.id}/approve`, {}, { auth: true });
   const postgresExpensePayment = await request(base, "POST", `/api/admin/budget/expenses/${postgresExpenseRequest.data.expense?.id}/mark-paid`, {
     paymentMethod: "ach",
@@ -1250,14 +1318,14 @@ postgres_eventeny_settlement_1,2026-07-16,vendor_fee,250.00,7.50,242.50,eventeny
     description: "Postgres additional safety structures",
     amountCents: 25_000,
     dueDate: "2027-03-01"
-  }, { auth: true });
+  }, { auth: true, headers: { "idempotency-key": "postgres-expense-create-0002" } });
   const postgresOverBudgetBlocked = await request(base, "POST", `/api/admin/budget/expenses/${postgresOverBudgetRequest.data.expense?.id}/approve`, {}, { auth: true });
   const postgresOverBudgetApproved = await request(base, "POST", `/api/admin/budget/expenses/${postgresOverBudgetRequest.data.expense?.id}/approve`, {
     allowOverBudget: true,
     note: "Executive exception approved for required safety capacity."
   }, { auth: true });
   const postgresBudget = await request(base, "GET", "/api/admin/budget", undefined, { auth: true });
-  check("Postgres expense approval and payment evidence persists", postgresExpenseRequest.status === 201 && postgresExpenseApproval.status === 200
+  check("Postgres expense approval and payment evidence persists", postgresExpenseRequest.status === 201 && replayedPostgresExpense.status === 200 && replayedPostgresExpense.data.replay === true && replayedPostgresExpense.data.expense?.id === postgresExpenseRequest.data.expense?.id && postgresExpenseApproval.status === 200
     && postgresExpensePayment.status === 200 && postgresBudget.data.expenses?.find(item => item.id === postgresExpenseRequest.data.expense?.id)?.status === "paid");
   check("Postgres over-budget approval fails closed and persists an explicit override", postgresOverBudgetBlocked.status === 409 && postgresOverBudgetApproved.status === 200
     && postgresBudget.data.summary?.totals?.budgetCents === 50_000 && postgresBudget.data.summary?.totals?.committedCents === 55_000
@@ -1448,7 +1516,7 @@ postgres_eventeny_settlement_1,2026-07-16,vendor_fee,250.00,7.50,242.50,eventeny
     assigneeId: "vol_001",
     priority: "high",
     dueAt: "2026-07-17T13:00:00.000Z"
-  }, { auth: true });
+  }, { auth: true, headers: { "idempotency-key": "postgres-partner-task-create-0001" } });
   check("volunteer task assignment persisted", delegatedTask.status === 201 && delegatedTask.data.task?.assigneeName === "Alex Rivera", `status ${delegatedTask.status}`);
   const blockedTask = await request(base, "PATCH", `/api/admin/partners/tasks/${delegatedTask.data.task?.id}`, {
     status: "blocked",
@@ -1463,7 +1531,7 @@ postgres_eventeny_settlement_1,2026-07-16,vendor_fee,250.00,7.50,242.50,eventeny
     assigneeId: "vol_001",
     priority: "high",
     dueAt: new Date(Date.now() + 3 * 86_400_000).toISOString()
-  }, { auth: true });
+  }, { auth: true, headers: { "idempotency-key": "postgres-partner-task-create-0002" } });
   const notifiedStaffTask = await request(base, "POST", "/api/admin/partners/tasks", {
     title: "Postgres command briefing",
     description: "Confirm the incident command handoff.",
@@ -1471,7 +1539,7 @@ postgres_eventeny_settlement_1,2026-07-16,vendor_fee,250.00,7.50,242.50,eventeny
     assigneeId: "staff_command",
     priority: "high",
     dueAt: new Date(Date.now() + 3 * 86_400_000).toISOString()
-  }, { auth: true });
+  }, { auth: true, headers: { "idempotency-key": "postgres-partner-task-create-0003" } });
   const postgresTaskPortalConfig = taskPortalConfig(commonEnv);
   const postgresTaskPortalToken = issueTaskPortalToken(notifiedVolunteerTask.data.task, { config: postgresTaskPortalConfig });
   const openedPostgresTaskPortal = await request(base, "POST", "/api/public/task-status", {
@@ -1483,14 +1551,14 @@ postgres_eventeny_settlement_1,2026-07-16,vendor_fee,250.00,7.50,242.50,eventeny
     token: postgresTaskPortalToken,
     action: "acknowledge",
     note: "Postgres volunteer confirms the north gate checklist."
-  });
+  }, { headers: { "idempotency-key": "postgres-task-update-acknowledge-0001" } });
   const taskWorkspace = await request(base, "GET", "/api/admin/partners", undefined, { auth: true });
   const persistedAcknowledgedTask = taskWorkspace.data.tasks?.find(item => item.id === notifiedVolunteerTask.data.task?.id);
   check("task lifecycle and workload persisted", blockedTask.status === 200 && notifiedVolunteerTask.status === 201 && notifiedStaffTask.status === 201 && notifiedStaffTask.data.task?.assigneeName === "Postgres Incident Commander" && taskWorkspace.data.taskBoard?.totals?.blocked === 1 && taskWorkspace.data.taskBoard?.workload?.some(item => item.assigneeId === "operations") && taskWorkspace.data.taskBoard?.workload?.some(item => item.assigneeId === "vol_001") && taskWorkspace.data.taskBoard?.workload?.some(item => item.assigneeId === "staff_command"));
   check("task assignee capability update persists in Postgres", openedPostgresTaskPortal.status === 200 && acknowledgedPostgresTask.status === 200 && acknowledgedPostgresTask.data.task?.acknowledgedAt && persistedAcknowledgedTask?.acknowledgedAt && persistedAcknowledgedTask?.assigneeUpdates?.at(-1)?.note.includes("Postgres volunteer"));
   check("assignment directory minimizes private contacts", taskWorkspace.data.staffDirectory?.ready === true && taskWorkspace.data.assignmentDirectory?.staff?.some(item => item.id === "staff_command" && item.emailAvailable === true && !("email" in item)) && taskWorkspace.data.assignmentDirectory?.volunteers?.some(item => item.id === "vol_001" && item.emailAvailable === true && !("email" in item) && !("phone" in item)));
 
-  const prospect = await request(base, "POST", "/api/admin/outreach/prospects", {
+  const postgresProspectBody = {
     organizationName: "Postgres Island Hotel",
     contactName: "Morgan Taylor",
     contactEmail: "partners@postgres-hotel.example",
@@ -1505,9 +1573,11 @@ postgres_eventeny_settlement_1,2026-07-16,vendor_fee,250.00,7.50,242.50,eventeny
     ownerId: "sponsor_lead",
     nextAction: "Prepare a reviewed sponsor invitation",
     nextActionAt: "2027-01-15T15:00:00.000Z"
-  }, { auth: true });
+  };
+  const prospect = await request(base, "POST", "/api/admin/outreach/prospects", postgresProspectBody, { auth: true, headers: { "idempotency-key": "postgres-outreach-prospect-create-0001" } });
+  const replayedPostgresProspect = await request(base, "POST", "/api/admin/outreach/prospects", postgresProspectBody, { auth: true, headers: { "idempotency-key": "postgres-outreach-prospect-create-0001" } });
   const scheduledPostgresOutreach = await request(base, "GET", "/api/admin/outreach", undefined, { auth: true });
-  check("outreach prospect persisted", prospect.status === 201 && prospect.data.prospect?.fitScore >= 60, `status ${prospect.status}`);
+  check("outreach prospect persisted", prospect.status === 201 && replayedPostgresProspect.status === 200 && replayedPostgresProspect.data.replay === true && replayedPostgresProspect.data.prospect?.id === prospect.data.prospect?.id && prospect.data.prospect?.fitScore >= 60, `status ${prospect.status}/${replayedPostgresProspect.status}`);
   check("outreach ownership and schedule persisted", prospect.data.prospect?.ownerId === "sponsor_lead" && prospect.data.prospect?.nextActionAt === "2027-01-15T15:00:00.000Z" && scheduledPostgresOutreach.data.summary?.nextActionsScheduled === 1 && scheduledPostgresOutreach.data.summary?.unassigned === 0);
 
   const invitedPostgresProspect = await request(base, "POST", "/api/admin/outreach/prospects", {
@@ -1521,7 +1591,7 @@ postgres_eventeny_settlement_1,2026-07-16,vendor_fee,250.00,7.50,242.50,eventeny
     postalCode: "78401",
     contactBasis: "business_relevance",
     status: "contact_ready"
-  }, { auth: true });
+  }, { auth: true, headers: { "idempotency-key": "postgres-outreach-prospect-create-0002" } });
   const invitedPostgresProspectId = invitedPostgresProspect.data.prospect?.id;
   const postgresInvitation = await request(base, "POST", `/api/admin/outreach/prospects/${invitedPostgresProspectId}/sponsor-invitation`, { action: "issue", packageId: "tarpon" }, { auth: true });
   const copiedPostgresInvitation = await request(base, "POST", `/api/admin/outreach/prospects/${invitedPostgresProspectId}/sponsor-invitation`, { action: "copy" }, { auth: true });
@@ -1644,8 +1714,9 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
   const postgresCampaignPreview = await request(base, "POST", "/api/admin/outreach/campaigns/preview", postgresCampaignPayload, { auth: true });
   const postgresAfterCampaignPreview = await request(base, "GET", "/api/admin/outreach", undefined, { auth: true });
   check("Postgres campaign preflight is private and mutation-free", unauthenticatedPostgresCampaignPreview.status === 401 && postgresCampaignPreview.status === 200 && postgresCampaignPreview.data.preview?.matched === 1 && postgresCampaignPreview.data.preview?.matches?.[0]?.organizationName === "Postgres Island Hotel" && !("contactEmail" in postgresCampaignPreview.data.preview.matches[0]) && postgresCampaignPreview.data.preview.sample?.sequence?.[0]?.subject === "A SandFest partnership for Postgres Island Hotel" && postgresAfterCampaignPreview.data.campaigns?.length === postgresDiscoveryResearched.data.campaigns?.length);
-  const campaign = await request(base, "POST", "/api/admin/outreach/campaigns", postgresCampaignPayload, { auth: true });
-  check("outreach campaign persisted", campaign.status === 201 && campaign.data.campaign?.id, `status ${campaign.status}`);
+  const campaign = await request(base, "POST", "/api/admin/outreach/campaigns", postgresCampaignPayload, { auth: true, headers: { "idempotency-key": "postgres-outreach-campaign-create-0001" } });
+  const replayedPostgresCampaign = await request(base, "POST", "/api/admin/outreach/campaigns", postgresCampaignPayload, { auth: true, headers: { "idempotency-key": "postgres-outreach-campaign-create-0001" } });
+  check("outreach campaign persisted", campaign.status === 201 && replayedPostgresCampaign.status === 200 && replayedPostgresCampaign.data.replay === true && replayedPostgresCampaign.data.campaign?.id === campaign.data.campaign?.id && campaign.data.campaign?.id, `status ${campaign.status}/${replayedPostgresCampaign.status}`);
   const campaignId = campaign.data.campaign?.id;
   const activation = await request(base, "POST", `/api/admin/outreach/campaigns/${campaignId}/activate`, {}, { auth: true });
   check("campaign activation atomically seeds and audits the opening message", activation.status === 200 && activation.data.campaign?.status === "active" && activation.data.generated === 1, `status ${activation.status} generated ${activation.data.generated ?? "missing"}`);
@@ -1774,6 +1845,41 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
   const persistedNotice = publicIncidentState.data.notices?.find(item => item.id === cameraIncident?.id);
   check("camera incident lifecycle persists", assignedCameraIncident.status === 200 && persistedCameraIncident?.status === "responding" && persistedCameraIncident?.ownerName === "Postgres traffic desk");
   check("public incident notice remains private", persistedNotice?.severity === "critical" && !("ownerName" in (persistedNotice || {})) && !("timeline" in (persistedNotice || {})));
+  const postgresIncidentBody = {
+    title: "Postgres replay-safe operator incident",
+    summary: "Converge concurrent command submissions on one incident.",
+    severity: "high",
+    ownerTeam: "operations",
+    ownerName: "Postgres command"
+  };
+  const postgresIncidentKey = "postgres-conditions-incident-create-0001";
+  const missingPostgresIncidentKey = await request(base, "POST", "/api/admin/island-conditions/incidents", postgresIncidentBody, { auth: true });
+  const concurrentPostgresIncidents = await Promise.all([
+    request(base, "POST", "/api/admin/island-conditions/incidents", postgresIncidentBody, {
+      auth: true,
+      headers: { "idempotency-key": postgresIncidentKey }
+    }),
+    request(base, "POST", "/api/admin/island-conditions/incidents", postgresIncidentBody, {
+      auth: true,
+      headers: { "idempotency-key": postgresIncidentKey }
+    })
+  ]);
+  const conflictingPostgresIncident = await request(base, "POST", "/api/admin/island-conditions/incidents", {
+    ...postgresIncidentBody,
+    summary: "Changed command details must be rejected."
+  }, { auth: true, headers: { "idempotency-key": postgresIncidentKey } });
+  const postgresIncidentId = concurrentPostgresIncidents[0].data.incident?.id || concurrentPostgresIncidents[1].data.incident?.id;
+  const postgresIncidentWorkspace = await request(base, "GET", "/api/admin/island-conditions", undefined, { auth: true });
+  const postgresIncidentAudit = await request(base, "GET", "/api/admin/audit?limit=200", undefined, { auth: true });
+  const postgresIncidentAudits = postgresIncidentAudit.data.audit?.filter(item => item.record?.action === "conditions.incident.create" && item.record?.target?.id === postgresIncidentId) || [];
+  check("Postgres operator incident requires replay protection", missingPostgresIncidentKey.status === 400 && missingPostgresIncidentKey.data.error?.includes("Idempotency-Key"));
+  check("Postgres operator incident concurrent replay converges", concurrentPostgresIncidents.map(item => item.status).sort((left, right) => left - right).join(",") === "200,201"
+    && concurrentPostgresIncidents.some(item => item.data.replay === true)
+    && new Set(concurrentPostgresIncidents.map(item => item.data.incident?.id)).size === 1
+    && conflictingPostgresIncident.status === 409
+    && postgresIncidentWorkspace.data.incidents?.filter(item => item.id === postgresIncidentId).length === 1
+    && postgresIncidentAudits.length === 1
+    && !JSON.stringify({ postgresIncidentWorkspace, postgresIncidentAudit }).includes(postgresIncidentKey));
   const dispatchPath = `/api/admin/island-conditions/incidents/${cameraIncident?.id}/dispatches`;
   const dispatchInput = {
     assigneeType: "team",
@@ -2052,7 +2158,7 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
     longitude: -97.0611,
     contactBasis: "business_relevance",
     status: "contact_ready"
-  }, { auth: true });
+  }, { auth: true, headers: { "idempotency-key": "postgres-outreach-prospect-create-0003" } });
   const automationOutreachGeneration = await request(base, "POST", `/api/admin/outreach/campaigns/${campaignId}/generate`, {}, { auth: true });
   const manualOutreachWorkspace = await request(base, "GET", "/api/admin/outreach", undefined, { auth: true });
   const manualOutreachDraft = manualOutreachWorkspace.data.followups?.find(item => item.prospectId === automationProspect.data.prospect?.id && item.campaignId === campaignId && item.kind === "sponsor_outreach");
@@ -2076,7 +2182,7 @@ Postgres Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@postgres-bank.example
       subjectTemplate: "Approved SandFest outreach for {{organization}}",
       bodyTemplate: "Hello {{contactName}}, may we share the approved Texas SandFest sponsor program?"
     }]
-  }, { auth: true });
+  }, { auth: true, headers: { "idempotency-key": "postgres-outreach-campaign-create-0002" } });
   const approvedSequenceCampaignId = approvedSequenceCampaign.data.campaign?.id;
   const approvedSequenceActivation = await request(base, "POST", `/api/admin/outreach/campaigns/${approvedSequenceCampaignId}/activate`, {}, { auth: true });
   const automationMode = await request(base, "PATCH", "/api/admin/partners/automation", { mode: "transactional_auto" }, { auth: true });
@@ -2372,7 +2478,64 @@ PG-EVENTENY-V-1,vendor,Postgres Eventeny Vendor,Postgres Import Contact,${postgr
     SANDFEST_RECOVERY_DATABASE_SSL: "false"
   }, "Postgres recovery verification");
   const recoveryEvidence = JSON.parse(recoveryOutput.trim().split("\n").at(-1));
-  check("isolated recovery verification is read-only and complete", recoveryEvidence.ok && recoveryEvidence.mode === "read-only" && recoveryEvidence.requiredTables === 10 && recoveryEvidence.requiredConfigDocuments === 4 && recoveryEvidence.counts.platform_documents >= 5);
+  check("isolated recovery verification is read-only and complete", recoveryEvidence.ok
+    && recoveryEvidence.mode === "read-only"
+    && recoveryEvidence.isolation === "repeatable-read"
+    && recoveryEvidence.contractVersion === 1
+    && recoveryEvidence.eventId === EVENT_ID
+    && recoveryEvidence.requiredTables === 10
+    && recoveryEvidence.requiredColumns === 74
+    && recoveryEvidence.requiredConfigDocuments === 4
+    && recoveryEvidence.requiredOperationalDocuments === 15
+    && Object.values(recoveryEvidence.checks || {}).every(Boolean)
+    && /^[a-f0-9]{64}$/.test(recoveryEvidence.databaseManifestSha256 || "")
+    && recoveryEvidence.counts.platform_documents >= 15);
+  const guestServicesRecoveryRow = await verificationPool.query(
+    "SELECT data, updated_at FROM platform_documents WHERE key = $1",
+    ["guest-services"]
+  );
+  await verificationPool.query("DELETE FROM platform_documents WHERE key = $1", ["guest-services"]);
+  let missingOperationalDocumentRejected = false;
+  try {
+    await runChild(["scripts/verify-recovery.mjs"], {
+      ...commonEnv,
+      SANDFEST_DATABASE_URL: "",
+      SANDFEST_RECOVERY_DATABASE_URL: databaseUrl,
+      SANDFEST_RECOVERY_DATABASE_SSL: "false"
+    }, "Postgres missing operational recovery rejection");
+  } catch (error) {
+    missingOperationalDocumentRejected = error.message.includes("missing required operational document guest-services");
+  }
+  check("recovery verifier rejects a missing Guest Services ledger", guestServicesRecoveryRow.rows.length === 1 && missingOperationalDocumentRejected);
+  await verificationPool.query(
+    "INSERT INTO platform_documents (key, data, updated_at) VALUES ($1, $2::jsonb, $3)",
+    ["guest-services", JSON.stringify(guestServicesRecoveryRow.rows[0].data), guestServicesRecoveryRow.rows[0].updated_at]
+  );
+  const partnerRecoveryRow = await verificationPool.query(
+    "SELECT data, updated_at FROM platform_documents WHERE key = $1",
+    ["partner-operations"]
+  );
+  await verificationPool.query(
+    "UPDATE platform_documents SET data = $2::jsonb WHERE key = $1",
+    ["partner-operations", JSON.stringify({ ...partnerRecoveryRow.rows[0].data, eventId: "texas-sandfest-2026" })]
+  );
+  let crossEventRecoveryRejected = false;
+  try {
+    await runChild(["scripts/verify-recovery.mjs"], {
+      ...commonEnv,
+      SANDFEST_DATABASE_URL: "",
+      SANDFEST_RECOVERY_DATABASE_URL: databaseUrl,
+      SANDFEST_RECOVERY_DATABASE_SSL: "false"
+    }, "Postgres cross-event recovery rejection");
+  } catch (error) {
+    crossEventRecoveryRejected = error.message.includes("partner-operations belongs to texas-sandfest-2026")
+      && error.message.includes(`expected ${EVENT_ID}`);
+  }
+  check("recovery verifier rejects a cross-event partner ledger", partnerRecoveryRow.rows.length === 1 && crossEventRecoveryRejected);
+  await verificationPool.query(
+    "UPDATE platform_documents SET data = $2::jsonb, updated_at = $3 WHERE key = $1",
+    ["partner-operations", JSON.stringify(partnerRecoveryRow.rows[0].data), partnerRecoveryRow.rows[0].updated_at]
+  );
   let activeSourceRejected = false;
   try {
     await runChild(["scripts/verify-recovery.mjs"], {
@@ -2402,7 +2565,7 @@ PG-EVENTENY-V-1,vendor,Postgres Eventeny Vendor,Postgres Import Contact,${postgr
     SANDFEST_RECOVERY_ASSET_MIN_FILES: "2"
   }, "Postgres asset recovery verification");
   const assetRecoveryEvidence = JSON.parse(assetRecoveryOutput.trim().split("\n").at(-1));
-  check("isolated asset recovery verification proves every restored upload", assetRecoveryEvidence.ok && assetRecoveryEvidence.mode === "read-only" && assetRecoveryEvidence.database === "restored" && assetRecoveryEvidence.assetDirectory === "restored" && assetRecoveryEvidence.assets?.verified === recoveryUploads.length + recoveryIncomingDocuments.length && assetRecoveryEvidence.assets?.brandAssets >= 1 && assetRecoveryEvidence.assets?.vendorDocuments >= 1 && assetRecoveryEvidence.assets?.incomingDocuments === recoveryIncomingDocuments.length && assetRecoveryEvidence.assets?.incomingDocumentMetadataPresent === true && /^[a-f0-9]{64}$/.test(assetRecoveryEvidence.assets?.manifestSha256 || ""));
+  check("isolated asset recovery verification proves every restored upload", assetRecoveryEvidence.ok && assetRecoveryEvidence.mode === "read-only" && assetRecoveryEvidence.isolation === "repeatable-read" && assetRecoveryEvidence.database === "restored" && assetRecoveryEvidence.assetDirectory === "restored" && assetRecoveryEvidence.assets?.verified === recoveryUploads.length + recoveryIncomingDocuments.length && assetRecoveryEvidence.assets?.brandAssets >= 1 && assetRecoveryEvidence.assets?.vendorDocuments >= 1 && assetRecoveryEvidence.assets?.incomingDocuments === recoveryIncomingDocuments.length && assetRecoveryEvidence.assets?.incomingDocumentMetadataPresent === true && /^[a-f0-9]{64}$/.test(assetRecoveryEvidence.assets?.manifestSha256 || ""));
   await verificationPool.query("DELETE FROM platform_documents WHERE key = $1", ["incoming-documents"]);
   const legacyAssetRecoveryOutput = await runChild(["scripts/verify-asset-recovery.mjs"], {
     ...commonEnv,
@@ -2458,6 +2621,155 @@ PG-EVENTENY-V-1,vendor,Postgres Eventeny Vendor,Postgres Import Contact,${postgr
     activeAssetDatabaseRejected = error.message.includes("refuses to run against SANDFEST_DATABASE_URL");
   }
   check("asset recovery verifier refuses the active source database", activeAssetDatabaseRejected);
+
+  console.log("\n=== Atomic annual event rollover ===\n");
+  await stopChild(apiChild);
+  apiChild = null;
+  await verificationPool.query(
+    `INSERT INTO platform_documents (key, data, updated_at)
+     VALUES ($1, $2::jsonb, now())
+     ON CONFLICT (key) DO UPDATE SET data = EXCLUDED.data, updated_at = now()`,
+    [platformDocumentStorageKey("incomingDocuments"), JSON.stringify(recoveryIncomingDoc)]
+  );
+  const rolloverTargetEventId = "texas-sandfest-2028";
+  const bootstrapResult = await verificationPool.query(
+    "SELECT data FROM config_documents WHERE key = $1",
+    ["app-bootstrap"]
+  );
+  const targetBootstrap = {
+    ...bootstrapResult.rows[0].data,
+    guide: {
+      ...bootstrapResult.rows[0].data.guide,
+      id: rolloverTargetEventId,
+      startDate: "2028-04-14",
+      endDate: "2028-04-16"
+    }
+  };
+  await verificationPool.query(
+    "UPDATE config_documents SET data = $2::jsonb, updated_at = now() WHERE key = $1",
+    ["app-bootstrap", JSON.stringify(targetBootstrap)]
+  );
+
+  const rolloverStorageKeys = ROLLOVER_DOCUMENT_KEYS.map(platformDocumentStorageKey);
+  const sourceRolloverRows = await verificationPool.query(
+    "SELECT key, data FROM platform_documents WHERE key = ANY($1::text[]) ORDER BY key",
+    [rolloverStorageKeys]
+  );
+  const sourceRolloverDocuments = new Map(sourceRolloverRows.rows.map(row => [row.key, row.data]));
+  const missingRolloverStorageKeys = rolloverStorageKeys.filter(key => !sourceRolloverDocuments.has(key));
+  if (!isDeepStrictEqual(missingRolloverStorageKeys, [platformDocumentStorageKey("passportCompletions")])) {
+    throw new Error(`Atomic rollover fixture has unexpected missing documents: ${missingRolloverStorageKeys.join(", ") || "none"}.`);
+  }
+  const sourceSnapshotCount = Number((await verificationPool.query(
+    "SELECT count(*)::int AS count FROM config_snapshots"
+  )).rows[0].count);
+
+  await verificationPool.query(`
+    CREATE OR REPLACE FUNCTION sandfest_reject_test_rollover()
+    RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+    BEGIN
+      IF NEW.key = 'partner-operations'
+         AND NEW.data->>'eventId' = 'texas-sandfest-2028' THEN
+        RAISE EXCEPTION 'forced rollover rollback';
+      END IF;
+      RETURN NEW;
+    END;
+    $$
+  `);
+  await verificationPool.query(`
+    CREATE TRIGGER sandfest_reject_test_rollover
+    BEFORE UPDATE ON platform_documents
+    FOR EACH ROW
+    EXECUTE FUNCTION sandfest_reject_test_rollover()
+  `);
+
+  let forcedRolloverFailure = null;
+  try {
+    await runChild([
+      "scripts/rollover-event.mjs",
+      "--from", EVENT_ID,
+      "--to", rolloverTargetEventId,
+      "--apply"
+    ], {
+      ...commonEnv,
+      SANDFEST_EVENT_ID: rolloverTargetEventId,
+      SANDFEST_ROLLOVER_MAINTENANCE: "true"
+    }, "forced atomic rollover rollback");
+  } catch (error) {
+    forcedRolloverFailure = error;
+  } finally {
+    await verificationPool.query("DROP TRIGGER IF EXISTS sandfest_reject_test_rollover ON platform_documents");
+    await verificationPool.query("DROP FUNCTION IF EXISTS sandfest_reject_test_rollover()");
+  }
+
+  const rolledBackRows = await verificationPool.query(
+    "SELECT key, data FROM platform_documents WHERE key = ANY($1::text[]) ORDER BY key",
+    [rolloverStorageKeys]
+  );
+  const rolledBackSnapshotCount = Number((await verificationPool.query(
+    "SELECT count(*)::int AS count FROM config_snapshots"
+  )).rows[0].count);
+  const rollbackPreservedDocuments = rolledBackRows.rows.every(row => (
+    isDeepStrictEqual(row.data, sourceRolloverDocuments.get(row.key))
+  ));
+  check("forced mid-rollover failure leaves no mixed-year state", forcedRolloverFailure?.message.includes("forced rollover rollback")
+    && rollbackPreservedDocuments
+    && rolledBackRows.rows.length === sourceRolloverRows.rows.length
+    && rolledBackSnapshotCount === sourceSnapshotCount);
+
+  const rolloverOutput = await runChild([
+    "scripts/rollover-event.mjs",
+    "--from", EVENT_ID,
+    "--to", rolloverTargetEventId,
+    "--apply"
+  ], {
+    ...commonEnv,
+    SANDFEST_EVENT_ID: rolloverTargetEventId,
+    SANDFEST_ROLLOVER_MAINTENANCE: "true"
+  }, "atomic Postgres rollover");
+  const rolloverEvidence = JSON.parse(rolloverOutput.trim());
+  check("Postgres rollover reports serializable all-or-nothing evidence", rolloverEvidence.ok
+    && rolloverEvidence.mode === "applied"
+    && rolloverEvidence.storage === "postgres"
+    && rolloverEvidence.atomic === true
+    && rolloverEvidence.isolation === "serializable"
+    && rolloverEvidence.verifiedDocuments === ROLLOVER_DOCUMENT_KEYS.length
+    && /^[a-f0-9]{64}$/.test(rolloverEvidence.archiveDigest || ""));
+
+  const targetRolloverRows = await verificationPool.query(
+    "SELECT key, data FROM platform_documents WHERE key = ANY($1::text[])",
+    [rolloverStorageKeys]
+  );
+  const targetDocumentsByStorageKey = new Map(targetRolloverRows.rows.map(row => [row.key, row.data]));
+  const targetDocuments = Object.fromEntries(ROLLOVER_DOCUMENT_KEYS.map(key => [
+    key,
+    targetDocumentsByStorageKey.get(platformDocumentStorageKey(key))
+  ]));
+  const allCurrentDocumentsAdvanced = CURRENT_EVENT_OPERATIONAL_DOCUMENT_KEYS.every(key => (
+    operationalDocumentEventId(key, targetDocuments[key]) === rolloverTargetEventId
+  ));
+  const archiveResult = await verificationPool.query(
+    "SELECT data FROM config_snapshots WHERE id = $1",
+    [rolloverEvidence.archiveId]
+  );
+  const archivedDocuments = archiveResult.rows[0]?.data?.data?.documents;
+  check("atomic rollover binds the complete source archive to the new ledgers", allCurrentDocumentsAdvanced
+    && archiveResult.rows.length === 1
+    && archivedDocuments?.partnerOps?.eventId === EVENT_ID
+    && archivedDocuments?.passportCompletions?.completions?.length === totals.completions
+    && archivedDocuments?.voting?.votes?.length === totals.votes
+    && targetDocuments.passportCompletions?.completions?.length === 0
+    && targetDocuments.voting?.votes?.length === 0);
+
+  const retainedHistory = (await verificationPool.query(`
+    SELECT
+      (SELECT count(*)::int FROM hunt_completions WHERE hunt_id = 'sculpture-passport-2027') AS completions,
+      (SELECT count(*)::int FROM peoples_choice_votes WHERE event_id = $1) AS votes
+  `, [EVENT_ID])).rows[0];
+  check("rollover retains source-year append history", retainedHistory.completions === totals.completions
+    && retainedHistory.votes === totals.votes);
   await closePool();
 
   console.log(`\nPostgres total: ${passed} passed, ${failed} failed\n`);

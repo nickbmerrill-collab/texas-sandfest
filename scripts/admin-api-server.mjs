@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { loadDotEnv } from "../lib/load-env.mjs";
 import { RUNTIME_OWNERSHIP_ERROR_CODE, assertRuntimeOwnership, resolveRuntimeRoot, runtimeRootProfile } from "../lib/runtime-root.mjs";
 import { createStorage } from "../lib/storage.mjs";
-import { authMode, authModeIsJwt, resolveSession } from "../lib/auth.mjs";
+import { authConfiguration, authMode, authModeIsJwt, resolveSession } from "../lib/auth.mjs";
 import { ADMIN_ROLE_PERMISSIONS } from "../lib/admin-permissions.mjs";
 import { ADMIN_DEPLOYMENT_WRITE, ADMIN_TASKS_WRITE } from "../lib/admin-permission-names.mjs";
 import { buildRevenueLedgerView, partnerRevenueEntries, summarizeLedger, ticketRevenueEntries } from "../lib/revenue.mjs";
@@ -47,7 +47,12 @@ import {
   publishVisitorGuidance,
   visitorGuidanceReadiness
 } from "../lib/visitor-guidance.mjs";
-import { eventContextConfig, eventContextReadiness } from "../lib/event-context.mjs";
+import {
+  CURRENT_EVENT_OPERATIONAL_DOCUMENT_KEYS,
+  eventContextConfig,
+  eventContextReadiness,
+  operationalDocumentEventId
+} from "../lib/event-context.mjs";
 import { recoveryReadiness } from "../lib/recovery-readiness.mjs";
 import { enqueueJob, getQueueHealth, listJobs, markTerminalJobHandled } from "../lib/job-queue.mjs";
 import {
@@ -437,6 +442,16 @@ import {
   receivablesExport,
   tasksExport
 } from "../lib/operations-export.mjs";
+import {
+  BOARD_CAPABILITY_CERTIFICATE_MAX_AGE_MS,
+  BOARD_CAPABILITY_JOURNEYS,
+  evaluateBoardCapabilityCertificate
+} from "../lib/board-capability-certificate.mjs";
+import {
+  boardDemoSessionPath,
+  boardDemoSessionProcessAlive,
+  readBoardDemoSession
+} from "../lib/board-demo-session.mjs";
 
 await loadDotEnv();
 
@@ -569,21 +584,6 @@ const SMS_MAX_RECIPIENTS = Number.isFinite(configuredSmsMaxRecipients)
 const EVENT_GUIDE_SOURCE_MAX_AGE_DAYS = Math.max(1, Number(process.env.SANDFEST_EVENT_GUIDE_SOURCE_MAX_AGE_DAYS || 90));
 const PARTNER_CATALOG_SOURCE_MAX_AGE_DAYS = Math.max(1, Number(process.env.SANDFEST_PARTNER_CATALOG_SOURCE_MAX_AGE_DAYS || 180));
 const SCULPTOR_ROSTER_SOURCE_MAX_AGE_DAYS = Math.max(1, Number(process.env.SANDFEST_SCULPTOR_ROSTER_SOURCE_MAX_AGE_DAYS || 180));
-const OPERATIONAL_EVENT_DOCUMENT_KEYS = [
-  "fleet",
-  "budgetControl",
-  "volunteers",
-  "staffDirectory",
-  "consent",
-  "sculptorRoster",
-  "passportHunt",
-  "voting",
-  "booths",
-  "partnerOps",
-  "incomingDocuments",
-  "islandConditions",
-  "smsOperations"
-];
 const MAX_BODY_BYTES = Number(process.env.SANDFEST_MAX_BODY_BYTES || 262_144); // 256 KiB
 const LARGE_CSV_IMPORT_BODY_BYTES = 5_500_000;
 const ADMIN_TOKEN = process.env.SANDFEST_ADMIN_API_TOKEN || "dev-admin-token-change-me";
@@ -774,6 +774,7 @@ function checkStatus(ok, message, severity = "error") {
 
 const DEPLOYMENT_CHECK_PRESENTATION = Object.freeze({
   environment: ["Runtime environment", "Platform"],
+  boardCapabilityCertificate: ["Board capability certificate", "Platform"],
   capabilityPolicy: ["Required capabilities", "Platform"],
   dataPlane: ["Durable data plane", "Platform"],
   backupRecovery: ["Backup and recovery", "Platform"],
@@ -781,6 +782,7 @@ const DEPLOYMENT_CHECK_PRESENTATION = Object.freeze({
   authMode: ["Authentication mode", "Access"],
   authJwks: ["JWKS endpoint", "Access"],
   authIssuer: ["Token issuer", "Access"],
+  authAudience: ["Token audience", "Access"],
   adminToken: ["Admin credential", "Access"],
   adminRole: ["Admin role", "Access"],
   adminActor: ["Audit actor", "Access"],
@@ -956,7 +958,7 @@ function partnerPaymentAuditView(payment) {
 
 function budgetMutationStatus(result) {
   if (result?.code === "NOT_FOUND") return 404;
-  if (["DUPLICATE_BUDGET_LINE", "INVALID_STATE", "INVALID_TRANSITION", "OVER_BUDGET"].includes(result?.code)) return 409;
+  if (["DUPLICATE_BUDGET_LINE", "IDEMPOTENCY_CONFLICT", "INVALID_STATE", "INVALID_TRANSITION", "OVER_BUDGET"].includes(result?.code)) return 409;
   return 400;
 }
 
@@ -1974,8 +1976,12 @@ function adminTicketOrderAuditView(order) {
 
 function adminPartnerTaskView(task, followups = []) {
   if (!task) return task;
-  const { lastAssignmentNoticeRequestId, ...safe } = task;
-  return { ...safe, notificationSummary: summarizeTaskNotifications(task, followups) };
+  const { lastAssignmentNoticeRequestId, assigneeUpdates = [], ...safe } = task;
+  return {
+    ...safe,
+    assigneeUpdates: assigneeUpdates.map(({ requestId, requestFingerprint, ...update }) => update),
+    notificationSummary: summarizeTaskNotifications(task, followups)
+  };
 }
 
 function boardAppPartnerSnapshot(doc, now) {
@@ -2324,16 +2330,100 @@ function deploymentTaskSyncRuntimeProfile(now = Date.now()) {
   };
 }
 
+async function boardCapabilityCertificateProfile() {
+  if (!BOARD_DEMO_RUNTIME) return null;
+  const certificateFile = path.join(CODE_ROOT, ".sandfest-runtime", "board-capability-certification.json");
+  const sessionFile = boardDemoSessionPath(process.env, { root: CODE_ROOT });
+  try {
+    const certificate = JSON.parse(await readFile(certificateFile, "utf8"));
+    const session = await readBoardDemoSession(sessionFile);
+    const source = session?.source || null;
+    const links = session?.links || null;
+    const sessionRuntimeRoot = session?.runtimeRoot
+      ? path.resolve(CODE_ROOT, session.runtimeRoot)
+      : null;
+    const sessionReady = Boolean(
+      session
+      && session.status === "ready"
+      && sessionRuntimeRoot === ROOT
+      && boardDemoSessionProcessAlive(session)
+    );
+    const evaluated = sessionReady
+      ? evaluateBoardCapabilityCertificate(certificate, {
+        source,
+        links,
+        now: new Date(),
+        maxAgeMs: BOARD_CAPABILITY_CERTIFICATE_MAX_AGE_MS
+      })
+      : {
+        ok: false,
+        errors: [sessionRuntimeRoot && sessionRuntimeRoot !== ROOT
+          ? "The board capability certificate belongs to a different runtime session."
+          : "The board supervisor session is not ready."],
+        completedAt: certificate?.completedAt || null,
+        ageMs: null,
+        journeyCount: Array.isArray(certificate?.journeys) ? certificate.journeys.length : 0,
+        browsers: []
+      };
+    const journeys = Array.isArray(certificate?.journeys) ? certificate.journeys : [];
+    return {
+      ok: evaluated.ok,
+      status: evaluated.ok ? "certified" : "needs_certification",
+      completedAt: evaluated.completedAt,
+      ageMinutes: Number.isFinite(evaluated.ageMs) ? Math.round(evaluated.ageMs / 60_000) : null,
+      journeyCount: evaluated.journeyCount,
+      requiredJourneyCount: BOARD_CAPABILITY_JOURNEYS.length,
+      browsers: evaluated.browsers,
+      source: source ? {
+        branch: source.branch || null,
+        commit: source.commit || null,
+        originMainCommit: source.originMainCommit || null,
+        matchesOriginMain: source.matchesOriginMain === true,
+        dirty: source.dirty === true
+      } : null,
+      certifiedCapabilities: Array.isArray(certificate?.certifiedCapabilities)
+        ? certificate.certifiedCapabilities
+        : [],
+      deferredProductionGates: Array.isArray(certificate?.deferredProductionGates)
+        ? certificate.deferredProductionGates
+        : [],
+      journeys: journeys.map(item => ({
+        id: item?.id || null,
+        label: item?.label || item?.id || "Board journey",
+        ok: item?.ok === true,
+        capabilities: Array.isArray(item?.capabilities) ? item.capabilities : []
+      })),
+      errors: evaluated.errors
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      status: "missing",
+      completedAt: null,
+      ageMinutes: null,
+      journeyCount: 0,
+      requiredJourneyCount: BOARD_CAPABILITY_JOURNEYS.length,
+      browsers: [],
+      source: null,
+      certifiedCapabilities: [],
+      deferredProductionGates: [],
+      journeys: [],
+      errors: [error?.code === "ENOENT"
+        ? "Run board capability certification before presenting."
+        : `Board capability certificate could not be read: ${error.message}`]
+    };
+  }
+}
+
 async function deploymentProfile(options = {}) {
   const production = SANDFEST_ENV === "production";
   const deploymentTaskAutomation = deploymentTaskSyncRuntimeProfile();
+  const boardCapabilityCertificate = await boardCapabilityCertificateProfile();
   const adminBase = process.env.SANDFEST_ADMIN_BASE_URL || "";
   const publicApiBase = process.env.SANDFEST_API_PUBLIC_BASE_URL || "";
   const corsOrigins = new Set(ALLOWED_ORIGINS);
-  const mode = authMode();
-  const jwt = authModeIsJwt();
-  const jwksUrl = process.env.SANDFEST_AUTH_JWKS_URL || "";
-  const issuer = process.env.SANDFEST_AUTH_ISSUER || "";
+  const authConfig = authConfiguration();
+  const { mode, jwt } = authConfig;
   const capabilityPolicy = requiredCapabilityPolicy(production);
   const [ticketCatalog, eventBootstrap, adminConfigResult, ...operationalDocValues] = await Promise.all([
     storage.config.read("ticket-products"),
@@ -2341,15 +2431,11 @@ async function deploymentProfile(options = {}) {
     storage.config.read("admin-config")
       .then(value => ({ value, error: null }))
       .catch(error => ({ value: null, error })),
-    ...OPERATIONAL_EVENT_DOCUMENT_KEYS.map(key => readPlatformDoc(ROOT, key, null))
+    ...CURRENT_EVENT_OPERATIONAL_DOCUMENT_KEYS.map(key => readPlatformDoc(ROOT, key, null))
   ]);
-  const operationalDocs = OPERATIONAL_EVENT_DOCUMENT_KEYS.map((key, index) => ({
+  const operationalDocs = CURRENT_EVENT_OPERATIONAL_DOCUMENT_KEYS.map((key, index) => ({
     key,
-    eventId: key === "passportHunt"
-      ? operationalDocValues[index]?.hunt?.eventId ?? null
-      : key === "sculptorRoster"
-        ? operationalDocValues[index]?.meta?.eventId ?? null
-        : operationalDocValues[index]?.eventId ?? null
+    eventId: operationalDocumentEventId(key, operationalDocValues[index])
   }));
   const quickbooks = await readQuickBooksCredentialStatus(ROOT);
   const guideReadiness = eventGuideReadiness(eventBootstrap.guide, {
@@ -2371,7 +2457,7 @@ async function deploymentProfile(options = {}) {
     maxSourceAgeDays: EVENT_GUIDE_SOURCE_MAX_AGE_DAYS,
     allowBoardDemo: BOARD_DEMO_RUNTIME
   });
-  const sculptorRosterDocument = operationalDocValues[OPERATIONAL_EVENT_DOCUMENT_KEYS.indexOf("sculptorRoster")];
+  const sculptorRosterDocument = operationalDocValues[CURRENT_EVENT_OPERATIONAL_DOCUMENT_KEYS.indexOf("sculptorRoster")];
   const rosterReadiness = sculptorRosterReadiness(sculptorRosterDocument, {
     eventId: CURRENT_EVENT_ID,
     maxSourceAgeDays: SCULPTOR_ROSTER_SOURCE_MAX_AGE_DAYS,
@@ -2382,7 +2468,7 @@ async function deploymentProfile(options = {}) {
     guide: eventBootstrap.guide,
     operationalDocs
   });
-  const staffDirectoryDocument = operationalDocValues[OPERATIONAL_EVENT_DOCUMENT_KEYS.indexOf("staffDirectory")];
+  const staffDirectoryDocument = operationalDocValues[CURRENT_EVENT_OPERATIONAL_DOCUMENT_KEYS.indexOf("staffDirectory")];
   const staffReadiness = staffDirectoryReadiness(staffDirectoryDocument, { eventId: CURRENT_EVENT_ID, production });
   const checkoutProducts = (ticketCatalog?.products || []).filter(item => item.active !== false && item.requiresReview !== true);
   const invalidCheckoutProducts = checkoutProducts.filter(item => !/^price_[A-Za-z0-9_]+$/.test(item.stripePriceId || "")
@@ -2419,6 +2505,15 @@ async function deploymentProfile(options = {}) {
     && ticketPolicy.ready;
   const checks = {
     environment: checkStatus(["development", "staging", "production"].includes(SANDFEST_ENV), `SANDFEST_ENV=${SANDFEST_ENV}`),
+    ...(BOARD_DEMO_RUNTIME ? {
+      boardCapabilityCertificate: checkStatus(
+        boardCapabilityCertificate?.ok === true,
+        boardCapabilityCertificate?.ok
+          ? `Certified ${boardCapabilityCertificate.journeyCount}/${boardCapabilityCertificate.requiredJourneyCount} board journeys with Chromium and WebKit acceptance ${boardCapabilityCertificate.ageMinutes ?? 0} minute${boardCapabilityCertificate.ageMinutes === 1 ? "" : "s"} ago.`
+          : (boardCapabilityCertificate?.errors || ["Run board capability certification before presenting."]).join(" "),
+        "warning"
+      )
+    } : {}),
     capabilityPolicy: checkStatus(
       capabilityPolicy.unknown.length === 0,
       capabilityPolicy.unknown.length
@@ -2460,13 +2555,18 @@ async function deploymentProfile(options = {}) {
       production ? "error" : "warning"
     ),
     authJwks: checkStatus(
-      !jwt || jwksUrl.startsWith("https://"),
+      authConfig.checks.jwks,
       jwt ? "JWT mode requires SANDFEST_AUTH_JWKS_URL to be an HTTPS URL." : "JWKS URL not required in bearer-token mode.",
       "error"
     ),
     authIssuer: checkStatus(
-      !jwt || Boolean(issuer),
-      jwt ? "JWT mode requires SANDFEST_AUTH_ISSUER for issuer pinning." : "Issuer pinning not required in bearer-token mode.",
+      authConfig.checks.issuer,
+      jwt ? "JWT mode requires SANDFEST_AUTH_ISSUER to be an HTTPS URL for issuer pinning." : "Issuer pinning not required in bearer-token mode.",
+      jwt ? "error" : "warning"
+    ),
+    authAudience: checkStatus(
+      authConfig.checks.audience,
+      jwt ? "JWT mode requires SANDFEST_AUTH_AUDIENCE for resource pinning." : "Audience pinning not required in bearer-token mode.",
       jwt ? "error" : "warning"
     ),
     adminToken: checkStatus(
@@ -2750,6 +2850,7 @@ async function deploymentProfile(options = {}) {
     ok: errors.length === 0,
     errors: errors.length,
     warnings: warnings.length,
+    boardCapabilities: boardCapabilityCertificate,
     automation: { deploymentTaskSync: deploymentTaskAutomation },
     quickBooksInvoiceSyncReady: quickbooks.canSyncPartnerInvoices,
     checks: presentedChecks,
@@ -2828,6 +2929,21 @@ function guestServicesIdempotency(request, body = {}) {
     idempotencyKeyHash: createHash("sha256").update(key).digest("hex"),
     idempotencyFingerprint: guestServicesIntakeFingerprint(body)
   };
+}
+
+function requiredIdempotencyKey(request) {
+  const header = Array.isArray(request.headers["idempotency-key"])
+    ? request.headers["idempotency-key"][0]
+    : request.headers["idempotency-key"];
+  const key = String(header || "").trim();
+  if (key.length < 16 || key.length > 200 || !/^[A-Za-z0-9][A-Za-z0-9._:-]+$/.test(key)) {
+    return { ok: false, error: "Idempotency-Key must be 16 to 200 URL-safe characters." };
+  }
+  return { ok: true, keyHash: createHash("sha256").update(key).digest("hex") };
+}
+
+function idempotencyIdFactory(scope, keyHash) {
+  return prefix => `${prefix}_${createHash("sha256").update(`${scope}:${prefix}:${keyHash}`).digest("hex").slice(0, 32)}`;
 }
 
 function outreachImportPreviewHash(csv, defaultsInput = {}) {
@@ -4741,11 +4857,16 @@ async function handleAdminSponsorPatch(request, response, sponsorId) {
 
 async function handleAdminSponsorCreate(request, response) {
   if (!(await requirePermission(request, response, "sponsor:write"))) return;
+  const idempotency = requiredIdempotencyKey(request);
+  if (!idempotency.ok) {
+    sendJson(request, response, 400, { error: idempotency.error });
+    return;
+  }
   const input = filterPatch(await readBody(request), creatableSponsorFields);
   let result;
   await storage.config.update("admin-config", async config => {
     result = createSponsorPackageConfig(config, input);
-    if (!result.ok) return undefined;
+    if (!result.ok || result.replay) return undefined;
     const now = new Date().toISOString();
     result.config.sponsorPackagePublication = refreshedPartnerCatalogPublication(result.config, "sponsor", now);
     result.config.lastUpdated = now;
@@ -4759,13 +4880,16 @@ async function handleAdminSponsorCreate(request, response) {
     });
     return;
   }
-  await writeAuditRecord(request, "sponsor-package.create", {
-    type: "sponsorPackage",
-    id: result.sponsorPackage.id
-  }, null, result.sponsorPackage, {
-    changedFields: Object.keys(input)
-  });
-  sendJson(request, response, 201, {
+  if (!result.replay) {
+    await writeAuditRecord(request, "sponsor-package.create", {
+      type: "sponsorPackage",
+      id: result.sponsorPackage.id
+    }, null, result.sponsorPackage, {
+      changedFields: Object.keys(input)
+    });
+  }
+  sendJson(request, response, result.replay ? 200 : 201, {
+    replay: result.replay === true,
     sponsorPackage: result.sponsorPackage,
     readiness: {
       ready: result.catalog.ready,
@@ -4816,11 +4940,16 @@ async function handleAdminVendorOfferingPatch(request, response, offeringId) {
 
 async function handleAdminVendorOfferingCreate(request, response) {
   if (!(await requirePermission(request, response, "finance:write"))) return;
+  const idempotency = requiredIdempotencyKey(request);
+  if (!idempotency.ok) {
+    sendJson(request, response, 400, { error: idempotency.error });
+    return;
+  }
   const input = filterPatch(await readBody(request), creatableVendorOfferingFields);
   let result;
   await storage.config.update("admin-config", async config => {
     result = createVendorOfferingConfig(config, input);
-    if (!result.ok) return undefined;
+    if (!result.ok || result.replay) return undefined;
     const now = new Date().toISOString();
     result.config.vendorOfferingPublication = refreshedPartnerCatalogPublication(result.config, "vendor", now);
     result.config.lastUpdated = now;
@@ -4834,13 +4963,16 @@ async function handleAdminVendorOfferingCreate(request, response) {
     });
     return;
   }
-  await writeAuditRecord(request, "vendor-offering.create", {
-    type: "vendorOffering",
-    id: result.offering.id
-  }, null, result.offering, {
-    changedFields: Object.keys(input)
-  });
-  sendJson(request, response, 201, {
+  if (!result.replay) {
+    await writeAuditRecord(request, "vendor-offering.create", {
+      type: "vendorOffering",
+      id: result.offering.id
+    }, null, result.offering, {
+      changedFields: Object.keys(input)
+    });
+  }
+  sendJson(request, response, result.replay ? 200 : 201, {
+    replay: result.replay === true,
     vendorOffering: result.offering,
     readiness: {
       ready: result.catalog.ready,
@@ -6123,6 +6255,11 @@ async function handleRequest(request, response) {
         sendJson(request, response, 503, { error: "Task status is temporarily unavailable." }, { "cache-control": "no-store" });
         return;
       }
+      const idempotency = requiredIdempotencyKey(request);
+      if (!idempotency.ok) {
+        sendJson(request, response, 400, { error: idempotency.error }, { "cache-control": "no-store" });
+        return;
+      }
       const body = await readBody(request);
       const result = await mutatePartnerOperations(doc => {
         const access = findTaskPortalTask(doc, body.taskId, body.token, { config });
@@ -6132,7 +6269,8 @@ async function handleRequest(request, response) {
           note: body.note
         }, {
           idFactory: prefix => `${prefix}_${randomUUID()}`,
-          now: new Date().toISOString()
+          now: new Date().toISOString(),
+          requestId: idempotency.keyHash
         });
       });
       if (!result?.ok) {
@@ -7458,18 +7596,25 @@ async function handleRequest(request, response) {
     if (method === "POST" && pathname === "/api/admin/budget/lines") {
       const session = await requirePermission(request, response, "budget:write");
       if (!session) return;
+      const idempotency = requiredIdempotencyKey(request);
+      if (!idempotency.ok) {
+        sendJson(request, response, 400, { error: idempotency.error });
+        return;
+      }
       const body = await readBody(request);
       const result = await mutateBudgetControl(doc => createBudgetLine(doc, body, {
         actorId: session.id,
-        idFactory: () => `budget_line_${randomUUID()}`,
+        idFactory: () => `budget_line_${idempotency.keyHash.slice(0, 32)}`,
         now: new Date().toISOString()
       }));
       if (!result?.ok) {
         sendJson(request, response, budgetMutationStatus(result), { error: result?.error || "Budget line could not be created.", code: result?.code });
         return;
       }
-      await writeAuditRecord(request, "budget.line.create", { type: "budget_line", id: result.line.id }, null, budgetLineAuditView(result.line));
-      sendJson(request, response, 201, { line: result.line, summary: summarizeBudgetControl(result.doc) });
+      if (!result.replay) {
+        await writeAuditRecord(request, "budget.line.create", { type: "budget_line", id: result.line.id }, null, budgetLineAuditView(result.line));
+      }
+      sendJson(request, response, result.replay ? 200 : 201, { replay: result.replay === true, line: result.line, summary: summarizeBudgetControl(result.doc) });
       return;
     }
 
@@ -7497,18 +7642,25 @@ async function handleRequest(request, response) {
     if (method === "POST" && pathname === "/api/admin/budget/expenses") {
       const session = await requirePermission(request, response, "budget:write");
       if (!session) return;
+      const idempotency = requiredIdempotencyKey(request);
+      if (!idempotency.ok) {
+        sendJson(request, response, 400, { error: idempotency.error });
+        return;
+      }
       const body = await readBody(request);
       const result = await mutateBudgetControl(doc => createExpenseRequest(doc, body, {
         actorId: session.id,
-        idFactory: () => `expense_${randomUUID()}`,
+        idFactory: () => `expense_${idempotency.keyHash.slice(0, 32)}`,
         now: new Date().toISOString()
       }));
       if (!result?.ok) {
         sendJson(request, response, budgetMutationStatus(result), { error: result?.error || "Expense request could not be created.", code: result?.code });
         return;
       }
-      await writeAuditRecord(request, "budget.expense.submit", { type: "expense", id: result.expense.id }, null, expenseAuditView(result.expense));
-      sendJson(request, response, 201, { expense: result.expense, summary: summarizeBudgetControl(result.doc) });
+      if (!result.replay) {
+        await writeAuditRecord(request, "budget.expense.submit", { type: "expense", id: result.expense.id }, null, expenseAuditView(result.expense));
+      }
+      sendJson(request, response, result.replay ? 200 : 201, { replay: result.replay === true, expense: result.expense, summary: summarizeBudgetControl(result.doc) });
       return;
     }
 
@@ -8520,18 +8672,31 @@ async function handleRequest(request, response) {
     if (method === "POST" && pathname === "/api/admin/outreach/prospects") {
       const session = await requirePermission(request, response, "outreach:write");
       if (!session) return;
+      const idempotency = requiredIdempotencyKey(request);
+      if (!idempotency.ok) {
+        sendJson(request, response, 400, { error: idempotency.error });
+        return;
+      }
       const body = await readBody(request);
       const result = await mutatePartnerOperations(doc => createOutreachProspect(doc, body, {
         actorId: session.id,
-        idFactory: prefix => `${prefix}_${randomUUID()}`,
+        idFactory: idempotencyIdFactory("outreach-prospect-create", idempotency.keyHash),
         now: new Date().toISOString()
       }));
       if (!result?.ok) {
-        sendJson(request, response, 400, { error: result?.error || "Prospect could not be created." });
+        sendJson(request, response, result?.code === "IDEMPOTENCY_CONFLICT" ? 409 : 400, {
+          error: result?.error || "Prospect could not be created.",
+          code: result?.code
+        });
         return;
       }
-      await writeAuditRecord(request, "outreach.prospect.create", { type: "prospect", id: result.prospect.id }, null, adminOutreachProspectAuditView(result.prospect));
-      sendJson(request, response, 201, { prospect: result.prospect });
+      if (!result.replay) {
+        await writeAuditRecord(request, "outreach.prospect.create", { type: "prospect", id: result.prospect.id }, null, adminOutreachProspectAuditView(result.prospect));
+      }
+      sendJson(request, response, result.replay ? 200 : 201, {
+        replay: result.replay === true,
+        prospect: result.prospect
+      });
       return;
     }
 
@@ -8686,18 +8851,31 @@ async function handleRequest(request, response) {
     if (method === "POST" && pathname === "/api/admin/outreach/campaigns") {
       const session = await requirePermission(request, response, "outreach:write");
       if (!session) return;
+      const idempotency = requiredIdempotencyKey(request);
+      if (!idempotency.ok) {
+        sendJson(request, response, 400, { error: idempotency.error });
+        return;
+      }
       const body = await readBody(request);
       const result = await mutatePartnerOperations(doc => createOutreachCampaign(doc, body, {
         actorId: session.id,
-        idFactory: prefix => `${prefix}_${randomUUID()}`,
+        idFactory: idempotencyIdFactory("outreach-campaign-create", idempotency.keyHash),
         now: new Date().toISOString()
       }));
       if (!result?.ok) {
-        sendJson(request, response, 400, { error: result?.error || "Campaign could not be created." });
+        sendJson(request, response, result?.code === "IDEMPOTENCY_CONFLICT" ? 409 : 400, {
+          error: result?.error || "Campaign could not be created.",
+          code: result?.code
+        });
         return;
       }
-      await writeAuditRecord(request, "outreach.campaign.create", { type: "campaign", id: result.campaign.id }, null, result.campaign);
-      sendJson(request, response, 201, { campaign: result.campaign });
+      if (!result.replay) {
+        await writeAuditRecord(request, "outreach.campaign.create", { type: "campaign", id: result.campaign.id }, null, result.campaign);
+      }
+      sendJson(request, response, result.replay ? 200 : 201, {
+        replay: result.replay === true,
+        campaign: result.campaign
+      });
       return;
     }
 
@@ -8997,19 +9175,30 @@ async function handleRequest(request, response) {
     if (method === "POST" && partnerDeliverableCreateMatch) {
       const session = await requirePermission(request, response, "partners:write");
       if (!session) return;
+      const idempotency = requiredIdempotencyKey(request);
+      if (!idempotency.ok) {
+        sendJson(request, response, 400, { error: idempotency.error });
+        return;
+      }
       const applicationId = decodeURIComponent(partnerDeliverableCreateMatch[1]);
       const body = await readBody(request);
       const result = await mutatePartnerOperations(doc => createPartnerDeliverable(doc, applicationId, body, {
         actorId: session.id,
-        idFactory: prefix => `${prefix}_${randomUUID()}`,
+        idFactory: idempotencyIdFactory("partner-deliverable-create", idempotency.keyHash),
         now: new Date().toISOString()
       }));
       if (!result?.ok) {
-        sendJson(request, response, result?.error === "Application not found." ? 404 : 400, { error: result?.error || "Deliverable could not be created." });
+        const status = result?.error === "Application not found." ? 404 : result?.code === "IDEMPOTENCY_CONFLICT" ? 409 : 400;
+        sendJson(request, response, status, { error: result?.error || "Deliverable could not be created.", code: result?.code });
         return;
       }
-      await writeAuditRecord(request, "partner.deliverable.create", { type: "deliverable", id: result.deliverable.id }, null, result.deliverable);
-      sendJson(request, response, 201, { deliverable: result.deliverable });
+      if (!result.replay) {
+        await writeAuditRecord(request, "partner.deliverable.create", { type: "deliverable", id: result.deliverable.id }, null, result.deliverable, { applicationId });
+      }
+      sendJson(request, response, result.replay ? 200 : 201, {
+        replay: result.replay === true,
+        deliverable: result.deliverable
+      });
       return;
     }
 
@@ -9298,6 +9487,11 @@ async function handleRequest(request, response) {
     if (method === "POST" && pathname === "/api/admin/partners/tasks") {
       const session = await requirePermission(request, response, ADMIN_TASKS_WRITE);
       if (!session) return;
+      const idempotency = requiredIdempotencyKey(request);
+      if (!idempotency.ok) {
+        sendJson(request, response, 400, { error: idempotency.error });
+        return;
+      }
       const body = await readBody(request);
       const assignment = await enrichTaskAssignment(body);
       if (!assignment.ok) {
@@ -9306,15 +9500,20 @@ async function handleRequest(request, response) {
       }
       const result = await mutatePartnerOperations(doc => createPartnerTask(doc, assignment.input, {
         actorId: session.id,
-        idFactory: prefix => `${prefix}_${randomUUID()}`,
+        idFactory: idempotencyIdFactory("partner-task-create", idempotency.keyHash),
         now: new Date().toISOString()
       }));
       if (!result?.ok) {
-        sendJson(request, response, 400, { error: result?.error || "Task could not be created." });
+        sendJson(request, response, result?.code === "IDEMPOTENCY_CONFLICT" ? 409 : 400, { error: result?.error || "Task could not be created.", code: result?.code });
         return;
       }
-      await writeAuditRecord(request, "partner.task.create", { type: "task", id: result.task.id }, null, adminPartnerTaskView(result.task, result.doc.followups));
-      sendJson(request, response, 201, { task: adminPartnerTaskView(result.task, result.doc.followups) });
+      if (!result.replay) {
+        await writeAuditRecord(request, "partner.task.create", { type: "task", id: result.task.id }, null, adminPartnerTaskView(result.task, result.doc.followups));
+      }
+      sendJson(request, response, result.replay ? 200 : 201, {
+        replay: result.replay === true,
+        task: adminPartnerTaskView(result.task, result.doc.followups)
+      });
       return;
     }
 
@@ -9407,19 +9606,30 @@ async function handleRequest(request, response) {
     if (method === "POST" && partnerMilestoneCreateMatch) {
       const session = await requirePermission(request, response, "partners:write");
       if (!session) return;
+      const idempotency = requiredIdempotencyKey(request);
+      if (!idempotency.ok) {
+        sendJson(request, response, 400, { error: idempotency.error });
+        return;
+      }
       const applicationId = decodeURIComponent(partnerMilestoneCreateMatch[1]);
       const body = await readBody(request);
       const result = await mutatePartnerOperations(doc => createPartnerMilestone(doc, applicationId, body, {
         actorId: session.id,
-        idFactory: prefix => `${prefix}_${randomUUID()}`,
+        idFactory: idempotencyIdFactory("partner-milestone-create", idempotency.keyHash),
         now: new Date().toISOString()
       }));
       if (!result?.ok) {
-        sendJson(request, response, result?.error === "Application not found." ? 404 : 400, { error: result?.error || "Milestone could not be created." });
+        const status = result?.error === "Application not found." ? 404 : result?.code === "IDEMPOTENCY_CONFLICT" ? 409 : 400;
+        sendJson(request, response, status, { error: result?.error || "Milestone could not be created.", code: result?.code });
         return;
       }
-      await writeAuditRecord(request, "partner.milestone.create", { type: "milestone", id: result.milestone.id }, null, result.milestone, { applicationId });
-      sendJson(request, response, 201, { milestone: result.milestone });
+      if (!result.replay) {
+        await writeAuditRecord(request, "partner.milestone.create", { type: "milestone", id: result.milestone.id }, null, result.milestone, { applicationId });
+      }
+      sendJson(request, response, result.replay ? 200 : 201, {
+        replay: result.replay === true,
+        milestone: result.milestone
+      });
       return;
     }
 
@@ -9647,27 +9857,41 @@ async function handleRequest(request, response) {
     if (method === "POST" && pathname === "/api/admin/island-conditions/incidents") {
       const session = await requirePermission(request, response, "conditions:write");
       if (!session) return;
+      const idempotency = requiredIdempotencyKey(request);
+      if (!idempotency.ok) {
+        sendJson(request, response, 400, { error: idempotency.error });
+        return;
+      }
       const body = await readBody(request);
       const now = new Date().toISOString();
+      const idFactory = idempotencyIdFactory("conditions-incident-create", idempotency.keyHash);
       let result = null;
       await updatePlatformDoc(ROOT, "islandConditions", current => {
         result = createOperationsIncident(current, {
           ...body,
+          publicImpact: body.publicImpact === true || body.publicImpact === "on",
           sourceType: "operator",
-          sourceId: body.sourceId || `operator-${randomUUID()}`
+          sourceId: idFactory("operator-source")
         }, {
           actorId: session.id,
-          idFactory: prefix => `${prefix}_${randomUUID()}`,
+          idFactory,
           now
         });
         return result.ok ? result.doc : normalizeIslandConditions(current);
       }, { fallback: normalizeIslandConditions(null) });
       if (!result?.ok) {
-        sendJson(request, response, 400, { error: result?.error || "Incident could not be created." });
+        sendJson(request, response, result?.code === "IDEMPOTENCY_CONFLICT" ? 409 : 400, {
+          error: result?.error || "Incident could not be created.",
+          code: result?.code
+        });
         return;
       }
       if (result.changed) await writeAuditRecord(request, "conditions.incident.create", { type: "conditions_incident", id: result.incident.id }, null, result.incident);
-      sendJson(request, response, result.changed ? 201 : 200, { incident: result.incident, duplicate: result.duplicate === true });
+      sendJson(request, response, result.changed ? 201 : 200, {
+        replay: result.replay === true,
+        duplicate: result.duplicate === true,
+        incident: result.incident
+      });
       return;
     }
 

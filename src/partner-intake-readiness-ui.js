@@ -35,6 +35,12 @@ export function createPartnerIntakeReadinessUi({
     if (state.status === "checking") return "Checking private-access email availability.";
     return "Private-access email is temporarily unavailable. Use your saved private link or contact the SandFest team.";
   };
+  const contactFallback = (kind, readinessStatus) => {
+    if (["loading", "checking"].includes(readinessStatus)) return "";
+    if (kind === "sponsor") return ' or <a href="mailto:sponsors@texassandfest.org">email the sponsorship team</a>';
+    if (kind === "vendor") return ' or <a href="mailto:vendors@texassandfest.org">email the vendor team</a>';
+    return "";
+  };
 
   function renderRecovery() {
     const form = document.querySelector("#partner-portal-recovery-form");
@@ -256,6 +262,7 @@ export function createPartnerIntakeReadinessUi({
     intakeAvailable,
     recoveryAvailable,
     intakeUnavailableMessage,
+    contactFallback,
     status: () => state.status,
     load,
     renderRecovery,

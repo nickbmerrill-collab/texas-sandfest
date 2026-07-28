@@ -58,6 +58,60 @@ presentation stack does not call NWS or TxDOT: its weather and ferry cards are
 continuously refreshed from a visibly labeled local simulation, so weak venue
 internet cannot block startup or make the conditions panel stale.
 
+On the presentation Mac, use the checkout-owned launchd service instead of
+depending on an open terminal:
+
+```bash
+npm run board:service:start
+npm run board:service:status
+npm run board:present
+npm run board:site-ready
+npm run board:showtime
+```
+
+`board:service:start` is idempotent. It atomically installs
+`~/Library/LaunchAgents/com.heyelab.sandfest.board.plist`, runs the same
+clean-main `board:demo -- --reset` entrypoint at login, waits for a ready
+supervisor, and prints the validated links. A legacy session-scoped submission
+is migrated through an owned unload and LaunchAgent bootstrap. The job command
+contains no board credentials; output is written to
+`.sandfest-runtime/board-demo-supervisor.log`. Use
+`npm run board:service:restart` after a verified main-branch update and
+`npm run board:service:stop` to unload it while retaining next-login
+configuration. `npm run board:service:uninstall` removes both the loaded job
+and plist. Every service operation verifies that the loaded label and persistent
+configuration name this exact checkout and refuses to control an unrelated job.
+`npm run board:stop` performs the same ownership check and unloads the keepalive
+before stopping the supervisor, so stale source cannot immediately respawn
+behind an apparently successful stop.
+
+Service status distinguishes a healthy stack from a current capability
+certificate. Before handing the machine to a presenter, run `npm run
+board:certify`, then `npm run board:present`. The final command fails unless the
+LaunchAgent is loaded from this checkout, the stack is 12-of-12 ready, and the
+aggregate certificate is a successful full run from the active clean-main
+revision and exact active links. It requires all ten workflow journeys,
+14-of-14 Chromium and WebKit acceptance, exact baseline restoration, the
+approved post-board provider deferrals, and a completion time no more than
+seven days old. A missing or stale certificate does not prevent service startup;
+`board:service:status` names the gap and the remediation command.
+
+After generating the narrated fallback with `npm run video:board`, use
+`npm run board:handouts` to build and verify the one-page board decision brief
+and presenter flight card, then run `npm run board:showtime` as the final
+presenter preflight. It reruns the strict persistent-service gate, verifies the
+12-slide briefing and all 12 source-backed presenter notes, validates both
+one-page PDFs and the 1080p fallback video, and requires the deck, certificate,
+active links, and video capture to belong to the same clean `origin/main`
+revision. It reports every failed check with the exact recovery sequence instead
+of allowing a stale fallback to appear presentation-ready.
+
+While the narrated fallback video is intentionally deferred, use `npm run
+board:site-ready` as the site-functionality preflight. It keeps the clean
+main/source binding, persistent service, current full certificate, briefing
+deck, and board handout checks strict, but labels the video lane as deferred so
+website readiness can continue moving independently.
+
 Every prepared runtime carries an explicit compatibility schema. On startup,
 the supervisor automatically rebuilds a recognized synthetic runtime when its
 schema, event, or presentation message mode is stale, before any services are
@@ -255,6 +309,9 @@ loopback Brevo sandbox, and track acknowledgement, travel, on-scene response,
 and completed closeout. Three signed recovery signals must move the incident to
 monitoring before a noted manual resolution removes the visitor notice. Eleven
 incident and dispatch audits must omit recipient and delivery ownership values.
+The ordinary operator form uses the same recovery posture: a lost accepted
+response retains one retry key and returns the original incident, while changed
+details with that key are rejected and the key itself is never stored or audited.
 The supervisor then restores zero incidents, dispatches, and public notices at
 12/12 readiness. No footage is read or stored and no live provider is called.
 
@@ -491,6 +548,10 @@ completion, and the featured public sponsor showcase ahead of package selection.
 reversal, and reopened key date stay attached to that record, so branding,
 fulfillment, and finance are verified as one lifecycle instead of separate seed
 examples.
+Custom sponsor deliverables use the same retry-safe staff creation contract as
+delegated tasks and key dates. Browser acceptance deliberately drops one
+successful response, retries with the retained key, and verifies that only one
+fulfillment item, one activity entry, and one audit record exist.
 It also delegates one new due-dated task to a governed volunteer, waits for the
 loopback mailbox and authenticated delivery webhook to prove the assignment
 notice, advances the same task through in-progress and done states, and verifies
