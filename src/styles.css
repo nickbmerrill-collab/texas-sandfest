@@ -3873,9 +3873,11 @@ time {
   }
 }
 
+/* admin-prune:start public-guest-services-shell */
 .guest-services-section {
   background: #eef7f6;
 }
+/* admin-prune:end public-guest-services-shell */
 
 .volunteer-band {
   background: var(--deep);
@@ -3943,6 +3945,7 @@ time {
 }
 .volunteer-flow strong { color: var(--white); }
 .volunteer-flow p { color: #bdd1ce; line-height: 1.55; margin: 4px 0 0; }
+/* admin-prune:start public-guest-services-workflow */
 .guest-services-emergency {
   border-left: 4px solid var(--coral);
   color: var(--deep);
@@ -4068,12 +4071,14 @@ time {
 .guest-services-public-updates article strong,
 .guest-services-public-updates article time { font-size: 0.75rem; }
 .guest-services-public-updates article time { color: var(--muted); }
+/* admin-prune:end public-guest-services-workflow */
 
 @media (max-width: 900px) {
   .guest-services-layout { grid-template-columns: 1fr; }
   .volunteer-section { gap: 36px; grid-template-columns: 1fr; }
 }
 @media (max-width: 620px) {
+  /* admin-prune:start public-guest-services-mobile */
   .guest-services-section .section-heading { align-items: flex-start; }
   .guest-services-form,
   .guest-services-status-panel { padding: 18px; }
@@ -4082,12 +4087,14 @@ time {
   .guest-services-wide { grid-column: auto; }
   body.runtime-board-demo #guest-services,
   body.runtime-board-demo #guest-services-status-result { scroll-margin-top: 136px; }
+  /* admin-prune:end public-guest-services-mobile */
   .volunteer-band { margin-top: 64px; scroll-margin-top: 136px; }
   .volunteer-section { padding: 48px 18px; }
   .volunteer-actions { align-items: stretch; flex-direction: column; }
   .volunteer-actions .button { justify-content: center; width: 100%; }
 }
 
+/* admin-prune:start public-live-beach */
 /* ============================================================
    Live Beach — the WOW feature
    ============================================================ */
@@ -4956,6 +4963,7 @@ time {
   }
   .lb-route { stroke-dasharray: 0; }
 }
+/* admin-prune:end public-live-beach */
 
 /* Accounting dashboards (admin console) */
 .admin-budget-panel {
