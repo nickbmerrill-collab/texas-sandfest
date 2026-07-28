@@ -5548,8 +5548,10 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   const preferenceAccess = findOutreachPreferenceProspect(activated.doc, prospect.prospect.id, preferenceToken, { config: preferenceConfig });
   ok("outreach preference capability", preferenceConfig.ready && preferenceToken?.startsWith("tsfu_") && verifyOutreachPreferenceToken(prospect.prospect, preferenceToken, { config: preferenceConfig }) && !verifyOutreachPreferenceToken({ ...prospect.prospect, contactEmail: "changed@example.com" }, preferenceToken, { config: preferenceConfig }) && preferenceAccess.ok);
   ok("outreach preference privacy link", outreachPreferencePath(prospect.prospect, preferenceToken).startsWith("/#outreach-preferences?") && new URL(preferenceUrl).search === "" && new URL(preferenceUrl).hash.includes("token=tsfu_") && publicOutreachPreference(prospect.prospect).organizationName === "Island Hotel");
+  const invalidOutreachClock = generateDueOutreachFollowups(activated.doc, { idFactory, now: "not-a-date", preferenceUrlForProspect: () => preferenceUrl, sponsorInvitationUrlForProspect: invitationUrlForProspect });
   const campaignDraft = generateDueOutreachFollowups(activated.doc, { idFactory, now, preferenceUrlForProspect: () => preferenceUrl, sponsorInvitationUrlForProspect: invitationUrlForProspect });
   const campaignDraftAgain = generateDueOutreachFollowups(campaignDraft.doc, { idFactory, now });
+  ok("outreach automation fails closed on invalid clock", !invalidOutreachClock.ok && invalidOutreachClock.error.includes("time is invalid"));
   ok("outreach personalized draft", campaignDraft.generated.length === 1 && campaignDraft.generated[0].subject.includes("Island Hotel") && campaignDraft.generated[0].status === "draft_ready" && campaignDraft.generated[0].body.includes(preferenceUrl) && campaignDraft.generated[0].body.includes(issuedInvitation.invitationUrl));
   ok("outreach draft idempotency", campaignDraftAgain.generated.length === 0);
   const editedDraftAt = "2026-07-16T12:00:01.000Z";
