@@ -5946,8 +5946,11 @@ Research First,construction,Corpus Christi,,78401,,,,Find decision maker,`;
   }, { config: fixtureConfig, now: "2026-07-17T12:00:00.000Z" });
   const issuedAt = Date.parse("2026-07-17T12:00:00.000Z");
   const preview = issueOutreachDiscoveryPreview(discovery, { config: fixtureConfig, now: issuedAt });
+  const stringClockPreview = issueOutreachDiscoveryPreview(discovery, { config: fixtureConfig, now: "2026-07-17T12:00:00.000Z" });
+  const invalidClockPreview = issueOutreachDiscoveryPreview(discovery, { config: fixtureConfig, now: "not-a-date" });
   const tamperedToken = `${preview.previewToken.slice(0, -1)}${preview.previewToken.endsWith("a") ? "b" : "a"}`;
   ok("outreach discovery signed preview", discovery.ok && discovery.candidates.length === 3 && preview.ok && verifyOutreachDiscoveryPreview(preview.previewToken, { config: fixtureConfig, now: issuedAt + 1_000 }).ok && !verifyOutreachDiscoveryPreview(tamperedToken, { config: fixtureConfig, now: issuedAt + 1_000 }).ok && verifyOutreachDiscoveryPreview(preview.previewToken, { config: fixtureConfig, now: issuedAt + 16 * 60 * 1000 }).expired);
+  ok("outreach discovery preview clock handling", stringClockPreview.ok && stringClockPreview.expiresAt === "2026-07-17T12:15:00.000Z" && verifyOutreachDiscoveryPreview(stringClockPreview.previewToken, { config: fixtureConfig, now: "2026-07-17T12:14:59.000Z" }).ok && verifyOutreachDiscoveryPreview(stringClockPreview.previewToken, { config: fixtureConfig, now: "2026-07-17T12:15:00.000Z" }).expired && !invalidClockPreview.ok && !verifyOutreachDiscoveryPreview(stringClockPreview.previewToken, { config: fixtureConfig, now: "not-a-date" }).ok);
   ok("outreach discovery fixtures are board-mail deliverable", discovery.candidates.filter(candidate => candidate.contactEmail).every(candidate => boardEmailSandboxRecipientAllowed(candidate.contactEmail)));
   const imported = applyOutreachDiscoveryImport(emptyPartnerOperations(), preview.payload, [discovery.candidates[0].sourceRef], {
     actorId: "outreach_admin",
