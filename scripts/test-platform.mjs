@@ -4047,7 +4047,7 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
     expires_at: Date.parse("2026-07-16T12:30:00.000Z") / 1000
   }, { now: "2026-07-16T12:01:00.000Z" });
   const publicCheckout = publicPartnerPortalStatus(activatedPartnerCheckout.doc, created.application, { now: "2026-07-16T12:01:00.000Z" }).finance.checkout;
-  const invalidClockPublicCheckout = publicPartnerPortalStatus(activatedPartnerCheckout.doc, created.application, { now: "not-a-date" }).finance.checkout;
+  const invalidClockPublicFinance = publicPartnerPortalStatus(activatedPartnerCheckout.doc, created.application, { now: "not-a-date" }).finance;
   const corruptedPartnerCheckoutDoc = {
     ...activatedPartnerCheckout.doc,
     paymentCheckouts: activatedPartnerCheckout.doc.paymentCheckouts.map(item => item.id === activatedPartnerCheckout.checkout.id
@@ -4060,7 +4060,7 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   }, { now: "2026-07-16T12:02:00.000Z" });
   const corruptedPublicCheckout = publicPartnerPortalStatus(corruptedPartnerCheckoutDoc, created.application, { now: "2026-07-16T12:01:00.000Z" }).finance.checkout;
   ok("partner portal secure checkout", !unsafeActivatedPartnerCheckout.ok && activatedPartnerCheckout.ok && activatedPartnerCheckout.checkout.status === "open" && publicCheckout?.checkoutUrl.startsWith("https://checkout.stripe.com/") && !("providerSessionId" in publicCheckout));
-  ok("partner portal suppresses checkout on invalid clock", invalidClockPublicCheckout === null);
+  ok("partner portal suppresses checkout on invalid clock", invalidClockPublicFinance.checkout === null && invalidClockPublicFinance.checkoutUnavailableReason === "clock_invalid");
   ok("partner portal suppresses corrupted checkout destinations", !corruptedDuplicateActivation.ok && corruptedPublicCheckout === null);
   const stripeEvent = {
     id: "evt_partner_paid_001",
