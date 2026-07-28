@@ -65,6 +65,7 @@ depending on an open terminal:
 npm run board:service:start
 npm run board:service:status
 npm run board:present
+npm run board:site-ready
 npm run board:showtime
 ```
 
@@ -104,6 +105,12 @@ one-page PDFs and the 1080p fallback video, and requires the deck, certificate,
 active links, and video capture to belong to the same clean `origin/main`
 revision. It reports every failed check with the exact recovery sequence instead
 of allowing a stale fallback to appear presentation-ready.
+
+While the narrated fallback video is intentionally deferred, use `npm run
+board:site-ready` as the site-functionality preflight. It keeps the clean
+main/source binding, persistent service, current full certificate, briefing
+deck, and board handout checks strict, but labels the video lane as deferred so
+website readiness can continue moving independently.
 
 Every prepared runtime carries an explicit compatibility schema. On startup,
 the supervisor automatically rebuilds a recognized synthetic runtime when its
