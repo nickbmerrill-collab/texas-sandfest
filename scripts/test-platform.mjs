@@ -4596,10 +4596,23 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
     version: "2027-test-v0",
     digest: safeTicketCatalog.checkoutPolicy.digest
   }, { eventId: DEFAULT_EVENT_ID });
+  const invalidClockTicketPolicy = ticketCheckoutPolicyReadiness({ checkoutPolicy: approvedTicketPolicy }, { eventId: DEFAULT_EVENT_ID, now: "not-a-date" });
+  const invalidClockTicketCatalog = publicTicketCatalog({
+    checkoutPolicy: approvedTicketPolicy,
+    products: [{
+      id: "ga-test",
+      name: "GA Test",
+      unitAmount: 4500,
+      stripePriceId: "price_private_config_001",
+      active: true
+    }]
+  }, { checkoutEnabled: true, eventId: DEFAULT_EVENT_ID, now: "not-a-date" });
   ok("ticket checkout policy requires current-event approval and complete notices", ticketCheckoutPolicyReadiness({ checkoutPolicy: approvedTicketPolicy }, { eventId: DEFAULT_EVENT_ID }).ready && safeTicketCatalog.checkoutPolicy.notices.length === 4);
+  ok("ticket checkout policy fails closed on invalid clock", !invalidClockTicketPolicy.ready && invalidClockTicketPolicy.errors.some(error => error.includes("clock is invalid")));
   ok("ticket checkout policy acceptance binds version and digest", acceptedTicketPolicy.ok && acceptedTicketPolicy.evidence.noticeIds.length === 4 && !staleTicketPolicy.ok && staleTicketPolicy.code === "policy_version_changed");
   ok("public ticket catalog derives checkout readiness", safeTicketCatalog.checkoutEndpoint === "/api/stripe/create-checkout-session" && safeTicketCatalog.products[0].availableForCheckout === true);
   ok("public ticket catalog hides provider configuration", !JSON.stringify(safeTicketCatalog).includes("stripePriceId") && !JSON.stringify(safeTicketCatalog).includes("price_private_config_001"));
+  ok("public ticket catalog suppresses checkout on invalid policy clock", invalidClockTicketCatalog.checkoutPolicy.ready === false && invalidClockTicketCatalog.products[0].availableForCheckout === false);
   ok("public ticket catalog fails closed without approved policies or a ready checkout integration", publicTicketCatalog({
     products: [{
       id: "ga-test",
