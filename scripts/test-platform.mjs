@@ -5362,9 +5362,11 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   });
   const invitationToken = new URLSearchParams(new URL(issuedInvitation.invitationUrl).hash.split("?")[1]).get("token");
   const invitationAccess = verifySponsorInvitationToken(issuedInvitation.doc, invitationToken, { config: sponsorInviteConfig, now: new Date(now).getTime() });
+  const invalidInvitationClock = verifySponsorInvitationToken(issuedInvitation.doc, invitationToken, { config: sponsorInviteConfig, now: "not-a-date" });
   const invitationPublic = publicSponsorInvitation(issuedInvitation.prospect, sponsorPackage);
   ok("sponsor invitation production configuration", sponsorInviteConfig.ready && !invalidSponsorInviteConfig.ready && invalidSponsorInviteConfig.missing.length === 2);
   ok("sponsor invitation capability", issuedInvitation.ok && invitationToken?.startsWith("tsfi1.") && invitationAccess.ok && !verifySponsorInvitationToken(issuedInvitation.doc, `${invitationToken}x`, { config: sponsorInviteConfig }).ok);
+  ok("sponsor invitation verification fails closed on invalid clock", !invalidInvitationClock.ok && invalidInvitationClock.error.includes("time is invalid"));
   ok("sponsor invitation public prefill", invitationPublic.organizationName === "Island Hotel" && invitationPublic.contactEmail === "partnerships@example.com" && invitationPublic.packageId === "marlin" && invitationPublic.expiresAt === issuedInvitation.invitation.expiresAt);
   const approvedInvitationDraftDoc = {
     ...issuedInvitation.doc,
