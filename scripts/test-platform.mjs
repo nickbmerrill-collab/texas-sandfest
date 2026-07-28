@@ -3091,6 +3091,7 @@ HOURS-100,${DEFAULT_EVENT_ID},VL-100,SHIFT-100,2027-04-09T08:00:00-05:00,2027-04
   const development = staffDirectoryReadiness(directory, { eventId: "texas-sandfest-2026", production: false });
   const production = staffDirectoryReadiness(directory, { eventId: "texas-sandfest-2026", production: true });
   const verifiedProduction = staffDirectoryReadiness({ ...directory, source: "manual_verified", verifiedAt: "2026-07-17T00:00:00.000Z" }, { eventId: "texas-sandfest-2026", production: true, now: "2026-07-18T00:00:00.000Z" });
+  const invalidClockStaffReadiness = staffDirectoryReadiness({ ...directory, source: "manual_verified", verifiedAt: "2026-07-17T00:00:00.000Z" }, { eventId: "texas-sandfest-2026", production: false, now: "not-a-date" });
   const mismatchedStaffEvent = staffDirectoryReadiness({
     ...directory,
     staff: directory.staff.map((item, index) => index === 0 ? { ...item, eventId: "texas-sandfest-2025" } : item)
@@ -3099,6 +3100,7 @@ HOURS-100,${DEFAULT_EVENT_ID},VL-100,SHIFT-100,2027-04-09T08:00:00-05:00,2027-04
   ok("staff assignment directory is privacy minimized", publicDirectory.staff.length === 7 && publicDirectory.staff.every(item => !Object.hasOwn(item, "email")) && publicDirectory.teams.every(item => item.notificationReady));
   ok("seed staff directory cannot satisfy production", !production.ready && production.errors.some(item => item.includes("not production verified")));
   ok("current verified staff directory satisfies production", verifiedProduction.ready);
+  ok("staff directory readiness fails closed on invalid clock", !invalidClockStaffReadiness.ready && invalidClockStaffReadiness.errors.some(item => item.includes("clock is invalid")));
   ok("staff directory rejects mixed annual scope", !mismatchedStaffEvent.ready && mismatchedStaffEvent.eventMismatchStaff.includes("staff_operations"));
 
   const importEventId = "texas-sandfest-2027";
