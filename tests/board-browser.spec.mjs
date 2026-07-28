@@ -375,7 +375,8 @@ test.beforeAll(async () => {
     TWILIO_FROM_NUMBER: SMS_FROM_NUMBER,
     TWILIO_API_BASE_URL: smsBase,
     TWILIO_STATUS_CALLBACK_URL: `${apiBase}/api/webhooks/twilio/status`,
-    TWILIO_SAFETY_INBOUND_WEBHOOK_URL: `${apiBase}/api/webhooks/twilio/inbound/smsSafety`
+    TWILIO_SAFETY_INBOUND_WEBHOOK_URL: `${apiBase}/api/webhooks/twilio/inbound/smsSafety`,
+    TWILIO_MARKETING_INBOUND_WEBHOOK_URL: `${apiBase}/api/webhooks/twilio/inbound/smsMarketing`
   };
   smsProcess = startNodeProcess("Board browser SMS sandbox", ["scripts/board-sms-sandbox.mjs"], {
     SANDFEST_ENV: "development",

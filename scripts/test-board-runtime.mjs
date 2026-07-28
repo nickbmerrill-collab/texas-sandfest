@@ -99,7 +99,8 @@ async function startApi(port, runtimeRoot, emailPort, smsPort) {
     TWILIO_FROM_NUMBER: SMS_FROM_NUMBER,
     TWILIO_API_BASE_URL: `http://127.0.0.1:${smsPort}`,
     TWILIO_STATUS_CALLBACK_URL: `http://127.0.0.1:${port}/api/webhooks/twilio/status`,
-    TWILIO_SAFETY_INBOUND_WEBHOOK_URL: `http://127.0.0.1:${port}/api/webhooks/twilio/inbound/smsSafety`
+    TWILIO_SAFETY_INBOUND_WEBHOOK_URL: `http://127.0.0.1:${port}/api/webhooks/twilio/inbound/smsSafety`,
+    TWILIO_MARKETING_INBOUND_WEBHOOK_URL: `http://127.0.0.1:${port}/api/webhooks/twilio/inbound/smsMarketing`
   };
   const api = spawn(process.execPath, ["scripts/admin-api-server.mjs"], {
     cwd: ROOT,
