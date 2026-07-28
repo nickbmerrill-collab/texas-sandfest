@@ -3691,6 +3691,7 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   ok("partner portal recovery revalidates recipient before queue", !changedRecoveryRecipient.ok && changedRecoveryRecipient.error.includes("no longer matches"));
   ok("partner portal recovery activity is privacy minimized", recoveryActivity.type === "application.portal_access_requested" && !JSON.stringify(recoveryActivity).includes(applicationInput.contactEmail) && !JSON.stringify(recoveryActivity).includes(portalToken));
   const immediateMilestoneReminder = generateDuePartnerFollowups(created.doc, { idFactory, now, leadDays: 3, portalUrlForApplication: () => portalUrl });
+  const invalidMilestoneReminderClock = generateDuePartnerFollowups(created.doc, { idFactory, now: "not-a-date", leadDays: 3 });
   const expeditedMilestone = updatePartnerMilestone(created.doc, created.doc.milestones.find(item => item.kind === "opportunity_qualification").id, {
     dueAt: new Date(Date.parse(now) + 86_400_000).toISOString()
   }, { idFactory, actorId: "admin_1", now });
@@ -3699,6 +3700,7 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   const scheduled = generateDuePartnerFollowups(created.doc, { idFactory, now: reminderNow, leadDays: 3, portalUrlForApplication: () => portalUrl });
   const scheduledAgain = generateDuePartnerFollowups(scheduled.doc, { idFactory, now: reminderNow, leadDays: 3 });
   ok("new intake acknowledgment has a reminder grace period", !immediateMilestoneReminder.changed && immediateMilestoneReminder.generated.length === 0);
+  ok("milestone reminder automation fails closed on invalid clock", !invalidMilestoneReminderClock.ok && invalidMilestoneReminderClock.error.includes("time is invalid"));
   ok("staff-rescheduled intake milestone bypasses the initial grace period", expeditedMilestoneReminder.generated.length === 1 && expeditedMilestoneReminder.generated[0].sourceVersion === "schedule:2:phase:upcoming");
   ok("scheduled milestone draft after intake grace", scheduled.changed && scheduled.generated.length === 1 && scheduled.generated[0].status === "draft_ready" && scheduled.generated[0].sourceVersion === "schedule:1:phase:upcoming" && scheduled.generated[0].body.includes(portalUrl));
   ok("scheduled milestone idempotency", !scheduledAgain.changed && scheduledAgain.generated.length === 0);
