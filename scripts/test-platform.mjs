@@ -1843,12 +1843,17 @@ console.log("\n=== Pure library suite ===\n");
     now: "2026-07-18T12:00:00.000Z",
     maxSourceAgeDays: 90
   });
+  const invalidClock = eventGuideReadiness(published.guide, {
+    now: "not-a-date",
+    maxSourceAgeDays: 90
+  });
   const publicGuide = publicEventGuide(published.guide);
   ok("event guide derives canonical dates and hours", normalized.dateRange === "April 16-18, 2027" && normalized.hours === "9:00 AM - 7:30 PM daily");
   ok("event guide publish records actor and timestamp", published.ok && published.guide.publishedBy === "content-test" && published.guide.status === "published");
   ok("event guide rejects invalid dates, hours, source, and future review", !invalid.ok && invalid.errors.length === 4);
   ok("event guide rejects an id from a different event year", !wrongYear.ok && wrongYear.errors.includes("Event id and start-date year must match."));
   ok("event guide readiness requires current upcoming facts", ready.ready && ready.sourceAgeDays === 2 && !stale.ready && stale.missing.includes("source") && !past.ready && past.missing.includes("upcoming"));
+  ok("event guide readiness fails closed on invalid clock", !invalidClock.ready && invalidClock.missing.includes("clock") && invalidClock.checks.volunteer === false);
   ok("volunteer registration fails closed until an open reviewed URL is published", !openWithoutRegistration.ok && published.guide.volunteer.registrationUrl && publicGuide.volunteer.registrationUrl === null && openVolunteer.ok && publicEventGuide(openVolunteer.guide).volunteer.registrationUrl === guide.volunteer.registrationUrl);
   ok("public event guide hides publishing identity", !("publishedBy" in publicGuide) && !("status" in publicGuide) && publicGuide.sourceUrl === guide.sourceUrl);
 }
@@ -1931,6 +1936,7 @@ const visitorGuidanceFixture = [{
   const held = holdVisitorGuidance({ guidance: published.guidance, publication: published.publication }, { eventId: "texas-sandfest-2027", actorId: "content-test", reason: "Official policy review is underway.", now });
   const stale = visitorGuidanceReadiness({ eventId: "texas-sandfest-2027", guidance: published.guidance, publication: { ...published.publication, sourceCheckedAt: "2025-01-01T00:00:00.000Z" } }, { now, maxSourceAgeDays: 90 });
   const expired = visitorGuidanceReadiness({ eventId: "texas-sandfest-2027", guidance: published.guidance.map(item => ({ ...item, expiresAt: "2026-07-17T00:00:00.000Z" })), publication: published.publication }, { now });
+  const invalidClock = visitorGuidanceReadiness({ eventId: "texas-sandfest-2027", guidance: published.guidance, publication: published.publication }, { now: "not-a-date" });
   const invalid = publishVisitorGuidance({}, {
     guidance: [{ ...visitorGuidanceFixture[0], id: "bad id", sourceUrl: "http://example.com", sourceCheckedAt: "2026-07-19T00:00:00.000Z", audience: "staff", escalationContact: "invalid" }],
     sourceUrl: "http://example.com",
@@ -1940,6 +1946,7 @@ const visitorGuidanceFixture = [{
   ok("visitor guidance publication records source authority and accountable ownership", published.ok && published.publication.publishedBy === "content-test" && ready.ready && ready.current.length === 4);
   ok("visitor guidance rejects unsafe, private, future, and incomplete records", !invalid.ok && invalid.errors.some(error => error.includes("safe identifier")) && invalid.errors.some(error => error.includes("HTTPS")) && invalid.errors.some(error => error.includes("future")) && invalid.errors.some(error => error.includes("public audience")) && invalid.errors.some(error => error.includes("escalation email")));
   ok("visitor guidance fails closed when held, stale, or expired", held.ok && held.publication.status === "pending" && !stale.ready && stale.missing.includes("source") && !expired.ready && expired.missing.includes("guidance"));
+  ok("visitor guidance fails closed on invalid clock", !invalidClock.ready && invalidClock.missing.includes("clock") && invalidClock.current.length === 0 && invalidClock.reason.includes("clock is invalid"));
   ok("public visitor guidance exposes current answers without owner, risk, or escalation fields", publicGuidance.length === 4 && publicGuidance[0].keywords.includes("accessibility") && !/(ownerTeam|riskLevel|escalationContact|publishedBy)/.test(JSON.stringify(publicGuidance)));
 }
 
@@ -4710,8 +4717,16 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
     catalogReady: true,
     publication: boardSponsorPublication
   }, { allowBoardDemo: true, now: "2026-07-21T12:00:00.000Z" });
+  const invalidClockSponsorReadiness = partnerCatalogPublicationReadiness({
+    kind: "sponsor",
+    eventId: DEFAULT_EVENT_ID,
+    items: sponsorPublicItems,
+    catalogReady: true,
+    publication: publishedSponsorCatalog.publication
+  }, { now: "not-a-date" });
   ok("partner catalogs fail closed until source-reviewed publication", !pendingSponsorPublication.ready && pendingSponsorPublication.missing.includes("published") && publicPartnerCatalogPublication(pendingSponsorPublication, "sponsor").available === false);
   ok("partner catalog publication binds current event source and exact public digest", publishedSponsorCatalog.ok && publishedSponsorReadiness.ready && publishedSponsorCatalog.publication.catalogDigest === partnerCatalogDigest("sponsor", sponsorPublicItems));
+  ok("partner catalog publication fails closed on invalid clock", !invalidClockSponsorReadiness.ready && invalidClockSponsorReadiness.missing.includes("clock") && invalidClockSponsorReadiness.missing.includes("source"));
   ok("public catalog edits require republishing while private mappings preserve publication", changedSponsorPublication.status === "pending" && privateSponsorChange.ok && privateSponsorPublication.status === "published");
   ok("partner catalog holds hide internal reasons from the public projection", heldSponsorCatalog.ok && heldSponsorCatalog.publication.status === "pending" && !JSON.stringify(publicPartnerCatalogPublication({ ready: false, publication: heldSponsorCatalog.publication }, "sponsor")).includes("board-approved"));
   ok("synthetic partner catalogs require explicit board-demo readiness", boardSponsorReadiness.ready && !partnerCatalogPublicationReadiness({ kind: "sponsor", eventId: DEFAULT_EVENT_ID, items: sponsorPublicItems, catalogReady: true, publication: boardSponsorPublication }, { allowBoardDemo: false }).ready);
