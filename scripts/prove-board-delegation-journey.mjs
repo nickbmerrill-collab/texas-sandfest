@@ -348,7 +348,7 @@ function publicTaskProjectionIsPrivate(payload, access, delegated) {
   const serialized = JSON.stringify(payload);
   return !serialized.includes(access.token)
     && !serialized.includes("assigneeId")
-    && !serialized.includes("assignmentVersion")
+    && Number(payload?.task?.assignmentVersion) === 1
     && !serialized.includes("recipient")
     && !serialized.includes("@")
     && !serialized.includes(delegated.task.idempotencyKey || "idempotencyKey");

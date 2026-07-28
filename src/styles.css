@@ -6093,7 +6093,10 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .task-status-description { color: var(--muted); line-height: 1.55; margin: 0; overflow-wrap: anywhere; }
 .task-status-result > .button { justify-self: start; min-height: 44px; }
 .task-status-owner { font-size: 13px; font-weight: 700; }
-.task-status-facts { display: grid; gap: 1px; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; }
+.task-status-callout { background: #fff8df; border: 1px solid #e0c869; border-left: 4px solid var(--sun); display: grid; gap: 4px; padding: 12px 14px; }
+.task-status-callout strong { color: var(--deep); font-size: 12px; text-transform: uppercase; }
+.task-status-callout span { color: #4d3b00; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+.task-status-facts { display: grid; gap: 1px; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; }
 .task-status-facts div { background: #f4f7f6; display: grid; gap: 4px; min-width: 0; padding: 11px; }
 .task-status-facts dt { color: var(--muted); font-size: 10px; font-weight: 800; text-transform: uppercase; }
 .task-status-facts dd { color: var(--deep); font-size: 12px; font-weight: 700; margin: 0; overflow-wrap: anywhere; }

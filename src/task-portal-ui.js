@@ -100,6 +100,15 @@ export function createTaskPortalController(options) {
     return Number.isNaN(date.getTime()) ? fallback : date.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
   }
 
+  function taskNextAction(task, allowedActions) {
+    if (task.status === "done") return "Task complete. Operations has the final update from this assignment.";
+    if (task.status === "cancelled") return "This assignment is closed. Contact Operations before doing more work.";
+    if (task.status === "blocked") return "Operations can see the blocker. Add another note or mark complete once it is resolved.";
+    if (allowedActions.has("acknowledge")) return "Acknowledge the task so Operations knows the private assignment reached you.";
+    if (allowedActions.has("start")) return "Start work when you are ready, or report a blocker if something is missing.";
+    return "Share a blocker, add progress in the note, or mark complete when the work is done.";
+  }
+
   function render(task) {
     mount();
     const section = document.querySelector("#task-status");
@@ -109,13 +118,15 @@ export function createTaskPortalController(options) {
     activeTask = task;
     section.hidden = false;
     const updates = (task.updates || []).slice().reverse().map(item => `<li><div><strong>${escapeHtml(options.conditionLabel(item.action))}</strong><span>${escapeHtml(dateTime(item.at))}</span></div>${item.note ? `<p>${escapeHtml(item.note)}</p>` : ""}</li>`).join("");
+    const allowed = new Set(task.allowedActions || []);
+    const assignmentVersion = Math.max(1, Math.round(Number(task.assignmentVersion || 1)));
     result.dataset.state = task.status;
     result.innerHTML = `<header><div><span>${escapeHtml(options.conditionLabel(task.priority))} priority</span><h3>${escapeHtml(task.title)}</h3></div><b>${escapeHtml(options.conditionLabel(task.status))}</b></header>
       <p class="task-status-owner">Assigned to ${escapeHtml(task.assignee?.name || "SandFest team member")}${task.assignee?.role ? ` | ${escapeHtml(options.conditionLabel(task.assignee.role))}` : ""}</p>
       ${task.description ? `<p class="task-status-description">${escapeHtml(task.description)}</p>` : ""}
-      <dl class="task-status-facts"><div><dt>Due</dt><dd>${escapeHtml(dateTime(task.dueAt, "No due date"))}</dd></div><div><dt>Acknowledged</dt><dd>${escapeHtml(dateTime(task.acknowledgedAt, "Awaiting response"))}</dd></div><div><dt>Last update</dt><dd>${escapeHtml(dateTime(task.updatedAt))}</dd></div></dl>
+      <div class="task-status-callout" data-task-next-action><strong>Next action</strong><span>${escapeHtml(taskNextAction(task, allowed))}</span></div>
+      <dl class="task-status-facts"><div><dt>Due</dt><dd>${escapeHtml(dateTime(task.dueAt, "No due date"))}</dd></div><div><dt>Acknowledged</dt><dd>${escapeHtml(dateTime(task.acknowledgedAt, "Awaiting response"))}</dd></div><div><dt>Last update</dt><dd>${escapeHtml(dateTime(task.updatedAt))}</dd></div><div><dt>Assignment</dt><dd>Version ${escapeHtml(assignmentVersion)}</dd></div></dl>
       ${updates ? `<div class="task-status-history"><strong>Updates shared with Operations</strong><ul>${updates}</ul></div>` : ""}`;
-    const allowed = new Set(task.allowedActions || []);
     form.querySelectorAll("[data-task-action]").forEach(button => { button.hidden = !allowed.has(button.dataset.taskAction); });
     form.hidden = allowed.size === 0;
   }

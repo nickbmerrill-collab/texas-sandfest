@@ -2197,6 +2197,9 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   await expect(taskPage).toHaveURL(/#task-status$/);
   await expect(taskPage.locator("#task-status-result")).toContainText(taskTitle);
   await expect(taskPage.locator("#task-status-result")).toBeFocused();
+  await expect(taskPage.locator("[data-task-next-action]")).toContainText("Acknowledge the task");
+  await expect(taskPage.locator(".task-status-facts")).toContainText("Assignment");
+  await expect(taskPage.locator(".task-status-facts")).toContainText("Version 1");
   await expect(taskPage.locator('[data-task-action="acknowledge"]')).toBeVisible();
   await assertNoHorizontalOverflow(taskPage);
 
@@ -2204,6 +2207,7 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   await taskPage.locator('[data-task-action="acknowledge"]').click();
   expect((await acknowledgedTaskResponse).status()).toBe(200);
   await expect(taskPage.locator("#task-status-result")).toContainText("Acknowledged");
+  await expect(taskPage.locator("[data-task-next-action]")).toContainText("Start work");
 
   const startedTaskResponse = taskPage.waitForResponse(response => new URL(response.url()).pathname === "/api/public/task-status/update" && response.request().method() === "POST");
   await taskPage.locator('[data-task-action="start"]').click();
@@ -2213,6 +2217,7 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   expect(startedTask.status).toBe("in_progress");
   expect(startedTask.startedAt).toBeTruthy();
   await expect(taskPage.locator("#task-status-result")).toHaveAttribute("data-state", "in_progress");
+  await expect(taskPage.locator("[data-task-next-action]")).toContainText("Share a blocker");
   await taskPage.locator('#task-status-update [name="note"]').fill("Need two more welcome packets at the north gate.");
   const blockedTaskResponse = taskPage.waitForResponse(response => new URL(response.url()).pathname === "/api/public/task-status/update" && response.request().method() === "POST");
   await taskPage.locator('[data-task-action="block"]').click();
@@ -2239,6 +2244,7 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   expect(completedTask.startedAt).toBe(startedTask.startedAt);
   expect(completedTask.completedAt).toBeTruthy();
   await expect(taskPage.locator("#task-status-result")).toHaveAttribute("data-state", "done");
+  await expect(taskPage.locator("[data-task-next-action]")).toContainText("Task complete");
   await expect(taskPage.locator("#task-status-update")).toBeHidden();
   await assertNoHorizontalOverflow(taskPage);
   await taskPage.close();
@@ -4712,6 +4718,7 @@ test("WCAG A and AA checks cover public intake, partner status, concierge, and o
   await page.goto(accessibleTaskUrl.toString());
   await expect(page).toHaveURL(/#task-status$/);
   await expect(page.locator("#task-status-result")).toContainText(accessibleTask.title);
+  await expect(page.locator("[data-task-next-action]")).toContainText(/Acknowledge|Start work|Share a blocker|Operations can see/);
   const taskActionButtons = page.locator("#task-status-update [data-task-action]:visible");
   expect(await taskActionButtons.count()).toBeGreaterThan(0);
   for (let index = 0; index < await taskActionButtons.count(); index += 1) {
