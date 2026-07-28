@@ -3146,12 +3146,19 @@ staff_production,${importEventId},Jordan Davis,jordan.davis@staff.example,active
     expectedPreviewHash: rolloverPreview.previewHash,
     now: importOptions.now
   });
+  const invalidClockParse = parseStaffDirectoryImport(staffCsv, { ...importOptions, now: "not-a-date" });
+  const invalidClockCommit = applyStaffDirectoryImport(currentImportDirectory, parsedImport, {
+    commit: true,
+    expectedPreviewHash: preview.previewHash,
+    now: "not-a-date"
+  });
   const duplicateRoute = parseStaffDirectoryImport(`${staffCsv}\nstaff_extra,${importEventId},Extra Staff,extra@staff.example,active,ops_admin,operations,operations`, importOptions);
   const oversizedStaffCsv = `id,name,email,notification_team\n${Array.from({ length: STAFF_DIRECTORY_IMPORT_MAX_ROWS + 1 }, (_, index) => `staff_${index},Staff ${index},staff${index}@staff.example,operations`).join("\n")}`;
   ok("staff import parses a complete private directory", parsedImport.ok && parsedImport.summary.activeStaff === 7 && parsedImport.summary.routedTeams === 7 && parsedImport.publicDirectory.staff.every(item => !("email" in item)));
   ok("staff import preview is non-mutating and state-bound", preview.ok && preview.commitAllowed && /^[a-f0-9]{64}$/.test(preview.previewHash) && currentImportDirectory.source === directory.source && staffDirectoryImportPreviewHash(staffCsv, { ...importOptions, directoryFingerprint: staffDirectoryFingerprint(currentImportDirectory, { eventId: importEventId }) }) === preview.previewHash);
   ok("staff import commit is private, audited, and idempotent", committed.ok && committed.doc.source === "manual_verified" && committed.doc.imports.length === 1 && committed.importRecord.actorId === "staff-import-test" && !JSON.stringify({ publicDirectory: committed.publicDirectory, importRecord: committed.importRecord }).includes("@staff.example") && replay.replay && replay.doc.imports.length === 1);
   ok("staff import rejects stale previews and annual replacement", staleCommit.previewMismatch && rolloverPreview.commitAllowed === false && rolloverCommit.rolloverRequired);
+  ok("staff import rejects invalid clocks without local fallback", invalidClockParse.ok === false && invalidClockParse.error.includes("time is invalid") && invalidClockCommit.ok === false && invalidClockCommit.error.includes("time is invalid") && !invalidClockCommit.doc);
   ok("staff import rejects duplicate routing and oversized files", duplicateRoute.ok === false && duplicateRoute.error.includes("exactly one owner") && parseStaffDirectoryImport(oversizedStaffCsv, importOptions).ok === false);
 }
 
