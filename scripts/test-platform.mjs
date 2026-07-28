@@ -3737,14 +3737,16 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   const invalidMilestoneReminderClock = generateDuePartnerFollowups(created.doc, { idFactory, now: "not-a-date", leadDays: 3 });
   const expeditedMilestone = updatePartnerMilestone(created.doc, created.doc.milestones.find(item => item.kind === "opportunity_qualification").id, {
     dueAt: new Date(Date.parse(now) + 86_400_000).toISOString()
-  }, { idFactory, actorId: "admin_1", now });
+  }, { idFactory, actorId: "admin_1", now, portalUrlForApplication: () => portalUrl });
   const expeditedMilestoneReminder = generateDuePartnerFollowups(expeditedMilestone.doc, { idFactory, now, leadDays: 3, portalUrlForApplication: () => portalUrl });
   const reminderNow = new Date(Date.parse(now) + PARTNER_INITIAL_REMINDER_GRACE_MS).toISOString();
   const scheduled = generateDuePartnerFollowups(created.doc, { idFactory, now: reminderNow, leadDays: 3, portalUrlForApplication: () => portalUrl });
   const scheduledAgain = generateDuePartnerFollowups(scheduled.doc, { idFactory, now: reminderNow, leadDays: 3 });
   ok("new intake acknowledgment has a reminder grace period", !immediateMilestoneReminder.changed && immediateMilestoneReminder.generated.length === 0);
   ok("milestone reminder automation fails closed on invalid clock", !invalidMilestoneReminderClock.ok && invalidMilestoneReminderClock.error.includes("time is invalid"));
-  ok("staff-rescheduled intake milestone bypasses the initial grace period", expeditedMilestoneReminder.generated.length === 1 && expeditedMilestoneReminder.generated[0].sourceVersion === "schedule:2:phase:upcoming");
+  ok("staff-rescheduled intake milestone immediately prepares a reminder", expeditedMilestone.generatedFollowups.length === 1
+    && expeditedMilestone.generatedFollowups[0].sourceVersion === "schedule:2:phase:upcoming"
+    && expeditedMilestoneReminder.generated.length === 0);
   ok("scheduled milestone draft after intake grace", scheduled.changed && scheduled.generated.length === 1 && scheduled.generated[0].status === "draft_ready" && scheduled.generated[0].sourceVersion === "schedule:1:phase:upcoming" && scheduled.generated[0].body.includes(portalUrl));
   ok("scheduled milestone idempotency", !scheduledAgain.changed && scheduledAgain.generated.length === 0);
   const milestoneApproved = reviewFollowup(scheduled.doc, scheduled.generated[0].id, "approve", { actorId: "admin_1", now: reminderNow });
@@ -3775,6 +3777,8 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   ok("milestone reschedule invalidates stale reminder", rescheduledMilestone.milestone.scheduleVersion === 2 && rescheduledMilestone.dismissedFollowups === 1 && !staleMilestoneReview.ok && staleMilestoneReview.error.includes("stale"));
   const customMilestone = createPartnerMilestone(created.doc, created.application.id, { label: "Hospitality roster due", dueAt: "2026-08-10T17:00:00.000Z", assigneeTeam: "guest-services", reminderLeadDays: 5 }, { idFactory, actorId: "admin_1", now });
   const milestoneSummary = summarizePartnerMilestones(customMilestone.doc, now);
+  const dueSoonMilestone = createPartnerMilestone(created.doc, created.application.id, { label: "Board packet approval due", dueAt: new Date(Date.parse(now) + 86_400_000).toISOString(), assigneeTeam: "sponsor", reminderLeadDays: 3 }, { idFactory, actorId: "admin_1", now, portalUrlForApplication: () => portalUrl });
+  const dueSoonMilestoneAgain = generateDuePartnerFollowups(dueSoonMilestone.doc, { idFactory, now, milestoneId: dueSoonMilestone.milestone.id, portalUrlForApplication: () => portalUrl });
   const invalidMilestone = createPartnerMilestone(created.doc, created.application.id, { label: "Bad date", dueAt: "invalid", reminderLeadDays: 31 }, { idFactory, now });
   const milestoneRetryFactory = prefix => `${prefix}_retry_safe`;
   const milestoneRetryInput = { label: "Replay-safe key date", dueAt: "2026-08-12T17:00:00.000Z", assigneeTeam: "sponsor", reminderLeadDays: 4 };
@@ -3782,6 +3786,11 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   const replayedMilestone = createPartnerMilestone(retryMilestone.doc, created.application.id, milestoneRetryInput, { idFactory: milestoneRetryFactory, actorId: "admin_1", now });
   const conflictingMilestone = createPartnerMilestone(retryMilestone.doc, created.application.id, { ...milestoneRetryInput, reminderLeadDays: 5 }, { idFactory: milestoneRetryFactory, actorId: "admin_1", now });
   ok("custom partner milestone", customMilestone.ok && customMilestone.milestone.assigneeTeam === "guest-services" && customMilestone.milestone.reminderLeadDays === 5 && milestoneSummary.totals.open === 5);
+  ok("due-soon custom milestone immediately generates one reminder", dueSoonMilestone.ok
+    && dueSoonMilestone.generatedFollowups.length === 1
+    && dueSoonMilestone.generatedFollowups[0].milestoneId === dueSoonMilestone.milestone.id
+    && dueSoonMilestone.generatedFollowups[0].body.includes(portalUrl)
+    && dueSoonMilestoneAgain.generated.length === 0);
   ok("milestone input validation", !invalidMilestone.ok);
   ok("partner milestone creation is idempotent and activity safe", retryMilestone.ok && replayedMilestone.replay
     && replayedMilestone.doc.milestones.length === retryMilestone.doc.milestones.length
