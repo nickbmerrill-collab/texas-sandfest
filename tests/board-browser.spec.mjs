@@ -1756,6 +1756,8 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   expect(createdVolunteerTask.dueAt).toBeTruthy();
   await expect(page.locator("#admin-api-status")).toContainText("Task delegated.");
   await expect(page.locator("#admin-partner-tasks")).toContainText(taskTitle);
+  const createdVolunteerTaskCard = page.locator(`#admin-partner-tasks [data-task="${createdVolunteerTask.id}"]`);
+  await expect(createdVolunteerTaskCard.locator("span").filter({ hasText: "Operations next" })).toContainText("Awaiting assignee acknowledgement");
 
   const milestoneForm = page.locator("#admin-create-milestone");
   await milestoneForm.locator('[name="applicationId"]').selectOption(sponsorResult.application.id);
@@ -2139,6 +2141,7 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   await expect(freshVolunteerTask).toContainText(taskTitle);
   await expect(freshVolunteerTask).toContainText("Assignment notices · 1 issued · latest delivered");
   await expect(freshVolunteerTask).toContainText("Awaiting assignee acknowledgement");
+  await expect(freshVolunteerTask.locator("span").filter({ hasText: "Operations next" })).toContainText("Awaiting assignee acknowledgement");
   const resendTaskNoticeResponse = page.waitForResponse(response => new URL(response.url()).pathname === `/api/admin/partners/tasks/${createdVolunteerTask.id}/assignment-notice` && response.request().method() === "POST");
   await freshVolunteerTask.locator('[data-resend-task]').click();
   const resendTaskNoticeResult = await resendTaskNoticeResponse;
@@ -2233,6 +2236,7 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   await expect(freshVolunteerTask).toContainText("Acknowledged");
   await expect(freshVolunteerTask).toContainText("Latest assignee note");
   await expect(freshVolunteerTask).toContainText("Need two more welcome packets at the north gate.");
+  await expect(freshVolunteerTask.locator("span").filter({ hasText: "Operations next" })).toContainText(/block/i);
 
   await taskPage.locator('#task-status-update [name="note"]').fill("Welcome packets delivered and captain briefed.");
   const completedTaskResponse = taskPage.waitForResponse(response => new URL(response.url()).pathname === "/api/public/task-status/update" && response.request().method() === "POST");
@@ -2258,6 +2262,7 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   await page.locator("#admin-task-status-filter").selectOption("done");
   await expect(freshVolunteerTask).toContainText(taskTitle);
   await expect(freshVolunteerTask.locator('[name="status"]')).toHaveValue("done");
+  await expect(freshVolunteerTask.locator("span").filter({ hasText: "Operations next" })).toContainText(/complete/i);
   await expect.poll(async () => {
     const response = await fetch(`${apiBase}/api/admin/partners`, { headers: { authorization: `Bearer ${TOKEN}` } });
     const payload = await response.json();

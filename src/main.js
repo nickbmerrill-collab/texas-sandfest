@@ -7071,7 +7071,7 @@ function renderAdminTaskBoard(payload) {
       <p>${escapeHtml(owner)} · ${escapeHtml(conditionLabel(assignmentType))} · ${task.dueAt ? `Due ${escapeHtml(new Date(task.dueAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }))}` : "No due date"}</p>
       <span>${escapeHtml(notificationSummary.assignmentLabel)}</span>
       ${notificationSummary.followupLabel ? `<span>${escapeHtml(notificationSummary.followupLabel)}</span>` : ""}
-      <span>Assignee response · ${escapeHtml(responseState)}</span>
+      <span>Operations next · ${escapeHtml(responseState)}</span>
       ${latestUpdate?.note ? `<blockquote class="admin-task-assignee-note"><strong>Latest assignee note</strong><span>${escapeHtml(latestUpdate.note)}</span></blockquote>` : ""}
       ${task.description ? `<span>${escapeHtml(task.description)}</span>` : ""}
       <div class="admin-task-controls">
