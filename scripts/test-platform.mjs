@@ -5246,6 +5246,12 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
       message: "Configure Stripe partner invoice checkout."
     }
   };
+  const invalidLaunchClock = syncDeploymentCheckTasks(emptyPartnerOperations(), launchChecks, {
+    actorId: "ops_1",
+    idFactory,
+    now: "not-a-date"
+  });
+  ok("launch task sync fails closed on invalid clock", !invalidLaunchClock.ok && invalidLaunchClock.error.includes("time is invalid") && invalidLaunchClock.doc.tasks.length === 0);
   const launchCreated = syncDeploymentCheckTasks(emptyPartnerOperations(), launchChecks, {
     actorId: "ops_1",
     idFactory,
