@@ -3936,7 +3936,9 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   const prepaid = recordPartnerPayment(accepted.doc, created.application.id, { amountCents: 500000, method: "check", externalRef: "CHECK-100" }, { idFactory, now });
   ok("partner prepayment is unapplied", prepaid.ok && prepaid.payment.unappliedAmountCents === 500000 && prepaid.payment.invoiceId === null);
   const invoiceDraft = createPartnerInvoice(prepaid.doc, created.application.id, { quickBooksItemId: "77", dueAt: now }, { idFactory, actorId: "finance_1", now });
+  const invalidInvoiceClock = createPartnerInvoice(prepaid.doc, created.application.id, { quickBooksItemId: "77" }, { idFactory, actorId: "finance_1", now: "not-a-date" });
   ok("partner invoice allocates prepayment", invoiceDraft.ok && invoiceDraft.invoice.amountCents === 2500000 && invoiceDraft.invoice.balanceCents === 2000000 && invoiceDraft.doc.payments[0].invoiceId === invoiceDraft.invoice.id);
+  ok("partner invoice creation fails closed on invalid clock", !invalidInvoiceClock.ok && invalidInvoiceClock.error.includes("time is invalid") && invalidInvoiceClock.doc === undefined);
   ok("invoice date controls payment milestone", invoiceDraft.paymentMilestone?.dueAt === invoiceDraft.invoice.dueAt && invoiceDraft.paymentMilestone?.kind === "payment_due" && invoiceDraft.paymentMilestone?.scheduleVersion === 2);
   const invoiceApproved = reviewPartnerInvoice(invoiceDraft.doc, invoiceDraft.invoice.id, "approve", { actorId: "finance_1", now });
   ok("partner invoice approval", invoiceApproved.ok && invoiceApproved.invoice.approvedBy === "finance_1");
