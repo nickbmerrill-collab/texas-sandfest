@@ -6315,6 +6315,8 @@ Research First,construction,Corpus Christi,,78401,,,,Find decision maker,`;
       }
     ]
   };
+  const invalidBrevoClock = applyBrevoDeliveryEvents(base, normalized.events, { now: "not-a-date" });
+  ok("Brevo webhook receipt clock fails closed", !invalidBrevoClock.ok && invalidBrevoClock.error.includes("time is invalid") && invalidBrevoClock.doc.followups[0].deliveryStatus === "accepted" && !invalidBrevoClock.doc.brevoWebhookReceipts?.length);
   const applied = applyBrevoDeliveryEvents(base, normalized.events, { now: "2026-07-16T12:05:00.000Z" });
   const tracked = applied.doc.followups.find(item => item.id === "followup_delivery_test");
   const replayed = applyBrevoDeliveryEvents(applied.doc, normalized.events, { now: "2026-07-16T12:06:00.000Z" });
