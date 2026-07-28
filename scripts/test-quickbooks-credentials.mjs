@@ -162,6 +162,42 @@ try {
   }, env);
   ok("provider cancellation consumes its OAuth state", canceledAttempt.changed && canceledReplay.ok === false);
 
+  const stringClockRoot = await runtimeRoot();
+  const stringClockNow = "2026-07-17T12:00:00.000Z";
+  const stringClockStartedAt = Date.parse(stringClockNow);
+  const stringClockBegin = await beginQuickBooksAuthorization(stringClockRoot, { actorId: "finance-admin-5", now: stringClockNow }, env);
+  const stringClockState = new URL(stringClockBegin.authorizationUrl).searchParams.get("state");
+  const stringClockComplete = await completeQuickBooksAuthorization(stringClockRoot, {
+    state: stringClockState,
+    code: "authorization-code-private",
+    realmId: "realm-private-string-clock",
+    now: "2026-07-17T12:00:01.000Z",
+    fetchImpl: tokenExchange("refresh-token-string-clock")
+  }, env);
+  const stringClockRuntime = await loadQuickBooksRuntimeCredentials(stringClockRoot, env);
+  const stringClockRotation = await persistQuickBooksTokenRotation(stringClockRoot, stringClockRuntime, {
+    refresh_token: "refresh-token-string-clock-rotated",
+    x_refresh_token_expires_in: 8_726_400
+  }, { now: "2026-07-17T12:00:02.000Z" }, env);
+  const stringClockDisconnect = await disconnectQuickBooks(stringClockRoot, { now: "2026-07-17T12:00:03.000Z" }, env);
+  ok("QuickBooks credential clocks accept ISO strings", stringClockBegin.ok && Date.parse(stringClockBegin.expiresAt) - stringClockStartedAt === quickBooksCredentialPolicy.oauthAttemptTtlMs && stringClockComplete.ok && stringClockRuntime.env.QB_REALM_ID === "realm-private-string-clock" && stringClockRotation.changed && stringClockDisconnect.changed);
+
+  const invalidClockRoot = await runtimeRoot();
+  const invalidClockBegin = await beginQuickBooksAuthorization(invalidClockRoot, { actorId: "finance-admin-6", now: "not-a-date" }, env);
+  const invalidClockSource = await readFile(path.join(invalidClockRoot, "data", "processed", "quickbooks-credentials.json"), "utf8").catch(() => "");
+  const invalidClockComplete = await completeQuickBooksAuthorization(invalidClockRoot, {
+    state: "invalid-state",
+    code: "authorization-code-private",
+    realmId: "realm-private-invalid-clock",
+    now: "not-a-date",
+    fetchImpl: tokenExchange("must-not-be-used")
+  }, env);
+  const invalidClockRotation = await persistQuickBooksTokenRotation(invalidClockRoot, { source: "encrypted_store", connectionId: "missing" }, {
+    refresh_token: "must-not-rotate-invalid-clock"
+  }, { now: "not-a-date" }, env);
+  const invalidClockDisconnect = await disconnectQuickBooks(invalidClockRoot, { now: "not-a-date" }, env);
+  ok("QuickBooks credential clocks fail closed when invalid", !invalidClockBegin.ok && invalidClockBegin.error.includes("clock is invalid") && invalidClockSource === "" && !invalidClockComplete.ok && invalidClockComplete.error.includes("clock is invalid") && !invalidClockRotation.changed && !invalidClockDisconnect.changed);
+
   const productionRoot = await runtimeRoot();
   const productionEnv = testEnv({
     SANDFEST_ENV: "production",
