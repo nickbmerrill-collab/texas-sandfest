@@ -308,6 +308,30 @@ const stale = await verifyLiveDeployment({
 });
 check("stale public artifact fails closed", !stale.ok && stale.checks.some(item => item.id === "public.artifact_freshness" && !item.ok) && stale.checks.some(item => item.id === "public.worker_freshness" && !item.ok));
 
+const mixedPublicAssetsFetch = async (url, options = {}) => {
+  if (String(url) === config.publicUrl) {
+    return textResponse(publicHtml.replace("</title>", "</title><script src=\"/assets/main-old.js\"></script><link href=\"/assets/main-old.css\" rel=\"stylesheet\">"));
+  }
+  return fetchImpl(url, options);
+};
+const mixedPublicAssets = await verifyLiveDeployment({ config, artifacts, fetchImpl: mixedPublicAssetsFetch });
+check("mixed public compiled assets fail closed", !mixedPublicAssets.ok
+  && mixedPublicAssets.checks.some(item => item.id === "public.artifact_freshness"
+    && !item.ok
+    && item.detail.includes("main-old")));
+
+const mixedAdminAssetsFetch = async (url, options = {}) => {
+  if (String(url) === config.adminUrl) {
+    return textResponse(adminHtml.replace("</title>", "</title><script src=\"/assets/admin-old.js\"></script><link href=\"/assets/admin-old.css\" rel=\"stylesheet\">"));
+  }
+  return fetchImpl(url, options);
+};
+const mixedAdminAssets = await verifyLiveDeployment({ config, artifacts, fetchImpl: mixedAdminAssetsFetch });
+check("mixed admin compiled assets fail closed", !mixedAdminAssets.ok
+  && mixedAdminAssets.checks.some(item => item.id === "admin.artifact_freshness"
+    && !item.ok
+    && item.detail.includes("admin-old")));
+
 const insecure = new Headers({ "x-content-type-options": "nosniff" });
 check("missing edge security headers fail closed", securityHeaderFailures(insecure, { document: true }).length === 4);
 
