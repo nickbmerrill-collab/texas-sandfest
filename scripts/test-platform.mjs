@@ -3553,6 +3553,7 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   const created = createPartnerApplication(emptyPartnerOperations(), applicationInput, { idFactory, portalAccessIdFactory: () => "portal_access_1", now, ...intakeIdempotencyOptions });
   const duplicateApplication = createPartnerApplication(created.doc, applicationInput, { idFactory, now, ...intakeIdempotencyOptions });
   const conflictingApplication = createPartnerApplication(created.doc, { ...applicationInput, organizationName: "Different Bank" }, { idFactory, now, ...intakeIdempotencyOptions, idempotencyFingerprint: "c".repeat(64) });
+  const invalidClockApplication = createPartnerApplication(emptyPartnerOperations(), applicationInput, { idFactory, now: "not-a-date", ...intakeIdempotencyOptions });
   ok("partner application", created.ok && created.doc.tasks.length === 1 && created.doc.followups.length === 1 && created.application.portalAccessVersion === 1);
   let collisionSequence = 0;
   const collidingIds = ["sapp_1000001", "sapp_2"];
@@ -3573,6 +3574,7 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   ok("partner application reference allocation fails closed", !collisionExhausted.ok && collisionExhausted.retryable === true && collisionExhausted.doc === undefined);
   const intakePaymentMilestone = created.doc.milestones.find(item => item.kind === "payment_due");
   ok("partner application idempotency", duplicateApplication.ok && duplicateApplication.duplicate && duplicateApplication.application.id === created.application.id && duplicateApplication.doc.applications.length === 1 && duplicateApplication.doc.tasks.length === 1 && duplicateApplication.doc.milestones.length === 4 && duplicateApplication.doc.followups.length === 1);
+  ok("partner application intake fails closed on invalid clock", !invalidClockApplication.ok && invalidClockApplication.error.includes("time is invalid") && invalidClockApplication.doc === undefined);
   ok("sponsor payment key date is finance owned", intakePaymentMilestone?.label === "Payment due" && intakePaymentMilestone?.assigneeTeam === "finance" && intakePaymentMilestone?.source === "application_intake");
   ok("partner application idempotency conflict", !conflictingApplication.ok && conflictingApplication.conflict === true);
   ok("sponsor package fulfillment seeded", created.doc.brandProfiles.length === 1 && created.doc.deliverables.length === 3 && created.doc.deliverables.every(item => item.source === "package_benefit"));
