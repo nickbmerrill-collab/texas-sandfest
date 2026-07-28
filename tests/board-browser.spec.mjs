@@ -128,7 +128,7 @@ async function submitAndCapture(page, form, pathname) {
     const url = new URL(response.url());
     return url.origin === apiBase && url.pathname === pathname && response.request().method() === "POST";
   });
-  await form.locator('button[type="submit"]').click();
+  await form.evaluate(node => node.requestSubmit());
   const response = await responsePromise;
   expect(response.status()).toBe(201);
   return response.json();

@@ -179,6 +179,24 @@ const unavailableApi = await verifyProductionApi({ config, fetchImpl: unavailabl
 check("API-only release gate blocks a red readiness endpoint", !unavailableApi.ok
   && unavailableApi.checks.some(item => item.id === "api.readiness" && !item.ok));
 
+const unexpectedCapabilityFetch = async (url, options = {}) => {
+  if (String(url) === new URL("ready", config.apiUrl).toString()) {
+    return jsonResponse({
+      ...readyBody,
+      deployment: {
+        ...readyBody.deployment,
+        requiredCapabilities: [...config.requiredCapabilities, "unreviewed_future_gate"]
+      }
+    });
+  }
+  return fetchImpl(url, options);
+};
+const unexpectedCapability = await verifyProductionApi({ config, fetchImpl: unexpectedCapabilityFetch });
+check("API release gate rejects unexpected readiness capabilities", !unexpectedCapability.ok
+  && unexpectedCapability.checks.some(item => item.id === "api.required_capabilities"
+    && !item.ok
+    && item.detail.includes("unreviewed_future_gate")));
+
 const unsafeSponsorFetch = async (url, options = {}) => {
   if (String(url) === new URL("api/public/sponsors", config.apiUrl).toString()) {
     return jsonResponse({ sponsorPackages: [{ id: "whale", name: "Whale", amount: 0, currency: "usd", publicLabel: "$0", active: true, requiresApproval: true, benefits: [], quickBooksItemId: "77" }] });
