@@ -3434,6 +3434,27 @@ function contentPublicationAuditState(publication, itemCount = 0) {
   };
 }
 
+function importCommitAuditView(record, summary = record?.summary) {
+  if (!record) return null;
+  const files = record.files && typeof record.files === "object"
+    ? Object.values(record.files).filter(Boolean).length
+    : 0;
+  return {
+    id: record.id || null,
+    provider: record.provider || record.source || null,
+    eventId: record.eventId || null,
+    source: record.source || null,
+    format: record.format || null,
+    importedAt: record.importedAt || null,
+    importedByAvailable: Boolean(record.importedBy || record.actorId),
+    fileNameAvailable: Boolean(record.fileName),
+    fileCount: files,
+    previewHashAvailable: Boolean(record.previewHash),
+    bundleHashAvailable: Boolean(record.bundleHash),
+    summary: summary || null
+  };
+}
+
 async function mutateRevenueLedger(parsed, options = {}) {
   let result = null;
   const fallback = {
@@ -8032,10 +8053,10 @@ async function handleRequest(request, response) {
         await writeAuditRecord(request, "revenue.import.commit", {
           type: "revenue_import",
           id: result.importRecord?.id || batchId
-        }, null, result.importRecord, {
+        }, null, importCommitAuditView(result.importRecord, result.summary), {
           eventId: CURRENT_EVENT_ID,
           source: parsed.defaults.source,
-          previewHash: previewHash.slice(0, 16),
+          previewHashProvided: Boolean(previewHash),
           summary: result.summary
         });
       }
@@ -8490,9 +8511,9 @@ async function handleRequest(request, response) {
         await writeAuditRecord(request, "volunteers.import.commit", {
           type: "volunteerlocal_import",
           id: result.importRecord?.id || batchId
-        }, null, result.importRecord, {
+        }, null, importCommitAuditView(result.importRecord, result.summary), {
           eventId: CURRENT_EVENT_ID,
-          previewHash: String(body.previewHash || "").slice(0, 16),
+          previewHashProvided: Boolean(String(body.previewHash || "")),
           summary: result.summary
         });
       }
@@ -8561,10 +8582,10 @@ async function handleRequest(request, response) {
         await writeAuditRecord(request, "staff_directory.import.commit", {
           type: "staff_directory_import",
           id: result.importRecord?.id || batchId
-        }, null, result.importRecord, {
+        }, null, importCommitAuditView(result.importRecord, result.summary), {
           eventId: CURRENT_EVENT_ID,
           source: parsed.source,
-          previewHash: String(body.previewHash || "").slice(0, 16),
+          previewHashProvided: Boolean(String(body.previewHash || "")),
           summary: result.summary
         });
       }
