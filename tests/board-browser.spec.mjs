@@ -820,6 +820,7 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await expect(page.locator('#partner-status-form [name="reference"]')).toHaveValue(vendorResult.application.reference);
   await expect(page.locator(".partner-readiness-snapshot")).toContainText("Readiness snapshot");
   await expect(page.locator('[data-partner-readiness="balance"]')).toContainText("$1,250.00");
+  await expect(page.locator('[data-partner-readiness="dates"]')).toContainText("Review application");
   await expect(page.locator('[data-partner-readiness="vendor"]')).toContainText("0 / 5");
   await expect(page.locator('[data-partner-readiness="contact"]')).toContainText("Enabled");
   await expect(page.locator(".partner-message-history")).toContainText("Recent messages");
@@ -1644,6 +1645,7 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await expect(freshSponsorPortal.locator('[data-partner-readiness="balance"]')).toContainText("$5,000.00");
   await expect(freshSponsorPortal.locator('[data-partner-readiness="sponsor"]')).toContainText("open benefit");
   await expect(freshSponsorPortal.locator('[data-partner-readiness="dates"]')).toContainText("open date");
+  await expect(freshSponsorPortal.locator('[data-partner-readiness="dates"]')).toContainText("Qualify opportunity");
   await expect(freshSponsorPortal.locator("[data-partner-brand-asset]")).toHaveCount(1);
   await expect(freshSponsorPortal.locator("[data-partner-deliverable]")).toHaveCount(6);
   await expect(freshSponsorPortal.locator("[data-partner-pay-invoice]")).toHaveText("Pay in local sandbox");

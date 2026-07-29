@@ -5056,7 +5056,7 @@ function renderPartnerPortalStatus(application) {
         })();
     return `<section class="partner-readiness-snapshot" aria-label="Partner readiness snapshot"><strong>Readiness snapshot</strong><div>
       <article data-partner-readiness="balance"><span>Open balance</span><b>${escapeHtml(adminMoney(balanceCents, "$0.00"))}</b><small>${balanceCents > 0 && invoice?.dueAt ? `Due ${escapeHtml(portalDate(invoice.dueAt))}` : balanceCents > 0 ? "Finance updates this after review" : "No partner balance currently open"}</small></article>
-      <article data-partner-readiness="dates"><span>Key dates</span><b>${openMilestones} open date${openMilestones === 1 ? "" : "s"}</b><small>${openMilestones ? "Review the schedule below" : "No open partner dates"}</small></article>
+      <article data-partner-readiness="dates"><span>Key dates</span><b>${openMilestones} open date${openMilestones === 1 ? "" : "s"}</b><small>${nextStep?.dueAt ? `${escapeHtml(nextStep.label)} · ${escapeHtml(portalDate(nextStep.dueAt))}` : "No open partner dates"}</small></article>
       <article data-partner-readiness="${escapeAttr(readinessThird.key)}"><span>${escapeHtml(readinessThird.label)}</span><b>${escapeHtml(readinessThird.value)}</b><small>${escapeHtml(readinessThird.detail)}</small></article>
       <article data-partner-readiness="contact"><span>Messages</span><b>${contactPreference.allowed ? "Enabled" : "Paused"}</b><small>You control application email consent</small></article>
     </div></section>`;
