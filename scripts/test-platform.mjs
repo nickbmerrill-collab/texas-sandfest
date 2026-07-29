@@ -10094,6 +10094,20 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
     && !serializedSponsorBrandAssetAuditApi.includes("storageKey")
     && !serializedSponsorBrandAssetAuditApi.includes("checksumSha256")
     && !serializedSponsorBrandAssetAuditApi.includes("platform-brand-logo.png"));
+  const sponsorDeliverableAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("partner.deliverable."));
+  const serializedSponsorDeliverableAuditApi = JSON.stringify(sponsorDeliverableAuditApi);
+  ok("sponsor deliverable audit preserves fulfillment state without private proof text", sponsorDeliverableAuditApi.some(item => item.record?.action === "partner.deliverable.create"
+    && item.record?.target?.id === customDeliverableApi.data.deliverable?.id
+    && item.record?.after?.status === "planned"
+    && item.record?.after?.proofUrlAvailable === false)
+    && sponsorDeliverableAuditApi.some(item => item.record?.action === "partner.deliverable.update"
+      && item.record?.target?.id === sponsorDeliverable?.id
+      && item.record?.after?.proofVersion === 1
+      && item.record?.after?.proofUrlAvailable === true
+      && item.record?.after?.proofNotesLength > 0
+      && item.record?.after?.partnerReviewStatus === "pending")
+    && !serializedSponsorDeliverableAuditApi.includes("https://www.texassandfest.org/sponsors/platform-brand-sponsor")
+    && !serializedSponsorDeliverableAuditApi.includes("Sponsor listing is live."));
   const vendorAuditTargetIds = new Set([
     partnerIntake.data.application?.id,
     vendorAgreementApi?.id,

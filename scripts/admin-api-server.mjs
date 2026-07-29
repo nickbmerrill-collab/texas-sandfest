@@ -1875,6 +1875,29 @@ function adminPartnerBrandAssetAuditView(asset) {
   };
 }
 
+function adminPartnerDeliverableAuditView(deliverable) {
+  if (!deliverable) return deliverable;
+  return {
+    id: deliverable.id,
+    applicationId: deliverable.applicationId,
+    packageId: deliverable.packageId || null,
+    source: deliverable.source || null,
+    label: deliverable.label,
+    status: deliverable.status,
+    ownerId: deliverable.ownerId || null,
+    dueAt: deliverable.dueAt || null,
+    proofVersion: Number(deliverable.proofVersion || 0),
+    proofUrlAvailable: Boolean(deliverable.proofUrl),
+    proofNotesLength: String(deliverable.proofNotes || "").length,
+    partnerReviewStatus: deliverable.partnerReviewStatus || "not_ready",
+    partnerReviewNotesLength: String(deliverable.partnerReviewNotes || "").length,
+    partnerReviewedAt: deliverable.partnerReviewedAt || null,
+    completedAt: deliverable.completedAt || null,
+    createdAt: deliverable.createdAt || null,
+    updatedAt: deliverable.updatedAt || null
+  };
+}
+
 function adminVendorProfileAuditView(profile) {
   if (!profile) return profile;
   return {
@@ -9193,7 +9216,7 @@ async function handleRequest(request, response) {
         return;
       }
       if (!result.replay) {
-        await writeAuditRecord(request, "partner.deliverable.create", { type: "deliverable", id: result.deliverable.id }, null, result.deliverable, { applicationId });
+        await writeAuditRecord(request, "partner.deliverable.create", { type: "deliverable", id: result.deliverable.id }, null, adminPartnerDeliverableAuditView(result.deliverable), { applicationId });
       }
       sendJson(request, response, result.replay ? 200 : 201, {
         replay: result.replay === true,
@@ -9224,7 +9247,7 @@ async function handleRequest(request, response) {
         sendJson(request, response, result?.error === "Deliverable not found." ? 404 : 400, { error: result?.error || "Deliverable could not be updated." });
         return;
       }
-      await writeAuditRecord(request, "partner.deliverable.update", { type: "deliverable", id: deliverableId }, before, result.deliverable);
+      await writeAuditRecord(request, "partner.deliverable.update", { type: "deliverable", id: deliverableId }, adminPartnerDeliverableAuditView(before), adminPartnerDeliverableAuditView(result.deliverable));
       sendJson(request, response, 200, { deliverable: result.deliverable, followup: result.followup, notificationDrafted: result.followupChanged });
       return;
     }
