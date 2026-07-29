@@ -1387,6 +1387,37 @@ function incidentDispatchResponse(dispatch) {
   };
 }
 
+function conditionsIncidentAuditView(incident) {
+  if (!incident) return incident;
+  return {
+    id: incident.id,
+    sourceType: incident.sourceType || null,
+    sourceId: incident.sourceId || null,
+    cameraId: incident.cameraId || null,
+    status: incident.status,
+    severity: incident.severity,
+    ownerTeam: incident.ownerTeam || null,
+    ownerNameAvailable: Boolean(incident.ownerName),
+    publicImpact: incident.publicImpact === true,
+    publicAlertRecommended: incident.publicAlertRecommended === true,
+    latestSignalAt: incident.latestSignalAt || null,
+    latestLevel: incident.latestLevel || null,
+    latestMetricsAvailable: Boolean(incident.latestMetrics),
+    titleLength: String(incident.title || "").length,
+    summaryLength: String(incident.summary || "").length,
+    resolutionLength: String(incident.resolution || "").length,
+    timelineCount: Array.isArray(incident.timeline) ? incident.timeline.length : 0,
+    createdAt: incident.createdAt || null,
+    createdBy: incident.createdBy || null,
+    updatedAt: incident.updatedAt || null,
+    updatedBy: incident.updatedBy || null,
+    acknowledgedAt: incident.acknowledgedAt || null,
+    acknowledgedBy: incident.acknowledgedBy || null,
+    resolvedAt: incident.resolvedAt || null,
+    resolvedBy: incident.resolvedBy || null
+  };
+}
+
 async function readConsentLedger() {
   const ledger = await readPlatformDoc(ROOT, "consent", null);
   if (!ledger) return { lastUpdated: null, eventId: CURRENT_EVENT_ID, records: [] };
@@ -10109,7 +10140,7 @@ async function handleRequest(request, response) {
         });
         return;
       }
-      if (result.changed) await writeAuditRecord(request, "conditions.incident.create", { type: "conditions_incident", id: result.incident.id }, null, result.incident);
+      if (result.changed) await writeAuditRecord(request, "conditions.incident.create", { type: "conditions_incident", id: result.incident.id }, null, conditionsIncidentAuditView(result.incident));
       sendJson(request, response, result.changed ? 201 : 200, {
         replay: result.replay === true,
         duplicate: result.duplicate === true,
@@ -10136,7 +10167,7 @@ async function handleRequest(request, response) {
         sendJson(request, response, result?.error === "Incident not found." ? 404 : 400, { error: result?.error || "Incident could not be updated." });
         return;
       }
-      if (result.changed) await writeAuditRecord(request, "conditions.incident.update", { type: "conditions_incident", id: result.incident.id }, result.before, result.incident);
+      if (result.changed) await writeAuditRecord(request, "conditions.incident.update", { type: "conditions_incident", id: result.incident.id }, conditionsIncidentAuditView(result.before), conditionsIncidentAuditView(result.incident));
       sendJson(request, response, 200, { incident: result.incident, changed: result.changed });
       return;
     }
