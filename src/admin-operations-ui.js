@@ -13,6 +13,16 @@ import { setCreationStatus, submitCreation } from "./admin-creation.js";
 const PENDING_NOTICE_STATUSES = new Set(["pending", "draft_ready", "approved", "queued", "sending"]);
 const OUTREACH_RETRY_MESSAGE = "Retry safely; saved once.";
 
+export function prospectSequenceSummary(prospect, followups = [], campaigns = [], label = value => value) {
+  const item = followups.find(item => item.prospectId === prospect.id && item.kind === "sponsor_outreach" && item.campaignId);
+  if (!item) return "";
+  const campaign = campaigns.find(candidate => candidate.id === item.campaignId);
+  if (!campaign) return "";
+  const step = campaign.sequence?.find(candidate => candidate.id === item.sequenceStepId);
+  const stepLabel = step?.order ? `${step.order}/${campaign.sequence.length}` : item.sequenceStepId || "";
+  return `outreach sequence ${campaign.name} · ${stepLabel} · ${label(item.deliveryStatus || item.status)}`;
+}
+
 export function bindTaskCreation(form, deps, disabled = () => false) {
   if (!form || form.dataset.creationBound === "true") return;
   form.dataset.creationBound = "true";
