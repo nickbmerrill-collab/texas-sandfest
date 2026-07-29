@@ -10099,6 +10099,22 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
   ok("outreach discovery audit is aggregate-only", discoveryAuditApi.some(item => item.record?.action === "outreach.discovery.preview") && discoveryAuditApi.some(item => item.record?.action === "outreach.discovery.import") && !JSON.stringify(discoveryAuditApi).includes(selectedDiscoveryCandidateApi?.organizationName));
   const outreachProspectAuditApi = (auditApi.data.audit || []).filter(item => ["outreach.prospect.create", "outreach.prospect.update", "outreach.prospect.suppress"].includes(item.record?.action));
   ok("outreach prospect audit omits business contacts", outreachProspectAuditApi.some(item => item.record?.after?.contactEmailAvailable === true) && !JSON.stringify(outreachProspectAuditApi).includes("geo-api@example.com") && !JSON.stringify(outreachProspectAuditApi).includes("morgan@api-coastal-bank.example"));
+  const outreachCampaignAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("outreach.campaign.") && item.record?.target?.id === geoCampaignApi.data.campaign?.id);
+  const serializedOutreachCampaignAuditApi = JSON.stringify(outreachCampaignAuditApi);
+  const outreachCampaignAuditOk = outreachCampaignAuditApi.some(item => item.record?.action === "outreach.campaign.create"
+    && item.record?.after?.targeting?.postalCodeCount === 1
+    && item.record?.after?.targeting?.geofenceAvailable === true
+    && item.record?.after?.sequence?.[0]?.subjectTemplateAvailable === true
+    && item.record?.after?.sequence?.[0]?.bodyTemplateAvailable === true)
+    && outreachCampaignAuditApi.some(item => item.record?.action === "outreach.campaign.activate"
+      && item.record?.after?.status === "active"
+      && item.record?.after?.approvedBy === "local-admin")
+    && !serializedOutreachCampaignAuditApi.includes(geoCampaignPayloadApi.sequence[0].subjectTemplate)
+    && !serializedOutreachCampaignAuditApi.includes(geoCampaignPayloadApi.sequence[0].bodyTemplate)
+    && !serializedOutreachCampaignAuditApi.includes(geoCampaignPayloadApi.targeting.postalCodes[0])
+    && !serializedOutreachCampaignAuditApi.includes(String(geoCampaignPayloadApi.targeting.geofence.latitude))
+    && !serializedOutreachCampaignAuditApi.includes(String(geoCampaignPayloadApi.targeting.geofence.longitude));
+  ok("outreach campaign audit preserves automation state without message or private targeting detail", outreachCampaignAuditOk, outreachCampaignAuditOk ? "" : serializedOutreachCampaignAuditApi);
   const sponsorInvitationAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("outreach.sponsor_invitation."));
   const serializedSponsorInvitationAuditApi = JSON.stringify(sponsorInvitationAuditApi);
   ok("sponsor invitation audit is aggregate-only", sponsorInvitationAuditApi.some(item => item.record?.action === "outreach.sponsor_invitation.issue") && sponsorInvitationAuditApi.some(item => item.record?.action === "outreach.sponsor_invitation.copy") && sponsorInvitationAuditApi.some(item => item.record?.action === "outreach.sponsor_invitation.revoke") && !serializedSponsorInvitationAuditApi.includes("tsfi1.") && !serializedSponsorInvitationAuditApi.includes("morgan@api-coastal-bank.example"));

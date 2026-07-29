@@ -1858,6 +1858,49 @@ function adminOutreachProspectAuditView(prospect) {
   };
 }
 
+function adminOutreachCampaignAuditView(campaign) {
+  if (!campaign) return campaign;
+  const targeting = campaign.targeting || {};
+  const geofence = targeting.geofence || null;
+  return {
+    id: campaign.id,
+    name: campaign.name,
+    status: campaign.status,
+    deliveryMode: campaign.deliveryMode,
+    dailySendLimit: campaign.dailySendLimit,
+    ownerId: campaign.ownerId || null,
+    createdBy: campaign.createdBy || null,
+    approvedBy: campaign.approvedBy || null,
+    objectiveAvailable: Boolean(campaign.objective),
+    objectiveLength: campaign.objective ? String(campaign.objective).length : 0,
+    targeting: {
+      industryCount: Array.isArray(targeting.industries) ? targeting.industries.length : 0,
+      cityCount: Array.isArray(targeting.cities) ? targeting.cities.length : 0,
+      stateCount: Array.isArray(targeting.states) ? targeting.states.length : 0,
+      postalCodeCount: Array.isArray(targeting.postalCodes) ? targeting.postalCodes.length : 0,
+      geofenceAvailable: Boolean(geofence),
+      radiusMiles: geofence ? geofence.radiusMiles : null,
+      minFitScore: targeting.minFitScore || 0
+    },
+    sequence: Array.isArray(campaign.sequence) ? campaign.sequence.map(step => ({
+      id: step.id,
+      order: step.order,
+      delayDays: step.delayDays,
+      subjectTemplateAvailable: Boolean(step.subjectTemplate),
+      subjectTemplateLength: step.subjectTemplate ? String(step.subjectTemplate).length : 0,
+      bodyTemplateAvailable: Boolean(step.bodyTemplate),
+      bodyTemplateLength: step.bodyTemplate ? String(step.bodyTemplate).length : 0
+    })) : [],
+    approvedAt: campaign.approvedAt || null,
+    activatedAt: campaign.activatedAt || null,
+    pausedAt: campaign.pausedAt || null,
+    completedAt: campaign.completedAt || null,
+    lastGeneratedAt: campaign.lastGeneratedAt || null,
+    createdAt: campaign.createdAt || null,
+    updatedAt: campaign.updatedAt || null
+  };
+}
+
 function adminPartnerFollowupView(followup) {
   if (!followup) return followup;
   const { deliveryClaimId, deliveryIdempotencyKey, ...deliverySafe } = followup;
@@ -8929,7 +8972,7 @@ async function handleRequest(request, response) {
         return;
       }
       if (!result.replay) {
-        await writeAuditRecord(request, "outreach.campaign.create", { type: "campaign", id: result.campaign.id }, null, result.campaign);
+        await writeAuditRecord(request, "outreach.campaign.create", { type: "campaign", id: result.campaign.id }, null, adminOutreachCampaignAuditView(result.campaign));
       }
       sendJson(request, response, result.replay ? 200 : 201, {
         replay: result.replay === true,
@@ -8969,7 +9012,7 @@ async function handleRequest(request, response) {
         sendJson(request, response, result?.error === "Campaign not found." ? 404 : result?.providerNotReady ? 409 : 400, { error: result?.error || "Campaign status could not be changed." });
         return;
       }
-      await writeAuditRecord(request, `outreach.campaign.${action}`, { type: "campaign", id: campaignId }, before, result.campaign, {
+      await writeAuditRecord(request, `outreach.campaign.${action}`, { type: "campaign", id: campaignId }, adminOutreachCampaignAuditView(before), adminOutreachCampaignAuditView(result.campaign), {
         returnedToReview: result.returnedToReview,
         dismissedFollowups: result.dismissedFollowups,
         failedHeldForRetry: result.failedHeldForRetry,
