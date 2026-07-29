@@ -956,6 +956,42 @@ function partnerPaymentAuditView(payment) {
   };
 }
 
+function partnerInvoiceAuditView(invoice) {
+  if (!invoice) return null;
+  return {
+    id: invoice.id,
+    applicationId: invoice.applicationId,
+    amountCents: invoice.amountCents,
+    currency: invoice.currency,
+    descriptionAvailable: Boolean(invoice.description),
+    dueAt: invoice.dueAt,
+    status: invoice.status,
+    quickBooksItemMapped: Boolean(invoice.quickBooksItemId),
+    quickBooksCustomerLinked: Boolean(invoice.quickBooksCustomerId),
+    quickBooksInvoiceLinked: Boolean(invoice.quickBooksInvoiceId),
+    quickBooksDocNumberAvailable: Boolean(invoice.quickBooksDocNumber),
+    quickBooksTotalCents: invoice.quickBooksTotalCents ?? null,
+    quickBooksBalanceCents: invoice.quickBooksBalanceCents ?? null,
+    quickBooksProviderUpdatedAt: invoice.quickBooksProviderUpdatedAt ?? null,
+    quickBooksReconciliationStatus: invoice.quickBooksReconciliationStatus,
+    quickBooksReconciliationVersion: Number(invoice.quickBooksReconciliationVersion || 0),
+    quickBooksReconciledAt: invoice.quickBooksReconciledAt ?? null,
+    quickBooksReconciliationAttempts: Number(invoice.quickBooksReconciliationAttempts || 0),
+    lastQuickBooksReconciliationAttemptAt: invoice.lastQuickBooksReconciliationAttemptAt ?? null,
+    lastQuickBooksReconciliationErrorAvailable: Boolean(invoice.lastQuickBooksReconciliationError),
+    allocatedPaymentCents: invoice.allocatedPaymentCents ?? 0,
+    balanceCents: invoice.balanceCents ?? invoice.amountCents,
+    approvedAt: invoice.approvedAt ?? null,
+    queuedAt: invoice.queuedAt ?? null,
+    syncedAt: invoice.syncedAt ?? null,
+    syncAttempts: Number(invoice.syncAttempts || 0),
+    lastAttemptAt: invoice.lastAttemptAt ?? null,
+    lastErrorAvailable: Boolean(invoice.lastError),
+    createdAt: invoice.createdAt ?? null,
+    updatedAt: invoice.updatedAt ?? null
+  };
+}
+
 function budgetMutationStatus(result) {
   if (result?.code === "NOT_FOUND") return 404;
   if (["DUPLICATE_BUDGET_LINE", "IDEMPOTENCY_CONFLICT", "INVALID_STATE", "INVALID_TRANSITION", "OVER_BUDGET"].includes(result?.code)) return 409;
@@ -9394,7 +9430,7 @@ async function handleRequest(request, response) {
         sendJson(request, response, result?.error === "Application not found." ? 404 : 400, { error: result?.error || "Invoice could not be created." });
         return;
       }
-      await writeAuditRecord(request, "partner.invoice.create", { type: "invoice", id: result.invoice.id }, null, result.invoice);
+      await writeAuditRecord(request, "partner.invoice.create", { type: "invoice", id: result.invoice.id }, null, partnerInvoiceAuditView(result.invoice));
       sendJson(request, response, 201, { invoice: result.invoice, quickbooks: await readQuickBooksCredentialStatus(ROOT) });
       return;
     }
@@ -9415,7 +9451,7 @@ async function handleRequest(request, response) {
         sendJson(request, response, result?.error === "Invoice not found." ? 404 : 400, { error: result?.error || "Invoice could not be reviewed." });
         return;
       }
-      await writeAuditRecord(request, `partner.invoice.${body.action}`, { type: "invoice", id: invoiceId }, before, result.invoice);
+      await writeAuditRecord(request, `partner.invoice.${body.action}`, { type: "invoice", id: invoiceId }, partnerInvoiceAuditView(before), partnerInvoiceAuditView(result.invoice));
       sendJson(request, response, 200, { invoice: result.invoice, quickbooks: await readQuickBooksCredentialStatus(ROOT) });
       return;
     }
@@ -9455,7 +9491,7 @@ async function handleRequest(request, response) {
         }, { fallback: emptyPartnerOperations() });
         throw error;
       }
-      await writeAuditRecord(request, "partner.invoice.queue", { type: "invoice", id: invoiceId }, null, result.invoice, { jobId: job.id, provider: "quickbooks" });
+      await writeAuditRecord(request, "partner.invoice.queue", { type: "invoice", id: invoiceId }, null, partnerInvoiceAuditView(result.invoice), { jobId: job.id, provider: "quickbooks" });
       sendJson(request, response, 202, { invoice: result.invoice, job: { id: job.id, status: job.status }, quickbooks: readiness });
       return;
     }
@@ -9498,7 +9534,7 @@ async function handleRequest(request, response) {
         }, { fallback: emptyPartnerOperations() });
         throw error;
       }
-      await writeAuditRecord(request, "partner.invoice.reconcile.queue", { type: "invoice", id: invoiceId }, before, result.invoice, {
+      await writeAuditRecord(request, "partner.invoice.reconcile.queue", { type: "invoice", id: invoiceId }, partnerInvoiceAuditView(before), partnerInvoiceAuditView(result.invoice), {
         jobId: job.id,
         provider: "quickbooks",
         reconciliationVersion
