@@ -8715,6 +8715,10 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     });
     const adminCameraState = await hit("GET", "/api/admin/island-conditions", null, true);
     const publicCameraState = await hit("GET", "/api/public/island-conditions");
+    const cameraAudit = await hit("GET", "/api/admin/audit?limit=100", null, true);
+    const cameraSourceAudit = cameraAudit.data.audit?.find(item => item.record?.action === "conditions.camera.update" && item.record?.target?.id === "north-gate")?.record;
+    const cameraObservationAudit = cameraAudit.data.audit?.find(item => item.record?.action === "conditions.observation.create" && item.record?.target?.id === "north-gate")?.record;
+    const serializedCameraAudit = JSON.stringify([cameraSourceAudit, cameraObservationAudit]);
     const adminNorth = adminCameraState.data.cameras?.find(camera => camera.id === "north-gate");
     const publicNorth = publicCameraState.data.cameras?.find(camera => camera.id === "north-gate");
     ok("camera source activation gate", armedCamera.status === 200 && armedCamera.data.camera?.monitoringEnabled === true);
@@ -8724,6 +8728,14 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     ok("signed camera metric after heartbeat", metric.status === 201 && adminNorth?.operationalStatus === "live" && adminNorth?.health?.agentId === "api-beach-agent");
     ok("camera rotation readiness is admin-visible and secret-free", adminCameraState.data.ingest?.credentialCount === 3 && adminCameraState.data.ingest?.rotatingCameraIds?.includes("north-gate") && !JSON.stringify(adminCameraState.data.ingest).includes(SMOKE_CAMERA_SECRET));
     ok("camera agent internals remain private", publicNorth?.operationalStatus === "live" && publicNorth?.observation?.peopleCount === 84 && !("health" in (publicNorth || {})) && !("modelName" in (publicNorth?.observation || {})) && !("modelSha256" in (publicNorth?.observation || {})));
+    ok("camera audit preserves signal state without source or model internals", cameraSourceAudit?.after?.monitoringEnabled === true
+      && cameraSourceAudit?.after?.sourceIdAvailable === true
+      && cameraObservationAudit?.after?.peopleCount === 84
+      && cameraObservationAudit?.after?.modelNameAvailable === true
+      && cameraObservationAudit?.after?.sourceIdAvailable === true
+      && !serializedCameraAudit.includes("api-north-gate-1")
+      && !serializedCameraAudit.includes("private-model-name")
+      && !serializedCameraAudit.includes("api-beach-agent"));
 
     async function postSignedMetric(eventId, metrics) {
       const raw = JSON.stringify({ eventId, sourceId: "api-north-gate-1", observedAt: new Date().toISOString(), ...metrics });
@@ -9001,8 +9013,17 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
   }, true);
   const publicOperatorFerry = await hit("GET", "/api/public/island-conditions");
   const adminOperatorFerry = await hit("GET", "/api/admin/island-conditions", null, true);
+  const ferryAuditApi = await hit("GET", "/api/admin/audit?limit=100", null, true);
+  const ferryAuditRecord = ferryAuditApi.data.audit?.find(item => item.record?.action === "conditions.ferry.update")?.record;
+  const serializedFerryAudit = JSON.stringify(ferryAuditRecord || {});
   ok("operator ferry override", operatorFerry.status === 200 && operatorFerry.data.ferry?.estimatedWaitMinutes === 23 && operatorFerry.data.ferry?.directions?.length === 0 && operatorFerry.data.ferry?.manualOverrideUntil);
   ok("operator ferry override is public and bounded", publicOperatorFerry.data.ferry?.status === "observed" && publicOperatorFerry.data.ferry?.estimatedWaitMinutes === 23 && publicOperatorFerry.data.ferry?.directions?.length === 0 && !("manualOverrideUntil" in (publicOperatorFerry.data.ferry || {})) && adminOperatorFerry.data.ferry?.manualOverrideUntil);
+  ok("ferry override audit preserves operations state without operator notes", ferryAuditRecord?.after?.estimatedWaitMinutes === 23
+    && ferryAuditRecord?.after?.operatingFerries === 4
+    && ferryAuditRecord?.after?.sourceAvailable === true
+    && ferryAuditRecord?.after?.notesLength > 0
+    && !serializedFerryAudit.includes("API test operator")
+    && !serializedFerryAudit.includes("Verified by the traffic desk."));
 
   const stamp = await hit("POST", "/api/public/passport/stamp", {
     attendeeRef: "suite_api_device",
