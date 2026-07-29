@@ -10075,6 +10075,22 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
     && !serializedPartnerPaymentAuditApi.includes("externalRef")
     && !serializedPartnerPaymentAuditApi.includes("paymentIntentId")
     && !serializedPartnerPaymentAuditApi.includes("providerEventId"));
+  const partnerInvoiceAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("partner.invoice."));
+  const serializedPartnerInvoiceAuditApi = JSON.stringify(partnerInvoiceAuditApi);
+  ok("partner invoice audit preserves finance state without provider identifiers", partnerInvoiceAuditApi.some(item => item.record?.action === "partner.invoice.create"
+    && item.record?.target?.id === invoiceApi.data.invoice?.id
+    && item.record?.after?.amountCents === invoiceApi.data.invoice?.amountCents
+    && item.record?.after?.balanceCents === invoiceApi.data.invoice?.amountCents
+    && item.record?.after?.descriptionAvailable === true
+    && item.record?.after?.quickBooksItemMapped === true)
+    && !serializedPartnerInvoiceAuditApi.includes(invoiceApi.data.invoice?.description || "Texas SandFest")
+    && !serializedPartnerInvoiceAuditApi.includes("\"quickBooksItemId\"")
+    && !serializedPartnerInvoiceAuditApi.includes("\"quickBooksCustomerId\"")
+    && !serializedPartnerInvoiceAuditApi.includes("\"quickBooksInvoiceId\"")
+    && !serializedPartnerInvoiceAuditApi.includes("\"quickBooksDocNumber\"")
+    && !serializedPartnerInvoiceAuditApi.includes("quickBooks-private")
+    && !serializedPartnerInvoiceAuditApi.includes("\"lastError\"")
+    && !serializedPartnerInvoiceAuditApi.includes("\"lastQuickBooksReconciliationError\""));
   const eventenyPartnerImportAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action === "partner.application.import");
   ok("Eventeny application import audit is aggregate-only", eventenyPartnerImportAuditApi.length >= 1 && eventenyPartnerImportAuditApi.some(item => item.record?.after?.fileName === "eventeny-applications-api.csv" && item.record?.after?.summary?.imported === 2) && !JSON.stringify(eventenyPartnerImportAuditApi).includes(eventenyPartnerEmailApi) && !JSON.stringify(eventenyPartnerImportAuditApi).includes("Vendor Import Contact"));
   const boothImportAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action === "booths.import.commit");
