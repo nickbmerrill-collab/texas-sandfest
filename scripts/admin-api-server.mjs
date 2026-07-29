@@ -1919,9 +1919,30 @@ function adminPartnerFollowupAuditView(followup) {
     id: followup.id,
     kind: followup.kind,
     status: followup.status,
+    applicationId: followup.applicationId || null,
+    taskId: followup.taskId || null,
+    campaignId: followup.campaignId || null,
+    prospectId: followup.prospectId || null,
+    milestoneId: followup.milestoneId || null,
+    invoiceId: followup.invoiceId || null,
+    paymentId: followup.paymentId || null,
+    workflowKey: followup.workflowKey || null,
+    sourceVersion: followup.sourceVersion || null,
+    reminderPhase: followup.reminderPhase || null,
     editVersion: followup.editVersion || 0,
     subjectLength: String(followup.subject || "").length,
     bodyLength: String(followup.body || "").length,
+    recipientAvailable: Boolean(followup.recipient),
+    approvedBy: followup.approvedBy || null,
+    approvedAt: followup.approvedAt || null,
+    queuedAt: followup.queuedAt || null,
+    sentAt: followup.sentAt || null,
+    dismissedAt: followup.dismissedAt || null,
+    dismissedBy: followup.dismissedBy || null,
+    failedAt: followup.failedAt || null,
+    automationPolicy: followup.automationPolicy || null,
+    automationDecision: followup.automationDecision || null,
+    automationApprovedAt: followup.automationApprovedAt || null,
     deliveryOutcomeUnknown: followup.deliveryOutcomeUnknown === true,
     deliveryResolution: followup.deliveryResolution || null,
     deliveryReconciledAt: followup.deliveryReconciledAt || null,
@@ -9860,7 +9881,7 @@ async function handleRequest(request, response) {
         sendJson(request, response, result?.error === "Follow-up not found." ? 404 : result?.conflict ? 409 : 400, { error: result?.error || "Follow-up could not be reviewed." });
         return;
       }
-      await writeAuditRecord(request, `partner.followup.${body.action}`, { type: "followup", id: followupId }, adminPartnerFollowupView(before), adminPartnerFollowupView(result.followup));
+      await writeAuditRecord(request, `partner.followup.${body.action}`, { type: "followup", id: followupId }, adminPartnerFollowupAuditView(before), adminPartnerFollowupAuditView(result.followup));
       sendJson(request, response, 200, { followup: adminPartnerFollowupView(result.followup), email: publicEmailReadiness() });
       return;
     }
@@ -9933,7 +9954,7 @@ async function handleRequest(request, response) {
         }, { fallback: emptyPartnerOperations() });
         throw error;
       }
-      await writeAuditRecord(request, "partner.followup.queue", { type: "followup", id: followupId }, null, adminPartnerFollowupView(result.followup), { jobId: job.id, provider: email.provider });
+      await writeAuditRecord(request, "partner.followup.queue", { type: "followup", id: followupId }, null, adminPartnerFollowupAuditView(result.followup), { jobId: job.id, provider: email.provider });
       sendJson(request, response, 202, { followup: adminPartnerFollowupView(result.followup), job: { id: job.id, status: job.status }, email: publicEmailReadiness(email) });
       return;
     }

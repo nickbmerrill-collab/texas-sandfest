@@ -9491,6 +9491,7 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     reminderLeadDays: 5,
     notes: "Confirm the package handoff with finance."
   }, true);
+  const approvedMilestoneFollowupApi = await hit("POST", `/api/admin/partners/followups/${encodeURIComponent(rescheduledMilestoneApi.data.generatedFollowups?.[0]?.id)}/review`, { action: "approve" }, true);
   const customMilestoneBody = {
     label: "Hospitality roster due",
     dueAt: "2026-09-15T17:00:00.000Z",
@@ -9514,7 +9515,7 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
   const rescheduledMilestoneAudit = milestoneAuditApi.data.audit?.find(item => item.record?.action === "partner.milestone.update" && item.record?.target?.id === sponsorMilestone?.id)?.record;
   const customMilestoneAudit = milestoneAuditApi.data.audit?.find(item => item.record?.action === "partner.milestone.create" && item.record?.target?.id === customMilestoneApi.data.milestone?.id)?.record;
   const serializedMilestoneAuditApi = JSON.stringify([rescheduledMilestoneAudit, customMilestoneAudit]);
-  ok("admin milestone create and reschedule API", rescheduledMilestoneApi.status === 200 && rescheduledMilestoneApi.data.milestone?.scheduleVersion === 2 && rescheduledMilestoneApi.data.milestone?.assigneeTeam === "finance" && rescheduledMilestoneApi.data.generatedFollowups?.length === 1 && rescheduledMilestoneApi.data.generatedFollowups[0]?.reminderPhase === "upcoming" && rescheduledMilestoneAudit?.metadata?.generatedFollowups === 1 && rescheduledMilestoneAudit?.metadata?.generatedReminderPhases?.includes("upcoming") && rescheduledMilestoneAudit?.after?.notesAvailable === true && !JSON.stringify(rescheduledMilestoneAudit).includes("#partner-status?") && missingMilestoneKeyApi.status === 400 && customMilestoneApi.status === 201 && customMilestoneAudit?.after?.notesAvailable === true && customMilestoneAudit?.after?.notesLength > 0 && replayedMilestoneApi.status === 200 && replayedMilestoneApi.data.replay === true && replayedMilestoneApi.data.milestone?.id === customMilestoneApi.data.milestone?.id && conflictingMilestoneApi.status === 409 && persistedCustomMilestone?.assigneeTeam === "guest-services" && !("ok" in (persistedCustomMilestone || {})) && !serializedMilestoneAuditApi.includes("Confirm the package handoff with finance.") && !serializedMilestoneAuditApi.includes("Collect attendee names and dietary needs."));
+  ok("admin milestone create and reschedule API", rescheduledMilestoneApi.status === 200 && rescheduledMilestoneApi.data.milestone?.scheduleVersion === 2 && rescheduledMilestoneApi.data.milestone?.assigneeTeam === "finance" && rescheduledMilestoneApi.data.generatedFollowups?.length === 1 && rescheduledMilestoneApi.data.generatedFollowups[0]?.reminderPhase === "upcoming" && approvedMilestoneFollowupApi.status === 200 && approvedMilestoneFollowupApi.data.followup?.status === "approved" && rescheduledMilestoneAudit?.metadata?.generatedFollowups === 1 && rescheduledMilestoneAudit?.metadata?.generatedReminderPhases?.includes("upcoming") && rescheduledMilestoneAudit?.after?.notesAvailable === true && !JSON.stringify(rescheduledMilestoneAudit).includes("#partner-status?") && missingMilestoneKeyApi.status === 400 && customMilestoneApi.status === 201 && customMilestoneAudit?.after?.notesAvailable === true && customMilestoneAudit?.after?.notesLength > 0 && replayedMilestoneApi.status === 200 && replayedMilestoneApi.data.replay === true && replayedMilestoneApi.data.milestone?.id === customMilestoneApi.data.milestone?.id && conflictingMilestoneApi.status === 409 && persistedCustomMilestone?.assigneeTeam === "guest-services" && !("ok" in (persistedCustomMilestone || {})) && !serializedMilestoneAuditApi.includes("Confirm the package handoff with finance.") && !serializedMilestoneAuditApi.includes("Collect attendee names and dietary needs."));
   ok("admin milestone validation and summary API", invalidMilestoneApi.status === 400 && milestoneWorkspaceApi.data.milestoneSummary?.totals?.open >= 7);
   const completedMilestoneApi = await hit("PATCH", `/api/admin/partners/milestones/${encodeURIComponent(customMilestoneApi.data.milestone?.id)}`, { status: "completed" }, true);
   const completedMilestoneWorkspaceApi = await hit("GET", "/api/admin/partners", null, true);
@@ -10157,6 +10158,21 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
       && item.record?.after?.partnerReviewStatus === "pending")
     && !serializedSponsorDeliverableAuditApi.includes("https://www.texassandfest.org/sponsors/platform-brand-sponsor")
     && !serializedSponsorDeliverableAuditApi.includes("Sponsor listing is live."));
+  const milestoneFollowupAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action === "partner.followup.approve" && item.record?.target?.id === approvedMilestoneFollowupApi.data.followup?.id);
+  const serializedMilestoneFollowupAuditApi = JSON.stringify(milestoneFollowupAuditApi);
+  ok("partner follow-up approval audit preserves accountability without message content", milestoneFollowupAuditApi.some(item => item.record?.after?.status === "approved"
+    && item.record?.after?.milestoneId === sponsorMilestone?.id
+    && item.record?.after?.reminderPhase === "upcoming"
+    && item.record?.after?.recipientAvailable === true
+    && item.record?.after?.approvedBy === "local-admin"
+    && item.record?.after?.subjectLength > 0
+    && item.record?.after?.bodyLength > 0)
+    && !serializedMilestoneFollowupAuditApi.includes("\"recipient\":\"")
+    && !serializedMilestoneFollowupAuditApi.includes("\"subject\":\"")
+    && !serializedMilestoneFollowupAuditApi.includes("\"body\":\"")
+    && !serializedMilestoneFollowupAuditApi.includes("#partner-status?")
+    && !serializedMilestoneFollowupAuditApi.includes(sponsorIntakeBody.contactEmail)
+    && !serializedMilestoneFollowupAuditApi.includes("Confirm the package handoff with finance."));
   const vendorAuditTargetIds = new Set([
     partnerIntake.data.application?.id,
     vendorAgreementApi?.id,
