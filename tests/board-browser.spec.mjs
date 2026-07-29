@@ -963,6 +963,7 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await expect(scheduleRows).toHaveCount(3);
   const activationBoundary = page.locator("#admin-board-stage-summary");
   await expect(activationBoundary.locator('[data-board-stage="presentation-ready"]')).toContainText("Real workflows with synthetic providers");
+  await expect(activationBoundary.locator('[data-board-stage="presentation-ready"]')).toContainText("deployment:verify:site");
   await expect(activationBoundary.locator('[data-board-stage="post-presentation"]')).toContainText("Stripe, QuickBooks, Brevo, Twilio, NWS, TxDOT, eight webcam edge agents, OIDC, Turnstile, DNS, and managed recovery");
   const boardCapabilityProof = page.locator("#admin-board-capability-proof");
   await expect(boardCapabilityProof).toBeVisible();

@@ -354,6 +354,7 @@ check("Operations proof panel presenter summary translates certified evidence", 
   assert.match(summary, /webkit 14\/14/);
   assert.match(summary, /40 certified capabilities/);
   assert.match(summary, /6 live-provider gates held for post-board activation/);
+  assert.match(summary, /deployed previews accepted with deployment:verify:site/);
   assert.match(summary, /main@aaaaaaaa/);
 });
 

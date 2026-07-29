@@ -24,6 +24,7 @@ const partnerIntakeSource = await readFile(path.join(root, "src", "partner-intak
 const guestServicesSource = await readFile(path.join(root, "src", "guest-services-ui.js"), "utf8");
 const adminCreationSource = await readFile(path.join(root, "src", "admin-creation.js"), "utf8");
 const adminOperationsSource = await readFile(path.join(root, "src", "admin-operations-ui.js"), "utf8");
+const adminBoardCapabilityProofSource = await readFile(path.join(root, "src", "admin-board-capability-proof.js"), "utf8");
 const adminBudgetSource = await readFile(path.join(root, "src", "admin-budget.js"), "utf8");
 const taskPortalSource = await readFile(path.join(root, "src", "task-portal-ui.js"), "utf8");
 
@@ -476,6 +477,7 @@ assert(adminJavaScript.includes("Public sponsorship program") && adminJavaScript
 assert(visitorSource.includes('data-deployment-filter="attention" aria-pressed="true"') && visitorSource.includes('data-deployment-filter="all" aria-pressed="false"'), "Deployment readiness filters are missing pressed-state semantics.");
 assert(visitorSource.includes("const groupSummary = groupSummaries.get(group);") && visitorSource.includes("${passing}/${total} passing"), "Filtered deployment views do not preserve full-group readiness totals.");
 assert(visitorSource.includes('data-board-stage="post-presentation"') && visitorSource.includes("Isolated database and upload recovery verification remains in the release gate."), "Board operations do not distinguish deferred managed recovery from built recovery verification.");
+assert(adminBoardCapabilityProofSource.includes('data-board-stage="presentation-ready"') && adminBoardCapabilityProofSource.includes("deployment:verify:site"), "Board operations do not expose the deployed-site acceptance gate.");
 assert(visitorSource.includes('id="island-condition-updated" role="status" aria-live="polite"'), "Island Conditions is missing its live refresh status.");
 assert(visitorSource.includes('id="partner-brand-preview"') && visitorSource.includes('data-brand-color-picker="primaryColor"') && visitorSource.includes('data-brand-color-picker="secondaryColor"'), "Sponsor portal is missing its live brand preview and color swatches.");
 assert(visitorSource.includes('data-sponsor-invitation-action="open"') && visitorSource.includes("Use Open invitation or Copy link"), "Sponsor outreach cannot open an invitation or recover when clipboard access is blocked.");

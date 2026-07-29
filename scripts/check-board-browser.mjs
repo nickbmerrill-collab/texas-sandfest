@@ -658,6 +658,7 @@ if (visitorUrl && operationsUrl) {
         || item.ticketPolicyNotices !== 4
         || item.activationStages !== 2
         || !item.activationBoundary?.includes("Real workflows with synthetic providers")
+        || !item.activationBoundary?.includes("deployment:verify:site")
         || !item.activationBoundary?.includes("Stripe, QuickBooks, Brevo, Twilio, NWS, TxDOT, eight webcam edge agents, OIDC, Turnstile, DNS, and managed recovery")
         || item.commandSignals !== 8
         || item.commandViewport?.width !== 1280
