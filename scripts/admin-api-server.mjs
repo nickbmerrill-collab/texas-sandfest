@@ -2751,7 +2751,12 @@ async function boardCapabilityCertificateProfile() {
         id: item?.id || null,
         label: item?.label || item?.id || "Board journey",
         ok: item?.ok === true,
-        capabilities: Array.isArray(item?.capabilities) ? item.capabilities : []
+        capabilities: Array.isArray(item?.capabilities) ? item.capabilities : [],
+        reset: item?.reset || null,
+        durationMs: Number.isFinite(item?.durationMs) ? Math.round(item.durationMs) : null,
+        evidenceCount: item?.evidence && typeof item.evidence === "object" && !Array.isArray(item.evidence)
+          ? Object.keys(item.evidence).length
+          : 0
       })),
       errors: evaluated.errors
     };
