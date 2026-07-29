@@ -92,6 +92,7 @@ const safeExternalHref = value => {
 
 const documentSurface = document.querySelector('meta[name="sandfest-surface"]')?.content;
 const buildSurface = import.meta.env.VITE_SANDFEST_SURFACE;
+const PARTNER_READINESS_SNAPSHOT_ENABLED = import.meta.env.VITE_SANDFEST_SURFACE !== "admin";
 const ADMIN_ENTRY = buildSurface === "admin" || (!buildSurface && documentSurface === "admin");
 const ADMIN_AUTH_MODE = ADMIN_ENTRY
   ? String(import.meta.env.VITE_SANDFEST_AUTH_MODE || "token").trim().toLowerCase()
@@ -5034,6 +5035,29 @@ function renderPartnerPortalStatus(application) {
   const nextStep = application.nextStep;
   const isVendorInterest = application.type === "vendor" && application.intakeMode === "interest";
   const contactPreference = application.contactPreference;
+  const readinessSnapshot = PARTNER_READINESS_SNAPSHOT_ENABLED ? (() => {
+    const openMilestones = milestones.filter(item => !["completed", "cancelled"].includes(item.status)).length;
+    const balanceCents = Number(finance.balanceCents || invoice?.balanceCents || 0);
+    const readinessThird = application.type === "vendor"
+      ? (() => {
+          const onboarding = application.vendorOnboarding || {};
+          const requirements = Array.isArray(onboarding.requirements) ? onboarding.requirements : [];
+          const cleared = requirements.filter(item => ["approved", "waived"].includes(item.status)).length;
+          return { key: "vendor", label: "Compliance", value: requirements.length ? `${cleared} / ${requirements.length}` : "Pending", detail: onboarding.assignment?.status ? `Assignment ${conditionLabel(onboarding.assignment.status)}` : "Checklist appears after review" };
+        })()
+      : (() => {
+          const deliverables = Array.isArray(application.branding?.deliverables) ? application.branding.deliverables : [];
+          const openDeliverables = deliverables.filter(item => item.status !== "complete").length;
+          const pendingReviews = deliverables.filter(item => item.partnerReviewStatus === "pending").length;
+          return { key: "sponsor", label: "Sponsor benefits", value: deliverables.length ? `${openDeliverables} open benefit${openDeliverables === 1 ? "" : "s"}` : "Pending", detail: pendingReviews ? `${pendingReviews} proof review${pendingReviews === 1 ? "" : "s"}` : "Package benefits appear after approval" };
+        })();
+    return `<section class="partner-readiness-snapshot" aria-label="Partner readiness snapshot"><strong>Readiness snapshot</strong><div>
+      <article data-partner-readiness="balance"><span>Open balance</span><b>${escapeHtml(adminMoney(balanceCents, "$0.00"))}</b><small>${balanceCents > 0 && invoice?.dueAt ? `Due ${escapeHtml(portalDate(invoice.dueAt))}` : balanceCents > 0 ? "Finance updates this after review" : "No partner balance currently open"}</small></article>
+      <article data-partner-readiness="dates"><span>Key dates</span><b>${openMilestones} open date${openMilestones === 1 ? "" : "s"}</b><small>${openMilestones ? "Review the schedule below" : "No open partner dates"}</small></article>
+      <article data-partner-readiness="${escapeAttr(readinessThird.key)}"><span>${escapeHtml(readinessThird.label)}</span><b>${escapeHtml(readinessThird.value)}</b><small>${escapeHtml(readinessThird.detail)}</small></article>
+      <article data-partner-readiness="contact"><span>Messages</span><b>${contactPreference.allowed ? "Enabled" : "Paused"}</b><small>You control application email consent</small></article>
+    </div></section>`;
+  })() : "";
   result.innerHTML = `
     <header class="partner-status-heading">
       <div><span>${escapeHtml(isVendorInterest ? "Vendor interest" : application.type === "vendor" ? "Vendor application" : "Sponsorship inquiry")}</span><h3>${escapeHtml(application.organizationName)}</h3></div>
@@ -5046,6 +5070,7 @@ function renderPartnerPortalStatus(application) {
       <article><span>Paid</span><strong>${escapeHtml(adminMoney(finance.paidAmountCents, "$0.00"))}</strong></article>
       <article><span>Balance</span><strong>${escapeHtml(adminMoney(finance.balanceCents, "$0.00"))}</strong></article>
     </div>`}
+    ${readinessSnapshot}
     <div class="partner-status-next">
       <span>Next step</span>
       <strong>${escapeHtml(nextStep?.label || "SandFest team review")}</strong>
