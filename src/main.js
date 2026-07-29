@@ -1765,35 +1765,35 @@ app.innerHTML = `
           <form id="admin-create-campaign" class="admin-campaign-form" data-requires-permission="outreach:write">
             <div class="editor-heading">
               <p class="eyebrow">Sponsor outreach</p>
-              <h3>Build a targeted campaign</h3>
+              <h3>Target sponsors</h3>
             </div>
             <div class="admin-campaign-fields">
-              <label><span>Campaign</span><input name="name" required maxlength="160" placeholder="Coastal hospitality partners" /></label>
-              <label><span>Goal</span><input name="objective" maxlength="500" placeholder="Introduce the 2027 sponsor program" /></label>
+              <label><span>Campaign</span><input name="name" required maxlength="160" placeholder="Hospitality partners" /></label>
+              <label><span>Goal</span><input name="objective" maxlength="500" placeholder="Introduce 2027 sponsors" /></label>
               <label><span>Industries</span><input name="industries" maxlength="500" placeholder="hospitality, banking" /></label>
               <label><span>Cities</span><input name="cities" maxlength="500" placeholder="Port Aransas, Corpus Christi" /></label>
               <label><span>States</span><input name="states" maxlength="100" value="TX" /></label>
               <label><span>ZIP codes</span><input name="postalCodes" maxlength="300" placeholder="78373, 78418" /></label>
-              <label class="admin-campaign-wide"><span>Center point</span><select name="centerSource"><option value="none">Business filters only (no radius)</option><option value="sandfest">Texas SandFest, Port Aransas</option><option value="custom">Custom coordinates</option></select></label>
-              <label><span>Center latitude</span><input name="centerLatitude" type="number" min="-90" max="90" step="any" placeholder="27.8339" /></label>
-              <label><span>Center longitude</span><input name="centerLongitude" type="number" min="-180" max="180" step="any" placeholder="-97.0611" /></label>
+              <label class="admin-campaign-wide"><span>Center point</span><select name="centerSource"><option value="none">Filters only</option><option value="sandfest">Texas SandFest</option><option value="custom">Coordinates</option></select></label>
+              <label><span>Latitude</span><input name="centerLatitude" type="number" min="-90" max="90" step="any" placeholder="27.8339" /></label>
+              <label><span>Longitude</span><input name="centerLongitude" type="number" min="-180" max="180" step="any" placeholder="-97.0611" /></label>
               <label><span>Radius miles</span><input name="radiusMiles" type="number" min="0.1" max="500" step="0.1" placeholder="25" /></label>
-              <output id="admin-campaign-center-preview" class="admin-campaign-center-preview admin-campaign-wide" aria-live="polite"><strong>Business filters only</strong><span>Add a center and radius when this campaign should be geographically bounded.</span></output>
+              <output id="admin-campaign-center-preview" class="admin-campaign-center-preview admin-campaign-wide" aria-live="polite"><strong>Filters only</strong><span>Add radius when geography matters.</span></output>
               <label><span>Minimum fit</span><input name="minFitScore" type="number" min="0" max="100" value="60" /></label>
-              <label><span>Delivery</span><select name="deliveryMode"><option value="review_first">Review every message</option><option value="approved_sequence">Automate approved sequence</option></select></label>
-              <label><span>Daily send limit</span><input name="dailySendLimit" type="number" min="1" max="100" value="25" /></label>
+              <label><span>Delivery</span><select name="deliveryMode"><option value="review_first">Review first</option><option value="approved_sequence">Approved sequence</option></select></label>
+              <label><span>Daily limit</span><input name="dailySendLimit" type="number" min="1" max="100" value="25" /></label>
               <label class="admin-campaign-wide"><span>Opening subject</span><input name="subject1" required maxlength="180" value="A Texas SandFest partnership for {{organization}}" /></label>
-              <label class="admin-campaign-wide"><span>Opening message</span><textarea name="body1" required rows="5" maxlength="5000">Hello {{contactName}},\n\nTexas SandFest brings artists, visitors, and Coastal Bend businesses together for one of the region's signature events. We would love to explore how {{organization}} could be represented as a 2027 sponsor.\n\nMay we send the current partnership opportunities?</textarea></label>
+              <label class="admin-campaign-wide"><span>Opening message</span><textarea name="body1" required rows="5" maxlength="5000">Hello {{contactName}},\n\nCould {{organization}} join Texas SandFest as a 2027 sponsor?\n\nTexas SandFest</textarea></label>
               <label><span>Follow-up delay</span><input name="delay2" type="number" min="1" max="90" value="7" /></label>
               <label><span>Follow-up subject</span><input name="subject2" required maxlength="180" value="Following up with {{organization}}" /></label>
-              <label class="admin-campaign-wide"><span>Follow-up message</span><textarea name="body2" required rows="4" maxlength="5000">Hello {{contactName}},\n\nI wanted to follow up on the Texas SandFest partnership opportunity. I would be glad to help identify the sponsorship level that best fits {{organization}}.\n\nTexas SandFest</textarea></label>
+              <label class="admin-campaign-wide"><span>Follow-up message</span><textarea name="body2" required rows="4" maxlength="5000">Hello {{contactName}},\n\nFollowing up on 2027 sponsorship for {{organization}}.\n\nTexas SandFest</textarea></label>
             </div>
             <div class="admin-campaign-actions">
               <button id="admin-preview-campaign" class="button secondary" type="button">Preview audience</button>
-              <button class="button primary" type="submit" disabled>Create campaign draft</button>
+              <button class="button primary" type="submit" disabled>Create draft</button>
             </div>
             <section id="admin-campaign-audience-preview" class="admin-campaign-audience-preview" data-state="idle" aria-live="polite">
-              <strong>Audience preview required</strong><span>Check exact server-qualified businesses and message personalization before saving this campaign draft.</span>
+              <strong>Preview required</strong><span>Check qualified businesses before saving.</span>
             </section>
             <p class="partner-form-status"></p>
           </form>
@@ -7960,7 +7960,7 @@ function campaignCenterChoices(outreach) {
     && validOutreachCoordinate(prospect.longitude, -180, 180) !== null
   )).sort((left, right) => left.organizationName.localeCompare(right.organizationName));
   return [
-    { id: "none", label: "Business filters only (no radius)", latitude: null, longitude: null },
+    { id: "none", label: "Filters only", latitude: null, longitude: null },
     SANDFEST_OUTREACH_CENTER,
     ...locatedProspects.map(prospect => ({
       id: `prospect:${prospect.id}`,
@@ -7981,7 +7981,7 @@ function renderCampaignCenterPreview(form, outreach) {
   const sourceLabel = form.elements.centerSource.selectedOptions[0]?.textContent?.trim() || "Custom coordinates";
   if (form.elements.centerSource.value === "none" && latitude === null && longitude === null && !form.elements.radiusMiles.value) {
     preview.dataset.state = "unbounded";
-    preview.innerHTML = "<strong>Business filters only</strong><span>This campaign will use industry, city, state, ZIP, fit, qualification, contact basis, and suppression without a radius.</span>";
+    preview.innerHTML = "<strong>Filters only</strong><span>Uses business filters without a radius.</span>";
     return;
   }
   if (latitude === null || longitude === null || !Number.isFinite(radiusMiles) || radiusMiles <= 0) {
@@ -8461,11 +8461,13 @@ function renderAdminPartners(payload, outreach) {
       : item.nextActionAt
         ? `${conditionLabel(nextActionState)} · ${new Date(item.nextActionAt).toLocaleString()}`
         : "Follow-up not scheduled";
+    const sequenceSummary = adminOperationsUi?.prospectSequenceSummary(item, payload.followups || [], outreach.campaigns || [], conditionLabel) || "";
     return `<article data-outreach-prospect="${escapeAttr(item.id)}" data-due-state="${escapeAttr(nextActionState)}">
       <header><strong>${escapeHtml(item.organizationName)}</strong><b>${item.fitScore}/100 · ${escapeHtml(conditionLabel(nextActionState))}</b></header>
       <p>${escapeHtml([item.industry, item.city, item.state, item.postalCode, item.latitude != null && item.longitude != null ? `${Number(item.latitude).toFixed(4)}, ${Number(item.longitude).toFixed(4)}` : "", item.contactBasis ? `basis ${conditionLabel(item.contactBasis)}` : "", item.contactEmail].filter(Boolean).join(" · "))}</p>
       <span>${escapeHtml(item.suppressionReason || item.fitReasons.join(" · ") || item.nextAction)}</span>
       <span class="admin-prospect-schedule-summary">${escapeHtml(item.ownerId ? `Owner ${item.ownerId} · ${nextActionSummary}` : `Unassigned · ${nextActionSummary}`)}</span>
+      ${sequenceSummary ? `<span>${escapeHtml(sequenceSummary)}</span>` : ""}
       ${sourceUrl ? `<span class="admin-prospect-source"><a href="${escapeAttr(sourceUrl)}" target="_blank" rel="noreferrer noopener">Source record</a>${item.sourceLicense ? ` · ${escapeHtml(item.sourceLicense)}` : ""}</span>` : ""}
       <div class="admin-prospect-contact-controls">
         <input name="website" type="url" maxlength="500" value="${escapeAttr(item.website || "")}" placeholder="Website" aria-label="${escapeAttr(item.organizationName)} website" />

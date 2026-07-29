@@ -1994,6 +1994,7 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   await expect(campaignOutcomeFunnel.locator('[data-outcome-stage="clicked"] strong')).toHaveText("0");
 
   const prospectCard = page.locator(`[data-outreach-prospect="${createdProspect.id}"]`);
+  await expect(prospectCard).toContainText(`outreach sequence ${campaignName} · 1/2 · delivered`);
   await expect(prospectCard).toContainText("basis business relevance");
   await expect(prospectCard).toContainText("Ready for an invited sponsor application");
   await prospectCard.locator('[name="sponsorPackageId"]').selectOption(sponsorTierId);
