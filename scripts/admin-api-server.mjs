@@ -2157,6 +2157,41 @@ function adminPartnerTaskView(task, followups = []) {
   };
 }
 
+function adminPartnerTaskAuditView(task, followups = []) {
+  if (!task) return task;
+  const notificationSummary = summarizeTaskNotifications(task, followups);
+  return {
+    id: task.id,
+    status: task.status,
+    priority: task.priority,
+    assigneeType: task.assigneeType || "unassigned",
+    assigneeId: task.assigneeId || null,
+    assigneeNameAvailable: Boolean(task.assigneeName),
+    assigneeRoleAvailable: Boolean(task.assigneeRole),
+    relatedEntityType: task.relatedEntityType || null,
+    relatedEntityId: task.relatedEntityId || null,
+    dueAt: task.dueAt || null,
+    assignmentVersion: task.assignmentVersion || 1,
+    assignmentNoticeVersion: task.assignmentNoticeVersion || 0,
+    scheduleVersion: task.scheduleVersion || 1,
+    titleLength: String(task.title || "").length,
+    descriptionLength: String(task.description || "").length,
+    assigneeUpdateCount: Array.isArray(task.assigneeUpdates) ? task.assigneeUpdates.length : 0,
+    lastAssignmentNoticeRequestedAt: task.lastAssignmentNoticeRequestedAt || null,
+    lastAssignmentNoticeRequestedBy: task.lastAssignmentNoticeRequestedBy || null,
+    createdBy: task.createdBy || null,
+    createdAt: task.createdAt || null,
+    updatedAt: task.updatedAt || null,
+    startedAt: task.startedAt || null,
+    acknowledgedAt: task.acknowledgedAt || null,
+    blockedAt: task.blockedAt || null,
+    completedAt: task.completedAt || null,
+    cancelledAt: task.cancelledAt || null,
+    reopenedAt: task.reopenedAt || null,
+    notificationSummary
+  };
+}
+
 function boardAppPartnerSnapshot(doc, now) {
   const receivables = summarizePartnerReceivables(doc, now);
   const accounts = new Map(receivables.accounts.map(account => [account.applicationId, account]));
@@ -9681,7 +9716,7 @@ async function handleRequest(request, response) {
         return;
       }
       if (!result.replay) {
-        await writeAuditRecord(request, "partner.task.create", { type: "task", id: result.task.id }, null, adminPartnerTaskView(result.task, result.doc.followups));
+        await writeAuditRecord(request, "partner.task.create", { type: "task", id: result.task.id }, null, adminPartnerTaskAuditView(result.task, result.doc.followups));
       }
       sendJson(request, response, result.replay ? 200 : 201, {
         replay: result.replay === true,
@@ -9712,7 +9747,7 @@ async function handleRequest(request, response) {
         sendJson(request, response, result?.error === "Task not found." ? 404 : 400, { error: result?.error || "Task could not be updated." });
         return;
       }
-      await writeAuditRecord(request, "partner.task.update", { type: "task", id: taskId }, adminPartnerTaskView(before, beforeDoc.followups), adminPartnerTaskView(result.task, result.doc.followups));
+      await writeAuditRecord(request, "partner.task.update", { type: "task", id: taskId }, adminPartnerTaskAuditView(before, beforeDoc.followups), adminPartnerTaskAuditView(result.task, result.doc.followups));
       sendJson(request, response, 200, { task: adminPartnerTaskView(result.task, result.doc.followups) });
       return;
     }
@@ -9760,7 +9795,7 @@ async function handleRequest(request, response) {
         && item.kind === "task_assignment"
         && item.sourceVersion === `assignment:${result.task.assignmentVersion}:notice:${result.task.assignmentNoticeVersion}`);
       if (!result.replay) {
-        await writeAuditRecord(request, "partner.task.assignment_notice.request", { type: "task", id: taskId }, adminPartnerTaskView(before, beforeDoc.followups), adminPartnerTaskView(result.task, result.doc.followups), {
+        await writeAuditRecord(request, "partner.task.assignment_notice.request", { type: "task", id: taskId }, adminPartnerTaskAuditView(before, beforeDoc.followups), adminPartnerTaskAuditView(result.task, result.doc.followups), {
           followupId: followup?.id ?? null,
           assignmentVersion: result.task.assignmentVersion,
           assignmentNoticeVersion: result.task.assignmentNoticeVersion,
