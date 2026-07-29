@@ -1788,6 +1788,18 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   await expect(immediateMilestoneDraft).toHaveCount(1);
   await expect(immediateMilestoneDraft).toContainText(`Texas SandFest ${milestoneLabel.toLowerCase()} reminder`);
   await expect(immediateMilestoneDraft).toContainText("draft ready");
+  const milestoneAuditResponse = await fetch(`${apiBase}/api/admin/audit?limit=80`, { headers: { authorization: `Bearer ${TOKEN}` } });
+  expect(milestoneAuditResponse.status).toBe(200);
+  const milestoneAuditPayload = await milestoneAuditResponse.json();
+  const milestoneAuditRecord = milestoneAuditPayload.audit?.find(item => item.record?.action === "partner.milestone.create"
+    && item.record?.target?.id === createdSponsorMilestone.id)?.record;
+  expect(milestoneAuditRecord?.metadata).toMatchObject({
+    applicationId: sponsorResult.application.id,
+    generatedFollowups: 1,
+    generatedReminderPhases: ["upcoming"]
+  });
+  expect(JSON.stringify(milestoneAuditRecord)).not.toContain("#partner-status?");
+  expect(JSON.stringify(milestoneAuditRecord)).not.toContain(sponsorRecipient);
 
   const prospectForm = page.locator("#admin-create-prospect");
   await prospectForm.locator('[name="organizationName"]').fill(prospectName);

@@ -9625,7 +9625,11 @@ async function handleRequest(request, response) {
         return;
       }
       if (!result.replay) {
-        await writeAuditRecord(request, "partner.milestone.create", { type: "milestone", id: result.milestone.id }, null, result.milestone, { applicationId });
+        await writeAuditRecord(request, "partner.milestone.create", { type: "milestone", id: result.milestone.id }, null, result.milestone, {
+          applicationId,
+          generatedFollowups: result.generatedFollowups?.length || 0,
+          generatedReminderPhases: [...new Set((result.generatedFollowups || []).map(item => item.reminderPhase).filter(Boolean))]
+        });
       }
       sendJson(request, response, result.replay ? 200 : 201, {
         replay: result.replay === true,
