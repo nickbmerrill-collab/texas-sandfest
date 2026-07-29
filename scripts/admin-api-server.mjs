@@ -1933,6 +1933,32 @@ function adminPartnerFollowupAuditView(followup) {
   };
 }
 
+function adminPartnerBrandProfileAuditView(profile) {
+  if (!profile) return profile;
+  return {
+    id: profile.id,
+    applicationId: profile.applicationId,
+    displayName: profile.displayName,
+    websiteAvailable: Boolean(profile.website),
+    taglineAvailable: Boolean(profile.tagline),
+    taglineLength: String(profile.tagline || "").length,
+    primaryColorAvailable: Boolean(profile.primaryColor),
+    secondaryColorAvailable: Boolean(profile.secondaryColor),
+    instagramUrlAvailable: Boolean(profile.instagramUrl),
+    linkedinUrlAvailable: Boolean(profile.linkedinUrl),
+    usageNotesAvailable: Boolean(profile.usageNotes),
+    usageNotesLength: String(profile.usageNotes || "").length,
+    status: profile.status,
+    reviewNotesAvailable: Boolean(profile.reviewNotes),
+    reviewNotesLength: String(profile.reviewNotes || "").length,
+    submittedAt: profile.submittedAt || null,
+    approvedAt: profile.approvedAt || null,
+    approvedBy: profile.approvedBy || null,
+    createdAt: profile.createdAt || null,
+    updatedAt: profile.updatedAt || null
+  };
+}
+
 function adminPartnerBrandAssetAuditView(asset) {
   if (!asset) return asset;
   return {
@@ -9216,7 +9242,7 @@ async function handleRequest(request, response) {
         sendJson(request, response, result?.error === "Brand profile not found." ? 404 : 400, { error: result?.error || "Brand profile review could not be saved." });
         return;
       }
-      await writeAuditRecord(request, `partner.brand_profile.${result.profile.status}`, { type: "application", id: applicationId }, before, result.profile);
+      await writeAuditRecord(request, `partner.brand_profile.${result.profile.status}`, { type: "application", id: applicationId }, adminPartnerBrandProfileAuditView(before), adminPartnerBrandProfileAuditView(result.profile));
       sendJson(request, response, 200, { profile: result.profile, followup: result.followup, notificationDrafted: result.followupChanged });
       return;
     }
