@@ -1033,6 +1033,12 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   const messagingKpi = partnerKpis.locator("article").filter({ hasText: "Messaging" });
   await expect(messagingKpi).toContainText("Review first");
   await expect(messagingKpi).toContainText(/\d+ drafts? awaiting staff review/);
+  const vendorApplicationCard = page.locator(`[data-partner-application="${vendorResult.application.id}"]`);
+  const sponsorApplicationCard = page.locator(`[data-partner-application="${sponsorResult.application.id}"]`);
+  await expect(vendorApplicationCard).toContainText("key dates");
+  for (const label of ["key dates", "follow-ups"]) {
+    await expect(sponsorApplicationCard).toContainText(label);
+  }
   const impactReport = page.locator("#admin-impact-report");
   await expect(impactReport.locator("#admin-impact-highlights > article")).toHaveCount(6);
   await expect(impactReport.locator("#admin-impact-sections > article")).toHaveCount(8);

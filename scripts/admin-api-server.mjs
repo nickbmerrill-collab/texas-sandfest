@@ -1952,15 +1952,23 @@ function operationsExportPermission(name) {
   return "partners:read";
 }
 
-function adminPartnerApplicationView(application) {
+function adminPartnerApplicationView(application, doc = null) {
   const {
     portalAccessId,
     portalAccessVersion,
     portalAccessIssuedAt,
     ...safe
   } = application;
+  const applicationId = application.id;
+  const openMilestones = doc?.milestones.filter(item => item.applicationId === applicationId && item.status === "open").length || 0;
+  const activeFollowups = doc?.followups.filter(item => item.applicationId === applicationId && !["sent", "dismissed"].includes(item.status)).length || 0;
   return {
     ...safe,
+    ops: doc ? {
+      openMilestones,
+      activeFollowups,
+      label: `${openMilestones} key dates · ${activeFollowups} follow-ups`
+    } : undefined,
     portalAccess: adminPartnerPortalAccess({ portalAccessId, portalAccessVersion, portalAccessIssuedAt })
   };
 }
@@ -8865,7 +8873,7 @@ async function handleRequest(request, response) {
         taskBoard: summarizeTaskBoard(doc),
         assignmentDirectory: { teams: staffDirectory.teams, staff: staffDirectory.staff, volunteers: volunteerDirectory },
         staffDirectory: staffDirectoryReadiness(rawStaffDirectory, { eventId: CURRENT_EVENT_ID, production: SANDFEST_ENV === "production" }),
-        applications: doc.applications.map(adminPartnerApplicationView),
+        applications: doc.applications.map(application => adminPartnerApplicationView(application, doc)),
         payments: doc.payments,
         paymentCheckouts: doc.paymentCheckouts,
         invoices: doc.invoices,
