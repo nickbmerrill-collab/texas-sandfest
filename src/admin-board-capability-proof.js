@@ -204,7 +204,7 @@ function ensureBoardStageSummary() {
     <div data-board-stage="presentation-ready">
       <span>Board-ready</span>
       <strong>Real workflows with synthetic providers</strong>
-      <p>Intake, receivables, key dates, delegated work, sponsor branding, outreach, and Island Conditions use the real application contracts.</p>
+      <p>Intake, receivables, key dates, delegated work, sponsor branding, outreach, and Island Conditions use the real application contracts; deployed previews run through deployment:verify:site.</p>
     </div>
     <div data-board-stage="post-presentation">
       <span>Post-board</span>
@@ -264,7 +264,7 @@ export function presenterSummary(proof, conditionLabel = value => String(value |
   const requiredJourneyCount = Number(proof?.requiredJourneyCount || 0);
   const capabilityCount = Number(proof?.certifiedCapabilities?.length || 0);
   const deferredCount = Number(proof?.deferredProductionGates?.length || 0);
-  return `Board proof is current for ${proofSourceLabel(proof)}: ${journeyCount}/${requiredJourneyCount} certified journeys, ${browserProofLabel(proof, conditionLabel)}, ${capabilityCount} certified capabilities, and ${deferredCount} live-provider gates held for post-board activation.`;
+  return `Board proof is current for ${proofSourceLabel(proof)}: ${journeyCount}/${requiredJourneyCount} certified journeys, ${browserProofLabel(proof, conditionLabel)}, ${capabilityCount} certified capabilities, ${deferredCount} live-provider gates held for post-board activation, and deployed previews accepted with deployment:verify:site.`;
 }
 
 async function copyProofSummary(text, status) {
