@@ -27,6 +27,14 @@ for (let index = 1; index <= BOARD_BRIEFING_SLIDE_COUNT; index += 1) {
   slideXml[slide] = `<a:t>${index === 1 ? "A Certified Festival Platform" : `Slide ${index}`}</a:t>`;
   notesXml[note] = `<a:t>Presenter note</a:t><a:t>[Sources]</a:t><a:t>- Internal: evidence.json</a:t>`;
 }
+slideXml["ppt/slides/slide2.xml"] += [
+  "10/10 journeys",
+  "Sponsor/vendor intake",
+  "Tickets, refunds, revenue, receivables, budgets, and exports",
+  "Staff, volunteer, and team routing",
+  "deployment:verify:site",
+  "Keep RFID, closed-loop cashless, and unapproved providers deferred"
+].map(phrase => `<a:t>${phrase}</a:t>`).join("");
 const source = {
   branch: "main",
   commit: "a".repeat(40),
