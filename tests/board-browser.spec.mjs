@@ -1345,6 +1345,7 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await freshVendorAssignment().locator("[data-save-vendor-assignment]").click();
   expect((await assignmentResponse).status()).toBe(200);
   await expect(freshVendorAccount()).toContainText("scheduled load-in");
+  await expect(freshVendorAccount().locator(".admin-vendor-readiness-strip")).toContainText("A-27 · Apr 16, 2027");
   const vendorAssignmentMessage = page.locator("#admin-partner-followups [data-followup]").filter({ hasText: `Texas SandFest booth and load-in assignment - ${vendorResult.application.reference}` });
   await expect(vendorAssignmentMessage).toHaveCount(1);
   await expect(vendorAssignmentMessage).toContainText("draft ready");
