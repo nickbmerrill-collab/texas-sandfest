@@ -9644,10 +9644,28 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
   const taskAuditApi = await hit("GET", "/api/admin/audit?limit=200", null, true);
   const assigneeAudit = taskAuditApi.data.audit?.find(item => item.record?.action === "task.assignee.block")?.record;
   const assignmentNoticeAudit = taskAuditApi.data.audit?.find(item => item.record?.action === "partner.task.assignment_notice.request")?.record;
+  const partnerTaskAuditRecords = (taskAuditApi.data.audit || []).filter(item => item.record?.action?.startsWith("partner.task.") && item.record?.target?.id === delegatedTask.data.task?.id);
+  const serializedPartnerTaskAudit = JSON.stringify(partnerTaskAuditRecords);
   ok("PATCH task lifecycle", advancedTask.status === 200 && advancedTask.data.task?.status === "blocked" && advancedTask.data.task?.assigneeName === "Operations team");
   ok("task board API summary", taskWorkspace.data.taskBoard?.totals?.blocked === 1 && taskWorkspace.data.assignmentDirectory?.volunteers?.some(item => item.id === "vol_001" && item.emailAvailable === true && !("email" in item)) && staleTaskPortalApi.status === 404 && taskWorkspace.data.tasks?.find(item => item.id === delegatedTask.data.task?.id)?.acknowledgedAt === null);
   ok("task assignee audit is capability- and note-minimized", assigneeAudit?.actor?.type === "capability-link" && assigneeAudit.metadata?.noteProvided === true && !JSON.stringify(assigneeAudit).includes(apiTaskToken) && !JSON.stringify(assigneeAudit).includes("Radio inventory") && !/requestId|requestFingerprint/.test(JSON.stringify(taskWorkspace.data.tasks)));
-  ok("assignment notice request is audited without capability disclosure", assignmentNoticeAudit?.target?.id === delegatedTask.data.task?.id && assignmentNoticeAudit.metadata?.assignmentNoticeVersion === 1 && !JSON.stringify(assignmentNoticeAudit).includes(apiTaskToken));
+  ok("assignment notice request is audited without capability disclosure", assignmentNoticeAudit?.target?.id === delegatedTask.data.task?.id && assignmentNoticeAudit.metadata?.assignmentNoticeVersion === 1 && assignmentNoticeAudit.after?.assignmentNoticeVersion === 1 && assignmentNoticeAudit.after?.titleLength > 0 && assignmentNoticeAudit.after?.descriptionLength > 0 && !JSON.stringify(assignmentNoticeAudit).includes(apiTaskToken));
+  ok("partner task audit preserves delegation state without private task wording", partnerTaskAuditRecords.some(item => item.record?.action === "partner.task.create"
+    && item.record?.after?.status === "open"
+    && item.record?.after?.assigneeType === "volunteer"
+    && item.record?.after?.assigneeNameAvailable === true)
+    && partnerTaskAuditRecords.some(item => item.record?.action === "partner.task.update"
+      && item.record?.after?.status === "blocked"
+      && item.record?.after?.assigneeType === "team"
+      && item.record?.after?.assigneeNameAvailable === true
+      && item.record?.after?.assignmentVersion === 2)
+    && !serializedPartnerTaskAudit.includes("Brief the volunteer gate lead")
+    && !serializedPartnerTaskAudit.includes("Confirm radio channel and opening checklist.")
+    && !serializedPartnerTaskAudit.includes("Alex Rivera")
+    && !serializedPartnerTaskAudit.includes("Operations team")
+    && !serializedPartnerTaskAudit.includes("Radio inventory")
+    && !serializedPartnerTaskAudit.includes(apiTaskToken)
+    && !serializedPartnerTaskAudit.includes(taskNoticeRequestId));
   const staffDirectoryApiOk = taskWorkspace.data.staffDirectory?.ready === false
     && taskWorkspace.data.staffDirectory?.routedTeams === 7
     && taskWorkspace.data.staffDirectory?.errors?.some(item => item.includes("does not match texas-sandfest-2027"))
