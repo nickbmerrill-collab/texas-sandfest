@@ -13,7 +13,8 @@ const handouts = [
       "Approve the activation path",
       "Five decisions requested",
       "Recommended motion",
-      "Keep RFID, closed-loop cashless, and unapproved providers deferred"
+      "deployment:verify:site",
+      "higher-risk optional technologies deferred until each gate is accepted"
     ]
   },
   {
@@ -22,6 +23,7 @@ const handouts = [
       "Boardroom route and recovery",
       "18-minute route",
       "npm run board:showtime",
+      "deployment:verify:site",
       "Never send, charge, or activate a live provider"
     ]
   }

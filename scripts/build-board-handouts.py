@@ -141,7 +141,7 @@ def build_decision_brief():
         "Visitor guide, Live Beach, ticket lifecycle, sculptor roster, Passport, voting, and Guest Services.",
         "Sponsor and vendor intake, private partner status, receivables, milestones, branding, compliance, and outreach.",
         "Operations command, document intake, delegated work, incident response, finance exports, and audit evidence.",
-        "Reset-safe local provider sandboxes and an offline narrated fallback for the boardroom.",
+        "Reset-safe local provider sandboxes, deployed-site acceptance, and an offline narrated fallback for the boardroom.",
     ]
     for item in ready_items:
         y = draw_bullet(c, item, left_x, y, left_w)
@@ -212,7 +212,7 @@ def build_decision_brief():
         c, motion, 52, motion_y + 52, PAGE_W - 104,
         font_name="SandfestSerifBold", font_size=10.5, leading=14, color=white
     )
-    footer(c, "Evidence: capability certificate, board runtime runbook, deploy runbook")
+    footer(c, "Evidence: capability certificate, deployment:verify:site, board runtime runbook, deploy runbook")
     c.showPage()
     c.save()
 
@@ -273,7 +273,7 @@ def build_flight_card():
     checklist = [
         "Power connected; display and audio tested",
         "Do Not Disturb on; screen sleep disabled",
-        "Run board:showtime",
+        "Run board:showtime; run deployment:verify:site for deployed preview",
         "Open deck, Visitor, Operations, and video",
         "Keep synthetic-data label visible",
     ]
@@ -317,7 +317,7 @@ def build_flight_card():
         boundary_y = draw_wrapped(c, item, right_x + 23, boundary_y,
                                   right_w - 35, font_size=7.8, leading=9.5, color=white)
         boundary_y -= 6
-    footer(c, "Runbook: docs/board-runtime.md | Fallback: artifacts/board-demo")
+    footer(c, "Runbook: docs/board-runtime.md | Deployed preview: deployment:verify:site | Fallback: artifacts/board-demo")
     c.showPage()
     c.save()
 
