@@ -3632,6 +3632,22 @@ function publicAlertPayload(alert) {
   };
 }
 
+function alertAuditView(alert) {
+  if (!alert) return null;
+  return {
+    id: alert.id || null,
+    active: alert.active === true,
+    severity: alert.severity || null,
+    audienceCount: Array.isArray(alert.audience) ? alert.audience.length : 0,
+    publicAudience: !Array.isArray(alert.audience) || alert.audience.includes("public"),
+    titleLength: String(alert.title || "").length,
+    messageLength: String(alert.message || "").length,
+    expiresAt: alert.expiresAt || null,
+    updatedAt: alert.updatedAt || null,
+    sourceAvailable: Boolean(alert.source)
+  };
+}
+
 function sanitizeAlertPatch(input, current) {
   const next = { ...current };
   if (Object.hasOwn(input, "active")) next.active = Boolean(input.active);
@@ -10562,7 +10578,7 @@ async function handleRequest(request, response) {
       await writeAuditRecord(request, result.alert.active ? "alert.publish" : "alert.clear", {
         type: "alert",
         id: result.alert.id
-      }, current, result.alert, {
+      }, alertAuditView(current), alertAuditView(result.alert), {
         severity: result.alert.severity,
         sms: smsResult
           ? {

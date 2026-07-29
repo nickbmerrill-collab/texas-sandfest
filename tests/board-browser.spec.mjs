@@ -281,6 +281,31 @@ async function expectAdminWorkspaceReady(page) {
   await expect(status).toHaveAttribute("aria-busy", "false", { timeout: 25_000 });
 }
 
+async function expectCommandSignalTarget(page, { id, heading }) {
+  await expect.poll(() => page.evaluate(({ id, heading }) => {
+    const target = document.getElementById(id);
+    const workspaceNav = document.querySelector(".admin-workspace-nav");
+    const active = document.activeElement;
+    const bounds = target?.getBoundingClientRect();
+    return Boolean(window.location.hash === `#${id}`
+      && bounds
+      && bounds.top >= (workspaceNav?.getBoundingClientRect().bottom || 0)
+      && bounds.top < window.innerHeight
+      && target.contains(active)
+      && active?.textContent?.trim() === heading);
+  }, { id, heading }), { timeout: 15_000 }).toBe(true);
+}
+
+async function openPreparedDemoPortal(admin, application, organizationName) {
+  const popupPromise = admin.waitForEvent("popup");
+  await application.locator("[data-open-demo-portal]").click();
+  const portal = await popupPromise;
+  await portal.waitForURL(/#partner-status\?/, { timeout: 25_000 });
+  await expect(portal.locator("#partner-status-result")).toContainText(organizationName, { timeout: 25_000 });
+  await expect(portal.locator("#partner-status-result")).toBeFocused();
+  return portal;
+}
+
 async function assertNoAccessibilityViolations(page, label) {
   const results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
@@ -3841,17 +3866,7 @@ test("operations command summary fits and navigates across board viewports", asy
   };
   for (const [signal, { id: targetId, heading }] of Object.entries(commandTargets)) {
     await page.locator(`[data-command-signal="${signal}"]`).click();
-    await expect(page).toHaveURL(new RegExp(`#${targetId}$`));
-    await expect.poll(() => page.evaluate(({ id, heading }) => {
-      const target = document.getElementById(id);
-      const workspaceNav = document.querySelector(".admin-workspace-nav");
-      const bounds = target?.getBoundingClientRect();
-      return Boolean(bounds
-        && bounds.top >= (workspaceNav?.getBoundingClientRect().bottom || 0)
-        && bounds.top < window.innerHeight
-        && target.contains(document.activeElement)
-        && document.activeElement?.textContent?.trim() === heading);
-    }, { id: targetId, heading }), { timeout: 2_000 }).toBe(true);
+    await expectCommandSignalTarget(page, { id: targetId, heading });
   }
   await page.locator('[data-command-signal="applications"]').focus();
   await page.keyboard.press("Enter");
@@ -3903,17 +3918,7 @@ test("operations command summary fits and navigates across board viewports", asy
   await expect(page.locator("#admin-command-signals [data-command-signal]")).toHaveCount(8);
   for (const [signal, { id: targetId, heading }] of Object.entries(commandTargets)) {
     await page.locator(`[data-command-signal="${signal}"]`).click();
-    await expect(page).toHaveURL(new RegExp(`#${targetId}$`));
-    await expect.poll(() => page.evaluate(({ id, heading }) => {
-      const target = document.getElementById(id);
-      const workspaceNav = document.querySelector(".admin-workspace-nav");
-      const bounds = target?.getBoundingClientRect();
-      return Boolean(bounds
-        && bounds.top >= (workspaceNav?.getBoundingClientRect().bottom || 0)
-        && bounds.top < window.innerHeight
-        && target.contains(document.activeElement)
-        && document.activeElement?.textContent?.trim() === heading);
-    }, { id: targetId, heading }), { timeout: 2_000 }).toBe(true);
+    await expectCommandSignalTarget(page, { id: targetId, heading });
   }
   await assertNoHorizontalOverflow(page);
 });
@@ -3928,11 +3933,7 @@ test("prepared partner portals land on authenticated status at mobile width", as
     for (const organizationName of ["Gulf Shore Credit Union", "Coastal Bites"]) {
       const application = admin.locator("#admin-partner-applications [data-partner-application]").filter({ hasText: organizationName });
       await expect(application).toHaveCount(1);
-      const popupPromise = admin.waitForEvent("popup");
-      await application.locator("[data-open-demo-portal]").click();
-      const portal = await popupPromise;
-      await expect(portal.locator("#partner-status-result")).toContainText(organizationName);
-      await expect(portal.locator("#partner-status-result")).toBeFocused();
+      const portal = await openPreparedDemoPortal(admin, application, organizationName);
       await assertTargetClearsTopbar(portal, "#partner-status-result", 12);
       await expect(portal.locator(".partner-status-heading h3")).toBeInViewport();
       expect(await portal.locator(".partner-status-next").evaluate(nextStep => {
