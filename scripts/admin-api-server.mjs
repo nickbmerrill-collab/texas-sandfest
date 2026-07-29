@@ -319,6 +319,7 @@ import {
   deleteIncomingDocumentUpload,
   emptyIncomingDocumentIntake,
   incomingDocumentDownloadName,
+  incomingDocumentExtractionSupported,
   incomingDocumentStorageConfig,
   normalizeIncomingDocumentIntake,
   readIncomingDocumentUpload,
@@ -3360,8 +3361,36 @@ function revenueImportResponse(result) {
 }
 
 function incomingDocumentAuditView(record) {
-  const { textPreview: _textPreview, ...metadata } = adminIncomingDocument(record);
-  return metadata;
+  if (!record) return null;
+  return {
+    id: record.id,
+    eventId: record.eventId,
+    domain: record.domain,
+    status: record.status,
+    ownerTeam: record.ownerTeam || null,
+    sizeBytes: record.sizeBytes,
+    contentType: record.contentType,
+    checksumPresent: Boolean(record.checksumSha256),
+    extractionStatus: record.extractionStatus,
+    extractionSupported: incomingDocumentExtractionSupported(record),
+    extractionVersion: record.extractionVersion,
+    extractedChunkCount: Number(record.extractedChunkCount || 0),
+    reviewDueAt: record.reviewDueAt || null,
+    reviewedBy: record.reviewedBy || null,
+    reviewedAt: record.reviewedAt || null,
+    uploadedBy: record.uploadedBy || null,
+    uploadedAt: record.uploadedAt || null
+  };
+}
+
+function incomingDocumentIntegrityAuditView(result) {
+  return {
+    ok: result?.ok === true,
+    sizeMatches: result?.sizeMatches === true,
+    checksumMatches: result?.checksumMatches === true,
+    checksumPresent: Boolean(result?.checksumSha256),
+    errorAvailable: Boolean(result?.error)
+  };
 }
 
 async function mutateRevenueLedger(parsed, options = {}) {
@@ -7547,12 +7576,12 @@ async function handleRequest(request, response) {
       }
       const verified = verifyIncomingDocumentBytes(record, stored.buffer);
       if (!verified.ok) {
-        await writeAuditRecord(request, "document.integrity_failure", { type: "incomingDocument", id: record.id }, null, null, verified);
+        await writeAuditRecord(request, "document.integrity_failure", { type: "incomingDocument", id: record.id }, null, null, incomingDocumentIntegrityAuditView(verified));
         sendJson(request, response, 409, { error: verified.error });
         return;
       }
       await writeAuditRecord(request, "document.extraction.source_read", { type: "incomingDocument", id: record.id }, null, null, {
-        checksumSha256: record.checksumSha256,
+        checksumPresent: Boolean(record.checksumSha256),
         extractionVersion: record.extractionVersion,
         sizeBytes: record.sizeBytes
       });
@@ -7684,7 +7713,7 @@ async function handleRequest(request, response) {
         await writeAuditRecord(request, "document.upload", { type: "incomingDocument", id: result.document.id }, null, incomingDocumentAuditView(result.document), {
           domain: result.document.domain,
           sizeBytes: result.document.sizeBytes,
-          checksumSha256: result.document.checksumSha256
+          checksumPresent: Boolean(result.document.checksumSha256)
         });
       }
       sendJson(request, response, result.duplicate ? 200 : 201, {
@@ -7719,14 +7748,14 @@ async function handleRequest(request, response) {
       }
       const verified = verifyIncomingDocumentBytes(record, stored.buffer);
       if (!verified.ok) {
-        await writeAuditRecord(request, "document.integrity_failure", { type: "incomingDocument", id: record.id }, null, null, verified);
+        await writeAuditRecord(request, "document.integrity_failure", { type: "incomingDocument", id: record.id }, null, null, incomingDocumentIntegrityAuditView(verified));
         sendJson(request, response, 409, { error: verified.error });
         return;
       }
       await writeAuditRecord(request, "document.download", { type: "incomingDocument", id: record.id }, null, null, {
         domain: record.domain,
         sizeBytes: record.sizeBytes,
-        checksumSha256: record.checksumSha256
+        checksumPresent: Boolean(record.checksumSha256)
       });
       sendBinary(request, response, 200, stored.buffer, {
         contentType: record.contentType,
@@ -7768,7 +7797,7 @@ async function handleRequest(request, response) {
       }
       await writeAuditRecord(request, "document.extraction.retry", { type: "incomingDocument", id: result.document.id }, incomingDocumentAuditView(result.before), incomingDocumentAuditView(result.document), {
         extractionVersion: result.document.extractionVersion,
-        jobId: extractionJob.id
+        jobQueued: Boolean(extractionJob.id)
       });
       sendJson(request, response, 202, {
         document: adminIncomingDocument(result.document),
