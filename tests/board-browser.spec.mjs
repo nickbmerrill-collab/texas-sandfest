@@ -1769,11 +1769,25 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   await milestoneForm.locator('button[type="submit"]').click();
   const createdMilestoneResponse = await milestoneResponse;
   expect(createdMilestoneResponse.status()).toBe(201);
-  const createdSponsorMilestone = (await createdMilestoneResponse.json()).milestone;
+  const createdMilestonePayload = await createdMilestoneResponse.json();
+  const createdSponsorMilestone = createdMilestonePayload.milestone;
   expect(createdSponsorMilestone.applicationId).toBe(sponsorResult.application.id);
   expect(createdSponsorMilestone.status).toBe("open");
   expect(createdSponsorMilestone.reminderLeadDays).toBe(3);
+  expect(createdMilestonePayload.generatedFollowups).toHaveLength(1);
+  expect(createdMilestonePayload.generatedFollowups[0]).toMatchObject({
+    milestoneId: createdSponsorMilestone.id,
+    kind: "milestone_reminder",
+    status: "draft_ready",
+    reminderPhase: "upcoming"
+  });
+  expect(createdMilestonePayload.generatedFollowups[0].body).toContain("#partner-status?");
+  await expect(page.locator("#admin-api-status")).toContainText("Partner key date added.");
   await expect(page.locator("#admin-partner-milestones")).toContainText(milestoneLabel);
+  const immediateMilestoneDraft = page.locator(`#admin-partner-followups [data-followup="${createdMilestonePayload.generatedFollowups[0].id}"]`);
+  await expect(immediateMilestoneDraft).toHaveCount(1);
+  await expect(immediateMilestoneDraft).toContainText(`Texas SandFest ${milestoneLabel.toLowerCase()} reminder`);
+  await expect(immediateMilestoneDraft).toContainText("draft ready");
 
   const prospectForm = page.locator("#admin-create-prospect");
   await prospectForm.locator('[name="organizationName"]').fill(prospectName);
