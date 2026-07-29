@@ -2438,7 +2438,10 @@ PG-EVENTENY-V-1,vendor,Postgres Eventeny Vendor,Postgres Import Contact,${postgr
   const serializedAudits = JSON.stringify(persistedAudits.rows);
   const serializedBrevoAudits = JSON.stringify(persistedAudits.rows.filter(row => row.data?.action === "email.delivery.webhook"));
   const serializedSponsorInvitationAudits = JSON.stringify(persistedAudits.rows.filter(row => row.data?.action?.startsWith("outreach.sponsor_invitation.")));
-  const serializedEventenyPartnerImportAudits = JSON.stringify(persistedAudits.rows.filter(row => row.data?.action === "partner.application.import"));
+  const eventenyPartnerImportAudits = persistedAudits.rows.filter(row => row.data?.action === "partner.application.import");
+  const boothImportAudits = persistedAudits.rows.filter(row => row.data?.action === "booths.import.commit");
+  const serializedEventenyPartnerImportAudits = JSON.stringify(eventenyPartnerImportAudits);
+  const serializedBoothImportAudits = JSON.stringify(boothImportAudits);
   const revenueImportAudits = persistedAudits.rows.filter(row => row.data?.action === "revenue.import.commit");
   const staffImportAudits = persistedAudits.rows.filter(row => row.data?.action === "staff_directory.import.commit");
   const serializedRevenueImportAudits = JSON.stringify(revenueImportAudits);
@@ -2476,7 +2479,26 @@ PG-EVENTENY-V-1,vendor,Postgres Eventeny Vendor,Postgres Import Contact,${postgr
     && !serializedPartnerPaymentAudits.includes("externalRef")
     && !serializedPartnerPaymentAudits.includes("paymentIntentId")
     && !serializedPartnerPaymentAudits.includes("providerEventId"));
-  check("Postgres Eventeny import audit is aggregate-only", serializedEventenyPartnerImportAudits.includes("eventeny-partners-postgres.csv") && !serializedEventenyPartnerImportAudits.includes(postgresEventenyImportEmail) && !serializedEventenyPartnerImportAudits.includes("Postgres Import Contact"));
+  check("Postgres Eventeny import audit is aggregate-only", eventenyPartnerImportAudits.some(row => row.data?.after?.provider === "eventeny"
+    && row.data?.after?.fileNameAvailable === true
+    && row.data?.after?.previewHashAvailable === true
+    && row.data?.after?.summary?.imported === 1)
+    && !serializedEventenyPartnerImportAudits.includes("eventeny-partners-postgres.csv")
+    && !serializedEventenyPartnerImportAudits.includes(postgresEventenyPreview.data.previewHash || "missing-eventeny-preview")
+    && !serializedEventenyPartnerImportAudits.includes(postgresEventenyImportEmail)
+    && !serializedEventenyPartnerImportAudits.includes("Postgres Import Contact")
+    && !serializedEventenyPartnerImportAudits.includes('"fileName"')
+    && !serializedEventenyPartnerImportAudits.includes('"previewHash"'));
+  check("Postgres booth import audit is aggregate-only", boothImportAudits.some(row => row.data?.after?.provider === "eventeny"
+    && row.data?.after?.fileNameAvailable === true
+    && row.data?.after?.previewHashAvailable === true
+    && row.data?.after?.summary?.booths?.created === 1)
+    && !serializedBoothImportAudits.includes("eventeny-booths-postgres.csv")
+    && !serializedBoothImportAudits.includes(postgresBoothPreview.data.previewHash || "missing-booth-preview")
+    && !serializedBoothImportAudits.includes("Postgres Booth Vendor")
+    && !serializedBoothImportAudits.includes('"fileName"')
+    && !serializedBoothImportAudits.includes('"previewHash"')
+    && !serializedBoothImportAudits.includes('"bundleHash"'));
   check("Postgres staff import audit is aggregate-only", staffImportAudits.some(row => row.data?.after?.provider === "hr_import"
     && row.data?.after?.fileNameAvailable === true
     && row.data?.after?.previewHashAvailable === true
