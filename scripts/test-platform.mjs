@@ -8761,7 +8761,9 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
       title: "Manual beach access incident",
       summary: "Operator verification in progress.",
       severity: "moderate",
-      ownerTeam: "operations"
+      ownerTeam: "operations",
+      ownerName: "Private Incident Lead",
+      note: "Staging note for command staff only."
     };
     const manualIncidentKey = "api-conditions-incident-create-0001";
     const missingIncidentKey = await hit("POST", "/api/admin/island-conditions/incidents", manualIncidentBody, true);
@@ -8799,6 +8801,7 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     const dispatchAudit = await hit("GET", "/api/admin/audit?limit=100", null, true);
     const dispatchAuditRecords = dispatchAudit.data.audit?.map(item => item.record).filter(record => record?.target?.type === "incident_dispatch" && record.target.id === dispatchId) || [];
     const incidentAuditRecords = dispatchAudit.data.audit?.map(item => item.record).filter(record => record?.action === "conditions.incident.create" && record.target?.id === manualIncident.data.incident?.id) || [];
+    const serializedIncidentCreateAudit = JSON.stringify(incidentAuditRecords);
     ok("operator incident creation requires replay protection", unauthorizedIncident.status === 401 && missingIncidentKey.status === 400 && missingIncidentKey.data.error?.includes("Idempotency-Key"));
     ok("operator incident creation replays once", manualIncident.status === 201
       && manualIncident.data.replay === false
@@ -8808,7 +8811,16 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
       && conflictingManualIncident.status === 409
       && dispatchWorkspace.data.incidents?.filter(item => item.id === manualIncident.data.incident?.id).length === 1
       && incidentAuditRecords.length === 1
-      && !JSON.stringify({ dispatchWorkspace, dispatchAudit }).includes(manualIncidentKey));
+      && incidentAuditRecords[0]?.after?.status === "open"
+      && incidentAuditRecords[0]?.after?.titleLength > 0
+      && incidentAuditRecords[0]?.after?.summaryLength > 0
+      && incidentAuditRecords[0]?.after?.ownerNameAvailable === true
+      && incidentAuditRecords[0]?.after?.timelineCount === 1
+      && !JSON.stringify({ dispatchWorkspace, dispatchAudit }).includes(manualIncidentKey)
+      && !serializedIncidentCreateAudit.includes(manualIncidentBody.title)
+      && !serializedIncidentCreateAudit.includes(manualIncidentBody.summary)
+      && !serializedIncidentCreateAudit.includes(manualIncidentBody.ownerName)
+      && !serializedIncidentCreateAudit.includes(manualIncidentBody.note));
     ok("incident dispatch routes enforce auth and idempotency", unauthorizedDispatch.status === 401 && createdDispatch.status === 201 && repeatedDispatch.status === 200 && repeatedDispatch.data.duplicate === true && dispatchWorkspace.data.dispatches?.filter(item => item.id === dispatchId).length === 1);
     ok("incident dispatch review and readiness gate", editedDispatch.status === 200 && editedDispatch.data.dispatch?.notification?.status === "draft_ready" && approvedDispatch.data.dispatch?.notification?.status === "approved" && disabledDispatchSend.status === 409);
     ok("incident dispatch uses governed team route", createdDispatch.data.dispatch?.assigneeName === "Traffic and parking" && createdDispatch.data.dispatch?.notification?.recipientAvailable === true);
@@ -8955,11 +8967,29 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
       await dispatchSandbox.close();
     }
     const rejectedResolution = await hit("PATCH", `/api/admin/island-conditions/incidents/${manualIncident.data.incident?.id}`, { status: "resolved" }, true);
-    const acceptedResolution = await hit("PATCH", `/api/admin/island-conditions/incidents/${manualIncident.data.incident?.id}`, { status: "resolved", resolution: "Access confirmed and route restored." }, true);
+    const acceptedResolution = await hit("PATCH", `/api/admin/island-conditions/incidents/${manualIncident.data.incident?.id}`, {
+      status: "resolved",
+      ownerName: "Private Resolution Lead",
+      resolution: "Access confirmed and route restored.",
+      note: "Command verified the private beach access report."
+    }, true);
     const closedDispatchWorkspace = await hit("GET", "/api/admin/island-conditions", null, true);
     const canceledDispatch = closedDispatchWorkspace.data.dispatches?.find(item => item.id === dispatchId);
+    const incidentUpdateAudit = await hit("GET", "/api/admin/audit?limit=100", null, true);
+    const incidentUpdateAuditRecords = incidentUpdateAudit.data.audit?.map(item => item.record).filter(record => record?.action === "conditions.incident.update" && record.target?.id === manualIncident.data.incident?.id) || [];
+    const serializedIncidentUpdateAudit = JSON.stringify(incidentUpdateAuditRecords);
     const publicAfterDispatch = await hit("GET", "/api/public/island-conditions");
     ok("manual incident routes enforce auth and lifecycle", unauthorizedIncident.status === 401 && manualIncident.status === 201 && rejectedResolution.status === 400 && acceptedResolution.status === 200 && acceptedResolution.data.incident?.status === "resolved");
+    ok("incident update audit preserves lifecycle without private operator notes", incidentUpdateAuditRecords.some(record => record.after?.status === "resolved"
+      && record.after?.ownerNameAvailable === true
+      && record.after?.resolutionLength > 0
+      && record.after?.timelineCount >= 2
+      && record.after?.resolvedBy === "local-admin")
+      && !serializedIncidentUpdateAudit.includes("Private Incident Lead")
+      && !serializedIncidentUpdateAudit.includes("Private Resolution Lead")
+      && !serializedIncidentUpdateAudit.includes("Operator verification in progress.")
+      && !serializedIncidentUpdateAudit.includes("Access confirmed and route restored.")
+      && !serializedIncidentUpdateAudit.includes("Command verified the private beach access report."));
     ok("incident close cancels dispatch and keeps public payload private", canceledDispatch?.status === "canceled" && canceledDispatch?.notification?.status === "canceled" && !("dispatches" in publicAfterDispatch.data));
   }
 
