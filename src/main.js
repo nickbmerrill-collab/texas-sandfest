@@ -8291,7 +8291,7 @@ function renderAdminPartners(payload, outreach) {
     const canReconcileInvoice = canFinance && payload.quickbooks?.canSyncPartnerInvoices && invoice?.status === "synced";
     return `<article data-partner-application="${escapeAttr(application.id)}">
       <header><div><strong>${escapeHtml(application.organizationName)}</strong><span>${escapeHtml(application.reference)} · ${escapeHtml(isVendorInterest ? "vendor interest" : application.type)}</span></div><b>${isVendorInterest ? "Amount pending" : `${adminMoney(paid, "$0.00")} / ${adminMoney(expected, "$0.00")}`}</b></header>
-      <p>${escapeHtml(application.contactName)} · ${escapeHtml(application.contactEmail)}${application.offeringName ? ` · ${escapeHtml(application.offeringName)}` : application.packageName ? ` · ${escapeHtml(application.packageName)}` : ""}</p>
+      <p>${escapeHtml(application.contactName)} · ${escapeHtml(application.contactEmail)}${application.offeringName ? ` · ${escapeHtml(application.offeringName)}` : application.packageName ? ` · ${escapeHtml(application.packageName)}` : ""} · ${escapeHtml(application.ops?.label || "")}</p>
       <div class="admin-partner-row-actions">
         <select name="status" aria-label="${escapeAttr(`${application.organizationName} application status`)}">${partnerStatusOptions(application.status)}</select>
         <button type="button" class="button secondary" data-save-application="${escapeAttr(application.id)}">Save</button>
