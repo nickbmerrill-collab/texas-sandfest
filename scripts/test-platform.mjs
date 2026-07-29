@@ -10212,7 +10212,35 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
   ok("launch task synchronization is aggregate audited", auditApi.data.audit?.some(item => item.record?.action === "deployment.tasks.sync" && item.record?.after?.active === failingDeploymentChecks.length));
   ok("automatic launch task audit identifies the system actor", auditApi.data.audit?.some(item => item.record?.action === "deployment.tasks.sync" && item.record?.actor?.type === "system" && item.record?.actor?.id === "deployment-readiness" && item.record?.metadata?.automated === true && item.record?.after?.created === failingDeploymentChecks.length));
   const documentAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("document."));
-  ok("private document lifecycle is audited without file contents", documentAuditApi.some(item => item.record?.action === "document.upload") && documentAuditApi.some(item => item.record?.action === "document.review") && documentAuditApi.some(item => item.record?.action === "document.download") && documentAuditApi.some(item => item.record?.action === "document.extraction.source_read") && documentAuditApi.some(item => item.record?.action === "document.extraction.retry") && !JSON.stringify(documentAuditApi).includes("Board packet source"));
+  const serializedDocumentAuditApi = JSON.stringify(documentAuditApi);
+  ok("private document lifecycle is audited without file contents or storage fingerprints", documentAuditApi.some(item => item.record?.action === "document.upload"
+    && item.record?.after?.status === "received"
+    && item.record?.after?.checksumPresent === true
+    && item.record?.metadata?.checksumPresent === true)
+    && documentAuditApi.some(item => item.record?.action === "document.review"
+      && item.record?.after?.status === "approved"
+      && item.record?.after?.reviewedBy === "local-admin")
+    && documentAuditApi.some(item => item.record?.action === "document.download"
+      && item.record?.metadata?.checksumPresent === true)
+    && documentAuditApi.some(item => item.record?.action === "document.extraction.source_read"
+      && item.record?.metadata?.checksumPresent === true
+      && item.record?.metadata?.extractionVersion === 1)
+    && documentAuditApi.some(item => item.record?.action === "document.extraction.retry"
+      && item.record?.after?.extractionVersion === 2
+      && item.record?.metadata?.jobQueued === true)
+    && !serializedDocumentAuditApi.includes("Board packet source")
+    && !serializedDocumentAuditApi.includes("Reviewed against the board packet.")
+    && !serializedDocumentAuditApi.includes("board-source.txt")
+    && !serializedDocumentAuditApi.includes("board-source-copy.txt")
+    && !serializedDocumentAuditApi.includes("SandFest-Board-Platform-Briefing.pptx")
+    && !serializedDocumentAuditApi.includes(documentUploadApi.data.document?.checksumSha256 || "missing-document-checksum")
+    && !serializedDocumentAuditApi.includes(boardBriefingUploadApi.data.document?.checksumSha256 || "missing-briefing-checksum")
+    && !serializedDocumentAuditApi.includes('"checksumSha256"')
+    && !serializedDocumentAuditApi.includes('"fileName"')
+    && !serializedDocumentAuditApi.includes('"textPreview"')
+    && !serializedDocumentAuditApi.includes('"notes"')
+    && !serializedDocumentAuditApi.includes('"jobId"')
+    && !serializedDocumentAuditApi.includes(boardBriefingUploadApi.data.extractionJob?.id || "missing-extraction-job"));
   ok("revenue settlement commit is audited", auditApi.data.audit?.some(item => item.record?.action === "revenue.import.commit" && item.record?.after?.source === "square" && item.record?.after?.imported === 1));
   const budgetAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("budget."));
   const serializedBudgetAuditApi = JSON.stringify(budgetAuditApi);
