@@ -2439,7 +2439,10 @@ PG-EVENTENY-V-1,vendor,Postgres Eventeny Vendor,Postgres Import Contact,${postgr
   const serializedBrevoAudits = JSON.stringify(persistedAudits.rows.filter(row => row.data?.action === "email.delivery.webhook"));
   const serializedSponsorInvitationAudits = JSON.stringify(persistedAudits.rows.filter(row => row.data?.action?.startsWith("outreach.sponsor_invitation.")));
   const serializedEventenyPartnerImportAudits = JSON.stringify(persistedAudits.rows.filter(row => row.data?.action === "partner.application.import"));
-  const serializedStaffImportAudits = JSON.stringify(persistedAudits.rows.filter(row => row.data?.action === "staff_directory.import.commit"));
+  const revenueImportAudits = persistedAudits.rows.filter(row => row.data?.action === "revenue.import.commit");
+  const staffImportAudits = persistedAudits.rows.filter(row => row.data?.action === "staff_directory.import.commit");
+  const serializedRevenueImportAudits = JSON.stringify(revenueImportAudits);
+  const serializedStaffImportAudits = JSON.stringify(staffImportAudits);
   const serializedBudgetAudits = JSON.stringify(persistedAudits.rows.filter(row => row.data?.action?.startsWith("budget.")));
   const serializedPartnerPaymentAudits = JSON.stringify(persistedAudits.rows.filter(row => (
     row.data?.action?.startsWith("partner.payment.")
@@ -2451,7 +2454,15 @@ PG-EVENTENY-V-1,vendor,Postgres Eventeny Vendor,Postgres Import Contact,${postgr
   check("event guide audit persists", serializedAudits.includes("content.event-guide.publish"));
   check("partner automation audit persists", serializedAudits.includes("partner.automation.update"));
   check("partner email preference audit persists without capability or contact data", serializedContactPreferenceAudits.includes('"allowed":false') && serializedContactPreferenceAudits.includes('"allowed":true') && !serializedContactPreferenceAudits.includes(postgresPartnerPreferenceAccess.token) && !serializedContactPreferenceAudits.includes("vendor2@postgres-test.example"));
-  check("revenue import audit persists", serializedAudits.includes("revenue.import.commit") && serializedAudits.includes("eventeny-postgres.csv"));
+  check("revenue import audit persists compact summary", revenueImportAudits.some(row => row.data?.after?.source === "eventeny"
+    && row.data?.after?.fileNameAvailable === true
+    && row.data?.after?.previewHashAvailable === true
+    && row.data?.after?.summary?.imported === 1)
+    && !serializedRevenueImportAudits.includes("eventeny-postgres.csv")
+    && !serializedRevenueImportAudits.includes(postgresRevenueImportPreview.data.previewHash || "missing-revenue-preview")
+    && !serializedRevenueImportAudits.includes("postgres_eventeny_settlement_1")
+    && !serializedRevenueImportAudits.includes('"previewHash"')
+    && !serializedRevenueImportAudits.includes('"fileName"'));
   check("budget audit persists without private vendor or payment references", serializedBudgetAudits.includes("budget.line.create")
     && serializedBudgetAudits.includes("budget.expense.submit") && serializedBudgetAudits.includes("budget.expense.approve")
     && serializedBudgetAudits.includes("budget.expense.mark_paid") && !serializedBudgetAudits.includes("Postgres Private")
@@ -2466,7 +2477,16 @@ PG-EVENTENY-V-1,vendor,Postgres Eventeny Vendor,Postgres Import Contact,${postgr
     && !serializedPartnerPaymentAudits.includes("paymentIntentId")
     && !serializedPartnerPaymentAudits.includes("providerEventId"));
   check("Postgres Eventeny import audit is aggregate-only", serializedEventenyPartnerImportAudits.includes("eventeny-partners-postgres.csv") && !serializedEventenyPartnerImportAudits.includes(postgresEventenyImportEmail) && !serializedEventenyPartnerImportAudits.includes("Postgres Import Contact"));
-  check("Postgres staff import audit is aggregate-only", serializedStaffImportAudits.includes("staff-directory-postgres.json") && serializedStaffImportAudits.includes("hr_import") && !serializedStaffImportAudits.includes("postgres-traffic@example.com") && !serializedStaffImportAudits.includes("Postgres Incident Commander"));
+  check("Postgres staff import audit is aggregate-only", staffImportAudits.some(row => row.data?.after?.provider === "hr_import"
+    && row.data?.after?.fileNameAvailable === true
+    && row.data?.after?.previewHashAvailable === true
+    && row.data?.after?.summary?.activeStaff === 1)
+    && !serializedStaffImportAudits.includes("staff-directory-postgres.json")
+    && !serializedStaffImportAudits.includes(postgresStaffPreview.data.previewHash || "missing-staff-preview")
+    && !serializedStaffImportAudits.includes("postgres-traffic@example.com")
+    && !serializedStaffImportAudits.includes("Postgres Incident Commander")
+    && !serializedStaffImportAudits.includes('"previewHash"')
+    && !serializedStaffImportAudits.includes('"fileName"'));
   check("Postgres audits exclude bearer credential fragments", !serializedAudits.includes("tokenHint") && !serializedAudits.includes(TOKEN));
   check("Postgres Brevo audits retain counts only", serializedBrevoAudits.includes("email.delivery.webhook") && !serializedBrevoAudits.includes("sponsor@postgres-test.example") && !serializedBrevoAudits.includes(BREVO_WEBHOOK_TOKEN));
   check("Postgres sponsor invitation audits are aggregate-only", serializedSponsorInvitationAudits.includes("outreach.sponsor_invitation.issue") && serializedSponsorInvitationAudits.includes("outreach.sponsor_invitation.copy") && !serializedSponsorInvitationAudits.includes("tsfi1.") && !serializedSponsorInvitationAudits.includes("jordan@postgres-credit-union.example"));

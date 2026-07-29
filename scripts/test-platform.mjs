@@ -10282,7 +10282,32 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
     && !serializedDocumentAuditApi.includes('"notes"')
     && !serializedDocumentAuditApi.includes('"jobId"')
     && !serializedDocumentAuditApi.includes(boardBriefingUploadApi.data.extractionJob?.id || "missing-extraction-job"));
-  ok("revenue settlement commit is audited", auditApi.data.audit?.some(item => item.record?.action === "revenue.import.commit" && item.record?.after?.source === "square" && item.record?.after?.imported === 1));
+  const importCommitAuditApi = (auditApi.data.audit || []).filter(item => [
+    "revenue.import.commit",
+    "volunteers.import.commit",
+    "staff_directory.import.commit"
+  ].includes(item.record?.action));
+  const serializedImportCommitAuditApi = JSON.stringify(importCommitAuditApi);
+  ok("import commit audits preserve summary without file names or fingerprints", importCommitAuditApi.some(item => item.record?.action === "revenue.import.commit"
+    && item.record?.after?.source === "square"
+    && item.record?.after?.fileNameAvailable === true
+    && item.record?.after?.summary?.imported === 1)
+    && importCommitAuditApi.some(item => item.record?.action === "volunteers.import.commit"
+      && item.record?.after?.provider === "volunteerlocal"
+      && item.record?.after?.fileCount === 3
+      && item.record?.after?.summary?.volunteers?.created === 1)
+    && !serializedImportCommitAuditApi.includes(revenueImportPreviewApi.data.previewHash || "missing-revenue-preview")
+    && !serializedImportCommitAuditApi.includes(volunteerImportPreviewApi.data.previewHash || "missing-volunteer-preview")
+    && !serializedImportCommitAuditApi.includes("square-api.csv")
+    && !serializedImportCommitAuditApi.includes(volunteerImportPayloadApi.fileNames.roster)
+    && !serializedImportCommitAuditApi.includes(volunteerImportPayloadApi.fileNames.shifts)
+    && !serializedImportCommitAuditApi.includes(volunteerImportPayloadApi.fileNames.hours)
+    && !serializedImportCommitAuditApi.includes("api-volunteer@example.com")
+    && !serializedImportCommitAuditApi.includes("@staff.example")
+    && !serializedImportCommitAuditApi.includes('"previewHash"')
+    && !serializedImportCommitAuditApi.includes('"bundleHash"')
+    && !serializedImportCommitAuditApi.includes('"fileName"')
+    && !serializedImportCommitAuditApi.includes('"files"'));
   const budgetAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("budget."));
   const serializedBudgetAuditApi = JSON.stringify(budgetAuditApi);
   ok("budget lifecycle is audited without private vendor or payment references", budgetAuditApi.some(item => item.record?.action === "budget.line.create")
