@@ -1418,6 +1418,70 @@ function conditionsIncidentAuditView(incident) {
   };
 }
 
+function conditionsCameraAuditView(camera) {
+  if (!camera) return camera;
+  return {
+    id: camera.id,
+    name: camera.name,
+    zone: camera.zone,
+    kind: camera.kind,
+    status: camera.status,
+    sourceIdAvailable: Boolean(camera.sourceId),
+    sourceUrlAvailable: Boolean(camera.sourceUrl),
+    staleAfterMinutes: camera.staleAfterMinutes || null,
+    monitoringEnabled: camera.monitoringEnabled === true,
+    healthStatus: camera.health?.status || null,
+    healthObservedAt: camera.health?.observedAt || null,
+    healthSourceIdAvailable: Boolean(camera.health?.sourceId),
+    healthAgentIdAvailable: Boolean(camera.health?.agentId),
+    healthAgentVersionAvailable: Boolean(camera.health?.agentVersion),
+    healthLastErrorLength: String(camera.health?.lastError || "").length
+  };
+}
+
+function conditionsObservationAuditView(observation) {
+  if (!observation) return observation;
+  return {
+    id: observation.id,
+    eventId: observation.eventId || null,
+    cameraId: observation.cameraId,
+    observedAt: observation.observedAt,
+    sourceIdAvailable: Boolean(observation.sourceId),
+    sourceAvailable: Boolean(observation.source),
+    peopleCount: observation.peopleCount,
+    vehicleCount: observation.vehicleCount,
+    flowPerMinute: observation.flowPerMinute,
+    queueLength: observation.queueLength,
+    occupancyPct: observation.occupancyPct,
+    estimatedWaitMinutes: observation.estimatedWaitMinutes,
+    level: observation.level,
+    confidence: observation.confidence ?? null,
+    modelNameAvailable: Boolean(observation.modelName),
+    modelVersionAvailable: Boolean(observation.modelVersion),
+    modelSha256Present: Boolean(observation.modelSha256),
+    processingMs: observation.processingMs ?? null,
+    notesLength: String(observation.notes || "").length,
+    rawMediaStored: observation.rawMediaStored === true,
+    createdAt: observation.createdAt || null
+  };
+}
+
+function conditionsFerryAuditView(ferry) {
+  if (!ferry) return ferry;
+  return {
+    status: ferry.status,
+    estimatedWaitMinutes: ferry.estimatedWaitMinutes ?? null,
+    operatingFerries: ferry.operatingFerries ?? null,
+    observedAt: ferry.observedAt || null,
+    checkedAt: ferry.checkedAt || null,
+    directionCount: Array.isArray(ferry.directions) ? ferry.directions.length : 0,
+    manualOverrideUntil: ferry.manualOverrideUntil || null,
+    sourceAvailable: Boolean(ferry.source),
+    sourceUrlAvailable: Boolean(ferry.sourceUrl),
+    notesLength: String(ferry.notes || "").length
+  };
+}
+
 async function readConsentLedger() {
   const ledger = await readPlatformDoc(ROOT, "consent", null);
   if (!ledger) return { lastUpdated: null, eventId: CURRENT_EVENT_ID, records: [] };
@@ -6328,6 +6392,9 @@ async function handleRequest(request, response) {
         sendJson(request, response, status, { error: result?.error || "Camera observation could not be recorded." });
         return;
       }
+      if (result.changed) {
+        await writeAuditRecord(request, "conditions.observation.create", { type: "camera", id: cameraId }, null, conditionsObservationAuditView(result.observation));
+      }
       await writeIncidentTransitionAudit(request, cameraId, "condition", incidentResult);
       sendJson(request, response, result.duplicate ? 200 : 201, {
         ok: true,
@@ -10068,7 +10135,7 @@ async function handleRequest(request, response) {
         sendJson(request, response, result?.error === "Camera not found." ? 404 : 400, { error: result?.error || "Camera source could not be updated." });
         return;
       }
-      await writeAuditRecord(request, "conditions.camera.update", { type: "camera", id: cameraId }, null, result.camera);
+      await writeAuditRecord(request, "conditions.camera.update", { type: "camera", id: cameraId }, null, conditionsCameraAuditView(result.camera));
       sendJson(request, response, 200, { camera: result.camera, ingest: publicCameraIngestReadiness() });
       return;
     }
@@ -10098,7 +10165,7 @@ async function handleRequest(request, response) {
         sendJson(request, response, 404, { error: result?.error || "Observation could not be recorded." });
         return;
       }
-      await writeAuditRecord(request, "conditions.observation.create", { type: "camera", id: cameraId }, null, result.observation);
+      await writeAuditRecord(request, "conditions.observation.create", { type: "camera", id: cameraId }, null, conditionsObservationAuditView(result.observation));
       await writeIncidentTransitionAudit(request, cameraId, "condition", incidentResult);
       sendJson(request, response, 201, {
         observation: result.observation,
@@ -10372,7 +10439,7 @@ async function handleRequest(request, response) {
           }
         };
       }, { fallback: normalizeIslandConditions(null) });
-      await writeAuditRecord(request, "conditions.ferry.update", { type: "ferry", id: "port-aransas" }, null, updated.ferry);
+      await writeAuditRecord(request, "conditions.ferry.update", { type: "ferry", id: "port-aransas" }, null, conditionsFerryAuditView(updated.ferry));
       sendJson(request, response, 200, { ferry: updated.ferry });
       return;
     }
