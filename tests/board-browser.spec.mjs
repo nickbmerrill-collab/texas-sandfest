@@ -1189,6 +1189,8 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await expect(deferredRecovery).toContainText("Backup and recovery");
   await expect(deferredRecovery).toContainText("Managed backup provisioning and provider restore drills are scheduled after the presentation.");
   await expect(deferredRecovery).toContainText("Isolated database and upload recovery verification remains in the release gate.");
+  await expect(deferredRecovery).toContainText("Owner: Operations team");
+  await expect(deferredRecovery).toContainText("Next action: Schedule managed backup provisioning and restore drills after the board presentation.");
   await expect(deferredRecovery).not.toContainText("configure a supported managed backup provider");
   const transactionRegions = page.locator("#admin-system-monitor .admin-record-list");
   await expect(transactionRegions).toHaveCount(5);
