@@ -8766,7 +8766,18 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     const criticalReplay = await postSignedMetric("api-camera-critical-0002", { peopleCount: 410, occupancyPct: 91, queueLength: 23, estimatedWaitMinutes: 35 });
     const incidentState = await hit("GET", "/api/admin/island-conditions", null, true);
     const cameraIncident = incidentState.data.incidents?.find(item => item.sourceType === "camera_condition" && item.sourceId === "north-gate");
+    const automatedIncidentAudit = await hit("GET", "/api/admin/audit?limit=150", null, true);
+    const openedIncidentAudit = automatedIncidentAudit.data.audit?.find(item => item.record?.action === "conditions.incident.opened" && item.record?.target?.id === cameraIncident?.id)?.record;
+    const serializedOpenedIncidentAudit = JSON.stringify(openedIncidentAudit || {});
     ok("signed critical metric opens one incident", criticalMetric.status === 201 && criticalMetric.data.incidentAction === "opened" && criticalReplay.status === 200 && incidentState.data.incidents?.filter(item => item.sourceId === "north-gate" && item.sourceType === "camera_condition").length === 1);
+    ok("automated incident transition audit preserves state without incident text", openedIncidentAudit?.after?.status === "open"
+      && openedIncidentAudit.after.titleLength > 0
+      && openedIncidentAudit.after.summaryLength > 0
+      && openedIncidentAudit.metadata?.automated === true
+      && openedIncidentAudit.metadata?.cameraId === "north-gate"
+      && !serializedOpenedIncidentAudit.includes(cameraIncident?.title || "North Gate")
+      && !serializedOpenedIncidentAudit.includes(cameraIncident?.summary || "crowding")
+      && !serializedOpenedIncidentAudit.includes('"latestMetrics":'));
     const assignedIncident = await hit("PATCH", `/api/admin/island-conditions/incidents/${cameraIncident?.id}`, {
       status: "responding",
       ownerTeam: "traffic",
@@ -8781,7 +8792,8 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     await postSignedMetric("api-camera-recovery-0004", { peopleCount: 35, occupancyPct: 14, queueLength: 1, estimatedWaitMinutes: 2 });
     const recoveryMetric = await postSignedMetric("api-camera-recovery-0005", { peopleCount: 32, occupancyPct: 12, queueLength: 1, estimatedWaitMinutes: 1 });
     const recoveredState = await hit("GET", "/api/admin/island-conditions", null, true);
-    ok("camera recovery moves incident to monitoring", recoveryMetric.data.incidentAction === "monitoring" && recoveredState.data.incidents?.find(item => item.id === cameraIncident?.id)?.status === "monitoring");
+    const monitoringIncidentAudit = (await hit("GET", "/api/admin/audit?limit=150", null, true)).data.audit?.find(item => item.record?.action === "conditions.incident.monitoring" && item.record?.target?.id === cameraIncident?.id)?.record;
+    ok("camera recovery moves incident to monitoring", recoveryMetric.data.incidentAction === "monitoring" && recoveredState.data.incidents?.find(item => item.id === cameraIncident?.id)?.status === "monitoring" && monitoringIncidentAudit?.after?.status === "monitoring" && !JSON.stringify(monitoringIncidentAudit || {}).includes('"timeline":'));
 
     const unauthorizedIncident = await hit("POST", "/api/admin/island-conditions/incidents", { title: "Unauthorized incident" });
     const manualIncidentBody = {
@@ -9114,10 +9126,34 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     }, true);
     const publicSponsorCatalogAfterPatch = await hit("GET", "/api/public/sponsors");
     const publicTarponAfterPatch = publicSponsorCatalogAfterPatch.data.sponsorPackages?.find(item => item.id === "tarpon");
+    const sponsorSnapshots = await hit("GET", "/api/admin/snapshots?limit=100", null, true);
+    const sponsorPatchSnapshot = sponsorSnapshots.data.snapshots?.find(item => item.record?.reason === "Before sponsor package update: tarpon");
+    const sponsorRollback = sponsorPatchSnapshot?.file
+      ? await hit("POST", `/api/admin/snapshots/${encodeURIComponent(sponsorPatchSnapshot.file)}/restore`, {}, true)
+      : { status: 404, data: { error: "Sponsor patch snapshot missing." } };
+    const rollbackAudit = await hit("GET", "/api/admin/audit?limit=100", null, true);
+    const sponsorRollbackAudit = rollbackAudit.data.audit?.find(item => item.record?.action === "config.rollback" && item.record?.metadata?.snapshotId === sponsorPatchSnapshot?.record?.id)?.record;
+    const serializedSponsorRollbackAudit = JSON.stringify(sponsorRollbackAudit || {});
+    const restoredSponsorMapping = await hit("PATCH", "/api/admin/sponsor-packages/tarpon", {
+      quickBooksItemId: "api-sponsor-tarpon-item",
+      stripePriceId: "price_api_sponsor_tarpon"
+    }, true);
     ok("admin sponsor package creation is replay safe and returns public catalog to review", missingSponsorPackageCreateKey.status === 400 && concurrentSponsorCreates.map(item => item.status).sort((a, b) => a - b).join(",") === "200,201" && concurrentSponsorCreates.some(item => item.data.replay === true) && new Set(concurrentSponsorCreates.map(item => item.data.sponsorPackage?.id)).size === 1 && conflictingSponsorCreate.status === 409 && publicSponsorCatalogAfterCreate.data.publication?.available === false && publicSponsorCatalogAfterCreate.data.sponsorPackages?.length === 0);
     ok("admin sponsor catalog publish exposes the exact reviewed catalog", sponsorCatalogPublish.status === 200 && sponsorCatalogPublish.data.readiness?.ready === true && publicCommunityChampion?.amount === 750000);
     ok("admin sponsor package validation", invalidSponsorAmountPatch.status === 400 && invalidSponsorAmountPatch.data.error?.includes("amount") && invalidSponsorBenefitPatch.status === 400 && invalidSponsorBenefitPatch.data.error?.includes("benefit") && publicTarponAfterPatch?.amount === 500000);
     ok("admin sponsor package accounting mapping stays private and published", sponsorPackagePatch.status === 200 && sponsorPackagePatch.data.readiness?.ready === true && sponsorPackagePatch.data.publicationReadiness?.ready === true && sponsorPackagePatch.data.sponsorPackage?.quickBooksItemId === "api-sponsor-tarpon-item" && publicSponsorCatalogAfterPatch.data.publication?.available === true && !Object.hasOwn(publicTarponAfterPatch || {}, "quickBooksItemId") && !Object.hasOwn(publicTarponAfterPatch || {}, "stripePriceId") && !Object.hasOwn(publicCommunityChampion || {}, "quickBooksItemId") && !Object.hasOwn(publicCommunityChampion || {}, "stripePriceId"));
+    ok("config rollback audit keeps restore evidence aggregate-only", sponsorRollback.status === 200
+      && restoredSponsorMapping.status === 200
+      && sponsorRollbackAudit?.before?.targetType === "adminConfig"
+      && sponsorRollbackAudit?.after?.targetType === "adminConfig"
+      && /^[a-f0-9]{64}$/.test(sponsorRollbackAudit.before.digest || "")
+      && /^[a-f0-9]{64}$/.test(sponsorRollbackAudit.after.digest || "")
+      && sponsorRollbackAudit.before.collectionCounts?.sponsorPackages >= 1
+      && sponsorRollbackAudit.after.collectionCounts?.sponsorPackages >= 1
+      && sponsorRollbackAudit.before.digest !== sponsorRollbackAudit.after.digest
+      && !serializedSponsorRollbackAudit.includes("Community Champion")
+      && !serializedSponsorRollbackAudit.includes("price_api_sponsor_tarpon")
+      && !serializedSponsorRollbackAudit.includes("api-sponsor-tarpon-item"));
   }
   const publicVendorCatalogApi = await hit("GET", "/api/public/vendors");
   const publicMarketplaceOffering = publicVendorCatalogApi.data.vendorOfferings?.find(item => item.id === "marketplace-booth");

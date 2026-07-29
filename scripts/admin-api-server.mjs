@@ -3775,7 +3775,7 @@ async function writeIncidentTransitionAudit(request, cameraId, kind, result) {
     `conditions.incident.${result.action}`,
     { type: "conditions_incident", id: result.incident.id },
     null,
-    result.incident,
+    conditionsIncidentAuditView(result.incident),
     { automated: true, cameraId, signalKind: kind }
   );
 }
@@ -3809,6 +3809,36 @@ function snapshotTargetKey(target) {
   default:
     return null;
   }
+}
+
+function stableAuditJson(value) {
+  if (Array.isArray(value)) return `[${value.map(stableAuditJson).join(",")}]`;
+  if (!value || typeof value !== "object") return JSON.stringify(value);
+  return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stableAuditJson(value[key])}`).join(",")}}`;
+}
+
+function configRollbackCollectionCounts(value, prefix = "", depth = 0, counts = {}) {
+  if (!value || typeof value !== "object" || depth > 2) return counts;
+  for (const [key, item] of Object.entries(value)) {
+    const path = prefix ? `${prefix}.${key}` : key;
+    if (Array.isArray(item)) counts[path] = item.length;
+    else if (item && typeof item === "object") configRollbackCollectionCounts(item, path, depth + 1, counts);
+  }
+  return counts;
+}
+
+function configRollbackAuditView(target, data) {
+  const document = data && typeof data === "object" ? data : {};
+  const serialized = stableAuditJson(document);
+  return {
+    targetType: target?.type || null,
+    targetId: target?.id || null,
+    eventId: typeof document.eventId === "string" ? document.eventId : null,
+    digest: createHash("sha256").update(serialized).digest("hex"),
+    sizeBytes: Buffer.byteLength(serialized),
+    topLevelKeys: Object.keys(document).sort(),
+    collectionCounts: configRollbackCollectionCounts(document)
+  };
 }
 
 function validateCheckoutItems(products, items) {
@@ -10686,7 +10716,7 @@ async function handleRequest(request, response) {
         const before = await readSculptorRoster();
         await writeConfigSnapshot(request, snapshot.target, before, `Before restoring snapshot ${snapshot.id}`);
         await writePlatformDoc(ROOT, "sculptorRoster", snapshot.data);
-        await writeAuditRecord(request, "config.rollback", snapshot.target, before, snapshot.data, {
+        await writeAuditRecord(request, "config.rollback", snapshot.target, configRollbackAuditView(snapshot.target, before), configRollbackAuditView(snapshot.target, snapshot.data), {
           snapshotId: snapshot.id,
           snapshotRef
         });
@@ -10701,7 +10731,7 @@ async function handleRequest(request, response) {
       const before = await storage.config.read(targetKey);
       await writeConfigSnapshot(request, snapshot.target, before, `Before restoring snapshot ${snapshot.id}`);
       await storage.config.write(targetKey, snapshot.data);
-      await writeAuditRecord(request, "config.rollback", snapshot.target, before, snapshot.data, {
+      await writeAuditRecord(request, "config.rollback", snapshot.target, configRollbackAuditView(snapshot.target, before), configRollbackAuditView(snapshot.target, snapshot.data), {
         snapshotId: snapshot.id,
         snapshotRef
       });
