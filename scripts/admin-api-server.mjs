@@ -2742,6 +2742,11 @@ async function boardCapabilityCertificateProfile() {
       deferredProductionGates: Array.isArray(certificate?.deferredProductionGates)
         ? certificate.deferredProductionGates
         : [],
+      readiness: certificate?.readiness && typeof certificate.readiness === "object" ? {
+        before: certificate.readiness.before || null,
+        after: certificate.readiness.after || null,
+        baselineRestored: certificate.readiness.baselineRestored === true
+      } : null,
       journeys: journeys.map(item => ({
         id: item?.id || null,
         label: item?.label || item?.id || "Board journey",
@@ -2762,6 +2767,7 @@ async function boardCapabilityCertificateProfile() {
       source: null,
       certifiedCapabilities: [],
       deferredProductionGates: [],
+      readiness: null,
       journeys: [],
       errors: [error?.code === "ENOENT"
         ? "Run board capability certification before presenting."
