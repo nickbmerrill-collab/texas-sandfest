@@ -1143,6 +1143,9 @@ app.innerHTML = `
         <div id="admin-command-signals" class="admin-command-signals" aria-live="polite" aria-busy="true">
           <article class="empty-state"><span>Loading workflow signals.</span></article>
         </div>
+        <div class="admin-command-action-queue" id="admin-command-action-queue" aria-live="polite" aria-busy="true">
+          <article class="empty-state"><span>Loading next actions.</span></article>
+        </div>
       </div>
       ${adminOperationsUi?.boardImpactReportMarkup() || ""}
       ${adminOperationsUi?.guestServicesMarkup() || ""}
@@ -7751,6 +7754,16 @@ function renderAdminCommandSummary(payload, outreach) {
     <b>${escapeHtml(signal.action)}</b>
   </a>`).join("");
   target.setAttribute("aria-busy", "false");
+  adminOperationsUi?.renderAdminCommandActionQueue?.({
+    payload,
+    outreach,
+    conditions: adminConditionsState,
+    conditionLabel,
+    adminMoney,
+    taskDueState,
+    taskAssignmentType,
+    prospectNextActionState
+  });
   updated.textContent = `Updated ${new Date(taskBoard.generatedAt || Date.now()).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
 }
 
