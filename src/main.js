@@ -8463,7 +8463,7 @@ function renderAdminPartners(payload, outreach) {
         : "Follow-up not scheduled";
     return `<article data-outreach-prospect="${escapeAttr(item.id)}" data-due-state="${escapeAttr(nextActionState)}">
       <header><strong>${escapeHtml(item.organizationName)}</strong><b>${item.fitScore}/100 · ${escapeHtml(conditionLabel(nextActionState))}</b></header>
-      <p>${escapeHtml([item.industry, item.city, item.state, item.postalCode, item.latitude != null && item.longitude != null ? `${Number(item.latitude).toFixed(4)}, ${Number(item.longitude).toFixed(4)}` : "", item.contactEmail].filter(Boolean).join(" · "))}</p>
+      <p>${escapeHtml([item.industry, item.city, item.state, item.postalCode, item.latitude != null && item.longitude != null ? `${Number(item.latitude).toFixed(4)}, ${Number(item.longitude).toFixed(4)}` : "", item.contactBasis ? `basis ${conditionLabel(item.contactBasis)}` : "", item.contactEmail].filter(Boolean).join(" · "))}</p>
       <span>${escapeHtml(item.suppressionReason || item.fitReasons.join(" · ") || item.nextAction)}</span>
       <span class="admin-prospect-schedule-summary">${escapeHtml(item.ownerId ? `Owner ${item.ownerId} · ${nextActionSummary}` : `Unassigned · ${nextActionSummary}`)}</span>
       ${sourceUrl ? `<span class="admin-prospect-source"><a href="${escapeAttr(sourceUrl)}" target="_blank" rel="noreferrer noopener">Source record</a>${item.sourceLicense ? ` · ${escapeHtml(item.sourceLicense)}` : ""}</span>` : ""}
