@@ -5086,6 +5086,7 @@ function renderPartnerPortalStatus(application) {
       <p class="partner-form-status" aria-live="polite"></p>
     </form>
     ${invoice ? `<div class="partner-status-invoice"><div><span>Invoice</span><strong>${escapeHtml(conditionLabel(invoice.status))}</strong><small>${escapeHtml(adminMoney(invoice.balanceCents, "$0.00"))} open${invoice.dueAt ? ` · due ${escapeHtml(portalDate(invoice.dueAt))}` : ""}</small></div>${checkoutStatusAction}<p class="partner-payment-status" aria-live="polite"></p></div>` : ""}
+    ${PARTNER_READINESS_SNAPSHOT_ENABLED ? renderPartnerMessageHistory(application.messages) : ""}
     <div class="partner-status-milestones">
       <strong>Key dates</strong>
       <div>${milestones.map(item => `<article data-status="${escapeAttr(item.status)}"><span>${escapeHtml(item.label)}</span><b>${escapeHtml(conditionLabel(item.status))}</b><small>${escapeHtml(portalDate(item.dueAt))}</small></article>`).join("") || "<span>Dates will appear after review.</span>"}</div>
@@ -5097,6 +5098,14 @@ function renderPartnerPortalStatus(application) {
   bindVendorOnboardingActions();
   bindPartnerPaymentActions();
   bindPartnerContactPreference();
+}
+
+function renderPartnerMessageHistory(messagesInput) {
+  const messages = Array.isArray(messagesInput) ? messagesInput : [];
+  return `<div class="partner-status-milestones partner-message-history">
+    <strong>Recent messages</strong>
+    <div>${messages.map(item => `<article data-partner-message-status="${escapeAttr(item.status || "pending")}"><span>${escapeHtml(item.subject || "SandFest message")}</span><b>${escapeHtml(conditionLabel(item.status || "pending"))}</b><small>${escapeHtml(portalDate(item.sentAt || item.updatedAt))}</small></article>`).join("") || "<span>No partner messages yet.</span>"}</div>
+  </div>`;
 }
 
 function partnerCheckoutUnavailableLabel(finance, invoice, onlinePayment) {

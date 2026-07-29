@@ -9303,6 +9303,9 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
   });
   ok("POST partner status", partnerStatus.status === 200 && partnerStatus.data.application?.organizationName === "Platform API Portal Test" && partnerStatus.data.application?.offeringName === "Marketplace booth" && partnerStatus.data.application?.finance?.expectedAmountCents === 125000);
   ok("partner status API privacy", !("contactEmail" in (partnerStatus.data.application || {})) && !("portalAccessId" in (partnerStatus.data.application || {})));
+  const partnerPortalMessages = partnerStatus.data.application?.messages || [];
+  const serializedPartnerPortalMessages = JSON.stringify(partnerPortalMessages);
+  ok("partner status includes privacy-minimized message timeline", partnerPortalMessages.length >= 1 && partnerPortalMessages.some(item => /Texas SandFest|application received/i.test(item.subject)) && partnerPortalMessages.every(item => item.subject && item.status && !("id" in item) && !("recipient" in item) && !("body" in item) && !("providerMessageId" in item)) && !serializedPartnerPortalMessages.includes(partnerIntake.data.application?.contactEmail));
   const rotatedPortal = await hit("POST", `/api/admin/partners/applications/${encodeURIComponent(partnerIntake.data.application?.id)}/portal-access`, {}, true);
   const staleStatus = await hit("POST", "/api/public/partner-status", {
     reference: partnerIntake.data.application?.reference,

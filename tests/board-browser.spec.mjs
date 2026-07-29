@@ -822,6 +822,10 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await expect(page.locator('[data-partner-readiness="balance"]')).toContainText("$1,250.00");
   await expect(page.locator('[data-partner-readiness="vendor"]')).toContainText("0 / 5");
   await expect(page.locator('[data-partner-readiness="contact"]')).toContainText("Enabled");
+  await expect(page.locator(".partner-message-history")).toContainText("Recent messages");
+  await expect(page.locator(".partner-message-history")).toContainText("application received");
+  await expect(page.locator(".partner-message-history")).not.toContainText("followup_");
+  await expect(page.locator(".partner-message-history")).not.toContainText("@");
   await page.reload();
   await expect(page).toHaveURL(/#partner-status$/);
   await expect(page.locator("#partner-status-result")).toContainText(vendorName);
