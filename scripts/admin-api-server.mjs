@@ -9616,6 +9616,7 @@ async function handleRequest(request, response) {
       const result = await mutatePartnerOperations(doc => createPartnerMilestone(doc, applicationId, body, {
         actorId: session.id,
         idFactory: idempotencyIdFactory("partner-milestone-create", idempotency.keyHash),
+        portalUrlForApplication: currentPartnerPortalUrl,
         now: new Date().toISOString()
       }));
       if (!result?.ok) {
@@ -9628,7 +9629,8 @@ async function handleRequest(request, response) {
       }
       sendJson(request, response, result.replay ? 200 : 201, {
         replay: result.replay === true,
-        milestone: result.milestone
+        milestone: result.milestone,
+        generatedFollowups: (result.generatedFollowups || []).map(adminPartnerFollowupView)
       });
       return;
     }
@@ -9644,14 +9646,22 @@ async function handleRequest(request, response) {
       const result = await mutatePartnerOperations(doc => updatePartnerMilestone(doc, milestoneId, body, {
         actorId: session.id,
         idFactory: prefix => `${prefix}_${randomUUID()}`,
+        portalUrlForApplication: currentPartnerPortalUrl,
         now: new Date().toISOString()
       }));
       if (!result?.ok) {
         sendJson(request, response, result?.error === "Milestone not found." ? 404 : 400, { error: result?.error || "Milestone could not be updated." });
         return;
       }
-      await writeAuditRecord(request, "partner.milestone.update", { type: "milestone", id: milestoneId }, before, result.milestone, { dismissedFollowups: result.dismissedFollowups });
-      sendJson(request, response, 200, { milestone: result.milestone, dismissedFollowups: result.dismissedFollowups });
+      await writeAuditRecord(request, "partner.milestone.update", { type: "milestone", id: milestoneId }, before, result.milestone, {
+        dismissedFollowups: result.dismissedFollowups,
+        generatedFollowups: result.generatedFollowups?.length || 0
+      });
+      sendJson(request, response, 200, {
+        milestone: result.milestone,
+        dismissedFollowups: result.dismissedFollowups,
+        generatedFollowups: (result.generatedFollowups || []).map(adminPartnerFollowupView)
+      });
       return;
     }
 
