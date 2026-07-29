@@ -8359,10 +8359,25 @@ B-API-WRONG,texas-sandfest-2026,EV-V-WRONG,EV-V-WRONG,Wrong Event Booth,retail,v
       audience: ["public"],
       expiresAt: null
     }, true);
+    const alertAuditApi = await hit("GET", "/api/admin/audit?limit=100", null, true);
+    const alertAuditRecords = (alertAuditApi.data.audit || []).filter(item => item.record?.action?.startsWith("alert."));
+    const serializedAlertAudit = JSON.stringify(alertAuditRecords);
     const providerCountBeforeCanceledWorker = twilioMock.requests.length;
     const canceledWorker = await runSmokeWorkerOnce();
     const canceledSmsAdmin = await hit("GET", "/api/admin/sms", null, true);
     ok("clearing an alert suppresses its queued SMS before provider submission", cancellableAlert.data.sms?.queued === eligibleSafetyRecipients && clearAlert.data.sms?.suppressed === eligibleSafetyRecipients && canceledWorker.exitCode === 0 && twilioMock.requests.length === providerCountBeforeCanceledWorker && canceledSmsAdmin.data.summary?.messages?.suppressed >= eligibleSafetyRecipients);
+    ok("alert audits preserve lifecycle without public message text", alertAuditRecords.some(item => item.record?.action === "alert.publish"
+      && item.record?.after?.active === true
+      && item.record?.after?.severity === "warning"
+      && item.record?.after?.messageLength > 0
+      && item.record?.metadata?.sms?.queued === eligibleSafetyRecipients)
+      && alertAuditRecords.some(item => item.record?.action === "alert.clear"
+        && item.record?.before?.active === true
+        && item.record?.after?.active === false
+        && item.record?.metadata?.sms?.suppressed === eligibleSafetyRecipients)
+      && !serializedAlertAudit.includes("Lightning hold")
+      && !serializedAlertAudit.includes("Gate hold")
+      && !serializedAlertAudit.includes("Please move toward the marked shelter routes."));
   }
 
   const ticketPaidEvent = {
