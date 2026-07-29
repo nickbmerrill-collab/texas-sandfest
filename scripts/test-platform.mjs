@@ -10163,7 +10163,48 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
   ok("Brevo webhook audit is aggregate-only", auditApi.data.audit?.some(item => item.record?.action === "email.delivery.webhook") && !serializedAudit.includes(webhookRecipient) && !serializedAudit.includes(SMOKE_BREVO_WEBHOOK_TOKEN));
   const smsAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("sms."));
   ok("Twilio webhook audit is aggregate-only", smsAuditApi.some(item => item.record?.action === "sms.delivery.webhook") && smsAuditApi.some(item => item.record?.action === "sms.preference.webhook") && !JSON.stringify(smsAuditApi).includes("+13615550188") && !JSON.stringify(smsAuditApi).includes("platform-twilio-auth-secret"));
-  ok("event guide publish is audited", auditApi.data.audit?.some(item => item.record?.action === "content.event-guide.publish"));
+  const contentPublicationAuditApi = (auditApi.data.audit || []).filter(item => [
+    "content.event-guide.publish",
+    "content.event-schedule.publish",
+    "content.event-schedule.hold",
+    "content.visitor-guidance.publish",
+    "content.visitor-guidance.hold"
+  ].includes(item.record?.action));
+  const serializedContentPublicationAuditApi = JSON.stringify(contentPublicationAuditApi);
+  ok("content publication audits preserve readiness without public copy or source URLs", contentPublicationAuditApi.some(item => item.record?.action === "content.event-guide.publish"
+    && item.record?.after?.status === "published"
+    && item.record?.after?.sourceAvailable === true
+    && item.record?.after?.volunteerRegistrationAvailable === true)
+    && contentPublicationAuditApi.some(item => item.record?.action === "content.event-schedule.publish"
+      && item.record?.after?.status === "published"
+      && item.record?.after?.itemCount === 2)
+    && contentPublicationAuditApi.some(item => item.record?.action === "content.event-schedule.hold"
+      && item.record?.after?.status === "pending"
+      && item.record?.after?.holdReasonAvailable === true)
+    && contentPublicationAuditApi.some(item => item.record?.action === "content.visitor-guidance.publish"
+      && item.record?.after?.status === "published"
+      && item.record?.after?.itemCount >= 6)
+    && contentPublicationAuditApi.some(item => item.record?.action === "content.visitor-guidance.hold"
+      && item.record?.after?.status === "pending"
+      && item.record?.after?.holdReasonAvailable === true)
+    && !serializedContentPublicationAuditApi.includes("On the beach, Port Aransas")
+    && !serializedContentPublicationAuditApi.includes("The largest beach sand sculpture competition")
+    && !serializedContentPublicationAuditApi.includes(currentVolunteerRegistrationUrl)
+    && !serializedContentPublicationAuditApi.includes("https://www.texassandfest.org/knowbeforeyougo")
+    && !serializedContentPublicationAuditApi.includes("https://www.texassandfest.org/daily-schedule")
+    && !serializedContentPublicationAuditApi.includes("https://www.texassandfest.org/faq")
+    && !serializedContentPublicationAuditApi.includes("Beach gates open")
+    && !serializedContentPublicationAuditApi.includes("Official program")
+    && !serializedContentPublicationAuditApi.includes("Official program is being revised.")
+    && !serializedContentPublicationAuditApi.includes("Official visitor policies are being reviewed.")
+    && !serializedContentPublicationAuditApi.includes("Reviewed visitor answer")
+    && !serializedContentPublicationAuditApi.includes('"sourceUrl"')
+    && !serializedContentPublicationAuditApi.includes('"mission"')
+    && !serializedContentPublicationAuditApi.includes('"schedule"')
+    && !serializedContentPublicationAuditApi.includes('"guidance"')
+    && !serializedContentPublicationAuditApi.includes('"question"')
+    && !serializedContentPublicationAuditApi.includes('"answer"')
+    && !serializedContentPublicationAuditApi.includes('"holdReason"'));
   const rosterAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("content.sculptor-roster."));
   ok("sculptor roster publication, engagement, and hold are audited", rosterAuditApi.some(item => item.record?.action === "content.sculptor-roster.publish") && rosterAuditApi.some(item => item.record?.action === "content.sculptor-roster.engagement") && rosterAuditApi.some(item => item.record?.action === "content.sculptor-roster.hold") && !JSON.stringify(rosterAuditApi).includes("Reviewed API artist"));
   ok("event schedule publish and hold are audited", auditApi.data.audit?.some(item => item.record?.action === "content.event-schedule.publish") && auditApi.data.audit?.some(item => item.record?.action === "content.event-schedule.hold"));

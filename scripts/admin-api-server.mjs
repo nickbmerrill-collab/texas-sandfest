@@ -3393,6 +3393,47 @@ function incomingDocumentIntegrityAuditView(result) {
   };
 }
 
+function eventGuideAuditState(guide) {
+  if (!guide) return null;
+  return {
+    id: guide.id || null,
+    status: guide.status || null,
+    startDate: guide.startDate || null,
+    endDate: guide.endDate || null,
+    dailyOpen: guide.dailyOpen || null,
+    dailyClose: guide.dailyClose || null,
+    locationAvailable: Boolean(guide.location),
+    missionAvailable: Boolean(guide.mission),
+    publicEmailAvailable: Boolean(guide.email),
+    sourceAvailable: Boolean(guide.sourceUrl),
+    sourceCheckedAt: guide.sourceCheckedAt || null,
+    volunteerInformationAvailable: Boolean(guide.volunteer?.informationUrl),
+    volunteerRegistrationStatus: guide.volunteer?.registrationStatus || null,
+    volunteerRegistrationAvailable: Boolean(guide.volunteer?.registrationUrl),
+    volunteerSourceCheckedAt: guide.volunteer?.sourceCheckedAt || null,
+    publishedAt: guide.publishedAt || null,
+    publishedBy: guide.publishedBy || null,
+    lastUpdated: guide.lastUpdated || null
+  };
+}
+
+function contentPublicationAuditState(publication, itemCount = 0) {
+  if (!publication) return null;
+  return {
+    status: publication.status || null,
+    eventId: publication.eventId || null,
+    sourceAvailable: Boolean(publication.sourceUrl),
+    sourceCheckedAt: publication.sourceCheckedAt || null,
+    publishedAt: publication.publishedAt || null,
+    publishedBy: publication.publishedBy || null,
+    heldAt: publication.heldAt || null,
+    heldBy: publication.heldBy || null,
+    holdReasonAvailable: Boolean(publication.holdReason),
+    itemCount: Number(itemCount || 0),
+    lastUpdated: publication.lastUpdated || null
+  };
+}
+
 async function mutateRevenueLedger(parsed, options = {}) {
   let result = null;
   const fallback = {
@@ -5665,9 +5706,10 @@ async function handleAdminEventGuidePublish(request, response) {
   const updated = { ...bootstrap, guide: result.guide };
   await writeConfigSnapshot(request, { type: "appBootstrap", id: "app-bootstrap" }, bootstrap, "Before public event guide publish");
   await storage.config.write("app-bootstrap", updated);
-  await writeAuditRecord(request, "content.event-guide.publish", { type: "eventGuide", id: result.guide.id }, before, result.guide, {
-    sourceUrl: result.guide.sourceUrl,
-    sourceCheckedAt: result.guide.sourceCheckedAt
+  await writeAuditRecord(request, "content.event-guide.publish", { type: "eventGuide", id: result.guide.id }, eventGuideAuditState(before), eventGuideAuditState(result.guide), {
+    sourceAvailable: Boolean(result.guide.sourceUrl),
+    sourceCheckedAt: result.guide.sourceCheckedAt,
+    volunteerSourceCheckedAt: result.guide.volunteer?.sourceCheckedAt || null
   });
   sendJson(request, response, 200, {
     guide: publicEventGuide(result.guide),
@@ -5716,16 +5758,17 @@ async function handleAdminEventSchedulePublish(request, response) {
   };
   await writeConfigSnapshot(request, { type: "appBootstrap", id: "app-bootstrap" }, bootstrap, "Before public daily schedule change");
   await storage.config.write("app-bootstrap", updated);
-  const after = { schedule: result.schedule, publication: result.publication };
+  const beforeAudit = contentPublicationAuditState(before.publication, before.schedule.length);
+  const afterAudit = contentPublicationAuditState(result.publication, result.schedule.length);
   await writeAuditRecord(
     request,
     body.publish ? "content.event-schedule.publish" : "content.event-schedule.hold",
     { type: "eventSchedule", id: CURRENT_EVENT_ID },
-    before,
-    after,
+    beforeAudit,
+    afterAudit,
     body.publish
-      ? { sourceUrl: result.publication.sourceUrl, sourceCheckedAt: result.publication.sourceCheckedAt, itemCount: result.schedule.length }
-      : { reason: result.publication.holdReason }
+      ? { sourceAvailable: Boolean(result.publication.sourceUrl), sourceCheckedAt: result.publication.sourceCheckedAt, itemCount: result.schedule.length }
+      : { holdReasonProvided: Boolean(result.publication.holdReason), itemCount: result.schedule.length }
   );
   sendJson(request, response, 200, {
     schedule: result.schedule,
@@ -5782,16 +5825,17 @@ async function handleAdminVisitorGuidancePublish(request, response) {
   };
   await writeConfigSnapshot(request, { type: "appBootstrap", id: "app-bootstrap" }, bootstrap, "Before public visitor guidance change");
   await storage.config.write("app-bootstrap", updated);
-  const after = { guidance: result.guidance, publication: result.publication };
+  const beforeAudit = contentPublicationAuditState(before.publication, before.guidance.length);
+  const afterAudit = contentPublicationAuditState(result.publication, result.guidance.length);
   await writeAuditRecord(
     request,
     body.publish ? "content.visitor-guidance.publish" : "content.visitor-guidance.hold",
     { type: "visitorGuidance", id: CURRENT_EVENT_ID },
-    before,
-    after,
+    beforeAudit,
+    afterAudit,
     body.publish
-      ? { sourceUrl: result.publication.sourceUrl, sourceCheckedAt: result.publication.sourceCheckedAt, itemCount: result.guidance.length }
-      : { reason: result.publication.holdReason }
+      ? { sourceAvailable: Boolean(result.publication.sourceUrl), sourceCheckedAt: result.publication.sourceCheckedAt, itemCount: result.guidance.length }
+      : { holdReasonProvided: Boolean(result.publication.holdReason), itemCount: result.guidance.length }
   );
   sendJson(request, response, 200, {
     guidance: result.guidance,
