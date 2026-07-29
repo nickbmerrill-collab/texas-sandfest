@@ -10118,6 +10118,21 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
   const sponsorInvitationAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("outreach.sponsor_invitation."));
   const serializedSponsorInvitationAuditApi = JSON.stringify(sponsorInvitationAuditApi);
   ok("sponsor invitation audit is aggregate-only", sponsorInvitationAuditApi.some(item => item.record?.action === "outreach.sponsor_invitation.issue") && sponsorInvitationAuditApi.some(item => item.record?.action === "outreach.sponsor_invitation.copy") && sponsorInvitationAuditApi.some(item => item.record?.action === "outreach.sponsor_invitation.revoke") && !serializedSponsorInvitationAuditApi.includes("tsfi1.") && !serializedSponsorInvitationAuditApi.includes("morgan@api-coastal-bank.example"));
+  const sponsorBrandProfileAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("partner.brand_profile."));
+  const serializedSponsorBrandProfileAuditApi = JSON.stringify(sponsorBrandProfileAuditApi);
+  ok("sponsor brand profile audit preserves review state without private notes or URLs", sponsorBrandProfileAuditApi.some(item => item.record?.action === "partner.brand_profile.changes_requested"
+    && item.record?.target?.id === sponsorApplication?.id
+    && item.record?.after?.status === "changes_requested"
+    && item.record?.after?.usageNotesAvailable === true
+    && item.record?.after?.reviewNotesAvailable === true)
+    && sponsorBrandProfileAuditApi.some(item => item.record?.action === "partner.brand_profile.approved"
+      && item.record?.target?.id === sponsorApplication?.id
+      && item.record?.after?.status === "approved"
+      && item.record?.after?.approvedBy === "local-admin")
+    && !serializedSponsorBrandProfileAuditApi.includes("Use the primary mark on light backgrounds.")
+    && !serializedSponsorBrandProfileAuditApi.includes("Add the approved community campaign wording.")
+    && !serializedSponsorBrandProfileAuditApi.includes("https://brand-sponsor.example")
+    && !serializedSponsorBrandProfileAuditApi.includes("Coastal service for the community"));
   const sponsorBrandAssetAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("partner.brand_asset."));
   const serializedSponsorBrandAssetAuditApi = JSON.stringify(sponsorBrandAssetAuditApi);
   ok("sponsor brand asset audit omits private storage metadata", sponsorBrandAssetAuditApi.some(item => item.record?.action === "partner.brand_asset.changes_requested")
