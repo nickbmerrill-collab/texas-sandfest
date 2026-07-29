@@ -256,6 +256,15 @@ function browserProofLabel(proof, conditionLabel) {
     .join(", ") || "browser proof missing";
 }
 
+function baselineProofLabel(proof) {
+  const readiness = proof?.readiness || {};
+  const after = readiness.after || "unknown";
+  const restored = readiness.baselineRestored === true || (proof?.ok === true && proof?.readiness == null);
+  return restored
+    ? `exact baseline restored (${after})`
+    : `baseline restoration not proven (${after})`;
+}
+
 export function presenterSummary(proof, conditionLabel = value => String(value || "")) {
   if (proof?.ok !== true) {
     return (proof?.errors || ["Run board capability certification before presenting."]).join(" ");
@@ -264,7 +273,7 @@ export function presenterSummary(proof, conditionLabel = value => String(value |
   const requiredJourneyCount = Number(proof?.requiredJourneyCount || 0);
   const capabilityCount = Number(proof?.certifiedCapabilities?.length || 0);
   const deferredCount = Number(proof?.deferredProductionGates?.length || 0);
-  return `Board proof is current for ${proofSourceLabel(proof)}: ${journeyCount}/${requiredJourneyCount} certified journeys, ${browserProofLabel(proof, conditionLabel)}, ${capabilityCount} certified capabilities, ${deferredCount} live-provider gates held for post-board activation, and deployed previews accepted with deployment:verify:site.`;
+  return `Board proof is current for ${proofSourceLabel(proof)}: ${journeyCount}/${requiredJourneyCount} certified journeys, ${browserProofLabel(proof, conditionLabel)}, ${baselineProofLabel(proof)}, ${capabilityCount} certified capabilities, ${deferredCount} live-provider gates held for post-board activation, and deployed previews accepted with deployment:verify:site.`;
 }
 
 async function copyProofSummary(text, status) {
@@ -315,6 +324,7 @@ export function renderBoardCapabilityProof(proof, { conditionLabel = value => St
     kpis.innerHTML = [
       ["Journeys", `${Number(proof?.journeyCount || 0)}/${Number(proof?.requiredJourneyCount || 0)}`],
       ["Browsers", browserText],
+      ["Baseline", baselineProofLabel(proof)],
       ["Source", sourceText],
       ["Deferred", `${Number(proof?.deferredProductionGates?.length || 0)} post-board gates`]
     ].map(([label, value]) => `<article><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
