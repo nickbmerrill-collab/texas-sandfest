@@ -29,6 +29,8 @@ for (let index = 1; index <= BOARD_BRIEFING_SLIDE_COUNT; index += 1) {
 }
 slideXml["ppt/slides/slide2.xml"] += [
   "10/10 journeys",
+  "exact baseline restoration",
+  "per-journey evidence counts",
   "Sponsor/vendor intake",
   "Tickets, refunds, revenue, receivables, budgets, and exports",
   "Staff, volunteer, and team routing",
