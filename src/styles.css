@@ -6152,6 +6152,7 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .partner-status-kpis article:nth-child(4) { border-top-color: #4f6f52; }
 .partner-status-kpis span { color: var(--muted); font-size: 10px; font-weight: 800; text-transform: uppercase; }
 .partner-status-kpis strong { color: var(--deep); font-size: 16px; overflow-wrap: anywhere; text-transform: capitalize; }
+/* admin-prune:start public partner portal readiness snapshot */
 .partner-readiness-snapshot { display: grid; gap: 8px; }
 .partner-readiness-snapshot > strong { color: var(--deep); }
 .partner-readiness-snapshot > div { display: grid; gap: 8px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -6162,6 +6163,7 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .partner-readiness-snapshot span { color: var(--muted); font-size: 10px; font-weight: 800; text-transform: uppercase; }
 .partner-readiness-snapshot b { color: var(--deep); font-size: 15px; overflow-wrap: anywhere; }
 .partner-readiness-snapshot small { color: var(--muted); line-height: 1.35; }
+/* admin-prune:end public partner portal readiness snapshot */
 .partner-status-interest {
   background: var(--white);
   border-left: 4px solid var(--sun);
@@ -7023,7 +7025,9 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
   .admin-sponsor-invitation-controls { align-items: stretch; grid-template-columns: 1fr; }
   .admin-sponsor-invitation-actions { justify-content: flex-start; }
   .partner-status-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* admin-prune:start public partner portal readiness snapshot */
   .partner-readiness-snapshot > div { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* admin-prune:end public partner portal readiness snapshot */
   .partner-status-milestones > div { grid-template-columns: 1fr; }
   .outreach-preferences-portal { align-items: stretch; grid-template-columns: 1fr; }
   .outreach-preferences-portal > #outreach-preferences-status { grid-column: auto; }
