@@ -179,6 +179,57 @@ const unavailableApi = await verifyProductionApi({ config, fetchImpl: unavailabl
 check("API-only release gate blocks a red readiness endpoint", !unavailableApi.ok
   && unavailableApi.checks.some(item => item.id === "api.readiness" && !item.ok));
 
+const boardSiteDeferredFetch = async (url, options = {}) => {
+  const target = String(url);
+  if (target === new URL("ready", config.apiUrl).toString()) {
+    return new Response(JSON.stringify({
+      ok: false,
+      deployment: {
+        production: true,
+        ok: false,
+        errors: 4,
+        requiredCapabilities: config.requiredCapabilities
+      },
+      checks: { storage: "postgres", worker: true, queue: true, deployment: true }
+    }), {
+      status: 503,
+      headers: { "content-type": "application/json", ...securityHeaders }
+    });
+  }
+  if (target === new URL("api/public/tickets", config.apiUrl).toString()) {
+    return jsonResponse({ products: [{ id: "general-admission", availableForCheckout: false }] });
+  }
+  if (target === new URL("api/public/partner-intake", config.apiUrl).toString()) {
+    return jsonResponse(publicPartnerServerReadiness({ eventId: "texas-sandfest-2027", intakeAvailable: true, recoveryAvailable: false }));
+  }
+  if (target === new URL("api/public/island-conditions", config.apiUrl).toString()) {
+    return jsonResponse({
+      weather: { status: "pending_live_provider", freshness: { state: "unavailable" } },
+      ferry: { status: "unavailable", freshness: { state: "unavailable" } },
+      cameras: Array.from({ length: 8 }, (_, index) => ({
+        id: `camera-${index}`,
+        operationalStatus: "awaiting_heartbeat",
+        freshness: { state: "unavailable" },
+        observation: null
+      })),
+      summary: { configuredCameras: 8, armedCameras: 0, liveCameras: 0, healthyPipelines: 0 }
+    });
+  }
+  return fetchImpl(url, options);
+};
+const boardSiteDeployment = await verifyLiveDeployment({ config, artifacts, fetchImpl: boardSiteDeferredFetch, siteOnly: true });
+check("board site deployment gate accepts explicit post-board provider deferrals", boardSiteDeployment.ok
+  && boardSiteDeployment.checks.some(item => item.id === "api.site_readiness_boundary" && item.ok)
+  && boardSiteDeployment.checks.some(item => item.id === "api.ticket_catalog" && item.ok)
+  && boardSiteDeployment.checks.some(item => item.id === "api.partner_recovery_boundary" && item.ok)
+  && boardSiteDeployment.checks.some(item => item.id === "api.live_conditions_boundary" && item.ok));
+const deferredLaunchDeployment = await verifyLiveDeployment({ config, artifacts, fetchImpl: boardSiteDeferredFetch });
+check("full deployment gate still rejects board-only provider deferrals", !deferredLaunchDeployment.ok
+  && deferredLaunchDeployment.checks.some(item => item.id === "api.readiness" && !item.ok)
+  && deferredLaunchDeployment.checks.some(item => item.id === "api.ticket_checkout" && !item.ok)
+  && deferredLaunchDeployment.checks.some(item => item.id === "api.weather_current" && !item.ok)
+  && deferredLaunchDeployment.checks.some(item => item.id === "api.camera_fleet_live" && !item.ok));
+
 const unexpectedCapabilityFetch = async (url, options = {}) => {
   if (String(url) === new URL("ready", config.apiUrl).toString()) {
     return jsonResponse({

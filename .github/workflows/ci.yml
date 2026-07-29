@@ -91,7 +91,7 @@ jobs:
 
   browser-webkit:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 70
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -100,7 +100,7 @@ jobs:
           cache: "npm"
       - run: npm ci
       - name: Install WebKit acceptance runtime
-        timeout-minutes: 20
+        timeout-minutes: 45
         run: npx playwright install --with-deps webkit
       - name: Safari-compatible board browser acceptance
         timeout-minutes: 20

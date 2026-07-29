@@ -11,6 +11,7 @@ const root = path.resolve(import.meta.dirname, "..");
 const publicDir = path.resolve(root, process.env.SANDFEST_DEPLOY_VERIFY_PUBLIC_DIR || "dist-public");
 const adminDir = path.resolve(root, process.env.SANDFEST_DEPLOY_VERIFY_ADMIN_DIR || "dist-admin");
 const config = deploymentVerificationConfig(process.env);
+const siteOnly = process.argv.includes("--site-only");
 
 if (!config.ready) {
   console.error(`Deployment verification is not configured: ${config.reason}`);
@@ -31,12 +32,12 @@ try {
   process.exit(1);
 }
 
-const result = await verifyLiveDeployment({ config, artifacts });
-console.log("\n=== Texas SandFest live deployment acceptance ===\n");
+const result = await verifyLiveDeployment({ config, artifacts, siteOnly });
+console.log(`\n=== Texas SandFest ${siteOnly ? "board site" : "live deployment"} acceptance ===\n`);
 for (const check of result.checks) {
   console.log(`${check.ok ? "PASS" : "FAIL"} ${check.surface.padEnd(10)} ${check.id} - ${check.detail}`);
 }
-console.log(`\nDeployment acceptance: ${result.summary.passed} passed, ${result.summary.failed} failed.`);
+console.log(`\n${siteOnly ? "Board site deployment" : "Deployment"} acceptance: ${result.summary.passed} passed, ${result.summary.failed} failed.`);
 console.log(`Public: ${result.targets.publicUrl}`);
 console.log(`API: ${result.targets.apiUrl}`);
 console.log(`Admin: ${result.targets.adminUrl}\n`);

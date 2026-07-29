@@ -169,7 +169,7 @@ In production Postgres mode, the command takes one platform-wide rollover lock a
    curl https://sandfest-api.onrender.com/health
    ```
    Expect an HTTP 200 health response with `storage: "postgres"`. This proves the process and data plane, not full launch readiness.
-5. Hit `/ready` separately. Do not promote domains or invite staff until it returns HTTP 200 and every required capability is green.
+5. Hit `/ready` separately. Do not promote domains or invite staff until it returns HTTP 200 and every required capability is green. For a board-only deployed-site proof before live provider activation, run `npm run deployment:verify:site` after `npm run build:surfaces` with the same `SANDFEST_LIVE_*` targets. This verifies artifact freshness, public/admin isolation, privacy-safe sponsor/vendor/intake/Guest Services/concierge responses, CORS, durable production identity, and the explicit provider-deferral boundary, but it does not mark Stripe, Brevo, QuickBooks, Twilio, live weather, ferry, or camera activation complete. Use `npm run deployment:verify` for the real launch gate.
 6. From the API service shell, run the read-only regional discovery acceptance:
    ```bash
    npm run test:outreach-discovery:live
