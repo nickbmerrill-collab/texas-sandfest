@@ -228,7 +228,7 @@ async function normalizeDeckPackage(file) {
   addBackground(slide);
   addSectionTitle(slide, "Ten journeys prove the product end to end");
   const items = [
-    ["01", "Certification gate", "10/10 journeys · Chromium 14/14 · WebKit 14/14 · baseline restored"],
+    ["01", "Certification gate", "10/10 journeys · exact baseline restoration · per-journey evidence counts"],
     ["02", "Visitor + guest services", "Guidance, Ask Sandy, tickets, voting, and private help cases"],
     ["03", "Partners", "Sponsor/vendor intake, portal, branding, compliance, booth readiness"],
     ["04", "Finance", "Tickets, refunds, revenue, receivables, budgets, and exports"],
@@ -249,7 +249,7 @@ async function normalizeDeckPackage(file) {
   });
   addFooter(slide, 5);
   addNotes(slide,
-    "This is the core evidence slide.\nCall out that every journey restores the same 12-of-12 baseline before the next journey begins.",
+    "This is the core evidence slide.\nCall out that every journey restores the same 12-of-12 baseline before the next journey begins.\nOperations also shows per-journey evidence counts and runtime so the proof is inspectable during Q and A.",
     [".sandfest-runtime/board-capability-certification.json"]);
 }
 
