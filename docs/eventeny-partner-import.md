@@ -32,4 +32,4 @@ Optional columns include phone, website, city/state/ZIP, source status, event ID
 - Every accepted row atomically creates the normal review task, key dates, and vendor-readiness or sponsor-fulfillment records.
 - Eventeny imports do not create an `application_received` follow-up because the provider already handles intake acknowledgment.
 - An exact external-ID replay is a duplicate and adds nothing. A changed row with the same external ID is a conflict for manual review.
-- Commit audits contain only batch ID, file name, and aggregate counts. Raw CSV and applicant contacts are not written to audit records.
+- Commit audit payloads include only the batch ID, Eventeny provider label, aggregate counts, and booleans indicating whether submitted-file and preview-fingerprint evidence was present. Exact file names, preview hashes, raw CSV, and applicant contacts are not written to audit records.

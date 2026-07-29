@@ -147,4 +147,18 @@ await check("package scripts expose the showtime preflight", async () => {
   assert.equal(packageJson.scripts["board:handouts"], "npm run board:handouts:build && npm run board:handouts:verify");
 });
 
+await check("Eventeny operator docs match minimized audit evidence", async () => {
+  const files = [
+    "README.md",
+    "docs/eventeny-partner-import.md",
+    "docs/eventeny-booth-import.md"
+  ];
+  const docs = (await Promise.all(files.map(file => readFile(path.join(ROOT, file), "utf8")))).join("\n");
+  assert.match(docs, /submitted-file\/preview-fingerprint availability flags|submitted-file and preview-fingerprint availability flags/i);
+  assert.match(docs, /without exact filenames|Exact file names, preview hashes/i);
+  assert.doesNotMatch(docs, /Commit audits contain only batch ID, file name, and aggregate counts/i);
+  assert.doesNotMatch(docs, /Aggregate audit history stores the file name, actor, timestamp, hashes, and counts/i);
+  assert.doesNotMatch(docs, /aggregate-only audits retain the batch, file name, and counts/i);
+});
+
 console.log(`\nBoard showtime contract: ${passed}/${passed} checks passed.\n`);

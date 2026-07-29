@@ -6,7 +6,7 @@ Eventeny remains the source for booth-space assignment exports. SandFest reconci
 
 In the Booth map workspace, choose the Eventeny CSV and confirm it belongs to the current annual event. Preview never writes. It reports new, updated, unchanged, invalid, and moved-assignment counts while preserving local booths and vendors absent from the export.
 
-Commit is enabled only for the exact previewed bytes and current booth-mirror version. Editing the file, changing the annual event, or committing another booth import invalidates the preview. Concurrent and repeated commits converge on one import record. Aggregate audit history stores the file name, actor, timestamp, hashes, and counts without storing business names or source rows.
+Commit is enabled only for the exact previewed bytes and current booth-mirror version. Editing the file, changing the annual event, or committing another booth import invalidates the preview. Concurrent and repeated commits converge on one import record. Aggregate audit history stores the provider, actor/timestamp availability, submitted-file and preview-fingerprint availability flags, and counts without storing exact file names, hashes, business names, or source rows.
 
 ## Required columns
 
