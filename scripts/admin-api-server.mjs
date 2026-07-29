@@ -9659,7 +9659,8 @@ async function handleRequest(request, response) {
       }
       await writeAuditRecord(request, "partner.milestone.update", { type: "milestone", id: milestoneId }, before, result.milestone, {
         dismissedFollowups: result.dismissedFollowups,
-        generatedFollowups: result.generatedFollowups?.length || 0
+        generatedFollowups: result.generatedFollowups?.length || 0,
+        generatedReminderPhases: [...new Set((result.generatedFollowups || []).map(item => item.reminderPhase).filter(Boolean))]
       });
       sendJson(request, response, 200, {
         milestone: result.milestone,

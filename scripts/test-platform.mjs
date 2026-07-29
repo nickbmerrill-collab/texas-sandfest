@@ -9484,8 +9484,9 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
   ok("admin custom sponsor deliverable creation replays once", customDeliverableApi.status === 201 && customDeliverableApi.data.replay === false && replayedDeliverableApi.status === 200 && replayedDeliverableApi.data.replay === true && replayedDeliverableApi.data.deliverable?.id === customDeliverableApi.data.deliverable?.id && conflictingDeliverableApi.status === 409 && customDeliverableWorkspaceApi.data.deliverables?.filter(item => item.id === customDeliverableApi.data.deliverable?.id).length === 1 && customDeliverableAudits.length === 1 && !JSON.stringify({ customDeliverableWorkspaceApi, customDeliverableAuditApi }).includes(customDeliverableKey));
 
   const sponsorMilestone = updatedSponsorWorkspace.data.milestones?.find(item => item.applicationId === sponsorApplication?.id);
+  const apiSoonDueAt = new Date(Date.now() + 86_400_000).toISOString();
   const rescheduledMilestoneApi = await hit("PATCH", `/api/admin/partners/milestones/${encodeURIComponent(sponsorMilestone?.id)}`, {
-    dueAt: "2026-09-01T17:00:00.000Z",
+    dueAt: apiSoonDueAt,
     assigneeTeam: "finance",
     reminderLeadDays: 5,
     notes: "Confirm the package handoff with finance."
@@ -9508,8 +9509,10 @@ API-EVENTENY-S-1,sponsor,API Eventeny Sponsor,Sponsor Import Contact,eventeny-sp
     assigneeTeam: "sponsor"
   }, true, { "idempotency-key": "api-partner-milestone-create-0002" });
   const milestoneWorkspaceApi = await hit("GET", "/api/admin/partners", null, true);
+  const milestoneAuditApi = await hit("GET", "/api/admin/audit?limit=500", null, true);
   const persistedCustomMilestone = milestoneWorkspaceApi.data.milestones?.find(item => item.id === customMilestoneApi.data.milestone?.id);
-  ok("admin milestone create and reschedule API", rescheduledMilestoneApi.status === 200 && rescheduledMilestoneApi.data.milestone?.scheduleVersion === 2 && rescheduledMilestoneApi.data.milestone?.assigneeTeam === "finance" && missingMilestoneKeyApi.status === 400 && customMilestoneApi.status === 201 && replayedMilestoneApi.status === 200 && replayedMilestoneApi.data.replay === true && replayedMilestoneApi.data.milestone?.id === customMilestoneApi.data.milestone?.id && conflictingMilestoneApi.status === 409 && persistedCustomMilestone?.assigneeTeam === "guest-services" && !("ok" in (persistedCustomMilestone || {})));
+  const rescheduledMilestoneAudit = milestoneAuditApi.data.audit?.find(item => item.record?.action === "partner.milestone.update" && item.record?.target?.id === sponsorMilestone?.id)?.record;
+  ok("admin milestone create and reschedule API", rescheduledMilestoneApi.status === 200 && rescheduledMilestoneApi.data.milestone?.scheduleVersion === 2 && rescheduledMilestoneApi.data.milestone?.assigneeTeam === "finance" && rescheduledMilestoneApi.data.generatedFollowups?.length === 1 && rescheduledMilestoneApi.data.generatedFollowups[0]?.reminderPhase === "upcoming" && rescheduledMilestoneAudit?.metadata?.generatedFollowups === 1 && rescheduledMilestoneAudit?.metadata?.generatedReminderPhases?.includes("upcoming") && !JSON.stringify(rescheduledMilestoneAudit).includes("#partner-status?") && missingMilestoneKeyApi.status === 400 && customMilestoneApi.status === 201 && replayedMilestoneApi.status === 200 && replayedMilestoneApi.data.replay === true && replayedMilestoneApi.data.milestone?.id === customMilestoneApi.data.milestone?.id && conflictingMilestoneApi.status === 409 && persistedCustomMilestone?.assigneeTeam === "guest-services" && !("ok" in (persistedCustomMilestone || {})));
   ok("admin milestone validation and summary API", invalidMilestoneApi.status === 400 && milestoneWorkspaceApi.data.milestoneSummary?.totals?.open >= 7);
   const completedMilestoneApi = await hit("PATCH", `/api/admin/partners/milestones/${encodeURIComponent(customMilestoneApi.data.milestone?.id)}`, { status: "completed" }, true);
   const completedMilestoneWorkspaceApi = await hit("GET", "/api/admin/partners", null, true);
