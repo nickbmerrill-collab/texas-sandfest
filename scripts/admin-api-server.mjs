@@ -3455,6 +3455,16 @@ function importCommitAuditView(record, summary = record?.summary) {
   };
 }
 
+function eventenyPartnerImportAuditView(input = {}) {
+  return {
+    batchId: input.batchId || null,
+    provider: "eventeny",
+    fileNameAvailable: Boolean(input.fileName),
+    previewHashAvailable: Boolean(input.previewHash),
+    summary: input.summary || null
+  };
+}
+
 async function mutateRevenueLedger(parsed, options = {}) {
   let result = null;
   const fallback = {
@@ -8814,9 +8824,9 @@ async function handleRequest(request, response) {
         await writeAuditRecord(request, "booths.import.commit", {
           type: "eventeny_booth_import",
           id: result.importRecord?.id || batchId
-        }, null, result.importRecord, {
+        }, null, importCommitAuditView(result.importRecord, result.summary), {
           eventId: CURRENT_EVENT_ID,
-          previewHash: String(body.previewHash || "").slice(0, 16),
+          previewHashProvided: Boolean(String(body.previewHash || "")),
           summary: result.summary
         });
       }
@@ -8934,11 +8944,12 @@ async function handleRequest(request, response) {
       await writeAuditRecord(request, "partner.application.import", {
         type: "partner_application_import",
         id: batchId
-      }, null, {
+      }, null, eventenyPartnerImportAuditView({
         batchId,
         fileName: String(body.fileName || "").trim().slice(0, 300) || null,
+        previewHash,
         summary: result.summary
-      });
+      }));
       sendJson(request, response, result.changed ? 201 : 200, {
         batchId,
         previewHash,

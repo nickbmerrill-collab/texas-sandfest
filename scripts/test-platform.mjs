@@ -10349,9 +10349,30 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
     && !serializedPartnerInvoiceAuditApi.includes("\"lastError\"")
     && !serializedPartnerInvoiceAuditApi.includes("\"lastQuickBooksReconciliationError\""));
   const eventenyPartnerImportAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action === "partner.application.import");
-  ok("Eventeny application import audit is aggregate-only", eventenyPartnerImportAuditApi.length >= 1 && eventenyPartnerImportAuditApi.some(item => item.record?.after?.fileName === "eventeny-applications-api.csv" && item.record?.after?.summary?.imported === 2) && !JSON.stringify(eventenyPartnerImportAuditApi).includes(eventenyPartnerEmailApi) && !JSON.stringify(eventenyPartnerImportAuditApi).includes("Vendor Import Contact"));
+  const serializedEventenyPartnerImportAuditApi = JSON.stringify(eventenyPartnerImportAuditApi);
+  ok("Eventeny application import audit is aggregate-only", eventenyPartnerImportAuditApi.length >= 1
+    && eventenyPartnerImportAuditApi.some(item => item.record?.after?.provider === "eventeny"
+      && item.record?.after?.fileNameAvailable === true
+      && item.record?.after?.previewHashAvailable === true
+      && item.record?.after?.summary?.imported === 2)
+    && !serializedEventenyPartnerImportAuditApi.includes(eventenyImportPayloadApi.fileName)
+    && !serializedEventenyPartnerImportAuditApi.includes(partnerImportPreviewApi.data.previewHash || "missing-eventeny-preview")
+    && !serializedEventenyPartnerImportAuditApi.includes(eventenyPartnerEmailApi)
+    && !serializedEventenyPartnerImportAuditApi.includes("Vendor Import Contact")
+    && !serializedEventenyPartnerImportAuditApi.includes('"fileName"')
+    && !serializedEventenyPartnerImportAuditApi.includes('"previewHash"'));
   const boothImportAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action === "booths.import.commit");
-  ok("Eventeny booth import audit is aggregate-only", boothImportAuditApi.some(item => item.record?.after?.fileName === "eventeny-booths-api.csv" && item.record?.after?.summary?.booths?.valid === 1) && !JSON.stringify(boothImportAuditApi).includes("API Private Vendor"));
+  const serializedBoothImportAuditApi = JSON.stringify(boothImportAuditApi);
+  ok("Eventeny booth import audit is aggregate-only", boothImportAuditApi.some(item => item.record?.after?.provider === "eventeny"
+    && item.record?.after?.fileNameAvailable === true
+    && item.record?.after?.previewHashAvailable === true
+    && item.record?.after?.summary?.booths?.valid === 1)
+    && !serializedBoothImportAuditApi.includes(boothImportPayloadApi.fileName)
+    && !serializedBoothImportAuditApi.includes(boothImportPreviewApi.data.previewHash || "missing-booth-preview")
+    && !serializedBoothImportAuditApi.includes("API Private Vendor")
+    && !serializedBoothImportAuditApi.includes('"fileName"')
+    && !serializedBoothImportAuditApi.includes('"previewHash"')
+    && !serializedBoothImportAuditApi.includes('"bundleHash"'));
   const discoveryAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("outreach.discovery."));
   ok("outreach discovery audit is aggregate-only", discoveryAuditApi.some(item => item.record?.action === "outreach.discovery.preview") && discoveryAuditApi.some(item => item.record?.action === "outreach.discovery.import") && !JSON.stringify(discoveryAuditApi).includes(selectedDiscoveryCandidateApi?.organizationName));
   const outreachProspectAuditApi = (auditApi.data.audit || []).filter(item => ["outreach.prospect.create", "outreach.prospect.update", "outreach.prospect.suppress"].includes(item.record?.action));
