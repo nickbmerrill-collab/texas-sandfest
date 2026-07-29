@@ -1175,6 +1175,12 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await expect(commandSignals.locator('[data-command-signal="sponsors"]')).toContainText("assets approved");
   await expect(commandSignals.locator('[data-command-signal="vendors"]')).toContainText("blocked");
   await expect(commandSignals.locator('[data-command-signal="outreach"]')).toContainText("qualified");
+  const commandActionQueue = page.locator("#admin-command-action-queue");
+  await expect(commandActionQueue).toHaveAttribute("aria-busy", "false");
+  await expect(commandActionQueue).toContainText("Next actions");
+  await expect(commandActionQueue.locator("[data-command-action]")).not.toHaveCount(0);
+  await expect(commandActionQueue).toContainText(/Staff approval|Overdue assignment|Receivable follow-up|Vendor readiness|Sponsor proof|Outreach next step|Island operations/);
+  expect(await commandActionQueue.textContent()).not.toMatch(/followup_|task_|milestone_|application_|invoice_|demo_[sv]app|tsft_/);
   const partnerActivity = page.locator("#admin-partner-activity");
   const partnerActivityRows = partnerActivity.locator("[data-partner-activity]");
   expect(await partnerActivityRows.count()).toBeGreaterThanOrEqual(15);
@@ -3871,6 +3877,9 @@ test("operations command summary fits and navigates across board viewports", asy
   const commandSignals = page.locator("#admin-command-signals [data-command-signal]");
   await expect(commandSignals).toHaveCount(8);
   await expect(commandSignals.last()).toBeInViewport({ ratio: 1 });
+  const actionQueue = page.locator("#admin-command-action-queue");
+  await expect(actionQueue).toHaveAttribute("aria-busy", "false");
+  await expect(actionQueue.locator("[data-command-action]")).not.toHaveCount(0);
   const commandBounds = await commandSignals.evaluateAll(cards => cards.map(card => {
     const bounds = card.getBoundingClientRect();
     return { top: bounds.top, bottom: bounds.bottom };

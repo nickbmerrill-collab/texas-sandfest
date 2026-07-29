@@ -824,6 +824,11 @@ export function followupAutomationLabel(item) {
   }[item.kind] || "transactional automation";
 }
 
+export async function renderAdminCommandActionQueue(deps) {
+  const module = await import("./admin-command-action-queue.js");
+  module.renderAdminCommandActionQueue(deps);
+}
+
 export function applicationDecisionStatusMessage(result) {
   if (result.decisionNotice?.requiresManualReview) {
     return "Application status saved. The decision message requires staff review.";

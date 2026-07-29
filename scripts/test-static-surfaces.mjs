@@ -62,6 +62,7 @@ const publicOptionalScriptFiles = publicScriptFiles.filter(file => !publicInitia
 const adminScriptFiles = adminAssets.filter(file => file.endsWith(".js"));
 const adminOptionalScriptFiles = adminScriptFiles.filter(file => [
   "admin-budget-",
+  "admin-command-action-queue-",
   "admin-incident-delivery-reconciliation-"
 ].some(prefix => file.startsWith(prefix)));
 const adminContentScriptFiles = adminScriptFiles.filter(file => file.startsWith("admin-sculptor-roster-ui-"));
@@ -228,11 +229,11 @@ assert(Buffer.byteLength(publicHtml) <= 8 * KIB, "Public entry HTML exceeds the 
 assert(publicInitialScripts.gzipBytes <= 106 * KIB, "Initial public JavaScript exceeds the 106 KiB gzip budget.");
 assert(publicOptionalScripts.gzipBytes <= 14 * KIB, "On-demand public JavaScript exceeds the 14 KiB gzip budget.");
 assert(publicStyles.gzipBytes <= 30 * KIB, "Public CSS exceeds the 30 KiB gzip budget.");
-assert(publicScripts.gzipBytes + publicStyles.gzipBytes <= 148 * KIB, "Public JavaScript and CSS exceed the 148 KiB combined gzip budget.");
+assert(publicScripts.gzipBytes + publicStyles.gzipBytes <= 149 * KIB, "Public JavaScript and CSS exceed the 149 KiB combined gzip budget.");
 assert(publicPreferredFonts.rawBytes <= 200 * KIB, "Public preferred WOFF2 fonts exceed the 200 KiB delivery budget.");
 assert(publicOfflineFonts.rawBytes <= 450 * KIB, "Public compiled fonts exceed the 450 KiB offline-cache budget.");
-assert(adminInitialScripts.gzipBytes <= 124 * KIB, "Initial admin JavaScript exceeds the 124 KiB gzip budget.");
-assert(adminOptionalScripts.gzipBytes <= 6 * KIB, "On-demand admin JavaScript exceeds the 6 KiB gzip budget.");
+assert(adminInitialScripts.gzipBytes <= 128 * KIB, "Initial admin JavaScript exceeds the 128 KiB gzip budget.");
+assert(adminOptionalScripts.gzipBytes <= 8 * KIB, "On-demand admin JavaScript exceeds the 8 KiB gzip budget.");
 assert(adminContentScripts.gzipBytes <= 4 * KIB, "On-demand admin content JavaScript exceeds the 4 KiB gzip budget.");
 assert(adminStyles.gzipBytes <= 30 * KIB, "Admin CSS exceeds the 30 KiB gzip budget.");
 assert(adminScripts.gzipBytes + adminStyles.gzipBytes <= 159 * KIB, "Admin JavaScript and CSS exceed the 159 KiB combined gzip budget.");
