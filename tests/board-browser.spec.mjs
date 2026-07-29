@@ -2257,6 +2257,7 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   await page.locator("#admin-load-partners").click();
   await resentTaskReload;
   await expect(freshVolunteerTask).toContainText("Assignment notices · 2 issued · latest delivered");
+  await expect(freshVolunteerTask).toContainText("Operations next · Awaiting assignee acknowledgement");
   await expect(freshVolunteerTask.locator('[data-resend-task]')).toBeEnabled();
   await expect(freshVolunteerTask.locator('[data-resend-task]')).toHaveText("Resend notice");
 
@@ -2309,6 +2310,7 @@ staff_production,${DEFAULT_EVENT_ID},Jordan Davis,jordan.davis@staff.example,act
   await page.locator("#admin-load-partners").click();
   await assigneeReload;
   await expect(freshVolunteerTask).toContainText("Acknowledged");
+  await expect(freshVolunteerTask.locator("span").filter({ hasText: "Operations next" })).toContainText("3 portal updates");
   await expect(freshVolunteerTask).toContainText("Latest assignee note");
   await expect(freshVolunteerTask).toContainText("Need two more welcome packets at the north gate.");
   await expect(freshVolunteerTask.locator("span").filter({ hasText: "Operations next" })).toContainText(/block/i);

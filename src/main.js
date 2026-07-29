@@ -7101,7 +7101,7 @@ function renderAdminTaskBoard(payload) {
     const currentUpdates = (task.assigneeUpdates || []).filter(item => Number(item.assignmentVersion || 1) === Number(task.assignmentVersion || 1));
     const latestUpdate = currentUpdates[currentUpdates.length - 1];
     const responseState = task.acknowledgedAt
-      ? `Acknowledged ${taskTimeLabel(task.acknowledgedAt)}${latestUpdate ? ` · ${conditionLabel(latestUpdate.action)} ${taskTimeLabel(latestUpdate.at)}` : ""}`
+      ? `Acknowledged ${taskTimeLabel(task.acknowledgedAt)}${latestUpdate ? ` · ${currentUpdates.length} portal update${currentUpdates.length === 1 ? "" : "s"} · latest ${conditionLabel(latestUpdate.action)} ${taskTimeLabel(latestUpdate.at)}` : ""}`
       : assignmentType === "unassigned" ? "No assignee response expected" : "Awaiting assignee acknowledgement";
     return `<article class="admin-task-card" data-task="${escapeAttr(task.id)}" data-due-state="${escapeAttr(dueState)}" data-priority="${escapeAttr(task.priority || "normal")}">
       <header><div><strong>${escapeHtml(task.title)}</strong><span>${escapeHtml(conditionLabel(task.priority || "normal"))} priority</span></div><b>${escapeHtml(conditionLabel(task.status))}</b></header>
