@@ -6420,6 +6420,8 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
 .admin-partner-list article[data-delivery-status="unsubscribed"],
 .admin-partner-list article[data-delivery-status="failed"] { border-left: 4px solid var(--coral); }
 .admin-partner-list blockquote { background: var(--foam); border-left: 3px solid var(--sun); font-size: 12px; margin: 0; max-height: 120px; overflow: auto; padding: 9px; white-space: pre-wrap; }
+.followup-triage { display: grid; gap: 7px; grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 8px 0 10px; }
+.followup-triage > span { background: #f7faf9; border: 1px solid var(--line); border-radius: 6px; color: var(--deep); font-size: 12px; font-weight: 800; min-width: 0; overflow-wrap: anywhere; padding: 8px; }
 .admin-followup-actions { display: flex; flex-wrap: wrap; gap: 7px; }
 .admin-followup-actions .button { min-height: 36px; padding: 7px 10px; }
 .admin-delivery-error { color: #a62929 !important; font-weight: 700; }
@@ -6974,6 +6976,7 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
   .admin-partner-row-actions { grid-template-columns: 1fr auto; }
   .admin-partner-automation { grid-template-columns: 1fr; }
   .admin-partner-activity { grid-template-columns: 1fr; }
+  .followup-triage { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-partner-automation .button { justify-self: start; }
   .admin-quickbooks-connection { grid-template-columns: 1fr; }
   .admin-quickbooks-actions { justify-content: flex-start; }

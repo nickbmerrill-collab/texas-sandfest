@@ -8344,15 +8344,19 @@ function renderAdminPartners(payload, outreach) {
     const count = status => items.filter(item => item.status === status).length;
     const review = summary.operations.draftsAwaitingReview || 0;
     const attention = (summary.operations.unknownDeliveryMessages || 0) + count("failed");
-    const queue = count("approved") + count("failed");
     const flight = count("pending") + count("queued") + count("sending");
-    const sent = count("sent");
     const automated = items.filter(item => item.automationPolicy && !item.manualReviewRequiredAt && item.status !== "dismissed").length;
+    const keyDateReminders = items.filter(item => item.kind === "milestone_reminder" && item.status !== "dismissed").length;
     const overdue = summary.operations.overdueMilestones || 0;
     const soon = summary.operations.dueSoonMilestones || 0;
-    const state = attention || overdue ? "attention" : review || queue || flight ? "tracking" : "idle";
-    const headline = attention ? `${attention} delivery review` : review ? `${review} staff approval` : queue ? `${queue} ready to queue` : `${sent} sent`;
-    followupSummary.innerHTML = `<p class="partner-form-status" data-state="${state}"><strong>${headline}</strong> · ${automated} automated · ${flight} in flight · ${overdue} overdue key date${overdue === 1 ? "" : "s"} · ${soon} due soon</p>`;
+    const state = attention || overdue ? "attention" : review || flight ? "tracking" : "idle";
+    followupSummary.innerHTML = `<div class="followup-triage" data-state="${state}" aria-label="Partner follow-up automation triage">
+        <span>Staff approval ${review}</span>
+        <span>Queued or sending ${flight}</span>
+        <span>Delivery review ${attention}</span>
+        <span>Auto-ready ${automated}</span>
+        <span>Key-date nudges ${keyDateReminders}</span>
+      </div>`;
   }
   followups.innerHTML = [...(payload.followups || [])].sort((left, right) => {
     const priority = (followupPriority.get(left.status) ?? 99) - (followupPriority.get(right.status) ?? 99);
