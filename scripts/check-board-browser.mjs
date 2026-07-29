@@ -520,6 +520,9 @@ if (visitorUrl && operationsUrl) {
           };
         })(),
         partnerApplications: document.querySelectorAll("#admin-partner-applications [data-partner-application]").length,
+        partnerReadinessCards: [...document.querySelectorAll("#admin-partner-applications [data-partner-application]")]
+          .filter(item => /\b\d+ key dates\b/.test(item.textContent || "") && /\b\d+ follow-ups\b/.test(item.textContent || "")).length,
+        partnerReadinessText: document.querySelector("#admin-partner-applications")?.textContent?.replace(/\s+/g, " ").trim(),
         guestServiceCases: document.querySelectorAll("#admin-guest-services-list [data-guest-services-case]").length,
         guestServiceStatuses: [...document.querySelectorAll("#admin-guest-services-list [data-guest-services-case]")].map(item => item.dataset.status),
         guestServiceKpis: Object.fromEntries([...document.querySelectorAll("#admin-guest-services-kpis article")]
@@ -714,6 +717,10 @@ if (visitorUrl && operationsUrl) {
       const requiredActivityCategories = ["intake", "finance", "schedule", "messaging", "work", "branding", "vendor", "outreach"];
       if (
         item?.partnerApplications < 4
+        || item?.partnerReadinessCards < item?.partnerApplications
+        || !/\b\d+ key dates\b/.test(item?.partnerReadinessText || "")
+        || !/\b\d+ follow-ups\b/.test(item?.partnerReadinessText || "")
+        || /undefined|NaN/.test(item?.partnerReadinessText || "")
         || item?.partnerActivity < 15
         || requiredActivityCategories.some(category => !item.partnerActivityCategories?.includes(category))
         || !item.partnerActivityText?.includes("Payment recorded")
@@ -747,7 +754,7 @@ if (visitorUrl && operationsUrl) {
       ) {
         throw new Error("One or more board workflow queues did not render their prepared records.");
       }
-      return `${item.partnerApplications} applications and ${item.partnerActivity} grouped updates render every operating category without internal record IDs; the impact snapshot adds ${item.impactHighlights} board highlights and ${item.impactSections} aggregate reporting sections; Systems groups ${item.automationJobs} completed automation records into ${item.completedAutomationGroups} workflow digest${item.completedAutomationGroups === 1 ? "" : "s"} beside ${item.auditEntries} readable audit entries, without private payloads or storage paths.`;
+      return `${item.partnerApplications} applications expose key-date and follow-up readiness counts, and ${item.partnerActivity} grouped updates render every operating category without internal record IDs; the impact snapshot adds ${item.impactHighlights} board highlights and ${item.impactSections} aggregate reporting sections; Systems groups ${item.automationJobs} completed automation records into ${item.completedAutomationGroups} workflow digest${item.completedAutomationGroups === 1 ? "" : "s"} beside ${item.auditEntries} readable audit entries, without private payloads or storage paths.`;
     });
     await inspect("finance_dates", "Payment and key-date tracking", "Inspect receivables, payment totals, and partner milestone controls.", async () => {
       const item = observations.operations;
