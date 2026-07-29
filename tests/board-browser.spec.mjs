@@ -1158,6 +1158,7 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await expect(commandSignals.locator('[data-command-signal="messages"]')).toContainText("Provider ready");
   await expect(commandSignals.locator('[data-command-signal="messages"]')).toContainText("staff review required");
   await expect(commandSignals.locator('[data-command-signal="assignments"]')).toContainText("staff / volunteer / team");
+  await expect(commandSignals.locator('[data-command-signal="assignments"]')).toContainText(/\d+ field · \d+ dispatch/);
   await expect(commandSignals.locator('[data-command-signal="key-dates"]')).toContainText("upcoming");
   await expect(commandSignals.locator('[data-command-signal="key-dates"]')).toContainText(/[1-9]\d* due soon/);
   await expect(commandSignals.locator('[data-command-signal="sponsors"]')).toContainText("assets approved");
