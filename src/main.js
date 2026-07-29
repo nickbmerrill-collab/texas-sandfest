@@ -7370,7 +7370,7 @@ function renderAdminSponsorFulfillment(payload) {
         </div>
       </div>`).join("") || '<span class="empty-state">No assets submitted.</span>'}</div>
       <div class="admin-deliverables"><strong>Benefit delivery</strong>${deliverables.map(item => `<div data-admin-deliverable="${escapeAttr(item.id)}">
-        <header><div><span>${escapeHtml(item.label)}</span><small>${item.source === "package_benefit" ? "Package benefit" : "Custom deliverable"}</small></div><b data-status="${escapeAttr(item.partnerReviewStatus)}">${escapeHtml(conditionLabel(item.partnerReviewStatus))}</b></header>
+        <header><div><span>${escapeHtml(item.label)}</span><small>${item.ownerId ? escapeHtml(item.ownerId) : ""}${item.dueAt ? ` · ${escapeHtml(portalDate(item.dueAt))}` : ""}</small></div><b data-status="${escapeAttr(item.partnerReviewStatus)}">${escapeHtml(conditionLabel(item.partnerReviewStatus))}</b></header>
         ${item.partnerReviewNotes ? `<p>${escapeHtml(item.partnerReviewNotes)}</p>` : ""}
         <div class="admin-deliverable-controls">
           <select name="status" aria-label="${escapeAttr(item.label)} status">${deliverableStatusOptions(item.status)}</select>

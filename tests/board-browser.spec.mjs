@@ -1639,6 +1639,7 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
   await freshSponsorDeliverable().locator("[data-save-deliverable]").click();
   expect((await freshSponsorDeliverablePublication).status()).toBe(200);
   await expect(freshSponsorDeliverable().locator('[data-status="pending"]')).toHaveText("pending");
+  await expect(freshSponsorDeliverable().locator("header small")).toContainText("staff_sponsor · Mar 20, 2027");
 
   const freshSponsorPortal = await openPreparedPartnerPortal(sponsorName);
   await expect(freshSponsorPortal.locator(".partner-brand-center")).toContainText("Brand center");
