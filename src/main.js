@@ -2969,9 +2969,12 @@ function renderAdminDeployment(deployment) {
         const message = deferredForBoard
           ? "Managed backup provisioning and provider restore drills are scheduled after the presentation. Isolated database and upload recovery verification remains in the release gate."
           : check.message || "No status detail provided.";
+        const boardAction = import.meta.env.DEV && deferredForBoard
+          ? '<p><strong>Owner:</strong> Operations team · <strong>Next action:</strong> Schedule managed backup provisioning and restore drills after the board presentation.</p>'
+          : "";
         return `<article class="admin-deployment-check" data-state="${tone}"${deferredForBoard ? ' data-board-stage="post-presentation"' : ""}>
           <span class="admin-deployment-status">${status}</span>
-          <div><strong>${escapeHtml(check.label || check.id || "Deployment check")}</strong><p>${escapeHtml(message)}</p></div>
+          <div><strong>${escapeHtml(check.label || check.id || "Deployment check")}</strong><p>${escapeHtml(message)}</p>${boardAction}</div>
         </article>`;
       }).join("")}</div>
     </section>`;
