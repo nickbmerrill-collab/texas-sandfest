@@ -1933,6 +1933,30 @@ function adminPartnerFollowupAuditView(followup) {
   };
 }
 
+function adminPartnerMilestoneAuditView(milestone) {
+  if (!milestone) return milestone;
+  return {
+    id: milestone.id,
+    applicationId: milestone.applicationId,
+    source: milestone.source || null,
+    label: milestone.label,
+    dueAt: milestone.dueAt || null,
+    status: milestone.status,
+    assigneeTeam: milestone.assigneeTeam || null,
+    reminderLeadDays: Number(milestone.reminderLeadDays ?? 0),
+    notesAvailable: Boolean(milestone.notes),
+    notesLength: String(milestone.notes || "").length,
+    scheduleVersion: milestone.scheduleVersion || 1,
+    completedAt: milestone.completedAt || null,
+    completedBy: milestone.completedBy || null,
+    cancelledAt: milestone.cancelledAt || null,
+    cancelledBy: milestone.cancelledBy || null,
+    createdBy: milestone.createdBy || null,
+    createdAt: milestone.createdAt || null,
+    updatedAt: milestone.updatedAt || null
+  };
+}
+
 function adminPartnerBrandProfileAuditView(profile) {
   if (!profile) return profile;
   return {
@@ -9753,7 +9777,7 @@ async function handleRequest(request, response) {
         return;
       }
       if (!result.replay) {
-        await writeAuditRecord(request, "partner.milestone.create", { type: "milestone", id: result.milestone.id }, null, result.milestone, {
+        await writeAuditRecord(request, "partner.milestone.create", { type: "milestone", id: result.milestone.id }, null, adminPartnerMilestoneAuditView(result.milestone), {
           applicationId,
           generatedFollowups: result.generatedFollowups?.length || 0,
           generatedReminderPhases: [...new Set((result.generatedFollowups || []).map(item => item.reminderPhase).filter(Boolean))]
@@ -9785,7 +9809,7 @@ async function handleRequest(request, response) {
         sendJson(request, response, result?.error === "Milestone not found." ? 404 : 400, { error: result?.error || "Milestone could not be updated." });
         return;
       }
-      await writeAuditRecord(request, "partner.milestone.update", { type: "milestone", id: milestoneId }, before, result.milestone, {
+      await writeAuditRecord(request, "partner.milestone.update", { type: "milestone", id: milestoneId }, adminPartnerMilestoneAuditView(before), adminPartnerMilestoneAuditView(result.milestone), {
         dismissedFollowups: result.dismissedFollowups,
         generatedFollowups: result.generatedFollowups?.length || 0,
         generatedReminderPhases: [...new Set((result.generatedFollowups || []).map(item => item.reminderPhase).filter(Boolean))]
