@@ -249,9 +249,16 @@ async function assertNoHorizontalOverflow(page) {
 async function scrollWindowTo(page, { top, left = 0 }) {
   await page.evaluate(({ top, left }) => {
     const previous = document.documentElement.style.scrollBehavior;
+    const previousAnchor = document.documentElement.style.overflowAnchor;
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     document.documentElement.style.scrollBehavior = "auto";
+    document.documentElement.style.overflowAnchor = "none";
+    document.scrollingElement?.scrollTo(left, top);
+    document.documentElement.scrollTo(left, top);
+    document.body?.scrollTo?.(left, top);
     window.scrollTo(left, top);
     document.documentElement.style.scrollBehavior = previous;
+    document.documentElement.style.overflowAnchor = previousAnchor;
   }, { top, left });
 }
 
@@ -984,6 +991,7 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
     await expect(boardCapabilityProof.locator("#admin-board-capability-proof-summary")).toContainText("certified capabilities");
     await expect(boardCapabilityProof.locator("#admin-board-capability-proof-scope span")).toHaveCount(12);
     await expect(boardCapabilityProof.locator("#admin-board-capability-proof-scope")).toContainText("vendor signup");
+    await expect(boardCapabilityProof.locator("#admin-board-capability-proof-journeys article").filter({ hasText: "Vendor and sponsor intake" })).toContainText(/reset 12\/12 · [2-9]\d* evidence points · \d+s/);
     await expect(baselineKpi).toContainText("exact baseline restored");
   } else {
     expect(proofSummaryText || "").toMatch(/Run board capability certification|different runtime session/);

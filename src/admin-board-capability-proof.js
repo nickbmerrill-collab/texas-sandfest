@@ -265,6 +265,14 @@ function baselineProofLabel(proof) {
     : `baseline restoration not proven (${after})`;
 }
 
+function journeyEvidenceLabel(item) {
+  const parts = [];
+  if (item?.reset) parts.push(`reset ${item.reset}`);
+  if (Number.isFinite(item?.evidenceCount)) parts.push(`${item.evidenceCount} evidence point${item.evidenceCount === 1 ? "" : "s"}`);
+  if (Number.isFinite(item?.durationMs)) parts.push(`${Math.max(1, Math.round(item.durationMs / 1000))}s`);
+  return parts.join(" · ");
+}
+
 export function presenterSummary(proof, conditionLabel = value => String(value || "")) {
   if (proof?.ok !== true) {
     return (proof?.errors || ["Run board capability certification before presenting."]).join(" ");
@@ -333,6 +341,7 @@ export function renderBoardCapabilityProof(proof, { conditionLabel = value => St
     journeys.innerHTML = (proof?.journeys || []).map(item => `<article data-state="${item.ok ? "ok" : "warning"}">
       <strong>${escapeHtml(item.label)}</strong>
       <span>${escapeHtml((item.capabilities || []).map(conditionLabel).join(" · "))}</span>
+      ${journeyEvidenceLabel(item) ? `<small>${escapeHtml(journeyEvidenceLabel(item))}</small>` : ""}
     </article>`).join("") || '<article data-state="warning"><strong>No journey evidence loaded</strong><span>Run board certification before presenting.</span></article>';
   }
 }
