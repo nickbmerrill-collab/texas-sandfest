@@ -5136,8 +5136,8 @@ function adminPartnerCheckoutLabel(invoice, paymentCheckout) {
   if (!invoice || (!paymentCheckout && Number(invoice.balanceCents || 0) <= 0)) return "";
   if (!paymentCheckout) {
     return ["approved", "queued", "synced", "failed"].includes(invoice.status)
-      ? "Payment link not started"
-      : "Payment opens after invoice approval";
+      ? "Link not started"
+      : "Opens after invoice approval";
   }
   const provider = paymentCheckout.provider === "board_sandbox" ? "Local checkout" : "Stripe checkout";
   const status = paymentCheckout.status;
@@ -8348,7 +8348,7 @@ function renderAdminPartners(payload, outreach) {
         <div><strong>${adminMoney(invoice.amountCents, "$0.00")} invoice</strong><span>${escapeHtml(conditionLabel(invoice.status))} · due ${escapeHtml(new Date(invoice.dueAt).toLocaleDateString())}</span></div>
         ${invoice.lastError ? `<span class="admin-delivery-error">${escapeHtml(invoice.lastError)}</span>` : ""}
         ${invoice.lastQuickBooksReconciliationError ? `<span class="admin-delivery-error">${escapeHtml(invoice.lastQuickBooksReconciliationError)}</span>` : ""}
-        <span>SandFest balance · ${adminMoney(invoice.balanceCents, "$0.00")} open</span>
+        <span>Follow-up · ${adminMoney(invoice.balanceCents, "$0.00")} open</span>
         ${paymentCheckoutLabel ? `<span data-partner-checkout-status="${escapeAttr(paymentCheckout?.status || "not_started")}">${escapeHtml(paymentCheckoutLabel)}${paymentCheckout?.expiresAt ? ` · ${escapeHtml(new Date(paymentCheckout.expiresAt).toLocaleString())}` : ""}</span>` : ""}
         ${invoice.quickBooksInvoiceId ? `<span>QuickBooks ${escapeHtml(invoice.quickBooksDocNumber || invoice.quickBooksInvoiceId)} · ${adminMoney(invoice.quickBooksBalanceCents, "not reported")} reported${invoice.quickBooksReconciledAt ? ` · checked ${escapeHtml(new Date(invoice.quickBooksReconciledAt).toLocaleString())}` : " · not refreshed"}</span>` : ""}
         <div class="admin-followup-actions">
