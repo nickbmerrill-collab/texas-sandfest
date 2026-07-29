@@ -122,7 +122,7 @@ def build_decision_brief():
         "Board decision brief | July 2026",
         "Approve the activation path",
         "A certified festival platform is ready to move into controlled production.",
-        "10/10 journeys  |  Chromium 14/14  |  WebKit 14/14  |  12/12 runtime readiness",
+        "10/10 journeys  |  Chromium 14/14  |  WebKit 14/14  |  exact baseline restoration",
     )
 
     c.setFillColor(PALE_SAND)
@@ -141,7 +141,7 @@ def build_decision_brief():
         "Visitor guide, Live Beach, ticket lifecycle, sculptor roster, Passport, voting, and Guest Services.",
         "Sponsor and vendor intake, private partner status, receivables, milestones, branding, compliance, and outreach.",
         "Operations command, document intake, delegated work, incident response, finance exports, and audit evidence.",
-        "Reset-safe local provider sandboxes, deployed-site acceptance, and an offline narrated fallback for the boardroom.",
+        "Reset-safe local provider sandboxes, per-journey evidence counts, deployed-site acceptance, and exact baseline restoration.",
     ]
     for item in ready_items:
         y = draw_bullet(c, item, left_x, y, left_w)
@@ -242,7 +242,7 @@ def build_flight_card():
     route = [
         ("0:00-2:00", "Outcome", "Slides 1-3. The platform works; the decision is how to activate it."),
         ("2:00-7:00", "Visitor", "Hero, Live Beach, ticket sandbox, sculptors, Passport, partner intake, Guest Services."),
-        ("7:00-13:00", "Operations", "Command summary, document queue, partner operations, incident delegation, capability proof."),
+        ("7:00-13:00", "Operations", "Command summary, document queue, partner operations, incident delegation, and per-journey proof."),
         ("13:00-18:00", "Decision", "Slides 10-12. Name the controlled gates, ask for the five decisions, read the motion."),
     ]
     y = top_y - 54
@@ -274,7 +274,8 @@ def build_flight_card():
         "Power connected; display and audio tested",
         "Do Not Disturb on; screen sleep disabled",
         "Run board:showtime; run deployment:verify:site for deployed preview",
-        "Open deck, Visitor, Operations, and video",
+        "Open deck, Visitor, Operations, capability proof, and video",
+        "Call out evidence counts and exact baseline restoration",
         "Keep synthetic-data label visible",
     ]
     checklist_y = top_y - 29

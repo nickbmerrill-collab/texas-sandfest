@@ -14,6 +14,8 @@ const handouts = [
       "Five decisions requested",
       "Recommended motion",
       "deployment:verify:site",
+      "per-journey evidence counts",
+      "exact baseline restoration",
       "higher-risk optional technologies deferred until each gate is accepted"
     ]
   },
@@ -24,6 +26,8 @@ const handouts = [
       "18-minute route",
       "npm run board:showtime",
       "deployment:verify:site",
+      "evidence counts",
+      "exact baseline restoration",
       "Never send, charge, or activate a live provider"
     ]
   }
