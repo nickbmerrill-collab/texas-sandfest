@@ -145,6 +145,8 @@ await check("package scripts expose the showtime preflight", async () => {
   assert.equal(packageJson.scripts["board:showtime"], "node scripts/board-showtime.mjs");
   assert.equal(packageJson.scripts["board:site-ready"], "node scripts/board-showtime.mjs --site-only");
   assert.equal(packageJson.scripts["board:handouts"], "npm run board:handouts:build && npm run board:handouts:verify");
+  assert.equal(packageJson.scripts["deployment:verify"], "node scripts/verify-live-deployment.mjs");
+  assert.equal(packageJson.scripts["deployment:verify:site"], "node scripts/verify-live-deployment.mjs --site-only");
 });
 
 await check("Eventeny operator docs match minimized audit evidence", async () => {
