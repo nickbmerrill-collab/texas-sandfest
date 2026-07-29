@@ -7651,6 +7651,9 @@ function renderAdminCommandSummary(payload, outreach) {
     .filter(item => Number(item.open || 0) > 0)
     .map(item => item.assigneeType));
   const assignmentCoverage = ["staff", "volunteer", "team"].filter(type => assignmentTypes.has(type));
+  const field = adminConditionsState?.incidentSummary || {};
+  const dispatch = adminConditionsState?.dispatchSummary || {};
+  const fieldDetail = adminConditionsState ? ` · ${Number(field.active || 0)} field · ${Number(dispatch.active || 0)} dispatch` : "";
   const vendor = payload.vendorReadiness?.totals || summary.vendorReadiness || {};
   const fulfillment = summary.fulfillment || payload.fulfillment || {};
   const outreachSummary = outreach?.summary || {};
@@ -7699,7 +7702,7 @@ function renderAdminCommandSummary(payload, outreach) {
       id: "assignments",
       label: "Assignments",
       value: `${Number(taskTotals.active || 0)} active`,
-      detail: `${Number(taskTotals.unassigned || 0)} unassigned · ${assignmentCoverage.join(" / ") || "No owners"}`,
+      detail: `${Number(taskTotals.unassigned || 0)} unassigned · ${assignmentCoverage.join(" / ") || "No owners"}${fieldDetail}`,
       action: "Open work board",
       href: "#admin-partner-tasks-workspace",
       state: assignmentsReady ? "ready" : "attention"
@@ -8786,6 +8789,7 @@ async function loadAdminPartners({ quiet = false } = {}) {
 
 function renderAdminConditions(payload) {
   adminConditionsState = payload;
+  if (adminPartnerState?.payload) renderAdminCommandSummary(adminPartnerState.payload, adminPartnerState.outreach);
   const container = document.querySelector("#admin-condition-cameras");
   const ingest = document.querySelector("#admin-condition-ingest");
   const feeds = document.querySelector("#admin-condition-feeds");
