@@ -10169,6 +10169,46 @@ API Invalid ZIP,banking,Corpus Christi,TX,bad,invalid@api-bank.example,no`;
   ok("event schedule publish and hold are audited", auditApi.data.audit?.some(item => item.record?.action === "content.event-schedule.publish") && auditApi.data.audit?.some(item => item.record?.action === "content.event-schedule.hold"));
   ok("visitor guidance publish and hold are audited", auditApi.data.audit?.some(item => item.record?.action === "content.visitor-guidance.publish") && auditApi.data.audit?.some(item => item.record?.action === "content.visitor-guidance.hold"));
   ok("partner catalog publish and hold actions are audited", auditApi.data.audit?.some(item => item.record?.action === "sponsor-package.catalog.publish") && auditApi.data.audit?.some(item => item.record?.action === "vendor-offering.catalog.publish") && auditApi.data.audit?.some(item => item.record?.action === "vendor-offering.catalog.hold"));
+  const sponsorPackageAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("sponsor-package."));
+  const serializedSponsorPackageAuditApi = JSON.stringify(sponsorPackageAuditApi);
+  ok("sponsor package audit preserves catalog state without provider mappings or benefit copy", sponsorPackageAuditApi.some(item => item.record?.action === "sponsor-package.create"
+    && item.record?.after?.id === "community-champion"
+    && item.record?.after?.amount === 750000
+    && item.record?.after?.benefitCount === 1
+    && item.record?.after?.stripePriceMapped === true
+    && item.record?.after?.quickBooksItemMapped === true)
+    && sponsorPackageAuditApi.some(item => item.record?.action === "sponsor-package.update"
+      && item.record?.target?.id === "tarpon"
+      && item.record?.after?.stripePriceMapped === true
+      && item.record?.after?.quickBooksItemMapped === true)
+    && !serializedSponsorPackageAuditApi.includes("Community stage recognition")
+    && !serializedSponsorPackageAuditApi.includes("price_api_community_champion")
+    && !serializedSponsorPackageAuditApi.includes("api-community-champion-item")
+    && !serializedSponsorPackageAuditApi.includes("price_api_sponsor_tarpon")
+    && !serializedSponsorPackageAuditApi.includes("api-sponsor-tarpon-item")
+    && !serializedSponsorPackageAuditApi.includes('"stripePriceId"')
+    && !serializedSponsorPackageAuditApi.includes('"quickBooksItemId"'));
+  const vendorOfferingAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("vendor-offering."));
+  const serializedVendorOfferingAuditApi = JSON.stringify(vendorOfferingAuditApi);
+  ok("vendor offering audit preserves catalog state without provider mappings or offering copy", vendorOfferingAuditApi.some(item => item.record?.action === "vendor-offering.create"
+    && item.record?.after?.id === "premium-marketplace-booth"
+    && item.record?.after?.amount === 250000
+    && item.record?.after?.categoryCount === 2
+    && item.record?.after?.descriptionAvailable === true
+    && item.record?.after?.inclusionCount === 2
+    && item.record?.after?.stripePriceMapped === true
+    && item.record?.after?.quickBooksItemMapped === true)
+    && vendorOfferingAuditApi.some(item => item.record?.action === "vendor-offering.update"
+      && item.record?.target?.id === "marketplace-booth"
+      && item.record?.after?.quickBooksItemMapped === true)
+    && !serializedVendorOfferingAuditApi.includes("Expanded marketplace booth for larger retail and artisan activations.")
+    && !serializedVendorOfferingAuditApi.includes("Expanded booth footprint")
+    && !serializedVendorOfferingAuditApi.includes("Published booth listing")
+    && !serializedVendorOfferingAuditApi.includes("price_api_premium_marketplace")
+    && !serializedVendorOfferingAuditApi.includes("api-premium-marketplace-item")
+    && !serializedVendorOfferingAuditApi.includes("api-vendor-marketplace-item")
+    && !serializedVendorOfferingAuditApi.includes('"stripePriceId"')
+    && !serializedVendorOfferingAuditApi.includes('"quickBooksItemId"'));
   ok("launch task synchronization is aggregate audited", auditApi.data.audit?.some(item => item.record?.action === "deployment.tasks.sync" && item.record?.after?.active === failingDeploymentChecks.length));
   ok("automatic launch task audit identifies the system actor", auditApi.data.audit?.some(item => item.record?.action === "deployment.tasks.sync" && item.record?.actor?.type === "system" && item.record?.actor?.id === "deployment-readiness" && item.record?.metadata?.automated === true && item.record?.after?.created === failingDeploymentChecks.length));
   const documentAuditApi = (auditApi.data.audit || []).filter(item => item.record?.action?.startsWith("document."));

@@ -992,6 +992,49 @@ function partnerInvoiceAuditView(invoice) {
   };
 }
 
+function adminSponsorPackageAuditView(sponsorPackage) {
+  if (!sponsorPackage) return null;
+  return {
+    id: sponsorPackage.id,
+    name: sponsorPackage.name,
+    amount: sponsorPackage.amount,
+    currency: sponsorPackage.currency || "usd",
+    publicLabelAvailable: Boolean(sponsorPackage.publicLabel),
+    active: sponsorPackage.active === true,
+    requiresApproval: sponsorPackage.requiresApproval !== false,
+    benefitCount: Array.isArray(sponsorPackage.benefits) ? sponsorPackage.benefits.length : 0,
+    stripePriceMapped: Boolean(sponsorPackage.stripePriceId),
+    quickBooksItemMapped: Boolean(sponsorPackage.quickBooksItemId)
+  };
+}
+
+function adminVendorOfferingAuditView(offering) {
+  if (!offering) return null;
+  return {
+    id: offering.id,
+    name: offering.name,
+    amount: offering.amount,
+    currency: offering.currency || "usd",
+    publicLabelAvailable: Boolean(offering.publicLabel),
+    active: offering.active === true,
+    requiresApproval: offering.requiresApproval !== false,
+    intakeMode: offering.intakeMode || null,
+    categoryCount: Array.isArray(offering.categories) ? offering.categories.length : 0,
+    descriptionAvailable: Boolean(offering.description),
+    inclusionCount: Array.isArray(offering.inclusions) ? offering.inclusions.length : 0,
+    stripePriceMapped: Boolean(offering.stripePriceId),
+    quickBooksItemMapped: Boolean(offering.quickBooksItemId)
+  };
+}
+
+function adminPartnerCatalogChangedFieldsAuditView(fields = []) {
+  return Array.from(new Set((Array.isArray(fields) ? fields : []).map(field => {
+    if (field === "stripePriceId") return "stripePriceMapped";
+    if (field === "quickBooksItemId") return "quickBooksItemMapped";
+    return String(field || "").trim();
+  }).filter(Boolean)));
+}
+
 function budgetMutationStatus(result) {
   if (result?.code === "NOT_FOUND") return 404;
   if (["DUPLICATE_BUDGET_LINE", "IDEMPOTENCY_CONFLICT", "INVALID_STATE", "INVALID_TRANSITION", "OVER_BUDGET"].includes(result?.code)) return 409;
@@ -5190,8 +5233,8 @@ async function handleAdminSponsorPatch(request, response, sponsorId) {
   await writeAuditRecord(request, "sponsor-package.update", {
     type: "sponsorPackage",
     id: sponsorId
-  }, result.before, result.sponsorPackage, {
-    changedFields: Object.keys(patch)
+  }, adminSponsorPackageAuditView(result.before), adminSponsorPackageAuditView(result.sponsorPackage), {
+    changedFields: adminPartnerCatalogChangedFieldsAuditView(Object.keys(patch))
   });
   sendJson(request, response, 200, {
     sponsorPackage: result.sponsorPackage,
@@ -5233,8 +5276,8 @@ async function handleAdminSponsorCreate(request, response) {
     await writeAuditRecord(request, "sponsor-package.create", {
       type: "sponsorPackage",
       id: result.sponsorPackage.id
-    }, null, result.sponsorPackage, {
-      changedFields: Object.keys(input)
+    }, null, adminSponsorPackageAuditView(result.sponsorPackage), {
+      changedFields: adminPartnerCatalogChangedFieldsAuditView(Object.keys(input))
     });
   }
   sendJson(request, response, result.replay ? 200 : 201, {
@@ -5272,8 +5315,8 @@ async function handleAdminVendorOfferingPatch(request, response, offeringId) {
   await writeAuditRecord(request, "vendor-offering.update", {
     type: "vendorOffering",
     id: offeringId
-  }, result.before, result.offering, {
-    changedFields: Object.keys(patch)
+  }, adminVendorOfferingAuditView(result.before), adminVendorOfferingAuditView(result.offering), {
+    changedFields: adminPartnerCatalogChangedFieldsAuditView(Object.keys(patch))
   });
   sendJson(request, response, 200, {
     vendorOffering: result.offering,
@@ -5316,8 +5359,8 @@ async function handleAdminVendorOfferingCreate(request, response) {
     await writeAuditRecord(request, "vendor-offering.create", {
       type: "vendorOffering",
       id: result.offering.id
-    }, null, result.offering, {
-      changedFields: Object.keys(input)
+    }, null, adminVendorOfferingAuditView(result.offering), {
+      changedFields: adminPartnerCatalogChangedFieldsAuditView(Object.keys(input))
     });
   }
   sendJson(request, response, result.replay ? 200 : 201, {
