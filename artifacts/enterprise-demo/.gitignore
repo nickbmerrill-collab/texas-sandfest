@@ -1,0 +1,8 @@
+audio/
+overlays/
+segments/
+qa/
+*.json
+*.mp4
+*.png
+*.txt

@@ -19,6 +19,7 @@
     "video:board:render": "node scripts/render-board-demo.mjs",
     "video:board:verify": "node scripts/verify-board-demo-video.mjs",
     "video:board": "npm run video:board:capture && npm run video:board:render && npm run video:board:verify",
+    "video:enterprise": "node scripts/render-enterprise-demo.mjs",
     "board:handouts:build": "python3 scripts/build-board-handouts.py",
     "board:handouts:verify": "node scripts/verify-board-handouts.mjs",
     "board:handouts": "npm run board:handouts:build && npm run board:handouts:verify",
