@@ -1,0 +1,18 @@
+[Unit]
+Description=Texas SandFest MiniMax H3 worker on GPU 0
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nick
+WorkingDirectory=/mnt/emma/minimax-h3/ComfyUI
+Environment=PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+Environment=CUDA_MODULE_LOADING=LAZY
+ExecStart=/mnt/emma/minimax-h3/ComfyUI/.venv/bin/python main.py --listen 10.10.10.2 --port 8188 --cuda-device 0 --user-directory /mnt/emma/minimax-h3/ComfyUI/user-gpu0 --database-url sqlite:////mnt/emma/minimax-h3/ComfyUI/user-gpu0/comfyui.db --highvram --disable-auto-launch
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=45
+
+[Install]
+WantedBy=multi-user.target
