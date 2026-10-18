@@ -266,8 +266,8 @@ try {
   }
   const currentOwner = await assertRuntimeOwnership(ownershipRoot, { SANDFEST_RUNTIME_ROOT: ownershipRoot, SANDFEST_RUNTIME_OWNER_ID: secondOwnerId });
   check("runtime ownership rejects a stale process after handoff", staleOwnerRejected && currentOwner.required === true);
-  check("board seed covers core operations", prepared.applications === 5 && prepared.invoices === 1 && prepared.payments === 1
-    && prepared.budgetLines === 6 && prepared.expenses === 7 && prepared.tasks === 11 && prepared.prospects === 2 && prepared.safetySmsRecipients === 1);
+  check("board seed covers core operations", prepared.applications === 14 && prepared.invoices === 2 && prepared.payments === 1
+    && prepared.budgetLines === 6 && prepared.expenses === 7 && prepared.tasks === 20 && prepared.prospects === 2 && prepared.safetySmsRecipients === 1);
   check("board seed covers field operations", prepared.cameras === 8 && prepared.volunteerShifts === 12 && prepared.guestServiceCases === 3 && prepared.documents === 4);
   check("production refuses synthetic board conditions", await productionRejectsSyntheticConditions(targetRoot));
 
@@ -448,10 +448,16 @@ try {
   const budget = await request(base, "GET", "/api/admin/budget", undefined, { auth: true });
   const seededMarlin = seeded.data.applications?.find(item => item.organizationName === "Gulf Shore Credit Union");
   const seededSailfish = seeded.data.applications?.find(item => item.organizationName === "Port Aransas Marine Supply");
+  const seededTarpon = seeded.data.applications?.find(item => item.organizationName === "Mustang Island Hospitality Group");
+  const seededPipelineSponsor = seeded.data.applications?.find(item => item.organizationName === "Harbor Lights Community Foundation");
+  const seededClosedSponsor = seeded.data.applications?.find(item => item.organizationName === "South Jetty Wellness Initiative");
+  const seededPipelineVendor = seeded.data.applications?.find(item => item.organizationName === "Laguna Coast Outfitters");
+  const seededClosedVendor = seeded.data.applications?.find(item => item.organizationName === "Bayfront Kite Studio");
   const seededCreativeMilestone = seeded.data.milestones?.find(item => item.label === "Sponsor homepage creative approval");
   const seededCreativeReminder = seeded.data.followups?.find(item => item.milestoneId === seededCreativeMilestone?.id && item.kind === "milestone_reminder");
   const seededApprovalDecision = seeded.data.followups?.find(item => item.applicationId === seededMarlin?.id && item.kind === "application_approved");
-  check("seeded sponsor and vendor finance is visible", seeded.status === 200 && seeded.data.applications?.length === 5 && seeded.data.summary?.applications?.vendors === 3 && seeded.data.summary?.applications?.sponsors === 2 && seeded.data.applications?.some(item => item.type === "vendor" && item.offeringId === "food-beverage-booth" && item.expectedAmountCents === 175000) && seeded.data.applications?.some(item => item.type === "vendor" && item.intakeMode === "interest" && item.offeringId === "marketplace-booth" && item.expectedAmountCents === 0) && seededMarlin?.packageId === "marlin" && seededMarlin?.expectedAmountCents === 1500000 && seededSailfish?.packageId === "sailfish" && seededSailfish?.expectedAmountCents === 1000000 && seeded.data.invoices?.length === 1 && seeded.data.payments?.length === 1 && seeded.data.receivables?.totals?.collectedCents === 1000000);
+  check("seeded sponsor and vendor finance is visible", seeded.status === 200 && seeded.data.applications?.length === 14 && seeded.data.summary?.applications?.vendors === 8 && seeded.data.summary?.applications?.sponsors === 6 && seeded.data.applications?.some(item => item.type === "vendor" && item.offeringId === "food-beverage-booth" && item.expectedAmountCents === 175000) && seeded.data.applications?.filter(item => item.type === "vendor" && item.intakeMode === "interest" && item.offeringId === "marketplace-booth" && item.expectedAmountCents === 0).length === 2 && seededMarlin?.packageId === "marlin" && seededMarlin?.expectedAmountCents === 1500000 && seededSailfish?.packageId === "sailfish" && seededSailfish?.expectedAmountCents === 1000000 && seededTarpon?.packageId === "tarpon" && seededTarpon?.expectedAmountCents === 500000 && seeded.data.invoices?.length === 2 && seeded.data.payments?.length === 1 && seeded.data.receivables?.totals?.collectedCents === 1000000 && seeded.data.receivables?.totals?.outstandingCents === 1125000 && seeded.data.receivables?.totals?.pipelineCents === 2225000);
+  check("presentation partner cohort spans active and closed queues", seededPipelineSponsor?.status === "under_review" && seededPipelineSponsor?.tags?.includes("presentation") && seededClosedSponsor?.status === "rejected" && seededClosedSponsor?.tags?.includes("closed") && seededPipelineVendor?.status === "under_review" && seededPipelineVendor?.tags?.includes("retail") && seededClosedVendor?.status === "rejected" && seededClosedVendor?.tags?.includes("closed"));
   check("seeded sponsor brand kit contains two approved private assets", seeded.data.brandAssets?.filter(item => item.label?.startsWith("Gulf Shore Credit Union") && item.status === "approved").length === 2);
   check("seeded sponsor creative date enters the automatic follow-up window", seededCreativeMilestone?.source === "custom" && seededCreativeMilestone?.assigneeTeam === "sponsor" && seededCreativeMilestone?.reminderLeadDays === 3 && seeded.data.summary?.operations?.dueSoonMilestones === 1 && seededCreativeReminder?.status === "draft_ready" && seededCreativeReminder?.reminderPhase === "upcoming");
   check("seeded application approval is ready for safe delivery", seededMarlin?.decisionStatus === "approved" && seededMarlin?.decisionVersion === 1 && seededApprovalDecision?.status === "draft_ready" && seededApprovalDecision?.body?.includes("#partner-status?") && !seededApprovalDecision?.manualReviewRequiredAt);
@@ -462,12 +468,15 @@ try {
     && budget.data.summary?.counts?.byStatus?.paid === 2 && budget.data.summary?.counts?.byStatus?.rejected === 1
     && budget.data.summary?.totals?.budgetCents === 53_000_000 && budget.data.summary?.totals?.committedCents === 18_640_000
     && budget.data.summary?.totals?.submittedCents === 9_200_000 && budget.data.expenses?.every(item => item.eventId === DEFAULT_EVENT_ID));
-  check("seeded work and outreach are visible", seeded.data.tasks?.length === 11 && seeded.data.followups?.length >= 5 && outreach.status === 200 && outreach.data.prospects?.length === 2 && outreach.data.campaigns?.length === 2);
+  check("seeded work and outreach are visible", seeded.data.tasks?.length === 20 && seeded.data.followups?.length >= 23 && outreach.status === 200 && outreach.data.prospects?.length === 2 && outreach.data.campaigns?.length === 2);
   const seededAssignmentTypes = new Set(seeded.data.tasks?.filter(item => item.assigneeId).map(item => item.assigneeType));
   check("board work demonstrates direct staff, volunteer, and team delegation", seededAssignmentTypes.has("staff") && seededAssignmentTypes.has("volunteer") && seededAssignmentTypes.has("team") && seeded.data.tasks?.some(item => item.assigneeType === "staff" && item.assigneeId === "staff_operations" && item.assigneeName === "Jamie Torres") && seeded.data.taskBoard?.totals?.unassigned === 0);
   const readyVendor = seeded.data.vendorReadiness?.vendors?.find(item => item.organizationName === "Coastal Bites");
   const blockedVendor = seeded.data.vendorReadiness?.vendors?.find(item => item.organizationName === "Island Art Market");
-  check("board vendor onboarding shows completed and intervention paths", seeded.data.vendorReadiness?.totals?.ready === 1 && seeded.data.vendorReadiness?.totals?.blocked === 1 && readyVendor?.profileStatus === "approved" && readyVendor?.compliance?.approved === readyVendor?.compliance?.required && readyVendor?.assignmentStatus === "confirmed" && readyVendor?.boothNumber === "F-14" && blockedVendor?.status === "blocked");
+  const reviewingVendor = seeded.data.vendorReadiness?.vendors?.find(item => item.organizationName === "Boardwalk Lemonade Company");
+  const scheduledVendor = seeded.data.vendorReadiness?.vendors?.find(item => item.organizationName === "Seaside Makers Collective");
+  const pipelineVendor = seeded.data.vendorReadiness?.vendors?.find(item => item.organizationName === "Laguna Coast Outfitters");
+  check("board vendor onboarding shows completed and intervention paths", seeded.data.vendorReadiness?.totals?.vendors === 5 && seeded.data.vendorReadiness?.totals?.interests === 2 && seeded.data.vendorReadiness?.totals?.closed === 1 && seeded.data.vendorReadiness?.totals?.ready === 1 && seeded.data.vendorReadiness?.totals?.blocked === 3 && seeded.data.vendorReadiness?.totals?.profilesAwaitingReview === 2 && readyVendor?.profileStatus === "approved" && readyVendor?.compliance?.approved === readyVendor?.compliance?.required && readyVendor?.assignmentStatus === "confirmed" && readyVendor?.boothNumber === "F-14" && blockedVendor?.status === "blocked" && reviewingVendor?.profileStatus === "submitted" && reviewingVendor?.compliance?.missing === 7 && scheduledVendor?.status === "in_progress" && scheduledVendor?.assignmentStatus === "scheduled" && scheduledVendor?.boothNumber === "A-22" && pipelineVendor?.profileStatus === "submitted" && !seeded.data.vendorReadiness?.vendors?.some(item => item.organizationName === "Bayfront Kite Studio"));
   check("board staff routing is current and private", seeded.data.staffDirectory?.ready === true && seeded.data.staffDirectory?.activeStaff === 7 && seeded.data.staffDirectory?.routedTeams === 7 && seeded.data.assignmentDirectory?.teams?.every(item => item.notificationReady === true) && seeded.data.assignmentDirectory?.staff?.every(item => !("email" in item)));
   const seededSponsorProspect = outreach.data.prospects?.find(item => item.organizationName === "Island Harbor Hotel");
   const seededReviewProspect = outreach.data.prospects?.find(item => item.organizationName === "Coastal Bend Community Bank");
@@ -637,7 +646,7 @@ try {
   const newApplicationIds = new Set([vendor.data.application?.id, sponsor.data.application?.id].filter(Boolean));
   const immediateIntakeReminders = (afterWorker.data.followups || []).filter(item => item.kind === "milestone_reminder" && newApplicationIds.has(item.applicationId));
   const taskAssignmentMessages = (afterWorker.data.followups || []).filter(item => item.kind === "task_assignment" && activeAssignedTaskIds.has(item.taskId));
-  check("worker prepares review-first messages", workerOutput.includes("processed 3 job(s)") && afterWorker.data.applications?.length === 8 && afterWorker.data.followups?.filter(item => item.status === "draft_ready").length >= 8);
+  check("worker prepares review-first messages", workerOutput.includes("processed 3 job(s)") && afterWorker.data.applications?.length === 17 && afterWorker.data.followups?.filter(item => item.status === "draft_ready").length >= 13);
   check("new partner acknowledgments are separated from milestone reminders", immediateIntakeReminders.length === 0);
   check("worker prepares one private notice per assigned task", taskAssignmentMessages.length === activeAssignedTaskIds.size && taskAssignmentMessages.every(item => item.status === "draft_ready" && item.recipientAvailable === true && item.recipientLabel && !("recipient" in item) && item.body?.includes("#task-status?task=") && item.body?.includes("&token=tsft_")));
   const taskPortalMessage = taskAssignmentMessages.find(item => item.taskId && item.body?.includes("#task-status?task="));
@@ -665,7 +674,7 @@ try {
       const applicationDecision = workspace.data.followups?.find(item => item.kind === "application_approved" && item.applicationId === seededMarlin?.id);
       const sponsorProofReview = workspace.data.followups?.find(item => item.kind === "sponsor_deliverable_review");
       const vendorOpening = workspace.data.followups?.find(item => item.kind === "vendor_applications_open");
-      return applicationMessages.length >= 8
+      return applicationMessages.length >= 13
         && applicationMessages.every(item => item.status === "sent" && item.deliveryStatus === "delivered")
         && assignmentMessages.length === activeAssignedTaskIds.size
         && assignmentMessages.every(item => item.status === "sent" && item.deliveryStatus === "delivered")

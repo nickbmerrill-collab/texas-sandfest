@@ -96,9 +96,14 @@ final class ScannerVC: UIViewController, @preconcurrency AVCaptureMetadataOutput
     private func renderUnavailable() {
         let label = UILabel()
         label.text = "Camera not available in this simulator. On device, Eventeny QR scanning works here."
+        label.font = .preferredFont(forTextStyle: .body)
+        label.adjustsFontForContentSizeCategory = true
         label.numberOfLines = 0
         label.textAlignment = .center
         label.textColor = .white
+        label.isAccessibilityElement = true
+        label.accessibilityIdentifier = "ScannerUnavailableMessage"
+        label.accessibilityLabel = label.text
         label.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(label)
         NSLayoutConstraint.activate([
@@ -127,12 +132,20 @@ final class ScannerVC: UIViewController, @preconcurrency AVCaptureMetadataOutput
         let hint = UILabel()
         hint.text = "Center your Eventeny ticket QR here"
         hint.textColor = .white
-        hint.font = .systemFont(ofSize: 14, weight: .semibold)
+        hint.font = .preferredFont(forTextStyle: .callout)
+        hint.adjustsFontForContentSizeCategory = true
+        hint.numberOfLines = 0
+        hint.textAlignment = .center
+        hint.isAccessibilityElement = true
+        hint.accessibilityIdentifier = "ScannerPositionHint"
+        hint.accessibilityLabel = hint.text
         hint.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(hint)
         NSLayoutConstraint.activate([
             hint.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            hint.topAnchor.constraint(equalTo: reticle.bottomAnchor, constant: 18)
+            hint.topAnchor.constraint(equalTo: reticle.bottomAnchor, constant: 18),
+            hint.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 24),
+            hint.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -24)
         ])
     }
 

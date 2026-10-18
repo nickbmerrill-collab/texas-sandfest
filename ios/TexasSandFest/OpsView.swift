@@ -339,7 +339,7 @@ struct OpsView: View {
                     if let statusNote {
                         Text(statusNote)
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.sandFestSecondary)
                             .padding(.horizontal, 4)
                     }
                     if let lastError = store.lastError {
@@ -447,7 +447,7 @@ struct OpsView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label.uppercased())
                 .font(.caption2.weight(.bold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.sandFestSecondary)
             Text("\(value)")
                 .font(.title2.weight(.black))
                 .foregroundStyle(color)
@@ -479,7 +479,7 @@ private struct IncidentCard: View {
                         .multilineTextAlignment(.leading)
                     Text(incident.summary.isEmpty ? "No incident summary" : incident.summary)
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.sandFestSecondary)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
                 }
@@ -497,7 +497,7 @@ private struct IncidentCard: View {
                 }
             }
             .font(.caption.weight(.semibold))
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Color.sandFestSecondary)
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -701,7 +701,7 @@ private struct IncidentDetailSheet: View {
                                         .font(.headline)
                                     Text("\(dispatch.statusLabel) · \(dispatch.notification.statusLabel)")
                                         .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(Color.sandFestSecondary)
                                     if !dispatch.instructions.isEmpty {
                                         Text(dispatch.instructions)
                                             .font(.subheadline)

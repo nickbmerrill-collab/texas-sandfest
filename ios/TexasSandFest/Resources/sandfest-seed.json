@@ -249,26 +249,7 @@
       "status": "attention"
     }
   ],
-  "ticketOptions": [
-    {
-      "id": "ga",
-      "name": "General Admission",
-      "price": "Stripe price TBD",
-      "detail": "Stripe Checkout and Apple Pay handoff. Keep final prices synced from approved ticket products."
-    },
-    {
-      "id": "vip",
-      "name": "VIP Wristbands",
-      "price": "Stripe price TBD",
-      "detail": "VIP checkout handoff, menus, parking pass exclusions, and will-call instructions."
-    },
-    {
-      "id": "raffle",
-      "name": "Golf Cart Raffle",
-      "price": "$50 review gated",
-      "detail": "Raffle purchase remains disabled until compliance, receipt text, and finance reconciliation rules are approved."
-    }
-  ],
+  "ticketOptions": [],
   "sponsors": [
     {
       "id": "thomas-j-henry",

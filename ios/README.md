@@ -12,6 +12,12 @@ open TexasSandFest.xcodeproj
 
 From the repository root, `npm run test:ios-xcode` selects an available iPhone simulator, runs the XCTest suite, and verifies an optimized simulator build with Swift warnings treated as errors. The committed project includes the test target, so XcodeGen is only needed after changing `project.yml`.
 
+`npm run test:ios-accessibility` runs the separate UI-test target across all
+five primary visitor tabs. It checks Apple accessibility audit categories such
+as contrast, clipping, hit regions, element descriptions, traits, and actions;
+the production readiness command includes this slower gate after the unit test
+suite.
+
 `npm run test:ios-device` performs the separate local signing gate. Xcode uses
 the committed development team and the signed-in Apple account to refresh
 automatic provisioning, builds a Release app for iOS hardware, and verifies
@@ -21,24 +27,30 @@ paired iOS device with Developer Mode enabled, registering it when necessary,
 installing the signed app, and launching it. `SANDFEST_IOS_DEVICE_ID` can select
 a specific CoreDevice identifier or hardware UDID when more than one qualifies.
 
+`npm run test:ios-archive` creates a temporary signed Release archive, verifies
+its signature, bundle identifier, marketing version, and build number, then
+removes it. This is the pre-upload archive gate; it does not upload to
+TestFlight or submit the app for review. See `AppStore/README.md` for the
+account-owned publication checklist.
+
 ## Current screens
 
-- Customer mode
+- Visitor view
   - Today
   - Schedule
   - Beach, with Live Beach and Sculptors views
   - Ask Sandy
   - Tickets
-- Admin mode
+- Staff demo view
   - Command
   - Incidents
   - Partners
   - Finance
   - Setup
 
-The mode switch is intentionally available only when a validated public
+The Visitor/Staff switch is intentionally available only when a validated public
 bootstrap identifies the API as `board_demo` and that API is running on a
-loopback origin. A normal, failed, or remote refresh leaves the app in Customer
+loopback origin. A normal, failed, or remote refresh leaves the app in Visitor
 mode. The `-startMode admin` simulator argument selects the board screen only
 after that runtime check; it cannot grant access by itself.
 
@@ -72,14 +84,16 @@ sandfest://island-conditions
 sandfest://sculptors
 ```
 
-The same parser accepts canonical `https://sandfest.heyelab.com` paths as
-Universal Links. The target commits the `applinks:sandfest.heyelab.com`
-Associated Domains entitlement, and the production web build generates the
-matching extensionless `/.well-known/apple-app-site-association` file from the
-shared allowlist. The live verifier rejects redirects, a non-JSON response, a
+The same parser accepts canonical
+`https://www.heyelab.com/texas-sandfest/app/...` paths as Universal Links. The
+target commits both `applinks:www.heyelab.com` and the build-1-compatible
+`applinks:sandfest.heyelab.com` Associated Domains entitlements. The production
+web build generates the matching extensionless
+`/.well-known/apple-app-site-association` file from the shared canonical and
+legacy allowlists. The live verifier rejects redirects, a non-JSON response, a
 different app identity, extra routes, or an artifact that differs from the
-deployed response. Canonical paths also retain browser fallbacks when the app is
-not installed; Sandy questions are only prefilled and exact schedule links fall
+deployed response. Canonical paths retain browser fallbacks when the app is not
+installed; Sandy questions are only prefilled and exact schedule links fall
 back to the public schedule when their item is unavailable.
 
 Set `SANDFEST_APPLE_APP_ID_PREFIX` to the signed app's 10-character Apple

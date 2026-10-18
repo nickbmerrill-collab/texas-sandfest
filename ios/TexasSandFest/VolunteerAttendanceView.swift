@@ -281,7 +281,7 @@ struct VolunteerAttendanceView: View {
                 .foregroundStyle(color)
             Text(label)
                 .font(.caption2)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.sandFestSecondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
         }
@@ -310,12 +310,12 @@ struct VolunteerAttendanceView: View {
 
             Text("\(roleTitle(assignment.roleId)) · \(assignment.zoneLabel)")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.sandFestSecondary)
 
             HStack(alignment: .center, spacing: 10) {
                 Label(shiftLabel(assignment), systemImage: "clock")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.sandFestSecondary)
                     .lineLimit(2)
                 Spacer(minLength: 8)
                 if assignment.canCheckIn || assignment.canCheckOut {

@@ -40,11 +40,25 @@ function validatePayload(payload) {
   }
 }
 
+function isApprovedPublicTicketOption(option) {
+  const reviewText = [option?.price, option?.detail].filter(Boolean).join(" ");
+  return !/\b(?:tbd|review[- ]gated)\b/i.test(reviewText);
+}
+
+function nativeSeedPayload(payload) {
+  return {
+    ...payload,
+    // Never bundle placeholder or approval-gated commerce claims in the public app.
+    ticketOptions: payload.ticketOptions.filter(isApprovedPublicTicketOption)
+  };
+}
+
 const raw = await readFile(sourcePath, "utf8");
 const payload = JSON.parse(raw);
 validatePayload(payload);
+const nativePayload = nativeSeedPayload(payload);
 
 await mkdir(path.dirname(targetPath), { recursive: true });
-await writeFile(targetPath, `${JSON.stringify(payload, null, 2)}\n`);
+await writeFile(targetPath, `${JSON.stringify(nativePayload, null, 2)}\n`);
 
 console.log(`iOS seed updated: ${targetPath}`);

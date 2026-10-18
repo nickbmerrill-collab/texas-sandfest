@@ -18,6 +18,8 @@ enum ScheduleMode: String, CaseIterable, Identifiable {
 
 struct ScheduleView: View {
     @EnvironmentObject private var dataStore: AppDataStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @StateObject private var favorites = FavoritesStore()
     @StateObject private var notifications = NotificationManager.shared
     @Binding private var targetItemID: String?
@@ -110,7 +112,7 @@ struct ScheduleView: View {
             }
             .background(Color.lbCream.ignoresSafeArea())
             .navigationTitle("Schedule")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(dynamicTypeSize.isAccessibilitySize ? .inline : .large)
             .alert("Turn on notifications", isPresented: $permissionAlertVisible) {
                 Button("OK") {}
             } message: {
@@ -135,7 +137,7 @@ struct ScheduleView: View {
         HStack(spacing: 8) {
             ForEach(ScheduleMode.allCases) { m in
                 Button {
-                    withAnimation(.easeInOut(duration: 0.18)) { mode = m }
+                    updateWithOptionalAnimation(.easeInOut(duration: 0.18)) { mode = m }
                 } label: {
                     Text(m.label)
                         .font(.caption.weight(.bold))
@@ -158,30 +160,43 @@ struct ScheduleView: View {
     // MARK: Sections
 
     private var schedulePublicationPending: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "calendar.badge.clock")
-                .font(.system(size: 42))
-                .foregroundStyle(Color.lbCoral2)
-            Text("2027 daily schedule coming soon")
-                .font(.title3.weight(.bold))
-                .foregroundStyle(Color.lbNavy)
-            Text("Festival dates and hours are confirmed. Detailed programming will appear after Texas SandFest publishes the current daily schedule.")
-                .font(.subheadline)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(Color.lbNavy.opacity(0.68))
-            Link("Check the official daily schedule", destination: URL(string: "https://www.texassandfest.org/daily-schedule")!)
-                .font(.subheadline.weight(.bold))
-                .foregroundStyle(Color.sandFestGulf)
+        ScrollView {
+            VStack(spacing: 14) {
+                Image(systemName: "calendar.badge.clock")
+                    .font(.title)
+                    .foregroundStyle(Color.lbCoral2)
+                Text("2027 daily schedule coming soon")
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(Color.lbNavy)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Festival dates and hours are confirmed. Detailed programming will appear after Texas SandFest publishes the current daily schedule.")
+                    .font(.subheadline)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(Color.lbNavy.opacity(0.68))
+                    .fixedSize(horizontal: false, vertical: true)
+                Link("Check the official daily schedule", destination: URL(string: "https://www.texassandfest.org/daily-schedule")!)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(Color.sandFestGulf)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .padding(.horizontal, 12)
+                    .background(Color.white.opacity(0.76))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .accessibilityHint("Opens the Texas SandFest website")
+            }
+            .frame(maxWidth: .infinity)
+            .padding(32)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(32)
     }
 
     private var dayPicker: some View {
         HStack(spacing: 8) {
             ForEach(days, id: \.self) { day in
                 Button {
-                    withAnimation(.easeInOut(duration: 0.18)) { selectedDay = day }
+                    updateWithOptionalAnimation(.easeInOut(duration: 0.18)) { selectedDay = day }
                 } label: {
                     let isActive = day == selectedDay
                     HStack(spacing: 6) {
@@ -212,7 +227,7 @@ struct ScheduleView: View {
                 .foregroundStyle(Color.lbNavy.opacity(0.62))
             Spacer()
             Button {
-                withAnimation { myScheduleOnly.toggle() }
+                updateWithOptionalAnimation { myScheduleOnly.toggle() }
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: myScheduleOnly ? "star.fill" : "star")
@@ -277,16 +292,29 @@ struct ScheduleView: View {
         }
         self.targetItemID = nil
         DispatchQueue.main.async {
-            withAnimation(.easeInOut(duration: 0.3)) {
+            updateWithOptionalAnimation(.easeInOut(duration: 0.3)) {
                 proxy.scrollTo(targetItemID, anchor: .center)
             }
         }
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(2))
             if highlightedItemID == targetItemID {
-                withAnimation(.easeOut(duration: 0.25)) {
+                updateWithOptionalAnimation(.easeOut(duration: 0.25)) {
                     highlightedItemID = nil
                 }
+            }
+        }
+    }
+
+    private func updateWithOptionalAnimation(
+        _ animation: Animation = .default,
+        updates: () -> Void
+    ) {
+        if reduceMotion {
+            updates()
+        } else {
+            withAnimation(animation) {
+                updates()
             }
         }
     }
@@ -397,6 +425,8 @@ private struct ScheduleRow: View {
                     .clipShape(Circle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(isStarred ? "Remove \(item.title) from My Schedule" : "Add \(item.title) to My Schedule")
+            .accessibilityHint("Updates your personal festival schedule and reminder preference.")
         }
         .padding(14)
         .background(

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AdminDashboardView: View {
     @EnvironmentObject private var dataStore: AppDataStore
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         NavigationStack {
@@ -16,13 +17,22 @@ struct AdminDashboardView: View {
             }
             .background(Color.sandFestFoam.ignoresSafeArea())
             .navigationTitle("Command")
+            .refreshable {
+                await dataStore.refreshPublicData()
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         Task { await dataStore.refreshPublicData() }
                     } label: {
-                        Label("Refresh", systemImage: "arrow.clockwise")
+                        if isRefreshing {
+                            ProgressView()
+                        } else {
+                            Label("Refresh", systemImage: "arrow.clockwise")
+                        }
                     }
+                    .disabled(isRefreshing)
+                    .accessibilityLabel(isRefreshing ? "Refreshing festival data" : "Refresh festival data")
                 }
             }
         }
@@ -35,8 +45,8 @@ struct AdminDashboardView: View {
                     .font(.largeTitle.weight(.bold))
                     .foregroundStyle(Color.sandFestDeep)
                 Text("Staff-only view for crowd status, volunteer coverage, incidents, partner readiness, and finance signals.")
-                    .foregroundStyle(.secondary)
-                HStack(spacing: 8) {
+                    .foregroundStyle(Color.sandFestSecondary)
+                LazyVGrid(columns: statusColumns, spacing: 8) {
                     statusPill("Public", dataStore.syncState.label)
                     statusPill("Operations", dataStore.adminSyncState.label)
                     statusPill("Open work", String(dataStore.adminTaskSummary?.active ?? 0))
@@ -65,15 +75,15 @@ struct AdminDashboardView: View {
                 } else {
                     Text("No active public alert. The iOS app will keep the bundled guide available if the API is unreachable.")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.sandFestSecondary)
                 }
             }
         }
     }
 
     private var coverageGrid: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                    ForEach(dataStore.payload.coverage) { coverage in
+        LazyVGrid(columns: coverageColumns, spacing: 12) {
+            ForEach(dataStore.payload.coverage) { coverage in
                 Panel {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(coverage.zone)
@@ -83,12 +93,30 @@ struct AdminDashboardView: View {
                             .foregroundStyle(coverage.filled >= coverage.needed ? Color.green : Color.sandFestCoral)
                         Text("volunteer coverage")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.sandFestSecondary)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         }
+    }
+
+    private var isRefreshing: Bool {
+        dataStore.syncState == .refreshing || dataStore.adminSyncState == .refreshing
+    }
+
+    private var statusColumns: [GridItem] {
+        if dynamicTypeSize.isAccessibilitySize {
+            return [GridItem(.flexible())]
+        }
+        return [GridItem(.adaptive(minimum: 100), spacing: 8)]
+    }
+
+    private var coverageColumns: [GridItem] {
+        if dynamicTypeSize.isAccessibilitySize {
+            return [GridItem(.flexible())]
+        }
+        return [GridItem(.adaptive(minimum: 150), spacing: 12)]
     }
 
     private var zoneStatus: some View {
@@ -103,7 +131,7 @@ struct AdminDashboardView: View {
                             .frame(width: 10, height: 10)
                         VStack(alignment: .leading) {
                             Text(zone.name).font(.subheadline.weight(.semibold))
-                            Text(zone.summary).font(.caption).foregroundStyle(.secondary)
+                            Text(zone.summary).font(.caption).foregroundStyle(Color.sandFestSecondary)
                         }
                         Spacer()
                         Text(zone.marker)
@@ -117,7 +145,7 @@ struct AdminDashboardView: View {
 
     private func statusPill(_ label: String, _ value: String) -> some View {
         VStack(alignment: .leading) {
-            Text(label).font(.caption).foregroundStyle(.secondary)
+            Text(label).font(.caption).foregroundStyle(Color.sandFestSecondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
             Text(value).font(.caption.weight(.bold))

@@ -1189,7 +1189,7 @@ ${settlementReference},2027-03-02,merch,325.00,9.75,315.25,5,square_payout_${run
     await expect(partnerActivity.locator(`[data-category="${category}"]`).first()).toBeVisible();
   }
   await expect(partnerActivity).toContainText("Payment recorded");
-  await expect(partnerActivity).toContainText("Invoice created");
+  await expect(partnerActivity).toContainText(/invoices? created/i);
   await expect(partnerActivity).toContainText(/assignment notices prepared/i);
   await expect(partnerActivity).toContainText("Brand profile approved");
   expect(await partnerActivity.textContent()).not.toMatch(/activity_|demo_[sv]app|followup_/);
@@ -4474,6 +4474,13 @@ test("critical public and operations views fit a mobile viewport", async ({ page
   await expect(mobileNavigationToggle).toBeVisible();
   await expect(mobileNavigationToggle).toHaveAttribute("aria-expanded", "false");
   await expect(mobileNavigation).toBeHidden();
+  const visitorQuickNavigation = page.locator(".visitor-quick-nav");
+  await expect(visitorQuickNavigation).toBeVisible();
+  await expect(visitorQuickNavigation.getByRole("link")).toHaveCount(4);
+  for (const shortcut of await visitorQuickNavigation.getByRole("link").all()) {
+    const shortcutBox = await shortcut.boundingBox();
+    expect(shortcutBox?.height).toBeGreaterThanOrEqual(44);
+  }
   await mobileNavigationToggle.click();
   await expect(mobileNavigationToggle).toHaveAttribute("aria-expanded", "true");
   await expect(mobileNavigation).toBeVisible();
@@ -4634,12 +4641,17 @@ test("critical public and operations views fit a mobile viewport", async ({ page
     "Island conditions",
     "Systems"
   ]);
-  await expect.poll(() => workspaceNav.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  await expect.poll(() => workspaceNav.evaluate(element => (
+    getComputedStyle(element).display === "grid"
+    && getComputedStyle(element).gridTemplateColumns.split(" ").length === 3
+    && element.scrollWidth <= element.clientWidth + 1
+  ))).toBe(true);
   for (const link of await workspaceLinks.all()) {
     await expect(link).toBeInViewport();
     await expect.poll(() => link.evaluate(element => (
       element.scrollWidth <= element.clientWidth + 1
       && element.scrollHeight <= element.clientHeight + 1
+      && element.getBoundingClientRect().height >= 44
     ))).toBe(true);
   }
   expect(await page.locator("button, input:not([type=hidden]):not([type=checkbox]):not([type=radio]), select, textarea, a[href], [role=button]").evaluateAll(controls => controls.flatMap(control => {

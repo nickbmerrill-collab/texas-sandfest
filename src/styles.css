@@ -27,6 +27,10 @@ html {
   scroll-behavior: smooth;
 }
 
+html.admin-document {
+  scroll-behavior: auto;
+}
+
 body {
   margin: 0;
   background: var(--foam);
@@ -140,6 +144,25 @@ nav a,
   display: inline-flex;
   min-height: 44px;
   padding-inline: 2px;
+}
+
+.primary-nav-ticket {
+  background: var(--deep);
+  border-radius: 7px;
+  color: var(--white);
+  padding-inline: 14px !important;
+}
+
+.primary-nav-ticket:hover {
+  background: var(--gulf);
+}
+
+.topbar .primary-nav .primary-nav-secondary {
+  display: none;
+}
+
+.visitor-quick-nav {
+  display: none;
 }
 
 .nav-cta,
@@ -392,7 +415,7 @@ nav a,
 
 .hero-content {
   color: var(--white);
-  max-width: 780px;
+  max-width: 740px;
   position: relative;
   z-index: 3;
 }
@@ -449,6 +472,7 @@ h3 {
 
 .hero-copy {
   color: rgba(255, 253, 247, 0.9);
+  max-width: 610px;
 }
 
 .section-copy {
@@ -3533,6 +3557,10 @@ time {
     background: var(--sand);
   }
 
+  .topbar .primary-nav[data-open="true"] .primary-nav-secondary {
+    display: inline-flex;
+  }
+
   .mobile-nav-toggle {
     display: inline-flex;
   }
@@ -3783,6 +3811,43 @@ time {
     height: 64px;
     padding: 0 12px;
     width: 100%;
+  }
+
+  body.mode-public {
+    padding-bottom: calc(64px + env(safe-area-inset-bottom));
+  }
+
+  .visitor-quick-nav {
+    background: rgba(255, 253, 247, 0.97);
+    border-top: 1px solid var(--line);
+    bottom: 0;
+    box-shadow: 0 -10px 28px rgba(18, 51, 58, 0.1);
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    left: 0;
+    padding: 5px 8px calc(5px + env(safe-area-inset-bottom));
+    position: fixed;
+    right: 0;
+    z-index: 30;
+  }
+
+  .visitor-quick-nav a {
+    align-items: center;
+    border-radius: 7px;
+    color: var(--muted);
+    display: flex;
+    flex-direction: column;
+    font-size: 11px;
+    gap: 2px;
+    justify-content: center;
+    min-height: 48px;
+    padding: 4px 2px;
+    text-decoration: none;
+  }
+
+  .visitor-quick-nav a span {
+    font-size: 18px;
+    line-height: 1;
   }
 
   .admin-workspace-nav {
@@ -7227,8 +7292,8 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
   }
   .admin-workspace-nav {
     display: grid;
-    gap: 4px;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 2px 4px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     overflow-x: visible;
   }
   .admin-workspace-nav a {
@@ -7263,7 +7328,7 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
   .admin-shell-body #admin-sponsor-fulfillment,
   .admin-shell-body #admin-vendor-readiness,
   .admin-shell-body #admin-outreach-prospects {
-    scroll-margin-top: 292px;
+    scroll-margin-top: 196px;
   }
 }
 @media (max-width: 360px) {
@@ -7327,5 +7392,23 @@ a.public-sponsor-card:focus-visible { border-color: var(--sponsor-secondary); bo
   body.runtime-board-demo #task-status,
   body.runtime-board-demo #task-status-result {
     scroll-margin-top: 136px;
+  }
+  body.runtime-board-demo.admin-shell-body #admin-partner-applications-workspace,
+  body.runtime-board-demo.admin-shell-body #admin-impact-report,
+  body.runtime-board-demo.admin-shell-body #admin-guest-services,
+  body.runtime-board-demo.admin-shell-body #admin-documents,
+  body.runtime-board-demo.admin-shell-body #admin-partners,
+  body.runtime-board-demo.admin-shell-body #admin-budget,
+  body.runtime-board-demo.admin-shell-body #admin-volunteers,
+  body.runtime-board-demo.admin-shell-body #admin-island-conditions,
+  body.runtime-board-demo.admin-shell-body #admin-system-monitor,
+  body.runtime-board-demo.admin-shell-body #admin-receivables-workspace,
+  body.runtime-board-demo.admin-shell-body #admin-partner-followups-workspace,
+  body.runtime-board-demo.admin-shell-body #admin-partner-tasks-workspace,
+  body.runtime-board-demo.admin-shell-body #admin-partner-milestones-workspace,
+  body.runtime-board-demo.admin-shell-body #admin-sponsor-fulfillment-workspace,
+  body.runtime-board-demo.admin-shell-body #admin-vendor-readiness-workspace,
+  body.runtime-board-demo.admin-shell-body #admin-outreach-prospects-workspace {
+    scroll-margin-top: 280px;
   }
 }

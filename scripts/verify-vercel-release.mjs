@@ -6,6 +6,10 @@ import {
   deploymentVerificationConfig,
   verifyProductionApi
 } from "../lib/deployment-verifier.mjs";
+import {
+  PUBLIC_REVIEW_BRIDGE_URL,
+  verifyPublicReviewBridge
+} from "../lib/public-review-bridge-verifier.mjs";
 
 const TURNSTILE_TEST_SITE_KEYS = new Set([
   "1x00000000000000000000AA",
@@ -37,6 +41,10 @@ export async function verifyVercelRelease({
   }
 
   const failures = [];
+  const publicBridgeMode = String(env.SANDFEST_VERCEL_PUBLIC_BRIDGE_MODE || "").trim();
+  if (publicBridgeMode && publicBridgeMode !== "read_only") {
+    failures.push("SANDFEST_VERCEL_PUBLIC_BRIDGE_MODE must be read_only when set.");
+  }
   const turnstileFailure = turnstileSiteKeyFailure(env.VITE_SANDFEST_TURNSTILE_SITE_KEY);
   if (turnstileFailure) failures.push(turnstileFailure);
 
@@ -52,8 +60,14 @@ export async function verifyVercelRelease({
     return { ok: false, skipped: false, failures, config, api: null };
   }
 
-  const api = await verifyProductionApi({ config, fetchImpl });
-  if (!api.ok) failures.push(`Production API contract failed ${api.summary.failed} check(s).`);
+  const api = publicBridgeMode === "read_only"
+    ? await verifyPublicReviewBridge({ baseUrl: config.apiUrl, fetchImpl })
+    : await verifyProductionApi({ config, fetchImpl });
+  if (!api.ok) {
+    failures.push(publicBridgeMode === "read_only"
+      ? `Public review bridge contract failed ${api.summary.failed} check(s).`
+      : `Production API contract failed ${api.summary.failed} check(s).`);
+  }
   return { ok: failures.length === 0, skipped: false, failures, config, api };
 }
 
@@ -74,7 +88,10 @@ async function main() {
     return;
   }
 
-  console.log(`Vercel production release gate passed for ${result.config.publicUrl}.`);
+  const mode = process.env.SANDFEST_VERCEL_PUBLIC_BRIDGE_MODE === "read_only"
+    ? ` against the read-only visitor bridge ${PUBLIC_REVIEW_BRIDGE_URL}`
+    : "";
+  console.log(`Vercel production release gate passed for ${result.config.publicUrl}${mode}.`);
 }
 
 const invokedPath = process.argv[1] ? pathToFileURL(process.argv[1]).href : null;

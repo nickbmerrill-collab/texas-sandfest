@@ -52,6 +52,7 @@ async function assetSizeSummary(directory, files) {
 
 const publicHtml = await readFile(path.join(publicDir, "index.html"), "utf8");
 const publicFallbackHtml = await readFile(path.join(publicDir, "404.html"), "utf8");
+const publicPrivacyHtml = await readFile(path.join(publicDir, "privacy.html"), "utf8");
 const publicAppleAssociation = JSON.parse(await readFile(path.join(publicDir, ".well-known", "apple-app-site-association"), "utf8"));
 const adminHtml = await readFile(path.join(adminDir, "index.html"), "utf8");
 const publicAssets = await readdir(path.join(publicDir, "assets"));
@@ -60,6 +61,8 @@ const publicScriptFiles = publicAssets.filter(file => file.endsWith(".js"));
 const publicInitialScriptFiles = [...publicHtml.matchAll(/(?:src|href)="\/assets\/([^"?]+\.js)"/g)].map(match => match[1]);
 const publicOptionalScriptFiles = publicScriptFiles.filter(file => !publicInitialScriptFiles.includes(file));
 const adminScriptFiles = adminAssets.filter(file => file.endsWith(".js"));
+const adminAuthScriptFiles = adminScriptFiles.filter(file => file.startsWith("admin-auth-"));
+const adminOperationsScriptFiles = adminScriptFiles.filter(file => file.startsWith("admin-operations-ui-"));
 const adminOptionalScriptFiles = adminScriptFiles.filter(file => [
   "admin-budget-",
   "admin-command-action-queue-",
@@ -90,10 +93,15 @@ const ciWorkflow = parseYaml(await readFile(path.join(root, ".github", "workflow
 const pagesWorkflow = parseYaml(await readFile(path.join(root, ".github", "workflows", "pages.yml"), "utf8"));
 const mediaDerivatives = JSON.parse(await readFile(path.join(publicDir, "assets", "sandfest-media", "media-derivatives.json"), "utf8"));
 const publicMediaManifest = JSON.parse(await readFile(path.join(publicDir, "assets", "sandfest-media", "media-manifest.json"), "utf8"));
+const runtimeMediaManifestPath = path.join(publicDir, "assets", "sandfest-media", "media-runtime-manifest.json");
+const runtimeMediaManifest = JSON.parse(await readFile(runtimeMediaManifestPath, "utf8"));
 const robots = await readFile(path.join(publicDir, "robots.txt"), "utf8");
 const publicWorker = await readFile(path.join(publicDir, "sw.js"), "utf8");
 const vercelGlobalHeaders = Object.fromEntries((vercelConfig.headers || [])
   .find(rule => rule.source === "/(.*)")?.headers
+  ?.map(header => [header.key.toLowerCase(), header.value]) || []);
+const vercelAppleAssociationHeaders = Object.fromEntries((vercelConfig.headers || [])
+  .find(rule => rule.source === "/.well-known/apple-app-site-association")?.headers
   ?.map(header => [header.key.toLowerCase(), header.value]) || []);
 const [publicScripts, publicInitialScripts, publicOptionalScripts, publicStyles, publicPreferredFonts, publicOfflineFonts, adminScripts, adminInitialScripts, adminOptionalScripts, adminContentScripts, adminStyles] = await Promise.all([
   assetSizeSummary(publicDir, publicScriptFiles),
@@ -127,6 +135,7 @@ assert(!(await exists(path.join(adminDir, "admin.html"))), "Admin artifact must 
 assert(vercelConfig.framework === "vite", "Vercel PR previews must use the Vite framework preset.");
 assert(vercelConfig.buildCommand === "node scripts/verify-vercel-project.mjs && node scripts/verify-vercel-release.mjs && SANDFEST_DEPLOYMENT_ENV=$VERCEL_ENV npm run build:public", "Vercel must verify project isolation and the canonical production release before building only the public surface.");
 assert(vercelConfig.outputDirectory === "dist-public", "Vercel PR previews must publish only the isolated public artifact.");
+assert(vercelAppleAssociationHeaders["content-type"] === "application/json", "Vercel must serve the Apple app-site association file as application/json.");
 assert(vercelGlobalHeaders["content-security-policy"]?.includes("frame-ancestors 'none'")
   && vercelGlobalHeaders["content-security-policy"]?.includes("https://challenges.cloudflare.com")
   && vercelGlobalHeaders["permissions-policy"] === "camera=(), microphone=(), geolocation=()"
@@ -155,7 +164,9 @@ const pagesDeployCheckout = pagesDeploySteps.find(step => step.uses === "actions
 const pagesDeployApiGate = pagesDeploySteps.find(step => step.name === "Re-prove production API immediately before deploy");
 const pagesDeployApiGateIndex = pagesDeploySteps.indexOf(pagesDeployApiGate);
 const pagesDeployActionIndex = pagesDeploySteps.findIndex(step => step.uses === "actions/deploy-pages@v4");
-const verificationAppleApplicationIdentifier = sandfestAppleApplicationIdentifier("ABCDE12345");
+const verificationAppleApplicationIdentifier = sandfestAppleApplicationIdentifier(
+  process.env.SANDFEST_APPLE_APP_ID_PREFIX || "ABCDE12345"
+);
 assert(pagesDeferredIf.includes("github.event.workflow_run.conclusion == 'success'")
   && pagesDeferredIf.includes("github.event.workflow_run.event == 'push'")
   && pagesDeferredIf.includes("github.event.workflow_run.head_branch == 'main'")
@@ -185,7 +196,14 @@ assert(pagesDeployCheckout?.with?.ref === "${{ github.event.workflow_run.head_sh
   && pagesDeployApiGateIndex < pagesDeployActionIndex
   && pagesDeploySteps[pagesDeployActionIndex]?.id === "deployment", "Pages must re-prove the exact production API contract after environment approval and immediately before publication.");
 assert(publicHtml.includes("Texas SandFest | Port Aransas"), "Public artifact does not contain the visitor entry.");
+assert(publicHtml.includes('data-initial-shell') && publicHtml.includes('id="app" aria-busy="true"'), "Public entry must render a meaningful visitor shell before JavaScript starts.");
+assert(publicHtml.includes('class="visitor-quick-nav" aria-label="Visitor shortcuts"'), "Public entry is missing the mobile shortcut navigation.");
+assert(visitorSource.includes('class="primary-nav-secondary" href="#island-conditions"'), "The compact visitor menu must retain access to secondary trip-planning destinations.");
 assert(publicFallbackHtml === publicHtml, "Public canonical-path fallback must boot the exact visitor artifact.");
+assert(publicPrivacyHtml.includes("Privacy Policy | Texas SandFest"), "Public artifact is missing the app privacy policy entry.");
+assert(publicPrivacyHtml.includes("Question text is used to answer the request and is not persisted by the application."), "App privacy policy does not disclose Ask Sandy handling.");
+assert(publicPrivacyHtml.includes("no longer than 30 days"), "App privacy policy does not disclose the conservative provider-log retention limit.");
+assert(publicPrivacyHtml.includes("info@texassandfest.org"), "App privacy policy is missing the privacy contact.");
 assert(
   sandfestAppleAppSiteAssociationSafety(publicAppleAssociation, verificationAppleApplicationIdentifier).ready,
   "Public artifact contains an invalid Apple App Site Association contract."
@@ -226,10 +244,10 @@ assert(!publicHtml.includes("fonts.googleapis.com") && !publicHtml.includes("fon
 assert(publicStylesheets.includes("font-family:Inter") && publicStylesheets.includes("font-family:\"Instrument Serif\""), "Public artifact is missing its self-hosted brand fonts.");
 assert(publicAssets.some(file => file.endsWith(".woff2")), "Public artifact is missing bundled font files.");
 assert(Buffer.byteLength(publicHtml) <= 8 * KIB, "Public entry HTML exceeds the 8 KiB delivery budget.");
-assert(publicInitialScripts.gzipBytes <= 106 * KIB, "Initial public JavaScript exceeds the 106 KiB gzip budget.");
+assert(publicInitialScripts.gzipBytes <= 64 * KIB, "Initial public JavaScript exceeds the 64 KiB gzip budget.");
 assert(publicOptionalScripts.gzipBytes <= 14 * KIB, "On-demand public JavaScript exceeds the 14 KiB gzip budget.");
 assert(publicStyles.gzipBytes <= 30 * KIB, "Public CSS exceeds the 30 KiB gzip budget.");
-assert(publicScripts.gzipBytes + publicStyles.gzipBytes <= 149 * KIB, "Public JavaScript and CSS exceed the 149 KiB combined gzip budget.");
+assert(publicScripts.gzipBytes + publicStyles.gzipBytes <= 110 * KIB, "Public JavaScript and CSS exceed the 110 KiB combined gzip budget.");
 assert(publicPreferredFonts.rawBytes <= 200 * KIB, "Public preferred WOFF2 fonts exceed the 200 KiB delivery budget.");
 assert(publicOfflineFonts.rawBytes <= 450 * KIB, "Public compiled fonts exceed the 450 KiB offline-cache budget.");
 assert(adminInitialScripts.gzipBytes <= 128 * KIB, "Initial admin JavaScript exceeds the 128 KiB gzip budget.");
@@ -249,6 +267,10 @@ for (const [width, budget] of heroBudgets) {
 }
 assert((`${visitorSource}\n${partnerIntakeSource}`.match(/loading="lazy"/g) || []).length >= 4, "Public offscreen galleries, field media, and sponsor logos must remain lazy-loaded.");
 assert(publicMediaManifestSafety(publicMediaManifest).ready, "Public media manifest exposes internal fields or filesystem paths.");
+assert(publicMediaManifestSafety(runtimeMediaManifest).ready, "Runtime media manifest exposes internal fields or filesystem paths.");
+assert((await readFile(runtimeMediaManifestPath)).byteLength <= 24 * KIB, "Runtime media manifest exceeds the 24 KiB delivery budget.");
+assert(runtimeMediaManifest.count === publicMediaManifest.count, "Runtime media manifest lost the source catalog count.");
+assert(JSON.stringify(runtimeMediaManifest.assets.map(asset => asset.publicPath).sort()) === JSON.stringify(mediaDerivatives.derivatives.map(derivative => derivative.sourcePath).sort()), "Runtime media manifest does not match the optimized source selection.");
 const curatedGalleryAssets = selectPublicMediaAssets(publicMediaManifest.assets, PUBLIC_GALLERY_MEDIA);
 const curatedFieldAssets = selectPublicMediaAssets(publicMediaManifest.assets, PUBLIC_FIELD_MEDIA);
 assert(curatedGalleryAssets.length === PUBLIC_GALLERY_MEDIA.length, "Public artifact is missing a curated gallery photograph.");
@@ -291,8 +313,15 @@ assert(!(await exists(path.join(adminDir, "sw.js"))), "Admin artifact contains t
 assert(!(await exists(path.join(adminDir, "data"))), "Admin artifact contains public visitor data.");
 assert(publicAssets.some(file => /^main-[^.]+\.js$/.test(file)), "Public artifact is missing its visitor JavaScript bundle.");
 assert(!publicAssets.some(file => /^admin-[^.]+\.js$/.test(file)), "Public artifact contains an admin JavaScript bundle.");
+assert(!["admin-load-config", "admin-create-campaign", "Festival operations command center", "QuickBooks becomes the accounting ledger"].some(marker => publicJavaScript.includes(marker)), "Public JavaScript contains a hidden operations workspace.");
 assert(adminAssets.some(file => /^admin-[^.]+\.js$/.test(file)), "Admin artifact is missing its operations JavaScript bundle.");
 assert(!adminAssets.some(file => /^main-[^.]+\.js$/.test(file)), "Admin artifact contains a visitor JavaScript bundle.");
+assert(adminAuthScriptFiles.length === 1
+  && adminInitialScriptFiles.includes(adminAuthScriptFiles[0])
+  && !publicAssets.some(file => file.startsWith("admin-auth-")), "Production OIDC must remain an explicit, initial admin-only cache boundary.");
+assert(adminOperationsScriptFiles.length === 1
+  && adminInitialScriptFiles.includes(adminOperationsScriptFiles[0])
+  && !publicAssets.some(file => file.startsWith("admin-operations-ui-")), "The required operations UI must remain an explicit, initial admin-only cache boundary.");
 assert(adminOptionalScriptFiles.some(file => file.startsWith("admin-incident-delivery-reconciliation-"))
   && !publicAssets.some(file => file.startsWith("admin-incident-delivery-reconciliation-")), "Incident delivery reconciliation must remain an admin-only on-demand chunk.");
 assert(adminJavaScript.includes("/api/admin/partners/followups/")
@@ -344,7 +373,8 @@ for (const marker of ["Redirecting to secure sign-in", "sandfest-admin-build-ver
   assert(adminJavaScript.includes(marker), `Admin artifact is missing the OIDC marker ${marker}.`);
   assert(!publicJavaScript.includes(marker), `Public artifact contains the admin OIDC marker ${marker}.`);
 }
-for (const marker of ["challenges.cloudflare.com/turnstile/v0/api.js?render=explicit", "1x00000000000000000000AA"]) {
+const verificationTurnstileSiteKey = process.env.VITE_SANDFEST_TURNSTILE_SITE_KEY || "1x00000000000000000000AA";
+for (const marker of ["challenges.cloudflare.com/turnstile/v0/api.js?render=explicit", verificationTurnstileSiteKey]) {
   assert(publicJavaScript.includes(marker), `Public artifact is missing the Turnstile marker ${marker}.`);
   assert(!adminJavaScript.includes(marker), `Admin artifact contains the public Turnstile marker ${marker}.`);
 }

@@ -30,6 +30,7 @@ assert(html.includes(`href="${normalizedBase}assets/main-`), "Pages artifact sty
 assert(html.includes(`href="${normalizedBase}manifest.webmanifest"`), "Pages artifact manifest does not use the repository base path.");
 assert(fallbackHtml === html, "Pages canonical-path fallback must boot the exact visitor artifact.");
 assert(appleAssociation.applinks?.details?.[0]?.appIDs?.[0] === "ABCDE12345.com.portalcodex.texassandfest", "Pages AASA artifact does not identify the verified iOS bundle.");
+assert(appleAssociation.applinks?.details?.[0]?.components?.some(component => component["/"] === "/texas-sandfest/app/schedule/*"), "Pages AASA artifact is missing the canonical www schedule routes.");
 assert(appleAssociation.applinks?.details?.[0]?.components?.some(component => component["/"] === "/schedule/*"), "Pages AASA artifact is missing exact schedule routes.");
 assert(manifest.start_url === "./" && manifest.scope === "./", "Pages manifest must remain relative to its deployment directory.");
 assert(manifest.icons?.every(icon => !String(icon.src).startsWith("/")), "Pages manifest contains a root-relative icon.");

@@ -483,7 +483,7 @@ struct NativeTaskBoardView: View {
                 .foregroundStyle(color)
             Text(label)
                 .font(.caption2)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.sandFestSecondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
         }
@@ -510,7 +510,7 @@ struct NativeTaskBoardView: View {
                 }
                 Text(task.assigneeName ?? "Unassigned")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.sandFestSecondary)
                 HStack {
                     Label(dueLabel(task), systemImage: task.isOverdue ? "exclamationmark.clock.fill" : "calendar")
                     Spacer()
@@ -688,7 +688,7 @@ private struct NativeTaskEditor: View {
                     if let summary = task.notificationSummary {
                         Text(summary.assignmentLabel)
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.sandFestSecondary)
                     }
                 }
             }

@@ -1,8 +1,6 @@
 import "@fontsource/inter/latin-400.css";
-import "@fontsource/inter/latin-500.css";
 import "@fontsource/inter/latin-600.css";
 import "@fontsource/inter/latin-700.css";
-import "@fontsource/inter/latin-800.css";
 import "@fontsource/instrument-serif/latin-400.css";
 import "@fontsource/instrument-serif/latin-400-italic.css";
 import { escapeHtml, escapeAttr } from "../lib/html-escape.mjs";
@@ -32,9 +30,12 @@ import {
 import { publicPartnerIntakeReadiness } from "../lib/public-partner-intake.mjs";
 
 const ADMIN_UI_ENABLED = import.meta.env.DEV || import.meta.env.VITE_SANDFEST_SURFACE === "admin";
-const adminOperationsUi = ADMIN_UI_ENABLED
-  ? await import("./admin-operations-ui.js")
-  : null;
+const [adminOperationsUi, adminIncidentDeliveryReconciliationUi] = ADMIN_UI_ENABLED
+  ? await Promise.all([
+      import("./admin-operations-ui.js"),
+      import("./admin-incident-delivery-reconciliation.js")
+    ])
+  : [null, null];
 
 const siteBase = import.meta.env.BASE_URL || "/";
 const sitePath = value => {
@@ -44,6 +45,7 @@ const sitePath = value => {
 };
 
 const REQUEST_TIMEOUT_MS = 20_000;
+const PUBLIC_BACKGROUND_API_TIMEOUT_MS = 8_000;
 
 async function fetchWithTimeout(input, init = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
   const controller = new AbortController();
@@ -146,21 +148,21 @@ const loadPublicJson = path => ADMIN_ENTRY
   .then(response => response.ok ? response.json() : null)
   .catch(() => null);
 
-const loadPublicApiJson = path => ADMIN_ENTRY
+const loadPublicApiJson = (path, timeoutMs = REQUEST_TIMEOUT_MS) => ADMIN_ENTRY
   ? Promise.resolve(null)
-  : fetchWithTimeout(`${defaultPublicApiBase()}${path}`, { cache: "no-store" })
+  : fetchWithTimeout(`${defaultPublicApiBase()}${path}`, { cache: "no-store" }, timeoutMs)
   .then(response => response.ok ? response.json() : null)
   .catch(() => null);
 
 const localBoardContentEnabled = !ADMIN_ENTRY
   && import.meta.env.DEV
   && new URLSearchParams(window.location.search).get("contentMode") !== "api";
+const liveSculptorDataPromise = localBoardContentEnabled
+  ? Promise.resolve(null)
+  : loadPublicApiJson("/api/public/sculptors", PUBLIC_BACKGROUND_API_TIMEOUT_MS);
 const sculptorDataPromise = localBoardContentEnabled
   ? import("./board-demo/sculptors-demo.json").then(module => module.default)
-  : loadPublicApiJson("/api/public/sculptors")
-      .then(data => publicSculptorRosterPublication(data, { eventId: DEFAULT_EVENT_ID }).visible
-        ? data
-        : loadPublicJson("data/sculptors.json"));
+  : loadPublicJson("data/sculptors.json");
 const liveBeachDemoPromise = localBoardContentEnabled
   ? import("./board-demo/live-beach-demo.json").then(module => module.default)
   : Promise.resolve(null);
@@ -181,7 +183,7 @@ const [
   liveBeachDemo,
   scheduleDemo
 ] = await Promise.all([
-  loadPublicJson("assets/sandfest-media/media-manifest.json"),
+  loadPublicJson("assets/sandfest-media/media-runtime-manifest.json"),
   loadPublicJson("assets/sandfest-media/media-derivatives.json"),
   crawlSummaryPromise,
   incomingInventoryPromise,
@@ -236,21 +238,21 @@ let ticketCheckoutRequestFingerprint = null;
 let ticketDemoCheckoutState = null;
 let acceptedTicketPolicyKey = null;
 
-const sculptorPublication = publicSculptorRosterPublication(sculptorData, {
+let sculptorPublication = publicSculptorRosterPublication(sculptorData, {
   eventId: DEFAULT_EVENT_ID,
   allowSample: localBoardContentEnabled
 });
-const sculptorRosterPublished = sculptorPublication.mode === "published";
-const sculptorRosterDemo = sculptorPublication.mode === "demo";
-const sculptorRosterVisible = sculptorPublication.visible;
-const visibleSculptorData = sculptorRosterVisible ? sculptorData : null;
-const sculptors = visibleSculptorData?.sculptors ?? [];
-const sculptureEntries = visibleSculptorData?.entries ?? [];
-const sculpturePois = visibleSculptorData?.pois ?? [];
-const sculptorLegend = visibleSculptorData?.legend ?? [];
+let sculptorRosterPublished = sculptorPublication.mode === "published";
+let sculptorRosterDemo = sculptorPublication.mode === "demo";
+let sculptorRosterVisible = sculptorPublication.visible;
+let visibleSculptorData = sculptorRosterVisible ? sculptorData : null;
+let sculptors = visibleSculptorData?.sculptors ?? [];
+let sculptureEntries = visibleSculptorData?.entries ?? [];
+let sculpturePois = visibleSculptorData?.pois ?? [];
+let sculptorLegend = visibleSculptorData?.legend ?? [];
 const LIVE_BEACH_DEMO_ENABLED = sculptorRosterDemo && Boolean(liveBeachDemo);
-const sculptorsById = new Map(sculptors.map(s => [s.id, s]));
-const entriesById = new Map(sculptureEntries.map(e => [e.id, e]));
+let sculptorsById = new Map(sculptors.map(s => [s.id, s]));
+let entriesById = new Map(sculptureEntries.map(e => [e.id, e]));
 const divisionLabels = {
   master_solo: "Master Solo",
   master_duo: "Master Duo",
@@ -264,9 +266,12 @@ const statusLabels = {
   complete: "Complete",
   judged: "Judged"
 };
-const legendColorByKey = new Map(sculptorLegend.map(l => [l.colorKey, l.colorHex]));
+let legendColorByKey = new Map(sculptorLegend.map(l => [l.colorKey, l.colorHex]));
 function divisionLabel(key) {
   return divisionLabels[key] ?? key;
+}
+function sculptorCountLabel(count, { demo = false } = {}) {
+  return `${count} ${demo ? "sample " : ""}${count === 1 ? "sculptor" : "sculptors"}`;
 }
 let adminConfigState = null;
 let adminSessionState = null;
@@ -548,7 +553,7 @@ function ticketProductCardsMarkup() {
         ${product.requiresReview ? `
           <button class="button secondary ticket-request" data-ticket-request="${escapeAttr(product.id)}" type="button">Request review</button>
         ` : purchasable ? `
-          <div class="ticket-stepper" aria-label="${escapeAttr(product.name)} quantity">
+          <div class="ticket-stepper" role="group" aria-label="${escapeAttr(product.name)} quantity">
             <button data-ticket-action="decrease" data-ticket-id="${escapeAttr(product.id)}" type="button" aria-label="Remove ${escapeAttr(product.name)}">-</button>
             <span data-ticket-qty="${escapeAttr(product.id)}">0</span>
             <button data-ticket-action="increase" data-ticket-id="${escapeAttr(product.id)}" type="button" aria-label="Add ${escapeAttr(product.name)}">+</button>
@@ -624,18 +629,17 @@ app.innerHTML = `
     </a>
     ${ADMIN_ENTRY ? "" : `<nav id="public-navigation" class="primary-nav" aria-label="Primary navigation" data-open="false">
         <a href="#live-beach">Live Beach</a>
-        <a href="#concierge">Concierge</a>
         <a href="#plan-your-visit">Plan Visit</a>
-        <a href="#guest-services">Help</a>
-        <a href="#tickets">Tickets</a>
         <a href="#schedule">Schedule</a>
-        <a href="#volunteer">Volunteer</a>
         <a href="#sculptors-showcase">Sculptors</a>
-        <a href="#vendors-map">Vendors</a>
-        <a href="#island-conditions">Island</a>
-        <a href="#sponsors">Sponsors</a>
-        <a href="#partner-status">Status</a>
-        <a href="#port-a">Port A</a>
+        <a href="#concierge">Ask Sandy</a>
+        <a class="primary-nav-ticket" href="#tickets">Tickets</a>
+        <a class="primary-nav-secondary" href="#guest-services">Help</a>
+        <a class="primary-nav-secondary" href="#vendors-map">Vendors</a>
+        <a class="primary-nav-secondary" href="#island-conditions">Island</a>
+        <a class="primary-nav-secondary" href="#sponsors">Sponsors</a>
+        <a href="#volunteer">Volunteer</a>
+        <a class="primary-nav-secondary" href="#partner-status">Status</a>
 
       ${OPS_DEMO_ENABLED ? `
         ${adminOperationsUi?.operationsNavigationLinks({ islandLabel: "Island" }) || ""}
@@ -682,18 +686,18 @@ app.innerHTML = `
       <canvas id="tide-motion" class="tide-motion" aria-hidden="true"></canvas>
       <div class="hero-overlay"></div>
       <div class="hero-content">
-        <p class="eyebrow">Port Aransas · On the beach</p>
+        <p class="eyebrow">Port Aransas · ${event.dateRange} · On the beach</p>
         <h1 id="public-event-name">${event.name}</h1>
         <p id="public-event-mission" class="hero-copy">${event.mission}</p>
         <div class="hero-actions">
-          <a class="button primary" href="#tickets">Get tickets</a>
-          <a class="button secondary" href="#live-beach">Open Live Beach →</a>
+          <a class="button primary" href="#plan-your-visit">Plan your visit</a>
+          <a class="button secondary" href="#live-beach">Explore Live Beach <span aria-hidden="true">→</span></a>
         </div>
       </div>
       <aside class="motion-console" aria-label="Live motion status">
         <div>
           <span class="pulse-dot"></span>
-          <strong>Motion OS</strong>
+          <strong>Festival preview</strong>
         </div>
         <p id="motion-status-copy">${LIVE_BEACH_DEMO_ENABLED ? "Demonstration tide, crowd, and heat signals animate the beach layer." : "Verified event-day crowd signals will appear here after operations activate the feeds."}</p>
         <div class="motion-metrics">
@@ -863,7 +867,7 @@ app.innerHTML = `
         </aside>
       </div>
 
-      <div class="lb-scrub" aria-label="Day timeline scrubber">
+      <div class="lb-scrub" role="group" aria-label="Day timeline scrubber">
         <div class="lb-scrub-head">
           <span class="lb-scrub-eyebrow">Festival timeline</span>
           <span class="lb-scrub-readout" id="lb-scrub-readout">${escapeHtml(liveBeachInitialTimeline.hour ?? "-")} · ${escapeHtml(liveBeachInitialTimeline.label ?? "Demonstration")}</span>
@@ -893,7 +897,7 @@ app.innerHTML = `
       ${quickStats.map(([value, label]) => `<div><strong>${value}</strong><span>${label}</span></div>`).join("")}
     </section>
 
-    <section class="section experience-section" id="experience">
+    ${OPS_SURFACE_ENABLED ? `<section class="section experience-section" id="experience">
       <div class="section-heading">
         <div>
           <p class="eyebrow">Customer + admin sides</p>
@@ -913,7 +917,7 @@ app.innerHTML = `
           </article>
         `).join("")}
       </div>
-    </section>
+    </section>` : ""}
 
     <section class="section ticketing-section" id="tickets">
       <div class="section-heading">
@@ -1003,7 +1007,7 @@ app.innerHTML = `
           <h2>${sculptorRosterVisible ? "Meet the artists &mdash; and find them on the beach." : "The 2027 sculptor roster is awaiting publication."}</h2>
           <p class="section-copy">${sculptorRosterDemo ? "These fictional artists demonstrate roster, map, passport, and voting workflows without being presented as official participants." : sculptorRosterPublished ? "Browse the reviewed roster, filter by division, and locate each published entry by beach marker." : "Official artist profiles and beach-marker assignments will appear after the current roster completes source and publication review."}</p>
         </div>
-        <span class="sculptor-count">${sculptorRosterVisible ? `${sculptors.length} ${sculptorRosterDemo ? "sample " : ""}sculptors` : "Publication pending"}</span>
+        <span class="sculptor-count">${sculptorRosterVisible ? sculptorCountLabel(sculptors.length, { demo: sculptorRosterDemo }) : "Publication pending"}</span>
       </div>
       ${sculptorRosterVisible ? "" : `<div class="sculptor-publication-pending" role="status"><strong>No unapproved artist data is shown.</strong><span>The site will open the roster, corridor map, passport, and People's Choice ballot together after publication.</span></div>`}
       <div class="sculptor-layout" ${sculptorRosterVisible ? "" : "hidden"}>
@@ -1093,7 +1097,7 @@ app.innerHTML = `
       <div id="island-camera-grid" class="island-camera-grid"></div>
     </section>
 
-    <section class="section admin-config-section" id="admin-config">
+    ${OPS_SURFACE_ENABLED ? `<section class="section admin-config-section" id="admin-config">
       <div class="section-heading">
         <div>
           <p class="eyebrow">Texas SandFest operations</p>
@@ -1132,7 +1136,7 @@ app.innerHTML = `
         <button id="admin-load-config" class="button primary" type="button" ${ADMIN_AUTH_MODE === "oidc" ? "disabled" : ""}>Load config</button>
       </div>
       <p id="admin-api-status" class="checkout-status" role="status" aria-live="polite">${ADMIN_AUTH_MODE === "oidc" ? "Signed out." : BOARD_DEMO_ACCESS.enabled ? "Local board session ready. Loading operations..." : "Start the local backend, enter its admin token, then load config."}</p>
-      <div class="admin-command-center" id="admin-command-center" aria-labelledby="admin-command-center-title">
+      <div class="admin-command-center" id="admin-command-center" role="region" aria-labelledby="admin-command-center-title">
         <div class="admin-command-heading">
           <div>
             <p class="eyebrow">Operations pulse</p>
@@ -1940,7 +1944,7 @@ app.innerHTML = `
           </div>
         </div>
       </div>
-    </section>
+    </section>` : ""}
 
     <section class="section media-section" id="media">
       <div class="section-heading">
@@ -2025,7 +2029,7 @@ app.innerHTML = `
 
     ${import.meta.env.VITE_SANDFEST_SURFACE === "admin" ? "" : '<section id="volunteer" aria-busy="true"></section>'}
 
-    <section class="section" id="operations">
+    ${OPS_SURFACE_ENABLED ? `<section class="section" id="operations">
       <div class="section-heading">
         <div>
           <p class="eyebrow">Command center</p>
@@ -2035,7 +2039,7 @@ app.innerHTML = `
       </div>
       <div class="ops-grid">
         <div class="map-panel">
-          <div class="beach-map" aria-label="Beach zone map">
+        <div class="beach-map" role="img" aria-label="Beach zone map">
             ${zones.map((zone, index) => `
               <button class="zone zone-${index + 1}" data-zone="${zone.name}">
                 <strong>${zone.name}</strong>
@@ -2055,7 +2059,7 @@ app.innerHTML = `
           </div>
         </div>
       </div>
-    </section>
+    </section>` : ""}
 
     <section class="section map-media-section">
       <div>
@@ -2073,7 +2077,7 @@ app.innerHTML = `
       </div>
     </section>
 
-    <section class="section admin-console" id="admin">
+    ${OPS_SURFACE_ENABLED ? `<section class="section admin-console" id="admin">
       <div class="section-heading">
         <div>
           <p class="eyebrow">Admin ingestion cockpit</p>
@@ -2135,7 +2139,7 @@ app.innerHTML = `
           </article>
         `).join("")}
       </div>
-    </section>
+    </section>` : ""}
 
     <section class="section sponsor-section" id="sponsors">
       <div class="partner-heading">
@@ -2149,7 +2153,7 @@ app.innerHTML = `
           <h3>Backing the beach</h3>
           <p>Meet the organizations helping make Texas SandFest possible.</p>
         </div>
-        <div id="public-sponsor-showcase" class="public-sponsor-showcase" aria-label="Featured Texas SandFest partners"></div>
+        <div id="public-sponsor-showcase" class="public-sponsor-showcase" role="region" aria-label="Featured Texas SandFest partners"></div>
       </div>
       <div class="tier-table partner-tier-table" id="public-sponsor-tiers">
         ${sponsorPackageCards(publicSponsorPackages)}
@@ -2248,7 +2252,7 @@ app.innerHTML = `
         <p id="outreach-preferences-status" aria-live="polite"></p>
       </div>
       <p class="sponsor-community-label">Texas SandFest supporters</p>
-      <div class="logo-wall" aria-label="Texas SandFest sponsor logos">
+      <div class="logo-wall" role="region" aria-label="Texas SandFest sponsor logos">
         ${sponsorLogoAssets.map(asset => `
           <div>
             <img ${responsiveImageAttributes(asset, "180px")} alt="${escapeAttr(asset.alt || asset.name || "Sponsor logo")}" loading="lazy" decoding="async" />
@@ -2257,7 +2261,7 @@ app.innerHTML = `
       </div>
     </section>
 
-    <section class="section surfaces" id="surfaces">
+    ${OPS_SURFACE_ENABLED ? `<section class="section surfaces" id="surfaces">
       <div class="section-heading">
         <div>
           <p class="eyebrow">Multi-surface platform</p>
@@ -2273,7 +2277,7 @@ app.innerHTML = `
           </article>
         `).join("")}
       </div>
-      <div class="mobile-shell" aria-label="iOS app source prototype">
+      <div class="mobile-shell" role="img" aria-label="iOS app source prototype">
         <div class="phone-frame">
           <div class="phone-top"></div>
           <div class="phone-screen">
@@ -2355,7 +2359,7 @@ app.innerHTML = `
         <article><strong>6. Partner Portals</strong><span>Sponsor CRM, vendor onboarding, nonprofit grants, city coordination, post-event impact.</span></article>
         <article><strong>7. Port A Local Co</strong><span>Expose SandFest as an event/destination module for local discovery, commerce, and retention.</span></article>
       </div>
-    </section>
+    </section>` : ""}
     ${ADMIN_ENTRY ? "" : `<footer class="site-footer">
       <div>
         <strong>Texas SandFest</strong>
@@ -2369,6 +2373,7 @@ app.innerHTML = `
     </footer>`}
   </main>
 `;
+app.removeAttribute("aria-busy");
 
 const adminWorkspaceRecovery = adminOperationsUi?.createAdminWorkspaceRecovery({
   access: adminToken,
@@ -2807,6 +2812,7 @@ document.querySelector("#ticket-policy-acceptance")?.addEventListener("change", 
 renderTicketPolicy();
 renderTicketCart();
 
+// public-ops-prune:start
 function adminApiBase() {
   if (ADMIN_AUTH_MODE === "oidc") return CONFIGURED_ADMIN_API_BASE;
   const value = document.querySelector("#admin-api-base")?.value.replace(/\/+$/, "") || "";
@@ -3359,6 +3365,7 @@ async function initializeAdminAuthentication() {
     setAdminStatus(`Sign-in failed: ${error.message}`, "error");
   }
 }
+// public-ops-prune:end
 
 function renderPublicAlert(alert) {
   const banner = document.querySelector("#public-alert");
@@ -3466,6 +3473,7 @@ async function loadPublicBootstrap({ applyGuide = true } = {}) {
   }
 }
 
+// public-ops-prune:start
 function isoToLocalDateTime(value) {
   if (!value) return "";
   const date = new Date(value);
@@ -3890,6 +3898,7 @@ function snapshotCard(item) {
     </article>
   `;
 }
+// public-ops-prune:end
 
 function pinColor(colorKey) {
   return legendColorByKey.get(colorKey) || "var(--gulf)";
@@ -4131,7 +4140,7 @@ function initSiteMode() {
 
 const PASSPORT_KEY = "sandfest_passport_v1";
 const PASSPORT_ATTENDEE_KEY = "sandfest_passport_attendee_v1";
-const passportCheckpoints = sculptureEntries.filter(e => sculptorsById.has(e.sculptorId));
+let passportCheckpoints = sculptureEntries.filter(e => sculptorsById.has(e.sculptorId));
 
 function passportAttendeeRef() {
   try {
@@ -4261,6 +4270,44 @@ function renderPassport() {
   }
 }
 
+function applyLiveSculptorData(data) {
+  const publication = publicSculptorRosterPublication(data, { eventId: DEFAULT_EVENT_ID });
+  if (!publication.visible || publication.mode !== "published") return false;
+  const currentVersion = visibleSculptorData?.meta?.sourceCheckedAt || visibleSculptorData?.meta?.publishedAt || "";
+  const nextVersion = data?.meta?.sourceCheckedAt || data?.meta?.publishedAt || "";
+  if (sculptorRosterPublished && currentVersion === nextVersion) return false;
+
+  sculptorPublication = publication;
+  sculptorRosterPublished = true;
+  sculptorRosterDemo = false;
+  sculptorRosterVisible = true;
+  visibleSculptorData = data;
+  sculptors = data.sculptors ?? [];
+  sculptureEntries = data.entries ?? [];
+  sculpturePois = data.pois ?? [];
+  sculptorLegend = data.legend ?? [];
+  sculptorsById = new Map(sculptors.map(sculptor => [sculptor.id, sculptor]));
+  entriesById = new Map(sculptureEntries.map(entry => [entry.id, entry]));
+  legendColorByKey = new Map(sculptorLegend.map(item => [item.colorKey, item.colorHex]));
+  passportCheckpoints = sculptureEntries.filter(entry => sculptorsById.has(entry.sculptorId));
+
+  const section = document.querySelector("#sculptors-showcase");
+  const heading = section?.querySelector(".section-heading h2");
+  const copy = section?.querySelector(".section-heading .section-copy");
+  const count = section?.querySelector(".sculptor-count");
+  const pending = section?.querySelector(".sculptor-publication-pending");
+  if (heading) heading.textContent = "Meet the artists — and find them on the beach.";
+  if (copy) copy.textContent = "Browse the reviewed roster, filter by division, and locate each published entry by beach marker.";
+  if (count) count.textContent = sculptorCountLabel(sculptors.length);
+  if (pending) pending.hidden = true;
+  for (const selector of [".sculptor-layout", "#sculptor-filters", "#sculptor-roster", "#passport-panel", "#voting-panel"]) {
+    const element = section?.querySelector(selector);
+    if (element) element.hidden = false;
+  }
+  initSculptors();
+  return true;
+}
+
 function initSculptors() {
   if (!sculptorRosterVisible) return;
   if (!document.querySelector("#corridor-map")) return;
@@ -4270,7 +4317,10 @@ function initSculptors() {
   defaultSculptorDetail();
   renderPassport();
   const resetBtn = document.querySelector("#passport-reset");
-  if (resetBtn) resetBtn.addEventListener("click", resetPassport);
+  if (resetBtn && resetBtn.dataset.bound !== "true") {
+    resetBtn.dataset.bound = "true";
+    resetBtn.addEventListener("click", resetPassport);
+  }
   // Best-effort hydrate from backend progress for this device id.
   hydratePassportFromApi().catch(() => {});
 }
@@ -4903,7 +4953,7 @@ function renderPartnerBranding(branding) {
     <div id="partner-brand-preview" class="partner-brand-preview" role="group" aria-label="${escapeAttr(`${displayName} brand preview`)}">
       <span class="partner-brand-preview-mark" data-brand-preview-mark aria-hidden="true">${escapeHtml(sponsorShowcaseInitials(displayName))}</span>
       <div class="partner-brand-preview-copy"><span>Brand preview</span><strong data-brand-preview-name>${escapeHtml(displayName)}</strong><p data-brand-preview-tagline>${escapeHtml(profile.tagline || "Sponsor tagline")}</p></div>
-      <div class="partner-brand-preview-colors" aria-label="Brand colors"><span data-brand-preview-color="primary" title="Primary ${escapeAttr(primaryColor)}"></span><span data-brand-preview-color="secondary" title="Secondary ${escapeAttr(secondaryColor)}"></span></div>
+      <div class="partner-brand-preview-colors" role="group" aria-label="Brand colors"><span data-brand-preview-color="primary" title="Primary ${escapeAttr(primaryColor)}"></span><span data-brand-preview-color="secondary" title="Secondary ${escapeAttr(secondaryColor)}"></span></div>
     </div>
     <div class="partner-brand-forms">
       <form id="partner-brand-profile-form" class="partner-brand-form">
@@ -5923,7 +5973,7 @@ function renderIslandConditions(payload) {
     </article>
     <article data-level="${weather.alerts?.length ? "high" : "low"}">
       <span>Weather alerts</span><strong>${weather.alerts?.length || 0}</strong>
-      <p>${escapeHtml(weather.alerts?.[0]?.event || (syntheticWeather ? "No simulated weather alerts" : "No active NWS alerts"))}</p>
+      <p>${escapeHtml(weather.freshness?.state !== "live" ? "Alert feed awaiting refresh" : weather.alerts?.[0]?.event || (syntheticWeather ? "No simulated weather alerts" : "No active NWS alerts"))}</p>
       <small>${escapeHtml(weather.source || "National Weather Service")}</small>
     </article>`;
   if (notices) {
@@ -5960,9 +6010,16 @@ function renderIslandConditions(payload) {
     </article>
   `;
   }).join("");
+  const hasLiveConditions = weather.freshness?.state === "live"
+    || ferry.freshness?.state === "live"
+    || Number(payload.summary?.liveCameras || 0) > 0;
   setFormStatus(updated, payload.lastUpdated
     ? `Updated ${new Date(payload.lastUpdated).toLocaleString()}${syntheticConditions ? " · Board simulation" : ""}`
-    : syntheticConditions ? "Board simulation awaiting refresh" : "Live sources connected as available", "ok");
+    : syntheticConditions
+      ? "Board simulation awaiting refresh"
+      : hasLiveConditions
+        ? "Live sources connected as available"
+        : "Live condition feeds are in standby", "ok");
 }
 
 async function loadIslandConditions(options = {}) {
@@ -6036,6 +6093,7 @@ async function hydratePassportFromApi() {
   renderPassport();
 }
 
+// public-ops-prune:start
 function revenueKpiCard(label, value, sub) {
   return `<article><span>${label}</span><strong>${value}</strong>${sub ? `<b>${sub}</b>` : ""}</article>`;
 }
@@ -7920,7 +7978,15 @@ function groupedAdminPartnerActivity(payload, outreach) {
       subject: adminPartnerActivitySubject(payload, outreach, activity)
     });
   }
-  return [...groups.values()].slice(0, 40);
+  const allGroups = [...groups.values()];
+  const visible = allGroups.slice(0, 40);
+  const visibleTypes = new Set(visible.map(group => group.activity.type));
+  for (const type of ["payment.recorded", "invoice.created", "task.followup.generated", "brand.profile_approved"]) {
+    if (visibleTypes.has(type)) continue;
+    const representative = allGroups.find(group => group.activity.type === type);
+    if (representative) visible.push(representative);
+  }
+  return visible;
 }
 
 function renderAdminPartnerActivity(payload, outreach) {
@@ -8210,7 +8276,7 @@ function renderAdminOutreachCoverage(outreach) {
         ${pointMarkup}
       </div>
       <div class="admin-outreach-map-detail">
-        <div class="admin-outreach-map-legend" aria-label="Campaign coverage legend"><span data-kind="center"><i></i>Center</span><span data-kind="inside"><i></i>Inside radius</span><span data-kind="outside"><i></i>Outside radius</span></div>
+        <div class="admin-outreach-map-legend" role="group" aria-label="Campaign coverage legend"><span data-kind="center"><i></i>Center</span><span data-kind="inside"><i></i>Inside radius</span><span data-kind="outside"><i></i>Outside radius</span></div>
         <ul class="admin-outreach-map-list" aria-label="Located outreach businesses" tabindex="0">${prospectRows || '<li><span><strong>No located businesses</strong></span><span>Add coordinates to a prospect to include it here.</span></li>'}</ul>
         ${plotted.length > 8 ? `<span class="admin-outreach-map-more">${plotted.length - 8} additional located business${plotted.length - 8 === 1 ? "" : "es"}</span>` : ""}
         <p>Geography shows radius coverage. Server matching also enforces industry, city, state, ZIP, fit, qualification, contact basis, and suppression.</p>
@@ -8403,7 +8469,7 @@ function renderAdminPartners(payload, outreach) {
     const overdue = summary.operations.overdueMilestones || 0;
     const soon = summary.operations.dueSoonMilestones || 0;
     const state = attention || overdue ? "attention" : review || flight ? "tracking" : "idle";
-    followupSummary.innerHTML = `<div class="followup-triage" data-state="${state}" aria-label="Partner follow-up automation triage">
+    followupSummary.innerHTML = `<div class="followup-triage" data-state="${state}" role="group" aria-label="Partner follow-up automation triage">
         <span>Staff approval ${review}</span>
         <span>Queued or sending ${flight}</span>
         <span>Delivery review ${attention}</span>
@@ -8427,7 +8493,7 @@ function renderAdminPartners(payload, outreach) {
     return `<article data-followup="${escapeAttr(item.id)}" ${deliveryStatus ? `data-delivery-status="${escapeAttr(deliveryStatus)}"` : ""}>
       <header><strong>${escapeHtml(item.subject || conditionLabel(item.kind))}</strong><b>${escapeHtml(conditionLabel(deliveryStatus || item.status))}</b></header>
       <p>${escapeHtml(item.recipientLabel || item.recipient || (item.recipientAvailable ? "Recipient on file" : "Recipient unavailable"))}${item.campaignId ? ` · outreach sequence ${escapeHtml(item.sequenceStepId || "")}` : ""}${item.taskId ? " · delegated task" : ""}${automationLabel ? ` · ${escapeHtml(automationLabel)}` : ""}</p>
-      ${item.body ? `<blockquote class="keyboard-scroll-region" tabindex="0" aria-label="${escapeAttr(`Message preview: ${item.subject || conditionLabel(item.kind)}`)}">${escapeHtml(item.body)}</blockquote>` : '<span>Draft worker pending</span>'}
+      ${item.body ? `<blockquote class="keyboard-scroll-region" tabindex="0" role="group" aria-label="${escapeAttr(`Message preview: ${item.subject || conditionLabel(item.kind)}`)}">${escapeHtml(item.body)}</blockquote>` : '<span>Draft worker pending</span>'}
       ${item.lastError ? `<span class="admin-delivery-error">${escapeHtml(item.lastError)}</span>` : ""}
       ${item.sentAt ? `<span>Provider accepted ${escapeHtml(new Date(item.sentAt).toLocaleString())}${item.providerMessageId ? ` · ${escapeHtml(item.providerMessageId)}` : ""}</span>` : ""}
       ${deliveryStatus && deliveryAt ? `<span>Delivery ${escapeHtml(conditionLabel(deliveryStatus))} · ${escapeHtml(new Date(deliveryAt).toLocaleString())}</span>` : ""}
@@ -8651,14 +8717,14 @@ function renderAdminPartners(payload, outreach) {
     } catch (error) { setAdminStatus(error.message, "error"); } finally { button.disabled = false; }
   }));
   adminOperationsUi?.bindDraftEditors(followups, { adminFetch, loadAdminPartners, setAdminStatus });
-  if (ADMIN_UI_ENABLED && (payload.followups || []).some(item => item.deliveryResolution || item.status === "delivery_unknown" || item.deliveryOutcomeUnknown === true)) {
-    void import("./admin-incident-delivery-reconciliation.js").then(module => module.bindPartnerFollowupDeliveryReconciliation(followups, {
+  if (adminIncidentDeliveryReconciliationUi && (payload.followups || []).some(item => item.deliveryResolution || item.status === "delivery_unknown" || item.deliveryOutcomeUnknown === true)) {
+    adminIncidentDeliveryReconciliationUi.bindPartnerFollowupDeliveryReconciliation(followups, {
       adminFetch,
       canWrite: adminCan("partners:write"),
       followups: payload.followups,
       loadAdminPartners,
       setAdminStatus
-    })).catch(error => setAdminStatus(error.message, "error"));
+    });
   }
   followups.querySelectorAll("[data-send-followup]").forEach(button => button.addEventListener("click", async () => {
     button.disabled = true;
@@ -8957,14 +9023,14 @@ function renderAdminConditions(payload) {
         setAdminStatus("Dispatch email queued for delivery.", "ok");
       } catch (error) { setAdminStatus(error.message, "error"); } finally { button.disabled = !adminCan("conditions:write") || !adminConditionsState?.email?.ready; }
     }));
-    if (ADMIN_UI_ENABLED && incidentList.querySelector("[data-reconcile-dispatch-slot], [data-delivery-resolution-slot]")) {
-      void import("./admin-incident-delivery-reconciliation.js").then(module => module.bindIncidentDeliveryReconciliation(incidentList, {
+    if (adminIncidentDeliveryReconciliationUi && incidentList.querySelector("[data-reconcile-dispatch-slot], [data-delivery-resolution-slot]")) {
+      adminIncidentDeliveryReconciliationUi.bindIncidentDeliveryReconciliation(incidentList, {
         adminFetch,
         canWrite,
         dispatches: payload.dispatches,
         loadAdminConditions,
         setAdminStatus
-      })).catch(error => setAdminStatus(error.message, "error"));
+      });
     }
   }
   if (!container) return;
@@ -9322,55 +9388,57 @@ async function loadAdminWorkspace() {
   let loaded = false;
   try {
     await loadAdminSession();
-    await loadAdminDeployment();
-    await adminImpactUi?.load({ quiet: true }).catch(() => {});
-    if (adminCan("guest_services:read")) {
-      await adminGuestServicesUi?.load({ quiet: true }).catch(() => {});
-    }
-    if (adminCan("admin:read")) await loadAdminJobHealth();
-    adminConfigState = await adminFetch("/api/admin/config");
-    await loadAdminAlert();
+    const initialWorkspaceLoads = [
+      loadAdminDeployment(),
+      adminFetch("/api/admin/config").then(config => { adminConfigState = config; }),
+      loadAdminAlert(),
+      adminImpactUi?.load({ quiet: true }).catch(() => {})
+    ];
+    if (adminCan("guest_services:read")) initialWorkspaceLoads.push(adminGuestServicesUi?.load({ quiet: true }).catch(() => {}));
+    if (adminCan("admin:read")) initialWorkspaceLoads.push(loadAdminJobHealth());
+    await Promise.all(initialWorkspaceLoads.filter(Boolean));
     renderAdminEditors();
+    const workspaceLoads = [];
     if (adminCan("orders:read") && adminCan("payments:read") && adminCan("fulfillment:read") && adminCan("audit:read") && adminCan("snapshot:read")) {
-      await loadAdminTransactions().catch(() => {});
+      workspaceLoads.push(loadAdminTransactions());
     }
     if (adminCan("documents:read")) {
-      await loadAdminDocuments({ quiet: true }).catch(() => {});
+      workspaceLoads.push(loadAdminDocuments({ quiet: true }));
     }
     if (adminCan("revenue:read")) {
-      await loadAdminRevenue({ quiet: true }).catch(() => {});
+      workspaceLoads.push(loadAdminRevenue({ quiet: true }));
     }
     if (adminCan("budget:read")) {
-      await loadAdminBudget({ quiet: true }).catch(() => {});
+      workspaceLoads.push(loadAdminBudget({ quiet: true }));
     }
     if (adminCan("fleet:read")) {
-      await loadAdminFleet({ quiet: true }).catch(() => {});
+      workspaceLoads.push(loadAdminFleet({ quiet: true }));
     }
     if (adminCan("volunteers:read")) {
-      await loadAdminVolunteers({ quiet: true }).catch(() => {});
+      workspaceLoads.push(loadAdminVolunteers({ quiet: true }));
     }
     if (adminCan("consent:read")) {
-      await loadAdminConsent({ quiet: true }).catch(() => {});
+      workspaceLoads.push(loadAdminConsent({ quiet: true }));
     }
     if (adminCan("admin:read")) {
-      const sculptorRosterUi = await loadAdminSculptorRosterUi();
-      await sculptorRosterUi?.load({ quiet: true }).catch(() => {});
+      workspaceLoads.push(loadAdminSculptorRosterUi().then(ui => ui?.load({ quiet: true })));
     }
     if (adminCan("passport:read")) {
-      await loadAdminPassport({ quiet: true }).catch(() => {});
+      workspaceLoads.push(loadAdminPassport({ quiet: true }));
     }
     if (adminCan("voting:read")) {
-      await loadAdminVoting({ quiet: true }).catch(() => {});
+      workspaceLoads.push(loadAdminVoting({ quiet: true }));
     }
     if (adminCan("booths:read")) {
-      await loadAdminBooths({ quiet: true }).catch(() => {});
+      workspaceLoads.push(loadAdminBooths({ quiet: true }));
     }
     if (adminCan("partners:read") && adminCan("outreach:read")) {
-      await loadAdminPartners({ quiet: true }).catch(() => {});
+      workspaceLoads.push(loadAdminPartners({ quiet: true }));
     }
     if (adminCan("conditions:read")) {
-      await loadAdminConditions({ quiet: true }).catch(() => {});
+      workspaceLoads.push(loadAdminConditions({ quiet: true }));
     }
+    await Promise.allSettled(workspaceLoads);
     setAdminStatus(`Loaded ${adminConfigState.tickets.products.length} ticket products, ${adminConfigState.config.sponsorPackages.length} sponsor packages, and ${adminConfigState.config.vendorOfferings.length} vendor offerings.`, "ok");
     setAdminWorkspaceState("ready");
     loaded = true;
@@ -9467,6 +9535,7 @@ async function updatePartnerCatalogPublication(form, publish) {
   }
 }
 
+if (OPS_SURFACE_ENABLED) {
 document.querySelector("#admin-load-config").addEventListener("click", loadAdminWorkspace);
 document.querySelector("#admin-reset-board-demo")?.addEventListener("click", resetBoardDemo);
 document.querySelectorAll("[data-partner-catalog-publication]").forEach(form => {
@@ -10193,6 +10262,8 @@ adminOperationsUi?.bindOutreachCampaignCreation(document.querySelector("#admin-c
   requestOutcomeIsAmbiguous,
   setAdminStatus
 });
+}
+// public-ops-prune:end
 
 ["#sponsor-inquiry-form", "#vendor-application-form"].forEach(selector => {
   protectUnsavedPublicForm(document.querySelector(selector));
@@ -10254,6 +10325,52 @@ function renderPublicVisitorGuidance(guidance) {
   ));
 }
 
+function hydrateWhenNearby(selectors, task, { maxDelayMs = 2_500, rootMargin = "900px 0px" } = {}) {
+  const targets = selectors.map(selector => document.querySelector(selector)).filter(Boolean);
+  let loadPromise = null;
+  let observer = null;
+  let timer = null;
+
+  const targetContainsCurrentHash = () => {
+    let id = window.location.hash.slice(1).split("?")[0];
+    try { id = decodeURIComponent(id); } catch { /* keep the raw fragment */ }
+    const hashTarget = id ? document.getElementById(id) : null;
+    return Boolean(hashTarget && targets.some(target => target === hashTarget || target.contains(hashTarget)));
+  };
+  const cleanup = () => {
+    observer?.disconnect();
+    observer = null;
+    window.clearTimeout(timer);
+    timer = null;
+    window.removeEventListener("hashchange", loadForHash);
+  };
+  const start = () => {
+    if (!loadPromise) {
+      cleanup();
+      loadPromise = Promise.resolve().then(task);
+    }
+    return loadPromise;
+  };
+  const run = () => { void start().catch(() => {}); };
+  const loadForHash = () => {
+    if (targetContainsCurrentHash()) run();
+  };
+
+  if (!targets.length || targetContainsCurrentHash()) {
+    queueMicrotask(run);
+    return start;
+  }
+  if (typeof IntersectionObserver === "function") {
+    observer = new IntersectionObserver(entries => {
+      if (entries.some(entry => entry.isIntersecting)) run();
+    }, { rootMargin });
+    targets.forEach(target => observer.observe(target));
+  }
+  window.addEventListener("hashchange", loadForHash);
+  timer = window.setTimeout(run, maxDelayMs);
+  return start;
+}
+
 if (import.meta.env.DEV && BOARD_DEMO_ACCESS.enabled) {
   const generation = globalThis.__SANDFEST_BOARD_DEMO_GENERATION__;
   try { delete globalThis.__SANDFEST_BOARD_DEMO_GENERATION__; } catch { /* ignore */ }
@@ -10271,19 +10388,23 @@ initMobileNavigation();
 if (ADMIN_ENTRY) loadPublicBootstrap({ applyGuide: false }).catch(() => {});
 if (!ADMIN_ENTRY) {
   initSculptors();
-  const publicSponsorPackagesLoad = loadPublicSponsorPackages();
+  void liveSculptorDataPromise.then(data => {
+    if (applyLiveSculptorData(data)) void loadVoting();
+  }).catch(() => {});
   const initialPublicLoads = [
     renderPublicVisitorGuidance(appBootstrap?.guidance),
     loadPublicBootstrap(),
-    loadPublicTicketCatalog(),
-    loadBooths(),
-    loadIslandConditions(),
-    loadPublicPartnerReadiness(),
-    publicSponsorPackagesLoad,
-    loadPublicVendorOfferings(),
     loadPublicAlert()
   ];
-  initialPublicLoads.push(loadGuestServicesUi());
+  hydrateWhenNearby(["#tickets"], loadPublicTicketCatalog);
+  hydrateWhenNearby(["#vendors-map"], loadBooths);
+  hydrateWhenNearby(["#island-conditions"], loadIslandConditions);
+  hydrateWhenNearby(["#guest-services"], loadGuestServicesUi);
+  const startPartnerPrograms = hydrateWhenNearby(["#sponsors"], () => Promise.allSettled([
+    loadPublicPartnerReadiness(),
+    loadPublicSponsorPackages(),
+    loadPublicVendorOfferings()
+  ]));
   if (sculptorRosterVisible) initialPublicLoads.push(loadVoting());
   armPartnerBotProtection();
   const initialTaskPortalRequested = taskPortalRequested();
@@ -10299,7 +10420,7 @@ if (!ADMIN_ENTRY) {
   const initialOutreachPreferenceAccess = outreachPreferenceAccessFromFragment();
   if (initialOutreachPreferenceAccess) initialPublicLoads.push(loadOutreachPreference(initialOutreachPreferenceAccess, { scroll: true }));
   const initialSponsorInvitationToken = sponsorInvitationTokenFromFragment();
-  if (initialSponsorInvitationToken) initialPublicLoads.push(publicSponsorPackagesLoad.then(() => loadSponsorInvitation(initialSponsorInvitationToken, { scroll: true })));
+  if (initialSponsorInvitationToken) initialPublicLoads.push(startPartnerPrograms().then(() => loadSponsorInvitation(initialSponsorInvitationToken, { scroll: true })));
   stabilizeRenderedHashTarget();
   Promise.allSettled(initialPublicLoads).then(() => scrollToRenderedHashTarget());
   const scheduleIslandConditionsRefresh = () => {
@@ -10325,7 +10446,7 @@ if (!ADMIN_ENTRY) {
       return;
     }
     const token = sponsorInvitationTokenFromFragment();
-    if (token) publicSponsorPackagesLoad.then(() => loadSponsorInvitation(token, { scroll: true }));
+    if (token) startPartnerPrograms().then(() => loadSponsorInvitation(token, { scroll: true }));
   });
   window.setInterval(loadPublicAlert, 30000);
 }
@@ -10443,6 +10564,7 @@ function setupInstallAndOfflineSupport() {
 
 if (!ADMIN_ENTRY) setupInstallAndOfflineSupport();
 
+if (OPS_SURFACE_ENABLED) {
 document.querySelectorAll("[data-zone]").forEach(button => {
   button.addEventListener("click", () => {
     const zone = zones.find(item => item.name === button.dataset.zone);
@@ -10460,6 +10582,7 @@ document.querySelector("#simulate-btn").addEventListener("click", () => {
   });
   addMessage("Ops signal: crowd load updated. Recommend deploying two floaters to North Gate and one ADA runner near Competition Corridor.", "ai");
 });
+}
 
 if (!ADMIN_ENTRY) {
   startTideMotion();

@@ -7,11 +7,14 @@ Public images from the official Texas SandFest site are downloaded into `public/
 ```bash
 npm run scrape:public
 npm run media:download
+npm run media:optimize
 ```
 
 ## Outputs
 
-- Frontend manifest: `public/assets/sandfest-media/media-manifest.json`
+- Full source manifest: `public/assets/sandfest-media/media-manifest.json`
+- Trimmed browser manifest: `public/assets/sandfest-media/media-runtime-manifest.json`
+- Responsive derivative manifest: `public/assets/sandfest-media/media-derivatives.json`
 - Processed manifest: `data/processed/media-assets.json`
 - Asset folders: `logos`, `sponsor-logos`, `photos`, `maps`, `social`, `misc`
 

@@ -33,7 +33,55 @@
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body class="mode-public">
-    <div id="app"></div>
+    <div id="app" aria-busy="true">
+      <header class="topbar" data-initial-shell>
+        <a class="brand" href="#top" aria-label="Texas SandFest home">
+          <span class="brand-mark">TSF</span>
+          <span>Texas SandFest</span>
+        </a>
+        <nav class="primary-nav" aria-label="Visitor shortcuts">
+          <a href="#plan-your-visit">Plan Visit</a>
+          <a href="#schedule">Schedule</a>
+          <a class="primary-nav-ticket" href="#tickets">Tickets</a>
+        </nav>
+      </header>
+      <main id="top" data-initial-shell>
+        <section class="hero">
+          <img
+            class="hero-media"
+            src="%BASE_URL%assets/sandfest-media/optimized/hero-1440.webp"
+            srcset="%BASE_URL%assets/sandfest-media/optimized/hero-800.webp 800w, %BASE_URL%assets/sandfest-media/optimized/hero-1440.webp 1440w, %BASE_URL%assets/sandfest-media/optimized/hero-2400.webp 2400w"
+            sizes="100vw"
+            width="1440"
+            height="960"
+            alt=""
+            fetchpriority="high"
+          />
+          <div class="hero-overlay"></div>
+          <div class="hero-content">
+            <p class="eyebrow">Port Aransas · April 16–18, 2027 · On the beach</p>
+            <h1>Texas SandFest</h1>
+            <p class="hero-copy">The largest beach sand sculpture competition in the USA, supporting local nonprofit organizations and scholarships.</p>
+            <div class="hero-actions">
+              <a class="button primary" href="#plan-your-visit">Plan your visit</a>
+              <a class="button secondary" href="#live-beach">Explore Live Beach <span aria-hidden="true">→</span></a>
+            </div>
+          </div>
+          <aside class="event-card" aria-label="Event snapshot">
+            <span class="status-dot"></span>
+            <strong>April 16–18, 2027</strong>
+            <span>9:00 AM–7:30 PM</span>
+            <span>On the beach · Port Aransas, Texas</span>
+          </aside>
+        </section>
+      </main>
+    </div>
+    <nav class="visitor-quick-nav" aria-label="Visitor shortcuts">
+      <a href="#top"><span aria-hidden="true">⌂</span><b>Today</b></a>
+      <a href="#plan-your-visit"><span aria-hidden="true">✦</span><b>Plan</b></a>
+      <a href="#schedule"><span aria-hidden="true">◷</span><b>Schedule</b></a>
+      <a href="#tickets"><span aria-hidden="true">◇</span><b>Tickets</b></a>
+    </nav>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

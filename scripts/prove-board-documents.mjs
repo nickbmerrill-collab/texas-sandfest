@@ -30,9 +30,9 @@ const BASELINE = {
   active: 4,
   extractionReady: 4,
   extractionQueued: 0,
-  openTasks: 10,
-  jobsTotal: 21,
-  jobsDone: 21,
+  openTasks: 17,
+  jobsTotal: 41,
+  jobsDone: 41,
   jobsFailed: 0,
   documents: BASELINE_DOCUMENTS
 };

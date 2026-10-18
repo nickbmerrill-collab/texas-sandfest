@@ -1,7 +1,12 @@
 import SwiftUI
+import UIKit
 
 struct RootView: View {
     @EnvironmentObject private var dataStore: AppDataStore
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.legibilityWeight) private var legibilityWeight
     @State private var mode: AppMode = .customer
     @State private var customerRoute: CustomerRoute?
     @State private var publicRouteRequested: Bool
@@ -43,10 +48,38 @@ struct RootView: View {
             guard let url = activity.webpageURL else { return }
             openPublicRoute(url)
         }
+        .overlay(alignment: .topLeading) {
+            #if DEBUG
+            if CommandLine.arguments.contains("-reportAccessibilitySettingsForUITesting") {
+                VStack(spacing: 0) {
+                    Color.clear
+                        .frame(width: 44, height: 44)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(reduceMotion ? "Reduce Motion enabled" : "Reduce Motion disabled")
+                        .accessibilityIdentifier("SandFestReduceMotionStatus")
+                    Color.clear
+                        .frame(width: 44, height: 44)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(accessibilitySettingsStatus)
+                        .accessibilityIdentifier("SandFestAccessibilitySettingsStatus")
+                }
+            }
+            #endif
+        }
+    }
+
+    private var accessibilitySettingsStatus: String {
+        [
+            reduceMotion ? "Reduce Motion enabled" : "Reduce Motion disabled",
+            legibilityWeight == .bold ? "Bold Text enabled" : "Bold Text disabled",
+            reduceTransparency ? "Reduce Transparency enabled" : "Reduce Transparency disabled",
+            differentiateWithoutColor ? "Differentiate Without Color enabled" : "Differentiate Without Color disabled",
+            UIAccessibility.isGrayscaleEnabled ? "Grayscale enabled" : "Grayscale disabled"
+        ].joined(separator: "; ")
     }
 
     private var modePicker: some View {
-        Picker("App Mode", selection: $mode) {
+        Picker("App view", selection: $mode) {
             ForEach(AppMode.allCases) { mode in
                 Text(mode.title).tag(mode)
             }
@@ -174,6 +207,8 @@ struct CustomerRootView: View {
                 .tag(CustomerTab.tickets)
         }
         .tint(.sandFestGulf)
+        .toolbarBackground(Color.sandFestFoam, for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
         .onChange(of: route?.id, initial: true) { _, _ in
             consumeRoute()
         }
@@ -289,15 +324,38 @@ struct AdminRootView: View {
                 .tabItem { Label("Partners", systemImage: "person.3") }
                 .tag(AdminTab.partners)
 
-            AdminFinanceView()
-                .tabItem { Label("Finance", systemImage: "dollarsign.circle") }
-                .tag(AdminTab.finance)
-
-            AdminSettingsView()
-                .tabItem { Label("Setup", systemImage: "gearshape") }
-                .tag(AdminTab.setup)
+            AdminToolsView()
+                .tabItem { Label("Tools", systemImage: "wrench.and.screwdriver") }
+                .tag(AdminTab.tools)
         }
         .tint(.sandFestGulf)
+        .toolbarBackground(Color.sandFestFoam, for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
+    }
+}
+
+struct AdminToolsView: View {
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("Festival business") {
+                    NavigationLink {
+                        AdminFinanceView()
+                    } label: {
+                        Label("Finance and accounting", systemImage: "dollarsign.circle")
+                    }
+                }
+
+                Section("Administration") {
+                    NavigationLink {
+                        AdminSettingsView()
+                    } label: {
+                        Label("Setup and integrations", systemImage: "gearshape")
+                    }
+                }
+            }
+            .navigationTitle("Staff Tools")
+        }
     }
 }
 
@@ -309,8 +367,8 @@ enum AppMode: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .customer: "Customer"
-        case .admin: "Admin"
+        case .customer: "Visitor"
+        case .admin: "Staff"
         }
     }
 }
@@ -362,13 +420,21 @@ struct CustomerRoute: Identifiable {
             components.append(contentsOf: pathComponents(url))
             routeComponents = components
         case "https":
-            guard url.host?.lowercased() == "sandfest.heyelab.com",
+            guard let host = url.host?.lowercased(),
+                  ["www.heyelab.com", "sandfest.heyelab.com"].contains(host),
                   url.port == nil,
                   url.user == nil,
                   url.password == nil else {
                 return nil
             }
-            let components = pathComponents(url)
+            var components = pathComponents(url)
+            let canonicalPrefix = ["texas-sandfest", "app"]
+            if components.starts(with: canonicalPrefix) {
+                components = Array(components.dropFirst(canonicalPrefix.count))
+            } else if host != "sandfest.heyelab.com" {
+                // The www host is canonical only below the owned SandFest app path.
+                return nil
+            }
             if components.isEmpty, let fragment = url.fragment, !fragment.isEmpty {
                 routeComponents = fragment.split(separator: "/").map(String.init)
             } else {
@@ -437,6 +503,5 @@ enum AdminTab {
     case fleet
     case incidents
     case partners
-    case finance
-    case setup
+    case tools
 }

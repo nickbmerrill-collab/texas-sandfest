@@ -165,9 +165,9 @@ async function signupProofRehearsal(sessionFile) {
     || report.automation?.acceptedMessages < 2
     || report.automation?.deliveryCallbacks < 2
     || report.automation?.callbackFailures !== 0
-    || report.operations?.applicationCount !== 7
+    || report.operations?.applicationCount !== 16
     || report.operations?.deliveredAcknowledgments !== 2
-    || report.reset?.applicationCount !== 5
+    || report.reset?.applicationCount !== 14
     || report.reset?.preflight !== `${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}/${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}`
   ) {
     throw new Error(`Board signup proof failed:\n${JSON.stringify(report, null, 2)}`);
@@ -251,17 +251,17 @@ async function vendorJourneyProofRehearsal(sessionFile) {
     || report.notices?.delivered !== 3
     || report.readiness?.status !== "ready"
     || report.readiness?.readyVendors !== 2
-    || report.readiness?.totalVendors !== 3
+    || report.readiness?.totalVendors !== 6
     || report.audit?.records < 10
-    || report.reset?.applications !== 5
-    || report.reset?.vendorApplications !== 3
-    || report.reset?.vendorProfiles !== 2
-    || report.reset?.vendorRequirements !== 12
+    || report.reset?.applications !== 14
+    || report.reset?.vendorApplications !== 8
+    || report.reset?.vendorProfiles !== 6
+    || report.reset?.vendorRequirements !== 34
     || report.reset?.vendorDocuments !== 0
-    || report.reset?.vendorAssignments !== 2
+    || report.reset?.vendorAssignments !== 6
     || report.reset?.ready !== 1
-    || report.reset?.blocked !== 1
-    || report.reset?.interests !== 1
+    || report.reset?.blocked !== 3
+    || report.reset?.interests !== 2
     || report.reset?.preflight !== `${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}/${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}`
   ) {
     throw new Error(`Board vendor journey proof failed:\n${JSON.stringify(report, null, 2)}`);
@@ -296,7 +296,7 @@ async function sponsorJourneyProofRehearsal(sessionFile) {
     || report.showcase?.logoBytes < 1
     || !/^[a-f0-9]{64}$/i.test(String(report.showcase?.logoChecksumSha256 || ""))
     || report.audit?.records < 4
-    || report.reset?.applications !== 5
+    || report.reset?.applications !== 14
     || report.reset?.prospects !== 2
     || report.reset?.wonProspects !== 0
     || report.reset?.featuredSponsors !== 1
@@ -352,7 +352,7 @@ async function outreachJourneyProofRehearsal(sessionFile) {
     || report.operations?.campaigns !== 3
     || report.operations?.activeCampaigns !== 3
     || report.operations?.messagesSent !== 2
-    || report.operations?.followups !== 25
+    || report.operations?.followups !== 47
     || report.audit?.records !== 7
     || report.reset?.prospects !== 2
     || report.reset?.qualified !== 2
@@ -360,7 +360,7 @@ async function outreachJourneyProofRehearsal(sessionFile) {
     || report.reset?.campaigns !== 2
     || report.reset?.activeCampaigns !== 2
     || report.reset?.messagesSent !== 1
-    || report.reset?.followups !== 24
+    || report.reset?.followups !== 46
     || report.reset?.preflight !== `${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}/${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}`
   ) {
     throw new Error(`Board outreach journey proof failed:\n${JSON.stringify(report, null, 2)}`);
@@ -431,15 +431,15 @@ async function operationsProofRehearsal(sessionFile) {
     || report.exports?.budgetRows !== 7
     || report.exports?.expenseRows !== 8
     || report.exports?.paymentRows !== 2
-    || report.exports?.receivableRows !== 4
-    || report.exports?.calendarEvents !== 17
+    || report.exports?.receivableRows !== 10
+    || report.exports?.calendarEvents !== 46
     || report.audit?.records !== 11
     || report.audit?.exports !== 5
-    || report.reset?.applications !== 5
+    || report.reset?.applications !== 14
     || report.reset?.budgetLines !== 6
     || report.reset?.expenses !== 7
-    || report.reset?.openTasks !== 10
-    || report.reset?.milestones !== 16
+    || report.reset?.openTasks !== 17
+    || report.reset?.milestones !== 45
     || report.reset?.preflight !== `${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}/${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}`
   ) {
     throw new Error(`Board Operations proof failed:\n${JSON.stringify(report, null, 2)}`);
@@ -480,17 +480,17 @@ async function delegationJourneyProofRehearsal(sessionFile) {
     || report.portal?.completed !== true
     || report.portal?.replayed !== true
     || report.portal?.updates !== 4
-    || report.operations?.total !== 12
-    || report.operations?.active !== 10
+    || report.operations?.total !== 21
+    || report.operations?.active !== 17
     || report.operations?.completed !== 2
-    || report.operations?.assignmentNotices !== 11
-    || report.operations?.followups !== 25
+    || report.operations?.assignmentNotices !== 18
+    || report.operations?.followups !== 47
     || report.audit?.records !== 4
-    || report.reset?.total !== 11
-    || report.reset?.active !== 10
+    || report.reset?.total !== 20
+    || report.reset?.active !== 17
     || report.reset?.completed !== 1
-    || report.reset?.assignmentNotices !== 10
-    || report.reset?.followups !== 24
+    || report.reset?.assignmentNotices !== 17
+    || report.reset?.followups !== 46
     || report.reset?.preflight !== `${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}/${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}`
   ) {
     throw new Error(`Board delegation journey proof failed:\n${JSON.stringify(report, null, 2)}`);
@@ -569,8 +569,8 @@ async function documentProofRehearsal(sessionFile) {
     || !/^[a-f0-9]{64}$/i.test(String(report.document?.checksumSha256 || ""))
     || report.audit?.records < 4
     || report.reset?.total !== 4
-    || report.reset?.openTasks !== 10
-    || report.reset?.jobsTotal !== 21
+    || report.reset?.openTasks !== 17
+    || report.reset?.jobsTotal !== 41
     || report.reset?.preflight !== `${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}/${BOARD_DEMO_PREFLIGHT_CHECK_COUNT}`
   ) {
     throw new Error(`Board document-ingestion proof failed:\n${JSON.stringify(report, null, 2)}`);

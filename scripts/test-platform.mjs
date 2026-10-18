@@ -847,6 +847,8 @@ console.log("\n=== Pure library suite ===\n");
     && siteModeForHash("#experience") === "ops"
     && siteModeForHash("#port-a") === "ops"
     && siteModeForHash("#operations") === "ops"
+    && siteModeForHash("#admin-impact-report") === "ops"
+    && siteModeForHash("#admin-guest-services") === "ops"
     && siteModeForHash("#admin-partners") === "ops"
     && siteModeForHash("#admin-budget") === "ops"
     && siteModeForHash("#admin-system-monitor") === "ops");
@@ -2153,6 +2155,7 @@ const visitorGuidanceFixture = [{
     }
   };
   const ticketResult = answerPublicConcierge("Where can I buy tickets?", context);
+  const scheduleResult = answerPublicConcierge("When is Texas SandFest?", context);
   const ferryResult = answerPublicConcierge("How long is the ferry line?", context);
   const sponsorResult = answerPublicConcierge("What should a sponsor dashboard track?", context);
   const accessibilityResult = answerPublicConcierge("What accessibility guidance is available?", context);
@@ -2207,6 +2210,7 @@ const visitorGuidanceFixture = [{
   ok("public concierge validates and bounds questions", !parsePublicConciergeQuestion("x").ok && !parsePublicConciergeQuestion("x".repeat(281)).ok && parsePublicConciergeQuestion("When is SandFest?").topic === "schedule");
   ok("public concierge routes live-condition topics", publicConciergeNeedsConditions("weather") && publicConciergeNeedsConditions("ferry") && !publicConciergeNeedsConditions("tickets"));
   ok("public concierge answers ticket questions from current catalog", ticketOk && ticketPayload.topic === "tickets" && ticketPayload.answer.includes("Adult day pass ($15)") && ticketPayload.answer.includes("VIP day pass (price pending)") && !ticketPayload.answer.includes("Stripe") && ticketPayload.sources.some(item => item.href === "#tickets"));
+  ok("public concierge ignores generic event-name terms when matching governed guidance", scheduleResult.ok && scheduleResult.topic === "schedule" && scheduleResult.answer.includes(context.bootstrap.guide.dateRange) && !scheduleResult.answer.includes("service-animals-only"));
   ok("public concierge answers ferry questions from current public conditions", ferryResult.ok && ferryResult.topic === "ferry" && ferryResult.answer.includes("about 12 minutes") && ferryResult.sources.some(item => item.href.startsWith("https://www.txdot.gov/")));
   ok("public concierge replaces internal sponsor roadmap claims with public packages", sponsorResult.ok && sponsorResult.topic === "sponsor" && sponsorResult.answer.includes("Gulf Partner ($5,000)") && !sponsorResult.answer.toLowerCase().includes("dashboard"));
   ok("public concierge answers accessibility from governed visitor guidance", accessibilityResult.ok && accessibilityResult.topic === "accessibility" && accessibilityResult.confidence === "high" && !accessibilityResult.escalated && accessibilityResult.answer.includes("beach wheelchairs") && accessibilityResult.sources.some(item => item.href === "https://www.texassandfest.org/accessibility"));
@@ -5106,9 +5110,13 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   }, { actorId: "vendor_admin_1", idFactory, portalUrl: vendorPortalUrl, now });
   const confirmedVendor = confirmVendorAssignment(scheduledVendor.doc, vendorCreated.application.id, { actorId: `partner:${vendorCreated.application.id}`, idFactory, now });
   const vendorReadiness = summarizeVendorReadiness(confirmedVendor.doc, now);
+  const rejectedVendor = updatePartnerApplication(confirmedVendor.doc, vendorCreated.application.id, { status: "rejected" }, { actorId: "vendor_admin_1", idFactory, now });
+  const rejectedVendorReadiness = summarizeVendorReadiness(rejectedVendor.doc, now);
+  const rejectedVendorSummary = summarizePartnerOperations(rejectedVendor.doc, now);
   ok("vendor assignment change draft", scheduledVendor.followupChanged && scheduledVendor.followup.kind === "vendor_assignment_ready" && scheduledVendor.followup.body.includes("South service gate"));
   ok("vendor assignment confirmation", scheduledVendor.ok && confirmedVendor.ok && confirmedVendor.assignment.status === "confirmed" && confirmedVendor.assignment.partnerConfirmedAt === now && confirmedVendor.dismissedFollowups === 1);
   ok("vendor readiness evidence", vendorReadiness.totals.ready === 1 && vendorReadiness.vendors[0].compliance.approved === 7 && vendorReadiness.vendors[0].boothNumber === "F-12");
+  ok("closed vendors leave active readiness and finance totals", rejectedVendor.ok && rejectedVendorReadiness.totals.vendors === 0 && rejectedVendorReadiness.totals.closed === 1 && rejectedVendorReadiness.vendors.length === 0 && rejectedVendorSummary.finance.amountExpectedCents === 0 && rejectedVendorSummary.finance.balanceCents === 0);
   const vendorPublic = publicPartnerPortalStatus(confirmedVendor.doc, vendorCreated.application).vendorOnboarding;
   ok("partner portal vendor onboarding", vendorPublic.profile.status === "approved" && vendorPublic.requirements.length === 7 && vendorPublic.assignment.status === "confirmed");
   const vendorPublicDocument = vendorPublic.requirements.find(item => item.document)?.document;

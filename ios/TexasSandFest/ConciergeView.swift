@@ -2,6 +2,8 @@ import SwiftUI
 
 struct ConciergeView: View {
     @EnvironmentObject private var dataStore: AppDataStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Binding var request: ConciergeRequest?
     let onOpenInternalSource: (String) -> Void
 
@@ -20,6 +22,7 @@ struct ConciergeView: View {
             }
             .background(Color.sandFestFoam.ignoresSafeArea())
             .navigationTitle("Ask Sandy")
+            .navigationBarTitleDisplayMode(dynamicTypeSize.isAccessibilitySize ? .inline : .large)
             .task(id: request?.id) {
                 await consumeRequest()
             }
@@ -39,7 +42,7 @@ struct ConciergeView: View {
                             ProgressView()
                             Text("Checking current SandFest sources...")
                                 .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.sandFestSecondary)
                         }
                         .padding(12)
                         .background(Color.white)
@@ -52,7 +55,11 @@ struct ConciergeView: View {
             }
             .onChange(of: messages.count) { _, _ in
                 guard let lastID = messages.last?.id else { return }
-                withAnimation { proxy.scrollTo(lastID, anchor: .top) }
+                if reduceMotion {
+                    proxy.scrollTo(lastID, anchor: .top)
+                } else {
+                    withAnimation { proxy.scrollTo(lastID, anchor: .top) }
+                }
             }
         }
     }
@@ -149,17 +156,26 @@ struct ConciergeView: View {
     @MainActor
     private func consumeRequest() async {
         guard let pendingRequest = request else { return }
-        request = nil
 
         guard let pendingQuestion = pendingRequest.question else {
-            questionFocused = true
+            if !CommandLine.arguments.contains("-appStoreScreenshot") {
+                questionFocused = true
+            }
+            if request?.id == pendingRequest.id {
+                request = nil
+            }
             return
         }
         question = pendingQuestion
         if pendingRequest.submitImmediately {
             await submitQuestion(pendingQuestion, refocus: false)
         } else {
-            questionFocused = true
+            if !CommandLine.arguments.contains("-appStoreScreenshot") {
+                questionFocused = true
+            }
+        }
+        if request?.id == pendingRequest.id {
+            request = nil
         }
     }
 

@@ -351,7 +351,7 @@ struct FleetView: View {
                     if let statusNote {
                         Text(statusNote)
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.sandFestSecondary)
                             .padding(.horizontal, 4)
                     }
                     if let lastError = store.lastError {
@@ -389,7 +389,7 @@ struct FleetView: View {
                     }
                 }
             }
-            .sheet(isPresented: $scanning) {
+            .fullScreenCover(isPresented: $scanning) {
                 NavigationStack {
                     QRScannerView { payload in
                         scanning = false
@@ -473,7 +473,7 @@ struct FleetView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label.uppercased())
                 .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.sandFestSecondary)
             Text(value)
                 .font(.title2.weight(.bold))
                 .foregroundStyle(color)
@@ -525,7 +525,7 @@ struct FleetView: View {
                 }
                 Text("\(asset.typeLabel) · \(asset.id)")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.sandFestSecondary)
                 if let co = asset.activeCheckout {
                     Text("\(co.checkedOutTo) · \(co.team.isEmpty ? "no team" : co.team)")
                         .font(.subheadline)
@@ -533,7 +533,7 @@ struct FleetView: View {
                 if let loc = asset.lastLocation {
                     Text("📍 \(loc.display)")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.sandFestSecondary)
                 }
             }
         }
@@ -653,7 +653,7 @@ struct FleetAssetSheet: View {
                 if !canManage {
                     Section {
                         Label("Authenticated board Fleet access is unavailable.", systemImage: "lock.fill")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.sandFestSecondary)
                     }
                 }
 

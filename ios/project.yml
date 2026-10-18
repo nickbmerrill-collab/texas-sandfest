@@ -4,8 +4,8 @@ options:
   deploymentTarget:
     iOS: "18.0"
 settings:
-  MARKETING_VERSION: "0.1.0"
-  CURRENT_PROJECT_VERSION: "1"
+  MARKETING_VERSION: "1.0.0"
+  CURRENT_PROJECT_VERSION: "3"
   SWIFT_VERSION: "6.0"
   DEVELOPMENT_TEAM: J2459M36QV
 targets:
@@ -20,6 +20,7 @@ targets:
       path: TexasSandFest/Info.plist
       properties:
         CFBundleDisplayName: Texas SandFest
+        ITSAppUsesNonExemptEncryption: false
         CFBundleURLTypes:
           - CFBundleTypeRole: Viewer
             CFBundleURLName: com.portalcodex.texassandfest.public
@@ -29,7 +30,15 @@ targets:
           UIColorName: LaunchBackground
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
-        UIRequiresFullScreen: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        "UISupportedInterfaceOrientations~ipad":
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: false
         NSCameraUsageDescription: Scan your Eventeny ticket QR to add it to your SandFest wristbands.
@@ -38,6 +47,7 @@ targets:
       properties:
         aps-environment: development
         com.apple.developer.associated-domains:
+          - applinks:www.heyelab.com
           - applinks:sandfest.heyelab.com
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.portalcodex.texassandfest
@@ -54,3 +64,13 @@ targets:
       PRODUCT_BUNDLE_IDENTIFIER: com.portalcodex.texassandfest.tests
       BUNDLE_LOADER: $(TEST_HOST)
       TEST_HOST: $(BUILT_PRODUCTS_DIR)/TexasSandFest.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/TexasSandFest
+  TexasSandFestUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - TexasSandFestUITests
+    dependencies:
+      - target: TexasSandFest
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.portalcodex.texassandfest.uitests
+      TEST_TARGET_NAME: TexasSandFest

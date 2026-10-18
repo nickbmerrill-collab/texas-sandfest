@@ -2,13 +2,19 @@ import SwiftUI
 
 struct TicketsView: View {
     @EnvironmentObject private var dataStore: AppDataStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @StateObject private var userTickets = UserTicketsStore()
     @State private var pulseGlow = false
     @State private var scannerVisible = false
     @State private var importToast: String? = nil
 
     private var seedTickets: [Ticket] {
-        dataStore.payload.myTickets ?? SampleData.myTickets
+        let bundled = dataStore.payload.myTickets ?? []
+        if dataStore.staffAccessMode == .boardDemo, bundled.isEmpty {
+            return SampleData.myTickets
+        }
+        return bundled
     }
 
     /// Imported (user-scanned) tickets first, then bundled seed tickets. De-duped by id.
@@ -20,6 +26,13 @@ struct TicketsView: View {
             out.append(t)
         }
         return out
+    }
+
+    private var publicTicketOptions: [TicketOption] {
+        if dataStore.staffAccessMode == .boardDemo, dataStore.payload.ticketOptions.isEmpty {
+            return SampleData.ticketOptions
+        }
+        return dataStore.payload.ticketOptions
     }
 
     var body: some View {
@@ -47,7 +60,7 @@ struct TicketsView: View {
             }
             .background(Color.lbCream.ignoresSafeArea())
             .navigationTitle("Tickets")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(dynamicTypeSize.isAccessibilitySize ? .inline : .large)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -57,7 +70,7 @@ struct TicketsView: View {
                     }
                 }
             }
-            .sheet(isPresented: $scannerVisible) {
+            .fullScreenCover(isPresented: $scannerVisible) {
                 NavigationStack {
                     QRScannerView { payload in
                         let ticket = userTickets.importFromQR(payload, eventGuide: dataStore.payload.guide)
@@ -76,7 +89,6 @@ struct TicketsView: View {
                         }
                     }
                 }
-                .presentationDetents([.large])
             }
             .overlay(alignment: .bottom) {
                 if let toast = importToast {
@@ -91,6 +103,10 @@ struct TicketsView: View {
                 }
             }
             .onAppear {
+                guard !reduceMotion else {
+                    pulseGlow = false
+                    return
+                }
                 withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) {
                     pulseGlow = true
                 }
@@ -100,16 +116,18 @@ struct TicketsView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("YOUR WRISTBANDS")
+            Text("WRISTBANDS")
                 .font(.caption.weight(.semibold))
-                .tracking(1.6)
-                .foregroundStyle(Color.lbNavy.opacity(0.62))
+                .tracking(1.4)
+                .foregroundStyle(Color.sandFestDeep)
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
             Text("Hand to the gate.")
-                .font(.system(size: 30, design: .serif))
+                .font(.system(.title, design: .serif))
                 .foregroundStyle(Color.lbNavy)
             Text("Tap a wristband to brighten the QR for scanning. Tickets work offline once loaded — phone signal is unreliable on the beach.")
                 .font(.subheadline)
-                .foregroundStyle(Color.lbNavy.opacity(0.7))
+                .foregroundStyle(Color.sandFestSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 4)
@@ -121,9 +139,10 @@ struct TicketsView: View {
                 .font(.system(size: 40))
                 .foregroundStyle(Color.lbNavy.opacity(0.4))
             Text("No wristbands loaded yet").font(.headline).foregroundStyle(Color.lbNavy)
-            Text("Buy through Eventeny and your wristband will sync here.")
+            Text("Scan a supported Eventeny ticket QR to keep a ticket reference on this device.")
                 .font(.subheadline)
-                .foregroundStyle(Color.lbNavy.opacity(0.6))
+                .foregroundStyle(Color.sandFestSecondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity)
         .padding(28)
@@ -136,9 +155,37 @@ struct TicketsView: View {
             Text("NEED MORE?")
                 .font(.caption.weight(.semibold))
                 .tracking(1.6)
-                .foregroundStyle(Color.lbNavy.opacity(0.62))
+                .foregroundStyle(Color.sandFestSecondary)
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
 
-            ForEach(dataStore.payload.ticketOptions) { option in
+            if publicTicketOptions.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("2027 ticket sales are not open in the app yet.")
+                        .font(.headline)
+                        .foregroundStyle(Color.lbNavy)
+                    Text("Use the official Texas SandFest website for current ticket announcements.")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.sandFestSecondary)
+                    Link("Check official ticket availability", destination: URL(string: "https://www.texassandfest.org/")!)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(Color.sandFestDeep)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .padding(.horizontal, 12)
+                        .background(Color.sandFestFoam)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .accessibilityHint("Opens the Texas SandFest website")
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(18)
+                .background(Color.white.opacity(0.78))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+
+            ForEach(publicTicketOptions) { option in
                 HStack(alignment: .top, spacing: 12) {
                     Image(systemName: "ticket.fill")
                         .foregroundStyle(Color.lbYellow)
@@ -149,13 +196,13 @@ struct TicketsView: View {
                         Text(option.name).font(.headline).foregroundStyle(Color.lbNavy)
                         Text(option.detail)
                             .font(.caption)
-                            .foregroundStyle(Color.lbNavy.opacity(0.62))
+                            .foregroundStyle(Color.sandFestSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     Spacer(minLength: 0)
                     Image(systemName: "arrow.up.right")
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.lbNavy.opacity(0.5))
+                        .foregroundStyle(Color.sandFestGulf)
                 }
                 .padding(14)
                 .background(Color.white.opacity(0.78))
@@ -170,10 +217,13 @@ struct TicketsView: View {
 
     private var finePrint: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("FINE PRINT").font(.caption2.weight(.semibold)).tracking(1.6).foregroundStyle(Color.lbNavy.opacity(0.5))
-            Text("Wristbands are non-transferable once activated at the gate. Lost or stolen wristbands can be reissued at North Gate Guest Relations with photo ID. Re-entry permitted; bag check on every entry. No outside alcohol.")
+            Text("Current policies")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.sandFestDeep)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("Review the official Texas SandFest website and posted gate instructions for current purchase, entry, re-entry, and allowed-item policies.")
                 .font(.caption)
-                .foregroundStyle(Color.lbNavy.opacity(0.6))
+                .foregroundStyle(Color.sandFestSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.top, 8)

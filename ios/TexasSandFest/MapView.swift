@@ -19,7 +19,7 @@ struct MapView: View {
                                         .foregroundStyle(Color.sandFestCoral)
                                     Text(zone.summary)
                                         .font(.subheadline)
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(Color.sandFestSecondary)
                                 }
                                 Spacer()
                             }

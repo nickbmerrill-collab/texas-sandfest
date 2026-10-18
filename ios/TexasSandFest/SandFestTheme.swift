@@ -3,9 +3,13 @@ import SwiftUI
 extension Color {
     static let sandFestSand = Color(red: 0.96, green: 0.86, blue: 0.64)
     static let sandFestSun = Color(red: 0.96, green: 0.68, blue: 0.18)
-    static let sandFestCoral = Color(red: 0.88, green: 0.32, blue: 0.25)
+    // Dark enough for small text on both white panels and the foam background.
+    static let sandFestCoral = Color(red: 0.72, green: 0.20, blue: 0.15)
     static let sandFestGulf = Color(red: 0.0, green: 0.42, blue: 0.46)
     static let sandFestDeep = Color(red: 0.07, green: 0.2, blue: 0.23)
+    // Holds at least 8:1 against the cream and white visitor backgrounds so
+    // long-form guidance remains readable at thin antialiased edge pixels.
+    static let sandFestSecondary = Color(red: 0.24, green: 0.31, blue: 0.33)
     static let sandFestFoam = Color(red: 0.98, green: 0.96, blue: 0.91)
 
     // Live Beach palette (mirrors web tokens)

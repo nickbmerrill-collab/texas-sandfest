@@ -18,6 +18,35 @@ sandfest-api.<heyelab-domain>
 sandfest-admin.<heyelab-domain>
 ```
 
+## App Review public bridge
+
+`sandfest-api.heyelab.com` currently points to the Cloudflare Worker in
+`cloudflare/public-api`. This is a deliberately read-only visitor bridge for the
+submitted iOS build and the public website. It serves the governed public
+bootstrap, the unpublished sculptor-roster state, the alert, fail-closed public
+ticket/partner readiness, and source-cited Ask Sandy answers.
+
+The bridge does not expose board-demo partners, accept vendor or sponsor writes,
+provide admin routes, store visitor questions, or stand in for the production
+staff data plane. Stateful public POST routes return `503`. `/health` reports the
+bridge process, while `/ready` intentionally returns `503` with
+`visitorApiReady: true` and `staffPlatformReady: false` until the Render/Postgres
+and Heyelab OIDC platform is actually deployed.
+
+Validate and deploy it independently:
+
+```bash
+npm run test:cloudflare-public-api
+npm run cloudflare:public-api:check
+npm run cloudflare:public-api:preview
+npm run cloudflare:public-api:verify -- https://texas-sandfest-public-api-preview.nickbmerrill.workers.dev
+npm run cloudflare:public-api:deploy
+npm run cloudflare:public-api:verify -- https://sandfest-api.heyelab.com
+```
+
+Do not add mock vendor, sponsor, ticket, sculptor, or operational records to this
+Worker. Mock workflows belong only in the isolated board runtime.
+
 ## Pre-board deployment boundary
 
 The initial Render deployment carries the production data plane and the core

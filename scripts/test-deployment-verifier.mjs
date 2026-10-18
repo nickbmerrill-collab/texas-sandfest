@@ -157,6 +157,9 @@ const fetchImpl = async (url, options = {}) => {
 console.log("\n=== Deployment verifier tests ===\n");
 const successful = await verifyLiveDeployment({ config, artifacts, fetchImpl });
 check("complete production surface passes", successful.ok && successful.summary.failed === 0);
+check("successful Universal Link evidence is stated truthfully", successful.checks.some(item => item.id === "public.universal_links"
+  && item.ok
+  && item.detail === "Live AASA matches the verified public artifact and signed iOS app identity."));
 const apiOnly = await verifyProductionApi({ config, fetchImpl });
 check("API-only release gate reuses the complete production contract", apiOnly.ok
   && apiOnly.checks.length > 10

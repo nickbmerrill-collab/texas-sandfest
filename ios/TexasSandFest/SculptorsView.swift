@@ -127,6 +127,7 @@ final class PassportStore: ObservableObject {
 struct SculptorsView: View {
     @EnvironmentObject private var dataStore: AppDataStore
     @EnvironmentObject private var passport: PassportStore
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @State private var filter: String = "All"
     @State private var selected: Sculpture? = nil
@@ -180,6 +181,7 @@ struct SculptorsView: View {
             }
             .background(Color.sandFestFoam.ignoresSafeArea())
             .navigationTitle("Sculptors")
+            .navigationBarTitleDisplayMode(dynamicTypeSize.isAccessibilitySize ? .inline : .large)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { scanning = true } label: {
@@ -195,7 +197,7 @@ struct SculptorsView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
-        .sheet(isPresented: $scanning) { scannerSheet }
+        .fullScreenCover(isPresented: $scanning) { scannerSheet }
     }
 
     // MARK: Passport header
@@ -214,7 +216,7 @@ struct SculptorsView: View {
                             .font(.headline)
                         Text("Scan the QR at each sculpture to stamp your passport. Finish to enter the prize drawing.")
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.sandFestSecondary)
                     }
                     Spacer()
                     Text("\(collectedCount)/\(total)")
@@ -309,7 +311,7 @@ struct SculptorsView: View {
                         .foregroundStyle(categoryColor(sculpture.category))
                     Text("“\(sculpture.title)”")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.sandFestSecondary)
                         .lineLimit(1)
                 }
                 Spacer()
@@ -425,7 +427,7 @@ struct SculptorDetailSheet: View {
                     if sculpture.crowdStatusVerified != false {
                         Text(sculpture.crowd.label)
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.sandFestSecondary)
                     }
                 }
 
@@ -433,7 +435,7 @@ struct SculptorDetailSheet: View {
                     .font(.title2.weight(.bold))
                 Text("“\(sculpture.title)” · \(sculpture.country)")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.sandFestSecondary)
                 Text(sculpture.bio)
                     .font(.body)
 
@@ -447,7 +449,7 @@ struct SculptorDetailSheet: View {
                         }
                     }
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.sandFestSecondary)
                 }
 
                 Button {

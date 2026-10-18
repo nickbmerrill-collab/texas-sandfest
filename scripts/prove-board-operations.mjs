@@ -22,15 +22,15 @@ const EVENT_ID = "texas-sandfest-2027";
 const SPONSOR_APPLICATION_ID = "demo_sapp_0001";
 const SPONSOR_NAME = "Gulf Shore Credit Union";
 const BASELINE = {
-  applications: 5,
+  applications: 14,
   budgetLines: 6,
   expenses: 7,
   payments: 1,
   amountPaidCents: 1_000_000,
-  balanceCents: 1_800_000,
-  openTasks: 10,
-  milestones: 16,
-  followups: 24
+  balanceCents: 3_350_000,
+  openTasks: 17,
+  milestones: 45,
+  followups: 46
 };
 const timeoutMs = 25_000;
 const jsonOutput = process.argv.includes("--json");

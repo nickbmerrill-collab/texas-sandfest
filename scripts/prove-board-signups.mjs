@@ -17,7 +17,7 @@ import {
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ADMIN_TOKEN = "board-demo-local-admin-token-change-me";
-const BASELINE_APPLICATIONS = { total: 5, vendors: 3, sponsors: 2 };
+const BASELINE_APPLICATIONS = { total: 14, vendors: 8, sponsors: 6 };
 const timeoutMs = 30_000;
 const jsonOutput = process.argv.includes("--json");
 
@@ -352,7 +352,7 @@ try {
   let endpoints = activeSession(session, report);
   const initialPartners = await adminPartners(endpoints.apiBase);
   if (!exactBaseline(initialPartners)) {
-    log("Restoring the prepared five-application baseline before rehearsal...");
+    log("Restoring the prepared fourteen-application baseline before rehearsal...");
     result.reset = await resetBaseline(sessionFile, session);
     session = await readBoardDemoSession(sessionFile);
     endpoints = activeSession(session, preflight(sessionFile));

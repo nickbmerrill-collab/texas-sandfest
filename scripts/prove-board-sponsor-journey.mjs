@@ -28,12 +28,12 @@ const TARGET_PROSPECT = {
 const PACKAGE_ID = "tarpon";
 const PACKAGE_NAME = "Tarpon";
 const BASELINE = {
-  applications: 5,
-  sponsorApplications: 2,
-  brandProfiles: 2,
+  applications: 14,
+  sponsorApplications: 6,
+  brandProfiles: 6,
   brandAssets: 2,
-  deliverables: 12,
-  openTasks: 10,
+  deliverables: 28,
+  openTasks: 17,
   prospects: 2,
   wonProspects: 0,
   featuredSponsors: 1

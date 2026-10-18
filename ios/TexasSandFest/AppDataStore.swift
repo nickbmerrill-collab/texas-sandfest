@@ -315,15 +315,17 @@ final class AppDataStore: ObservableObject {
                 sculptorPublicationStatus = nil
                 sculptorSource = "Awaiting current roster"
             }
-            await refreshPublicSculptors(
+            async let sculptorRefresh: Void = refreshPublicSculptors(
                 apiBase: targetBase,
                 expectedEventID: publicPayload.guide.id,
                 runtime: publicPayload.runtime
             )
             if staffAccessMode == .boardDemo {
-                await refreshBoardOperations(apiBase: targetBase)
+                async let operationsRefresh: Void = refreshBoardOperations(apiBase: targetBase)
+                _ = await (sculptorRefresh, operationsRefresh)
             } else {
                 restoreBundledAdminData(source: "Bundled admin demo")
+                await sculptorRefresh
             }
         } catch {
             syncState = .offline
@@ -474,7 +476,7 @@ final class AppDataStore: ObservableObject {
             vendors: loaded.vendors,
             coverage: loaded.coverage,
             financeSignals: loaded.financeSignals,
-            myTickets: loaded.myTickets ?? SampleData.myTickets
+            myTickets: loaded.myTickets ?? []
         )
         return (merged, "Bundled seed")
     }

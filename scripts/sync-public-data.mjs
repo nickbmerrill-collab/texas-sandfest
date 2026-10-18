@@ -22,9 +22,27 @@ await writeFile(
 );
 
 const mediaManifest = JSON.parse(await readFile(path.join(ROOT, "data", "processed", "media-assets.json"), "utf8"));
+const publicMediaCatalog = publicMediaManifest(mediaManifest);
 await writeFile(
   path.join(publicMedia, "media-manifest.json"),
-  `${JSON.stringify(publicMediaManifest(mediaManifest), null, 2)}\n`
+  `${JSON.stringify(publicMediaCatalog, null, 2)}\n`
+);
+const mediaDerivatives = JSON.parse(await readFile(path.join(publicMedia, "media-derivatives.json"), "utf8"));
+const runtimeSourcePaths = new Set((mediaDerivatives.derivatives || []).map(derivative => derivative.sourcePath));
+await writeFile(
+  path.join(publicMedia, "media-runtime-manifest.json"),
+  `${JSON.stringify({
+    generatedAt: publicMediaCatalog.generatedAt,
+    source: publicMediaCatalog.source,
+    count: publicMediaCatalog.count,
+    categories: (publicMediaCatalog.assets || [])
+      .filter(asset => runtimeSourcePaths.has(asset.publicPath))
+      .reduce((summary, asset) => {
+        summary[asset.category || "uncategorized"] = (summary[asset.category || "uncategorized"] || 0) + 1;
+        return summary;
+      }, {}),
+    assets: (publicMediaCatalog.assets || []).filter(asset => runtimeSourcePaths.has(asset.publicPath))
+  }, null, 2)}\n`
 );
 
 const ticketCatalog = JSON.parse(await readFile(path.join(ROOT, "data", "processed", "ticket-products.json"), "utf8"));

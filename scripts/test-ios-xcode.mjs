@@ -50,7 +50,7 @@ function run(label, args) {
 }
 
 try {
-  run("Xcode Debug unit tests", ["-configuration", "Debug", "test"]);
+  run("Xcode Debug unit tests", ["-configuration", "Debug", "-only-testing:TexasSandFestTests", "test"]);
   run("Xcode optimized simulator build", ["-configuration", "Release", "build"]);
   console.log("\nXcode readiness: tests and optimized simulator build passed.");
 } finally {

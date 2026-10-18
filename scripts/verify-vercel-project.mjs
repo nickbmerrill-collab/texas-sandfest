@@ -14,8 +14,10 @@ if (process.env.VERCEL_PROJECT_ID !== EXPECTED_PROJECT_ID) {
   failures.push(`project ${process.env.VERCEL_PROJECT_ID || "missing"} is not the dedicated Texas SandFest project`);
 }
 
-if (process.env.VERCEL_GIT_REPO_ID !== EXPECTED_REPOSITORY_ID) {
-  failures.push(`repository ${process.env.VERCEL_GIT_REPO_ID || "missing"} is not the Texas SandFest repository`);
+const repositoryId = process.env.VERCEL_GIT_REPO_ID
+  || process.env.SANDFEST_VERCEL_CLI_REPOSITORY_ID;
+if (repositoryId !== EXPECTED_REPOSITORY_ID) {
+  failures.push(`repository ${repositoryId || "missing"} is not the Texas SandFest repository`);
 }
 
 if (failures.length) {

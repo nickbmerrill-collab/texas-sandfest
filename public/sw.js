@@ -10,7 +10,7 @@ const APP_SHELL = [...new Set([
   "data/app-bootstrap.json",
   "data/ticket-products.json",
   "data/sculptors.json",
-  "assets/sandfest-media/media-manifest.json",
+  "assets/sandfest-media/media-runtime-manifest.json",
   "assets/sandfest-media/media-derivatives.json",
   "assets/sandfest-app-icon.svg",
   ...MEDIA_ASSETS,
@@ -39,7 +39,7 @@ self.addEventListener("fetch", event => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  if (url.pathname.includes("/data/") || url.pathname.endsWith("media-manifest.json")) {
+  if (url.pathname.includes("/data/") || url.pathname.endsWith("media-runtime-manifest.json")) {
     event.respondWith(networkFirst(request));
     return;
   }

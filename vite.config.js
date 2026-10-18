@@ -8,6 +8,7 @@ const base = process.env.DEPLOY_BASE || "/";
 const sourcemap = process.env.SOURCE_MAPS === "true";
 const buildTarget = process.env.SANDFEST_BUILD_TARGET || "all";
 const outDir = process.env.SANDFEST_BUILD_OUT_DIR || "dist";
+const optimizeStandaloneSurface = buildTarget === "public" || buildTarget === "admin";
 
 export const PUBLIC_CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
@@ -27,7 +28,10 @@ export const PUBLIC_CONTENT_SECURITY_POLICY = [
 ].join("; ");
 
 const buildInputs = buildTarget === "public"
-  ? { main: resolve(import.meta.dirname, "index.html") }
+  ? {
+      main: resolve(import.meta.dirname, "index.html"),
+      privacy: resolve(import.meta.dirname, "privacy.html")
+    }
   : buildTarget === "admin"
     ? { admin: resolve(import.meta.dirname, "admin.html") }
     : {
@@ -135,6 +139,27 @@ function adminCssPrunePlugin(target = buildTarget) {
   };
 }
 
+function publicOperationsPrunePlugin(target = buildTarget) {
+  if (target !== "public") return null;
+  const mainSource = resolve(import.meta.dirname, "src/main.js");
+  const startMarker = "// public-ops-prune:start";
+  const endMarker = "// public-ops-prune:end";
+  return {
+    name: "sandfest-public-operations-prune",
+    apply: "build",
+    transform(code, id) {
+      if (id.split("?", 1)[0] !== mainSource) return null;
+      const starts = code.split(startMarker).length - 1;
+      const ends = code.split(endMarker).length - 1;
+      if (starts !== 3 || ends !== 3) {
+        throw new Error(`Public operations pruning requires exactly 3 complete regions; found ${starts} starts and ${ends} ends.`);
+      }
+      const pattern = new RegExp(`${startMarker}[\\s\\S]*?${endMarker}`, "g");
+      return { code: code.replace(pattern, ""), map: null };
+    }
+  };
+}
+
 const BOARD_DEMO_WEB_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
 
 export function boardDemoAccessPlugin(env) {
@@ -178,7 +203,7 @@ export default defineConfig(({ mode }) => {
   validatePublicBuildEnvironment(env);
   return {
     base,
-    plugins: [publicProductionSecurityPlugin(env), boardDemoAccessPlugin(env)].filter(Boolean),
+    plugins: [publicProductionSecurityPlugin(env), publicOperationsPrunePlugin(), boardDemoAccessPlugin(env)].filter(Boolean),
     css: {
       postcss: {
         plugins: [adminCssPrunePlugin()].filter(Boolean)
@@ -193,14 +218,24 @@ export default defineConfig(({ mode }) => {
       outDir,
       emptyOutDir: true,
       sourcemap,
+      minify: optimizeStandaloneSurface ? "terser" : "esbuild",
+      terserOptions: optimizeStandaloneSurface ? {
+        compress: { passes: 2 },
+        format: { comments: false }
+      } : undefined,
       rollupOptions: {
         input: buildInputs,
         output: buildTarget === "admin" ? {
           manualChunks: {
             "admin-runtime": [
-              resolve(import.meta.dirname, "src/main.js"),
-              resolve(import.meta.dirname, "src/admin-auth.js"),
+              resolve(import.meta.dirname, "src/main.js")
+            ],
+            "admin-operations-ui": [
               resolve(import.meta.dirname, "src/admin-operations-ui.js")
+            ],
+            "admin-auth": [
+              resolve(import.meta.dirname, "src/admin-auth.js"),
+              "oidc-client-ts"
             ],
             "admin-budget": [
               resolve(import.meta.dirname, "src/admin-budget.js")

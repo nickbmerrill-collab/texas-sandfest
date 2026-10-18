@@ -26,7 +26,7 @@ struct AdminPartnersView: View {
                                 if let summary = dataStore.adminTaskSummary {
                                     Text("\(summary.active) active · \(summary.overdue) overdue · \(summary.blocked) blocked")
                                         .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(Color.sandFestSecondary)
                                 }
                             }
                         }
@@ -59,7 +59,7 @@ struct AdminPartnersView: View {
                                 .font(.subheadline)
                             Text("Next: \(sponsor.nextAction)")
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.sandFestSecondary)
                         }
                         .padding(.vertical, 6)
                     }
@@ -75,7 +75,7 @@ struct AdminPartnersView: View {
                             }
                             Text("\(vendor.category) · \(vendor.status)")
                                 .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.sandFestSecondary)
                         }
                         .padding(.vertical, 6)
                     }

@@ -38,7 +38,7 @@ const BASELINE = {
   messagesSent: 1,
   nextActionsScheduled: 2,
   unassigned: 0,
-  followups: 24,
+  followups: 46,
   sponsorOutreach: 2,
   deliveredOutreach: 1,
   invitations: 0,
@@ -595,7 +595,7 @@ async function proveFinalOperations(page, apiBase, prospectId, campaign, deliver
     || outreach.summary?.campaigns !== 3
     || outreach.summary?.activeCampaigns !== 3
     || outreach.summary?.messagesSent !== 2
-    || outreach.followups?.length !== 25
+    || outreach.followups?.length !== 47
   ) {
     throw new Error(`The delivered and suppressed outreach lifecycle is missing from Operations: ${JSON.stringify({ summary: outreach.summary, prospect, campaign: storedCampaign?.metrics, deliveryStatus: storedDelivery?.deliveryStatus, followups: outreach.followups?.length })}.`);
   }

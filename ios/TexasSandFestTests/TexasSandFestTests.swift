@@ -37,15 +37,24 @@ final class CustomerRouteTests: XCTestCase {
 
     func testCanonicalHTTPSRoutesAndRejectsOtherOrigins() throws {
         XCTAssertEqual(
-            try route("https://sandfest.heyelab.com/schedule/fri-gates"),
+            try route("https://www.heyelab.com/texas-sandfest/app/schedule/fri-gates"),
             .schedule(itemID: "fri-gates")
         )
         XCTAssertEqual(
-            try route("https://sandfest.heyelab.com/#island-conditions"),
+            try route("https://www.heyelab.com/texas-sandfest/app/#island-conditions"),
             .beach(section: .live)
+        )
+        XCTAssertEqual(try route("https://www.heyelab.com/texas-sandfest/app"), .today)
+        XCTAssertEqual(try route("https://www.heyelab.com/texas-sandfest/app/tickets"), .tickets)
+
+        // Build 1 shipped the SandFest host at the root; keep those links valid.
+        XCTAssertEqual(
+            try route("https://sandfest.heyelab.com/schedule/fri-gates"),
+            .schedule(itemID: "fri-gates")
         )
         XCTAssertEqual(try route("https://sandfest.heyelab.com/"), .today)
 
+        XCTAssertNil(CustomerRoute(url: try url("https://www.heyelab.com/tickets")))
         XCTAssertNil(CustomerRoute(url: try url("http://sandfest.heyelab.com/tickets")))
         XCTAssertNil(CustomerRoute(url: try url("https://evil.example/tickets")))
         XCTAssertNil(CustomerRoute(url: try url("https://sandfest.heyelab.com:444/tickets")))
@@ -1044,6 +1053,31 @@ final class NativeVolunteerAttendanceStoreTests: XCTestCase {
 }
 
 final class AppDataStoreTests: XCTestCase {
+    @MainActor
+    func testVisitorSeedNeverInventsPersonalTickets() throws {
+        let seed = SandFestPayload(
+            guide: SampleData.guide,
+            alert: .inactive,
+            schedule: [],
+            zones: SampleData.zones,
+            ticketOptions: SampleData.ticketOptions,
+            sponsors: [],
+            vendors: [],
+            coverage: [],
+            financeSignals: [],
+            myTickets: nil
+        )
+        let store = AppDataStore(
+            seedPayload: seed,
+            apiBase: try XCTUnwrap(URL(string: "https://api.texassandfest.example")),
+            cacheURL: nil,
+            transport: AppDataTransport { _ in throw TestFailure.offline }
+        )
+
+        XCTAssertEqual(store.staffAccessMode, .visitorOnly)
+        XCTAssertTrue(store.payload.myTickets?.isEmpty == true)
+    }
+
     @MainActor
     func testLiveBootstrapPersistsAndRestoresOnlyForMatchingAPIOrigin() async throws {
         let directory = try temporaryDirectory()

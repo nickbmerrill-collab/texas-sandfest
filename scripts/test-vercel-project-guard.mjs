@@ -28,6 +28,14 @@ const expected = run({
 assert.equal(expected.status, 0);
 assert.match(expected.stdout, /verified the dedicated Texas SandFest project/);
 
+const verifiedCliUpload = run({
+  VERCEL: "1",
+  VERCEL_PROJECT_ID: "prj_g8hcQNlvj2G1iu07pmL2iVEh8tU8",
+  SANDFEST_VERCEL_CLI_REPOSITORY_ID: "1226718335"
+});
+assert.equal(verifiedCliUpload.status, 0);
+assert.match(verifiedCliUpload.stdout, /verified the dedicated Texas SandFest project/);
+
 const wrongProject = run({
   VERCEL: "1",
   VERCEL_PROJECT_ID: "prj_wrong_project",
@@ -89,4 +97,49 @@ assert.equal(unavailableProduction.ok, false);
 assert.equal(productionRequests, 13);
 assert.match(unavailableProduction.failures.join(" "), /Production API contract failed/);
 
-console.log("Vercel project and release guard: 9 passed, 0 failed.");
+const wrongBridgeMode = await verifyVercelRelease({
+  env: {
+    VERCEL: "1",
+    VERCEL_ENV: "production",
+    VITE_SANDFEST_TURNSTILE_SITE_KEY: "production_site_key_0123456789",
+    SANDFEST_APPLE_APP_ID_PREFIX: "ABCDE12345",
+    SANDFEST_VERCEL_PUBLIC_BRIDGE_MODE: "unsafe"
+  }
+});
+assert.equal(wrongBridgeMode.ok, false);
+assert.match(wrongBridgeMode.failures.join(" "), /must be read_only/);
+
+const bridgeResponses = new Map([
+  ["GET /health", [200, { service: "texas-sandfest-public-review-bridge" }, {}]],
+  ["GET /ready", [503, { visitorApiReady: true, staffPlatformReady: false }, {}]],
+  ["GET /api/public/bootstrap", [200, { guide: { id: "texas-sandfest-2027", volunteer: {} }, guidance: [], schedule: [], zones: [], alert: {} }, { "cache-control": "public, s-maxage=120" }]],
+  ["GET /api/public/sculptors", [200, { meta: { publicationStatus: "unpublished" }, sculptors: [] }, {}]],
+  ["POST /api/public/concierge", [200, { answer: "Texas SandFest dates are published in the official guide.", topic: "schedule", confidence: "high", escalated: false, sources: [{ id: "guide", label: "Official guide", href: "https://www.heyelab.com/texas-sandfest" }], suggestions: [] }, {}]],
+  ["GET /api/public/sponsors", [200, { publication: { available: false }, sponsorPackages: [] }, {}]],
+  ["GET /api/public/vendors", [200, { publication: { available: false }, vendorOfferings: [] }, {}]],
+  ["GET /api/public/island-conditions", [200, { weather: { freshness: { state: "stale" } }, ferry: { freshness: { state: "stale" } }, cameras: Array.from({ length: 8 }, (_, index) => ({ id: `camera-${index + 1}` })), summary: { liveCameras: 0 } }, {}]],
+  ["OPTIONS /api/public/concierge", [204, null, { "access-control-allow-origin": "https://www.heyelab.com" }]],
+  ["POST /api/public/vendor-applications", [503, { error: "unavailable" }, { "retry-after": "3600" }]]
+]);
+const bridgeRelease = await verifyVercelRelease({
+  env: {
+    VERCEL: "1",
+    VERCEL_ENV: "production",
+    VITE_SANDFEST_TURNSTILE_SITE_KEY: "production_site_key_0123456789",
+    SANDFEST_APPLE_APP_ID_PREFIX: "ABCDE12345",
+    SANDFEST_VERCEL_PUBLIC_BRIDGE_MODE: "read_only",
+    SANDFEST_LIVE_API_URL: "https://sandfest-api.heyelab.com/"
+  },
+  fetchImpl: async (url, init = {}) => {
+    const key = `${init.method || "GET"} ${url.pathname}`;
+    const [status, payload, headers] = bridgeResponses.get(key) || [404, { error: "missing" }, {}];
+    return new Response(payload === null ? null : JSON.stringify(payload), {
+      status,
+      headers: { ...headers, ...(payload === null ? {} : { "content-type": "application/json" }) }
+    });
+  }
+});
+assert.equal(bridgeRelease.ok, true);
+assert.equal(bridgeRelease.api.summary.passed, 12);
+
+console.log("Vercel project and release guard: 12 passed, 0 failed.");

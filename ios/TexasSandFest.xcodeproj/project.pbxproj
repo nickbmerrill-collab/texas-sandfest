@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		A10000000000000000000001 /* TexasSandFestTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000002 /* TexasSandFestTests.swift */; };
+		C10000000000000000000001 /* TexasSandFestAccessibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000002 /* TexasSandFestAccessibilityTests.swift */; };
 		0C1B4720FEFDCA8CF6BE9A71 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45FBC9090CA50C1CC8EB6171 /* RootView.swift */; };
 		1775818503EFAFFF2CC2BC15 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8A17B986F097F115828A9018 /* Assets.xcassets */; };
 		1F24D12EB45E476233EE799E /* SandFestTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 806C8EDE8EE727731CC8DF59 /* SandFestTheme.swift */; };
@@ -22,6 +23,7 @@
 		7B123FC7BD2E3502211358AD /* TodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA468D65536B1F4405067D19 /* TodayView.swift */; };
 		8AD1C210E31D4AC09A2AB081 /* AdminDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D2D2F7158CB5526A5008504 /* AdminDashboardView.swift */; };
 		8E6C1B9EBF98BE36A9DE7392 /* sandfest-seed.json in Resources */ = {isa = PBXBuildFile; fileRef = 14666CC63BD806C8F2385B35 /* sandfest-seed.json */; };
+		D10000000000000000000001 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000002 /* PrivacyInfo.xcprivacy */; };
 		95D327E3C6E9BF25A9C56904 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA315742174BA3305A51AFA9 /* Models.swift */; };
 		9B9434A8D8CFD40925AA92C9 /* LineupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 928D97886D4DD8F1C3C282D4 /* LineupView.swift */; };
 		9C1FC76D5D672DAEA9942678 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D09EF91607F49410A5A2645 /* NotificationManager.swift */; };
@@ -48,11 +50,20 @@
 			remoteGlobalIDString = AC0D20584DFF09EEC0C8E628;
 			remoteInfo = TexasSandFest;
 		};
+		C1000000000000000000000A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 48D4C323D0928CD227A5AC97 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AC0D20584DFF09EEC0C8E628;
+			remoteInfo = TexasSandFest;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		A10000000000000000000002 /* TexasSandFestTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TexasSandFestTests.swift; sourceTree = "<group>"; };
 		A10000000000000000000003 /* TexasSandFestTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TexasSandFestTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		C10000000000000000000002 /* TexasSandFestAccessibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TexasSandFestAccessibilityTests.swift; sourceTree = "<group>"; };
+		C10000000000000000000003 /* TexasSandFestUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TexasSandFestUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		14666CC63BD806C8F2385B35 /* sandfest-seed.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "sandfest-seed.json"; sourceTree = "<group>"; };
 		1FE52C12D256F44D441A73E8 /* TexasSandFestApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TexasSandFestApp.swift; sourceTree = "<group>"; };
 		250D6E54785B8CFE8754310F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -82,6 +93,7 @@
 		928D97886D4DD8F1C3C282D4 /* LineupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineupView.swift; sourceTree = "<group>"; };
 		C55BB6D4E0876C0D583717DC /* QRScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRScannerView.swift; sourceTree = "<group>"; };
 		D0E7AEEF912C40CBF43D6DE3 /* TexasSandFest.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TexasSandFest.entitlements; sourceTree = "<group>"; };
+		D10000000000000000000002 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		D1163268BF13DE9BFDF5425F /* ScheduleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleView.swift; sourceTree = "<group>"; };
 		DA315742174BA3305A51AFA9 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		EA468D65536B1F4405067D19 /* TodayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayView.swift; sourceTree = "<group>"; };
@@ -96,6 +108,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C10000000000000000000007 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -104,6 +123,7 @@
 			children = (
 				419EDC2EDEEA3CF4FFED6B65 /* TexasSandFest.app */,
 				A10000000000000000000003 /* TexasSandFestTests.xctest */,
+				C10000000000000000000003 /* TexasSandFestUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -111,6 +131,7 @@
 		291D137BB5A83B844A08D842 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				D10000000000000000000002 /* PrivacyInfo.xcprivacy */,
 				14666CC63BD806C8F2385B35 /* sandfest-seed.json */,
 			);
 			path = Resources;
@@ -121,6 +142,7 @@
 			children = (
 				D9CEECC0ABC5AE7329A950F4 /* TexasSandFest */,
 				A10000000000000000000004 /* TexasSandFestTests */,
+				C10000000000000000000004 /* TexasSandFestUITests */,
 				1979F7610BE0258CEB1E06C7 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -172,6 +194,14 @@
 			path = TexasSandFestTests;
 			sourceTree = "<group>";
 		};
+		C10000000000000000000004 /* TexasSandFestUITests */ = {
+			isa = PBXGroup;
+			children = (
+				C10000000000000000000002 /* TexasSandFestAccessibilityTests.swift */,
+			);
+			path = TexasSandFestUITests;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -194,6 +224,26 @@
 			productName = TexasSandFestTests;
 			productReference = A10000000000000000000003 /* TexasSandFestTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		C10000000000000000000005 /* TexasSandFestUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C1000000000000000000000D /* Build configuration list for PBXNativeTarget "TexasSandFestUITests" */;
+			buildPhases = (
+				C10000000000000000000006 /* Sources */,
+				C10000000000000000000007 /* Frameworks */,
+				C10000000000000000000008 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				C10000000000000000000009 /* PBXTargetDependency */,
+			);
+			name = TexasSandFestUITests;
+			packageProductDependencies = (
+			);
+			productName = TexasSandFestUITests;
+			productReference = C10000000000000000000003 /* TexasSandFestUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 		AC0D20584DFF09EEC0C8E628 /* TexasSandFest */ = {
 			isa = PBXNativeTarget;
@@ -226,6 +276,10 @@
 						CreatedOnToolsVersion = 26.6;
 						TestTargetID = AC0D20584DFF09EEC0C8E628;
 					};
+					C10000000000000000000005 = {
+						CreatedOnToolsVersion = 26.6;
+						TestTargetID = AC0D20584DFF09EEC0C8E628;
+					};
 				};
 			};
 			buildConfigurationList = D5AC1BFCF6CE07B9D6C2CA5B /* Build configuration list for PBXProject "TexasSandFest" */;
@@ -244,6 +298,7 @@
 			targets = (
 				AC0D20584DFF09EEC0C8E628 /* TexasSandFest */,
 				A10000000000000000000005 /* TexasSandFestTests */,
+				C10000000000000000000005 /* TexasSandFestUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -256,11 +311,19 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C10000000000000000000008 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		723B4F242AD55CB70E3C7C62 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				1775818503EFAFFF2CC2BC15 /* Assets.xcassets in Resources */,
+				D10000000000000000000001 /* PrivacyInfo.xcprivacy in Resources */,
 				8E6C1B9EBF98BE36A9DE7392 /* sandfest-seed.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -273,6 +336,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000000000000000000001 /* TexasSandFestTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C10000000000000000000006 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C10000000000000000000001 /* TexasSandFestAccessibilityTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -319,6 +390,11 @@
 			target = AC0D20584DFF09EEC0C8E628 /* TexasSandFest */;
 			targetProxy = A1000000000000000000000A /* PBXContainerItemProxy */;
 		};
+		C10000000000000000000009 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AC0D20584DFF09EEC0C8E628 /* TexasSandFest */;
+			targetProxy = C1000000000000000000000A /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
@@ -327,7 +403,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MARKETING_VERSION = 1.0;
@@ -345,7 +421,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MARKETING_VERSION = 1.0;
@@ -355,6 +431,40 @@
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TexasSandFest.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/TexasSandFest";
+			};
+			name = Release;
+		};
+		C1000000000000000000000B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 3;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.portalcodex.texassandfest.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = TexasSandFest;
+			};
+			name = Debug;
+		};
+		C1000000000000000000000C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 3;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.portalcodex.texassandfest.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = TexasSandFest;
 			};
 			name = Release;
 		};
@@ -409,7 +519,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = J2459M36QV;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -423,7 +533,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 1.0.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -485,7 +595,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = J2459M36QV;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -505,7 +615,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 1.0.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -525,6 +635,15 @@
 			buildConfigurations = (
 				A1000000000000000000000B /* Debug */,
 				A1000000000000000000000C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		C1000000000000000000000D /* Build configuration list for PBXNativeTarget "TexasSandFestUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C1000000000000000000000B /* Debug */,
+				C1000000000000000000000C /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

@@ -19,15 +19,15 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ADMIN_TOKEN = "board-demo-local-admin-token-change-me";
 const VOLUNTEER_ID = "vol_001";
 const BASELINE = {
-  total: 11,
-  active: 10,
-  open: 9,
+  total: 20,
+  active: 17,
+  open: 16,
   inProgress: 1,
   blocked: 0,
   completed: 1,
-  cancelled: 0,
-  followups: 24,
-  assignmentNotices: 10
+  cancelled: 2,
+  followups: 46,
+  assignmentNotices: 17
 };
 const timeoutMs = 30_000;
 const jsonOutput = process.argv.includes("--json");
@@ -487,13 +487,13 @@ async function proveFinalOperations(apiBase, delegated) {
     || stored.assigneeUpdates?.length !== 4
     || notices.length !== 1
     || notices[0].deliveryStatus !== "delivered"
-    || totals.total !== 12
-    || totals.active !== 10
-    || totals.open !== 9
+    || totals.total !== 21
+    || totals.active !== 17
+    || totals.open !== 16
     || totals.inProgress !== 1
     || totals.blocked !== 0
     || totals.completed !== 2
-    || partners.followups?.length !== 25
+    || partners.followups?.length !== 47
   ) {
     throw new Error(`The completed delegation is missing from Operations: ${JSON.stringify({ totals, stored, notices: notices.length, followups: partners.followups?.length })}.`);
   }

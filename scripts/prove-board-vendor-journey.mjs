@@ -21,16 +21,16 @@ const OFFERING_ID = "marketplace-booth";
 const OFFERING_NAME = "Marketplace booth";
 const BOOTH_NUMBER = "M-27";
 const BASELINE = {
-  applications: 5,
-  vendorApplications: 3,
-  vendorProfiles: 2,
-  vendorRequirements: 12,
+  applications: 14,
+  vendorApplications: 8,
+  vendorProfiles: 6,
+  vendorRequirements: 34,
   vendorDocuments: 0,
-  vendorAssignments: 2,
+  vendorAssignments: 6,
   ready: 1,
-  blocked: 1,
-  interests: 1,
-  openTasks: 10
+  blocked: 3,
+  interests: 2,
+  openTasks: 17
 };
 const timeoutMs = 30_000;
 const jsonOutput = process.argv.includes("--json");
@@ -527,7 +527,7 @@ async function proveReadyState(page, apiBase, applicationId, requirementCount) {
   await expect(card).toContainText(`${requirementCount}/${requirementCount} compliance`);
   await expect(card).toContainText("approved profile");
   await expect(card).toContainText("confirmed load-in");
-  await expect(page.locator("#admin-vendor-readiness-summary")).toContainText("2/3 ready");
+  await expect(page.locator("#admin-vendor-readiness-summary")).toContainText("2/6 ready");
 
   const partners = await getJson(apiBase, "/api/admin/partners", { admin: true });
   const application = partners.applications?.find(item => item.id === applicationId);
@@ -548,7 +548,7 @@ async function proveReadyState(page, apiBase, applicationId, requirementCount) {
     || state.assignmentStatus !== "confirmed"
     || state.boothNumber !== BOOTH_NUMBER
     || partners.vendorReadiness?.totals?.ready !== 2
-    || partners.vendorReadiness?.totals?.vendors !== 3
+    || partners.vendorReadiness?.totals?.vendors !== 6
     || documents.length !== requirementCount
     || notices.length !== 3
     || notices.some(item => item.status !== "sent" || item.deliveryStatus !== "delivered")

@@ -165,7 +165,7 @@ one synthetic sponsor through the public forms, opens each private status view,
 requires both automatic acknowledgments to reach authenticated loopback Brevo
 delivery with signed callbacks, and verifies the two delivered message records
 and both application references in Operations. It then asks the supervisor to
-replace every service and restore the five-application baseline, even if a
+replace every service and restore the fourteen-application baseline, even if a
 workflow assertion fails. Do not run this state-mutating proof during the live
 walkthrough; run it during rehearsal and wait for its final 12/12 reset result.
 
@@ -238,7 +238,7 @@ portal submits a live brand preview and uploaded PNG logo; Operations approves
 the application, profile, and asset. The proof then requires a second public
 sponsor card, byte-identical logo delivery, and governed invitation, application,
 profile, and asset audit records without capability or storage-path exposure.
-Finally, it restores the exact five-application, two-prospect, one-featured-sponsor
+Finally, it restores the exact fourteen-application, two-prospect, one-featured-sponsor
 baseline at 12/12 readiness. Run it during rehearsal and wait for the reset.
 
 To prove the public ticket and accounting lifecycle, run:

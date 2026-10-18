@@ -6,6 +6,7 @@ import SwiftUI
 
 struct LineupView: View {
     @EnvironmentObject private var dataStore: AppDataStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selected: Artist? = nil
 
     /// Build artist cards from the schedule. Multiple set times merge into one.
@@ -60,7 +61,11 @@ struct LineupView: View {
                 .background(Color.lbCream.ignoresSafeArea())
 
                 AlphaIndex(letters: indexLetters) { letter in
-                    withAnimation { proxy.scrollTo(letter, anchor: .top) }
+                    if reduceMotion {
+                        proxy.scrollTo(letter, anchor: .top)
+                    } else {
+                        withAnimation { proxy.scrollTo(letter, anchor: .top) }
+                    }
                     UISelectionFeedbackGenerator().selectionChanged()
                 }
             }

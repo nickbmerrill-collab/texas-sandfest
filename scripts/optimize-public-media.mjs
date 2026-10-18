@@ -14,6 +14,7 @@ const mediaDir = path.join(publicDir, "assets", "sandfest-media");
 const outputDir = path.join(mediaDir, "optimized");
 const manifestPath = path.join(mediaDir, "media-manifest.json");
 const outputManifestPath = path.join(mediaDir, "media-derivatives.json");
+const runtimeManifestPath = path.join(mediaDir, "media-runtime-manifest.json");
 const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
 const assets = Array.isArray(manifest.assets) ? manifest.assets : [];
 const galleryAssets = selectPublicMediaAssets(assets, PUBLIC_GALLERY_MEDIA);
@@ -95,10 +96,22 @@ for (const selection of selections) {
 }
 
 await writeFile(outputManifestPath, `${JSON.stringify({ version: 1, derivatives }, null, 2)}\n`);
+const selectedSourcePaths = new Set(derivatives.map(derivative => derivative.sourcePath));
+const runtimeAssets = assets.filter(asset => selectedSourcePaths.has(asset.publicPath));
+await writeFile(runtimeManifestPath, `${JSON.stringify({
+  generatedAt: manifest.generatedAt,
+  source: manifest.source,
+  count: manifest.count,
+  categories: runtimeAssets.reduce((summary, asset) => {
+    summary[asset.category || "uncategorized"] = (summary[asset.category || "uncategorized"] || 0) + 1;
+    return summary;
+  }, {}),
+  assets: runtimeAssets
+}, null, 2)}\n`);
 
 const sourceBytes = selections.reduce((sum, selection) => sum + Number(selection.asset.bytes || 0), 0);
 const optimizedBytes = derivatives.reduce(
   (sum, derivative) => sum + derivative.sources.reduce((sourceSum, source) => sourceSum + source.bytes, 0),
   0
 );
-console.log(`Generated ${derivatives.length} optimized media records (${(sourceBytes / 1024 / 1024).toFixed(1)} MB source -> ${(optimizedBytes / 1024 / 1024).toFixed(1)} MB derivatives).`);
+console.log(`Generated ${derivatives.length} optimized media records and ${runtimeAssets.length} runtime asset records (${(sourceBytes / 1024 / 1024).toFixed(1)} MB source -> ${(optimizedBytes / 1024 / 1024).toFixed(1)} MB derivatives).`);

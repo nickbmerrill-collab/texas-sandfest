@@ -10,6 +10,9 @@ import SwiftUI
 // Mirrors the web `live-beach` section in src/main.js and src/styles.css.
 
 struct LiveBeachView: View {
+    @EnvironmentObject private var dataStore: AppDataStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var snapshot: LiveBeachSnapshot = SampleData.liveBeach
     @State private var selectedSculptureId: Int? = nil
     @State private var sheetSculpture: Sculpture? = nil
@@ -46,6 +49,16 @@ struct LiveBeachView: View {
     }
 
     var body: some View {
+        Group {
+            if dataStore.staffAccessMode == .boardDemo {
+                liveExperience
+            } else {
+                standbyExperience
+            }
+        }
+    }
+
+    private var liveExperience: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
@@ -75,6 +88,10 @@ struct LiveBeachView: View {
                     .shadow(color: Color.lbNavy.opacity(0.22), radius: 28, x: 0, y: 16)
                     .padding(.horizontal, 4)
                     .onAppear {
+                        if reduceMotion {
+                            pinsAppeared = true
+                            return
+                        }
                         // Stagger the pin entrance for a cinematic open
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                             withAnimation(.easeOut(duration: 0.85)) {
@@ -115,6 +132,74 @@ struct LiveBeachView: View {
         }
     }
 
+    private var standbyExperience: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("BEACH GUIDE")
+                            Text("MUSTANG ISLAND")
+                        }
+                        .font(.caption.weight(.semibold))
+                        .tracking(1.4)
+                        .foregroundStyle(Color.sandFestSecondary)
+                        Text("Know the beach before you go.")
+                            .font(.system(.largeTitle, design: .serif, weight: .regular))
+                            .foregroundStyle(Color.lbNavy)
+                        Text("Verified crowd routing, the sculpture map, and event-day recommendations will appear here when SandFest activates its live feeds.")
+                            .font(.body)
+                            .foregroundStyle(Color.sandFestDeep)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Panel {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                Image(systemName: "wave.3.right")
+                                    .accessibilityHidden(true)
+                                Text("Live monitoring is on standby")
+                                    .lineLimit(nil)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                                .font(.headline)
+                                .foregroundStyle(Color.sandFestGulf)
+                                .accessibilityElement(children: .combine)
+                            Text("The app will never label sample crowd, artist, or beach information as live. Until verified event-day data is available, use the current visitor guide and on-site direction.")
+                                .font(.subheadline)
+                                .foregroundStyle(Color.sandFestSecondary)
+                            Divider()
+                            Label(dataStore.payload.guide.location, systemImage: "mappin.and.ellipse")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Color.sandFestDeep)
+                            Text(dataStore.payload.guide.dateRange)
+                                .font(.subheadline)
+                                .foregroundStyle(Color.sandFestSecondary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    Panel {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Before you arrive")
+                                .font(.headline)
+                            Label("Save the visitor guide for limited beach connectivity", systemImage: "arrow.down.circle")
+                            Label("Follow posted gates, ADA routes, and safety direction", systemImage: "figure.roll")
+                            Label("Call 911 for an emergency", systemImage: "cross.case.fill")
+                        }
+                        .font(.subheadline)
+                        .foregroundStyle(Color.sandFestDeep)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .padding()
+            }
+            .background(Color.sandFestFoam.ignoresSafeArea())
+            .navigationTitle("Beach")
+            .navigationBarTitleDisplayMode(dynamicTypeSize.isAccessibilitySize ? .inline : .large)
+        }
+    }
+
     private var liveBeachBackground: some View {
         ZStack {
             paletteTint.background
@@ -124,9 +209,9 @@ struct LiveBeachView: View {
                 startRadius: 80,
                 endRadius: 700
             )
-                .animation(.easeInOut(duration: 0.6), value: paletteTint)
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.6), value: paletteTint)
         }
-        .animation(.easeInOut(duration: 0.6), value: paletteTint)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.6), value: paletteTint)
     }
 
     // MARK: Header
@@ -386,6 +471,7 @@ struct LiveBeachView: View {
 // MARK: - Live pill
 
 private struct LivePill: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var pulsing = false
 
     var body: some View {
@@ -398,7 +484,7 @@ private struct LivePill: View {
                         .stroke(Color.lbCoral2.opacity(0.5), lineWidth: pulsing ? 6 : 0)
                         .scaleEffect(pulsing ? 2.2 : 1.0)
                         .opacity(pulsing ? 0 : 1)
-                        .animation(.easeOut(duration: 1.6).repeatForever(autoreverses: false), value: pulsing)
+                        .animation(reduceMotion ? nil : .easeOut(duration: 1.6).repeatForever(autoreverses: false), value: pulsing)
                 )
             Text("LIVE")
                 .font(.caption2.weight(.bold))
@@ -409,7 +495,9 @@ private struct LivePill: View {
         .padding(.vertical, 6)
         .background(Color.lbNavy)
         .clipShape(Capsule())
-        .onAppear { pulsing = true }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Live")
+        .onAppear { pulsing = !reduceMotion }
     }
 }
 
@@ -422,6 +510,7 @@ private struct Chip: View {
     let tone: Tone
     var pulsing: Bool = false
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var pulseFlag = false
 
     var body: some View {
@@ -430,9 +519,9 @@ private struct Chip: View {
                 Circle()
                     .fill(Color.lbCoral2)
                     .frame(width: 7, height: 7)
-                    .scaleEffect(pulseFlag ? 1.0 : 0.6)
-                    .animation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true), value: pulseFlag)
-                    .onAppear { pulseFlag = true }
+                    .scaleEffect(reduceMotion || pulseFlag ? 1.0 : 0.6)
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 1.4).repeatForever(autoreverses: true), value: pulseFlag)
+                    .onAppear { pulseFlag = !reduceMotion }
             } else if let icon {
                 Image(systemName: icon).font(.caption2.weight(.bold))
             }
@@ -443,6 +532,7 @@ private struct Chip: View {
         .foregroundStyle(foreground)
         .background(background)
         .clipShape(Capsule())
+        .accessibilityElement(children: .combine)
     }
 
     private var background: Color {
@@ -609,6 +699,7 @@ private struct BeachMapCanvas: View {
     let pinsAppeared: Bool
     @Binding var selectedSculptureId: Int?
     let onPinTap: (Int) -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var bloomOpacity: Double {
         switch preset {
@@ -629,7 +720,7 @@ private struct BeachMapCanvas: View {
         GeometryReader { geo in
             ZStack {
                 // Painted base — sky, dunes, sand bands, blooms, water, foam, dune grass, umbrellas
-                TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: false)) { context in
+                TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: reduceMotion)) { context in
                     let t = context.date.timeIntervalSince1970
                     Canvas(opaque: true) { ctx, size in
                         drawScene(ctx: &ctx, size: size, time: t)
@@ -655,7 +746,7 @@ private struct BeachMapCanvas: View {
                     .scaleEffect(pinsAppeared ? 1 : 0.2)
                     .opacity(pinsAppeared ? 1 : 0)
                     .animation(
-                        .spring(response: 0.55, dampingFraction: 0.7).delay(Double(idx) * 0.04),
+                        reduceMotion ? nil : .spring(response: 0.55, dampingFraction: 0.7).delay(Double(idx) * 0.04),
                         value: pinsAppeared
                     )
                     .position(
@@ -663,16 +754,19 @@ private struct BeachMapCanvas: View {
                         y: CGFloat(s.y) * geo.size.height
                     )
                     .onTapGesture { onPinTap(s.id) }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Sculpture \(s.id), \(s.title), by \(s.sculptor), \(s.crowd.label.lowercased()) crowd")
+                    .accessibilityAddTraits(.isButton)
                 }
             }
-            .animation(.easeInOut(duration: 0.7), value: tint)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.7), value: tint)
         }
     }
 
     private func visitorPin(in size: CGSize) -> some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: false)) { ctx in
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: reduceMotion)) { ctx in
             let t = ctx.date.timeIntervalSince1970
-            let pulse = 0.85 + 0.15 * sin(t * 2.4)
+            let pulse = reduceMotion ? 1.0 : 0.85 + 0.15 * sin(t * 2.4)
             ZStack {
                 Circle().fill(Color.lbNavy.opacity(0.20)).frame(width: 44, height: 44).scaleEffect(pulse)
                 Circle().fill(Color.lbNavy.opacity(0.30)).frame(width: 26, height: 26)
@@ -911,6 +1005,7 @@ private struct BeachMapCanvas: View {
 private struct RouteWithWalker: View {
     let from: VisitorPin
     let to: Sculpture
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         GeometryReader { geo in
@@ -936,9 +1031,9 @@ private struct RouteWithWalker: View {
                     .stroke(Color.lbCream.opacity(0.92), style: StrokeStyle(lineWidth: 6, lineCap: .round))
 
                 // Dashed navy route on top — denser dash for legibility
-                TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: false)) { ctx in
+                TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: reduceMotion)) { ctx in
                     let t = ctx.date.timeIntervalSince1970
-                    let phase = CGFloat((t * 18).truncatingRemainder(dividingBy: 12))
+                    let phase = reduceMotion ? 0 : CGFloat((t * 18).truncatingRemainder(dividingBy: 12))
                     Path { p in p.move(to: p1); p.addQuadCurve(to: p2, control: mid) }
                         .stroke(
                             Color.lbNavy,
@@ -947,9 +1042,9 @@ private struct RouteWithWalker: View {
                 }
 
                 // Pulsing destination ring centered on target pin
-                TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: false)) { ctx in
+                TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: reduceMotion)) { ctx in
                     let t = ctx.date.timeIntervalSince1970
-                    let pulse = 1.0 + 0.18 * sin(t * 2.6)
+                    let pulse = reduceMotion ? 1.0 : 1.0 + 0.18 * sin(t * 2.6)
                     ZStack {
                         Circle()
                             .stroke(Color.lbYellow.opacity(0.45), lineWidth: 2)
@@ -962,9 +1057,9 @@ private struct RouteWithWalker: View {
                 }
 
                 // Walking dot — bigger, with shadow for depth
-                TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: false)) { ctx in
+                TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: reduceMotion)) { ctx in
                     let t = ctx.date.timeIntervalSince1970
-                    let u = CGFloat((t * 0.18).truncatingRemainder(dividingBy: 1))
+                    let u = reduceMotion ? 0 : CGFloat((t * 0.18).truncatingRemainder(dividingBy: 1))
                     let x = (1 - u) * (1 - u) * p1.x + 2 * (1 - u) * u * mid.x + u * u * p2.x
                     let y = (1 - u) * (1 - u) * p1.y + 2 * (1 - u) * u * mid.y + u * u * p2.y
                     ZStack {
@@ -1105,6 +1200,7 @@ private struct SculptureDetailSheet: View {
 private struct SculpturePinView: View {
     let sculpture: Sculpture
     let isSelected: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
@@ -1121,7 +1217,7 @@ private struct SculpturePinView: View {
                 .foregroundStyle(numberColor)
         }
         .scaleEffect(isSelected ? 1.15 : 1.0)
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
+        .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
     }
 
     private var coreColor: Color {
