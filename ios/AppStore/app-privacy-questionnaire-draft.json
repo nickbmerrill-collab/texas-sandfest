@@ -1,0 +1,85 @@
+{
+  "version": "1.0",
+  "status": "published-in-app-store-connect",
+  "tracking": false,
+  "linkedToIdentity": false,
+  "nativeDataFlows": [
+    {
+      "appleCategory": "User Content",
+      "dataType": "Other User Content",
+      "feature": "Ask Sandy question",
+      "leavesDevice": true,
+      "purpose": "App Functionality",
+      "linkedToIdentity": false,
+      "tracking": false,
+      "classification": "real-time-processing-not-collected",
+      "evidence": "The production contract does not persist or cache question text; Apple excludes data discarded after servicing a real-time request from its App Privacy collection definition."
+    },
+    {
+      "appleCategory": "Identifiers",
+      "dataType": "User ID or Device ID",
+      "feature": "Visitor application",
+      "leavesDevice": false,
+      "purpose": null,
+      "linkedToIdentity": false,
+      "tracking": false,
+      "classification": "not-collected-by-native-app"
+    },
+    {
+      "appleCategory": "Purchases",
+      "dataType": "Purchase History",
+      "feature": "Imported ticket reference",
+      "leavesDevice": false,
+      "purpose": "App Functionality",
+      "linkedToIdentity": false,
+      "tracking": false,
+      "classification": "on-device-only"
+    },
+    {
+      "appleCategory": "Diagnostics",
+      "dataType": "Crash Data, Performance Data, Other Diagnostic Data",
+      "feature": "Native application",
+      "leavesDevice": false,
+      "purpose": null,
+      "linkedToIdentity": false,
+      "tracking": false,
+      "classification": "no-third-party-diagnostics-sdk-linked"
+    }
+  ],
+  "camera": {
+    "purpose": "User-initiated ticket QR scan",
+    "imagesStored": false,
+    "imagesTransmitted": false
+  },
+  "networkMetadata": {
+    "appleCategory": "Other Data",
+    "dataType": "Other Data Types",
+    "classification": "collected-conservative",
+    "purpose": "App Functionality",
+    "linkedToIdentity": false,
+    "tracking": false,
+    "evidence": "The API uses the request IP in a one-minute shared rate-limit bucket, and hosting providers can retain technical request logs. Declaring Other Data is the conservative label until live provider log configuration is verified."
+  },
+  "privacyPolicyUrl": {
+    "required": true,
+    "url": "https://www.heyelab.com/texas-sandfest/privacy",
+    "publiclyAccessible": true,
+    "verifiedStatus": 200,
+    "status": "published-and-saved-in-app-store-connect"
+  },
+  "approval": {
+    "ownerApproved": true,
+    "approvedBy": "Nick Merrill",
+    "approvedAt": "2026-08-14T17:38:31Z"
+  },
+  "appStoreConnect": {
+    "configuredAt": "2026-08-14",
+    "dataType": "Other Data Types",
+    "purpose": "App Functionality",
+    "linkedToIdentity": false,
+    "tracking": false,
+    "published": true,
+    "privacyPolicyUrlSaved": true,
+    "remainingRequirements": []
+  }
+}

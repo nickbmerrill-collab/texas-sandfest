@@ -1,0 +1,523 @@
+{
+  "generatedAt": "2026-04-30T20:43:38.202Z",
+  "source": "https://www.texassandfest.org/",
+  "count": 236,
+  "categories": {
+    "logos": 1,
+    "sponsor-logos": 18,
+    "photos": 11,
+    "maps": 4
+  },
+  "assets": [
+    {
+      "id": "f800df_efa20fda892545788c6b856bf58487b7-mv2-png",
+      "category": "logos",
+      "role": "official_brand",
+      "name": "TXSF Official Logo Cropped Transparent.png",
+      "alt": "",
+      "sourcePage": "https://www.texassandfest.org/",
+      "publicPath": "/assets/sandfest-media/logos/f800df-efa20fda892545788c6b856bf58487b7-mv2-png-txsf-official-logo-cropped-transparent-png.png",
+      "contentType": "image/png",
+      "bytes": 747294,
+      "transform": {
+        "width": 281,
+        "height": 142
+      }
+    },
+    {
+      "id": "f800df_5858ec362d5e458d8d12acf51087fb1d-mv2-png",
+      "category": "sponsor-logos",
+      "role": "sponsor",
+      "name": "TJH New_PNG.png",
+      "alt": "",
+      "sourcePage": "https://www.texassandfest.org/",
+      "publicPath": "/assets/sandfest-media/sponsor-logos/f800df-5858ec362d5e458d8d12acf51087fb1d-mv2-png-tjh-new-png-png.png",
+      "contentType": "image/png",
+      "bytes": 333271,
+      "transform": {
+        "width": 333,
+        "height": 267
+      }
+    },
+    {
+      "id": "f800df_3d8dc6a9772d485a93c3d7ec5193b05d-mv2-png",
+      "category": "sponsor-logos",
+      "role": "sponsor",
+      "name": "f800df_3d8dc6a9772d485a93c3d7ec5193b05d~mv2.png",
+      "alt": "",
+      "sourcePage": "https://www.texassandfest.org/",
+      "publicPath": "/assets/sandfest-media/sponsor-logos/f800df-3d8dc6a9772d485a93c3d7ec5193b05d-mv2-png-f800df-3d8dc6a9772d485a93c3d7ec5193b05d-mv2-png.png",
+      "contentType": "image/png",
+      "bytes": 17058,
+      "transform": {
+        "width": 294,
+        "height": 185
+      }
+    },
+    {
+      "id": "f800df_f514c867d5e34d1dbf2b3af4e14721c2-mv2-jpeg",
+      "category": "sponsor-logos",
+      "role": "sponsor",
+      "name": "BL Truck.jpeg",
+      "alt": "",
+      "sourcePage": "https://www.texassandfest.org/",
+      "publicPath": "/assets/sandfest-media/sponsor-logos/f800df-f514c867d5e34d1dbf2b3af4e14721c2-mv2-jpeg-bl-truck-jpeg.jpg",
+      "contentType": "image/jpeg",
+      "bytes": 23843,
+      "transform": {
+        "width": 278,
+        "height": 89
+      }
+    },
+    {
+      "id": "f800df_7388012d9da44e5290259cf640b33a5a-mv2-jpg",
+      "category": "sponsor-logos",
+      "role": "sponsor",
+      "name": "APG&E.jpg",
+      "alt": "",
+      "sourcePage": "https://www.texassandfest.org/",
+      "publicPath": "/assets/sandfest-media/sponsor-logos/f800df-7388012d9da44e5290259cf640b33a5a-mv2-jpg-apg-e-jpg.jpg",
+      "contentType": "image/jpeg",
+      "bytes": 407297,
+      "transform": {
+        "width": 268,
+        "height": 102
+      }
+    },
+    {
+      "id": "f800df_3f51930de51b4179a84ddc01dab806bf-mv2-png",
+      "category": "sponsor-logos",
+      "role": "sponsor",
+      "name": "f800df_3f51930de51b4179a84ddc01dab806bf~mv2.png",
+      "alt": "",
+      "sourcePage": "https://www.texassandfest.org/",
+      "publicPath": "/assets/sandfest-media/sponsor-logos/f800df-3f51930de51b4179a84ddc01dab806bf-mv2-png-f800df-3f51930de51b4179a84ddc01dab806bf-mv2-png.png",
+      "contentType": "image/png",
+      "bytes": 16312,
+      "transform": {
+        "width": 224,
+        "height": 179
+      }
+    },
+    {
+      "id": "f800df_b91f3ad8f57d45219d4c80f60635f662-mv2-png",
+      "category": "sponsor-logos",
+      "role": "sponsor",
+      "name": "f800df_b91f3ad8f57d45219d4c80f60635f662~mv2.png",
+      "alt": "",
+      "sourcePage": "https://www.texassandfest.org/",
+      "publicPath": "/assets/sandfest-media/sponsor-logos/f800df-b91f3ad8f57d45219d4c80f60635f662-mv2-png-f800df-b91f3ad8f57d45219d4c80f60635f662-mv2-png.png",
+      "contentType": "image/png",
+      "bytes": 23789,
+      "transform": {
+        "width": 254,
+        "height": 129
+      }
+    },
+    {
+      "id": "f800df_a37bf1278d6543b2b961ae96b41b2970-mv2-png",
+      "category": "sponsor-logos",
+      "role": "sponsor",
+      "name": "f800df_a37bf1278d6543b2b961ae96b41b2970~mv2.png",
+      "alt": "",
+      "sourcePage": "https://www.texassandfest.org/",
+      "publicPath": "/assets/sandfest-media/sponsor-logos/f800df-a37bf1278d6543b2b961ae96b41b2970-mv2-png-f800df-a37bf1278d6543b2b961ae96b41b2970-mv2-png.png",
+      "contentType": "image/png",
+      "bytes": 17490,
+      "transform": {
+        "width": 245,
+        "height": 145
+      }
+    },
+    {
+      "id": "f800df_82d4f2248ff84bdea12e57bbf1da79cb-mv2-png",
+      "category": "sponsor-logos",
+      "role": "sponsor",
+      "name": "HEB Helping Here Logo (Updated 2022).png",
+      "alt": "",
+      "sourcePage": "https://www.texassandfest.org/",
+      "publicPath": "/assets/sandfest-media/sponsor-logos/f800df-82d4f2248ff84bdea12e57bbf1da79cb-mv2-png-heb-helping-here-logo-updated-2022-png.png",
+      "contentType": "image/png",
+      "bytes": 38013,
+      "transform": {
+        "width": 268,
+        "height": 129
+      }
+    },
+    {
+      "id": "f800df_a7c9bd7bdc8645ec9158f84e9901542f-mv2-png",
+      "category": "sponsor-logos",
+      "role": "sponsor",
+      "name": "beachgate-logo.png",
+      "alt": "",
+      "sourcePage": "https://www.texassandfest.org/",
+      "publicPath": "/assets/sandfest-media/sponsor-logos/f800df-a7c9bd7bdc8645ec9158f84e9901542f-mv2-png-beachgate-logo-png.png",
+      "contentType": "image/png",
+      "bytes": 11982,
+      "transform": {
+        "width": 155,
+        "height": 179
+      }
+    },
+    {
+      "id": "f800df_cb9efefcd297435ea6b9b81625c5ac22-mv2-jpg",
+      "category": "sponsor-logos",
+      "role": "sponsor",
+      "name": "Texas Lottery Hat and Hand.jpg",
+      "alt": "",
+      "sourcePage": "https://www.texassandfest.org/",
+      "publicPath": "/assets/sandfest-media/sponsor-logos/f800df-cb9efefcd297435ea6b9b81625c5ac22-mv2-jpg-texas-lottery-hat-and-hand-jpg.jpg",
+      "contentType": "image/jpeg",
+      "bytes": 17897,
+      "transform": {
+        "width": 146,
+        "height": 185
+      }
+    },
+    {
+      "id": "f800df_e320a895d75c486d8919304e050ba6c8-mv2-png",
+      "category": "sponsor-logos",
+      "role": "sponsor",
+      "name": "Gignac_edited.png",
+      "alt": "",
+      "sourcePage": "https://www.texassandfest.org/",
+      "publicPath": "/assets/sandfest-media/sponsor-logos/f800df-e320a895d75c486d8919304e050ba6c8-mv2-png-gignac-edited-png.png",
+      "contentType": "image/png",
+      "bytes": 48616,
+      "transform": {
+        "width": 253,
+        "height": 79
+      }
+    },
+    {
+      "id": "f800df_7d78c3ce2a254762b4590f21acfe684c-mv2-png",
+      "category": "sponsor-logos",
+      "role": "sponsor",
+      "name": "Senior Helpers.png",
+      "alt": "",
+      "sourcePage": "https://www.texassandfest.org/",
+      "publicPath": "/assets/sandfest-media/sponsor-logos/f800df-7d78c3ce2a254762b4590f21acfe684c-mv2-png-senior-helpers-png.png",
+      "contentType": "image/png",
+      "bytes": 28042,
+      "transform": {
+        "width": 242,
+        "height": 95
+      }
+    },
+    {
+      "id": "f800df_1ba154128ee942ef8ab36bc4bd5a291f-mv2-jpg",
+      "category": "sponsor-logos",
+      "role": "sponsor",
+      "name": "Hayden.jpg",
+      "alt": "",
+      "sourcePage": "https://www.texassandfest.org/",
+      "publicPath": "/assets/sandfest-media/sponsor-logos/f800df-1ba154128ee942ef8ab36bc4bd5a291f-mv2-jpg-hayden-jpg.jpg",
+      "contentType": "image/jpeg",
+      "bytes": 5079,
+      "transform": {
+        "width": 268,
+        "height": 71
+      }
+    },
+    {
+      "id": "f800df_e0ebe2d749e34f30afdf697ff1210b9a-mv2-jpg",
+      "category": "sponsor-logos",
+      "role": "sponsor",
+      "name": "Stewart.jpg",
+      "alt": "",
+      "sourcePage": "https://www.texassandfest.org/",
+      "publicPath": "/assets/sandfest-media/sponsor-logos/f800df-e0ebe2d749e34f30afdf697ff1210b9a-mv2-jpg-stewart-jpg.jpg",
+      "contentType": "image/jpeg",
+      "bytes": 72982,
+      "transform": {
+        "width": 179,
+        "height": 179
+      }
+    },
+    {
+      "id": "f800df_820ce1cece3a46458dab77405f2ee53a-mv2-png",
+      "category": "sponsor-logos",
+      "role": "sponsor",
+      "name": "f800df_820ce1cece3a46458dab77405f2ee53a~mv2.png",
+      "alt": "",
+      "sourcePage": "https://www.texassandfest.org/",
+      "publicPath": "/assets/sandfest-media/sponsor-logos/f800df-820ce1cece3a46458dab77405f2ee53a-mv2-png-f800df-820ce1cece3a46458dab77405f2ee53a-mv2-png.png",
+      "contentType": "image/png",
+      "bytes": 35592,
+      "transform": {
+        "width": 221,
+        "height": 134
+      }
+    },
+    {
+      "id": "f800df_9c1e98e06a3e4a2abe2670ef3da61079-mv2-png",
+      "category": "sponsor-logos",
+      "role": "sponsor",
+      "name": "f800df_9c1e98e06a3e4a2abe2670ef3da61079~mv2.png",
+      "alt": "",
+      "sourcePage": "https://www.texassandfest.org/",
+      "publicPath": "/assets/sandfest-media/sponsor-logos/f800df-9c1e98e06a3e4a2abe2670ef3da61079-mv2-png-f800df-9c1e98e06a3e4a2abe2670ef3da61079-mv2-png.png",
+      "contentType": "image/png",
+      "bytes": 254913,
+      "transform": {
+        "width": 273,
+        "height": 162
+      }
+    },
+    {
+      "id": "f800df_badf7916a0f844ac9b8418a55ce62550-mv2-jpg",
+      "category": "sponsor-logos",
+      "role": "sponsor",
+      "name": "Zapp Family.jpg",
+      "alt": "",
+      "sourcePage": "https://www.texassandfest.org/",
+      "publicPath": "/assets/sandfest-media/sponsor-logos/f800df-badf7916a0f844ac9b8418a55ce62550-mv2-jpg-zapp-family-jpg.jpg",
+      "contentType": "image/jpeg",
+      "bytes": 56143,
+      "transform": {
+        "width": 273,
+        "height": 134
+      }
+    },
+    {
+      "id": "f800df_9c4b421545bd4bd8a022b11daf5e7886-mv2-jpg",
+      "category": "sponsor-logos",
+      "role": "sponsor",
+      "name": "Bernies.jpg",
+      "alt": "",
+      "sourcePage": "https://www.texassandfest.org/",
+      "publicPath": "/assets/sandfest-media/sponsor-logos/f800df-9c4b421545bd4bd8a022b11daf5e7886-mv2-jpg-bernies-jpg.jpg",
+      "contentType": "image/jpeg",
+      "bytes": 429089,
+      "transform": {
+        "width": 221,
+        "height": 184
+      }
+    },
+    {
+      "id": "f800df_53497f8c3802433885cf16fd00de0b7b-mv2-jpg",
+      "category": "photos",
+      "role": "hero",
+      "name": "f800df_53497f8c3802433885cf16fd00de0b7b~mv2.jpg",
+      "alt": "",
+      "sourcePage": "https://www.texassandfest.org/",
+      "publicPath": "/assets/sandfest-media/photos/f800df-53497f8c3802433885cf16fd00de0b7b-mv2-jpg-f800df-53497f8c3802433885cf16fd00de0b7b-mv2-jpg.jpg",
+      "contentType": "image/jpeg",
+      "bytes": 7590346,
+      "transform": {
+        "width": 2500,
+        "height": 1666
+      }
+    },
+    {
+      "id": "f800df_68896ded650d4eaa826c2a7d015b5276-mv2-jpg",
+      "category": "maps",
+      "role": "content",
+      "name": "DJI_0546-Edit.jpg",
+      "alt": "",
+      "sourcePage": "https://www.texassandfest.org/maps",
+      "publicPath": "/assets/sandfest-media/maps/f800df-68896ded650d4eaa826c2a7d015b5276-mv2-jpg-dji-0546-edit-jpg.jpg",
+      "contentType": "image/jpeg",
+      "bytes": 6203189,
+      "transform": {
+        "width": 1827,
+        "height": 352
+      }
+    },
+    {
+      "id": "f800df_4ff68fafe7e948aa9bafccde668b8b35-mv2-jpg",
+      "category": "maps",
+      "role": "content",
+      "name": "plan_travel_tools_maps_port_aransas_texas_illustrated_map_0db32d7d-f69a-473e-a753-8651ca7b.jpg",
+      "alt": "",
+      "sourcePage": "https://www.texassandfest.org/maps",
+      "publicPath": "/assets/sandfest-media/maps/f800df-4ff68fafe7e948aa9bafccde668b8b35-mv2-jpg-plan-travel-tools-maps-port-aransas-texas-illustrated-map-0db32d7d-f69a-.jpg",
+      "contentType": "image/jpeg",
+      "bytes": 135249,
+      "transform": {
+        "width": 846,
+        "height": 642
+      }
+    },
+    {
+      "id": "f800df_3b35e67ddef446ae8b248bf2340b0e1c-mv2-jpg",
+      "category": "maps",
+      "role": "content",
+      "name": "f800df_3b35e67ddef446ae8b248bf2340b0e1c~mv2.jpg",
+      "alt": "",
+      "sourcePage": "https://www.texassandfest.org/maps",
+      "publicPath": "/assets/sandfest-media/maps/f800df-3b35e67ddef446ae8b248bf2340b0e1c-mv2-jpg-f800df-3b35e67ddef446ae8b248bf2340b0e1c-mv2-jpg.jpg",
+      "contentType": "image/jpeg",
+      "bytes": 6290372,
+      "transform": {
+        "width": 123,
+        "height": 82
+      }
+    },
+    {
+      "id": "f800df_2038ba23f1e44444968a94e358f89922-mv2-png",
+      "category": "maps",
+      "role": "content",
+      "name": "Travel_edited.png",
+      "alt": "",
+      "sourcePage": "https://www.texassandfest.org/maps",
+      "publicPath": "/assets/sandfest-media/maps/f800df-2038ba23f1e44444968a94e358f89922-mv2-png-travel-edited-png.png",
+      "contentType": "image/png",
+      "bytes": 153468,
+      "transform": {
+        "width": 484,
+        "height": 368
+      }
+    },
+    {
+      "id": "f800df_e4280e8d8b1549e8910dcd9a7ad7556f-mv2-jpg",
+      "category": "photos",
+      "role": "content",
+      "name": "DSC08186.jpg",
+      "alt": "",
+      "sourcePage": "https://www.texassandfest.org/daily-schedule",
+      "publicPath": "/assets/sandfest-media/photos/f800df-e4280e8d8b1549e8910dcd9a7ad7556f-mv2-jpg-dsc08186-jpg.jpg",
+      "contentType": "image/jpeg",
+      "bytes": 10584728,
+      "transform": {
+        "width": 1827,
+        "height": 498
+      }
+    },
+    {
+      "id": "f800df_6b4c73b059564218aabb760deafa0310-mv2-jpg",
+      "category": "photos",
+      "role": "content",
+      "name": "DSC00673_edited.jpg",
+      "alt": "",
+      "sourcePage": "https://www.texassandfest.org/generaladmissionticket",
+      "publicPath": "/assets/sandfest-media/photos/f800df-6b4c73b059564218aabb760deafa0310-mv2-jpg-dsc00673-edited-jpg.jpg",
+      "contentType": "image/jpeg",
+      "bytes": 5203551,
+      "transform": {
+        "width": 1278,
+        "height": 524
+      }
+    },
+    {
+      "id": "f800df_4eb53e6fb1c94f6ca83593ee8a975313-mv2-jpg",
+      "category": "photos",
+      "role": "content",
+      "name": "DSC07802.jpg",
+      "alt": "",
+      "sourcePage": "https://www.texassandfest.org/vipwristbands",
+      "publicPath": "/assets/sandfest-media/photos/f800df-4eb53e6fb1c94f6ca83593ee8a975313-mv2-jpg-dsc07802-jpg.jpg",
+      "contentType": "image/jpeg",
+      "bytes": 10962710,
+      "transform": {
+        "width": 1278,
+        "height": 524
+      }
+    },
+    {
+      "id": "f800df_9a128dab309a4962a49805a6a16a7d49-mv2-jpg",
+      "category": "photos",
+      "role": "content",
+      "name": "DSC08548.jpg",
+      "alt": "",
+      "sourcePage": "https://www.texassandfest.org/at-sandfest",
+      "publicPath": "/assets/sandfest-media/photos/f800df-9a128dab309a4962a49805a6a16a7d49-mv2-jpg-dsc08548-jpg.jpg",
+      "contentType": "image/jpeg",
+      "bytes": 10153630,
+      "transform": {
+        "width": 315,
+        "height": 388
+      }
+    },
+    {
+      "id": "f800df_22d89a1389504d948291d8570e11b98e-mv2-jpg",
+      "category": "photos",
+      "role": "content",
+      "name": "DSC08541.jpg",
+      "alt": "",
+      "sourcePage": "https://www.texassandfest.org/at-sandfest",
+      "publicPath": "/assets/sandfest-media/photos/f800df-22d89a1389504d948291d8570e11b98e-mv2-jpg-dsc08541-jpg.jpg",
+      "contentType": "image/jpeg",
+      "bytes": 11020849,
+      "transform": {
+        "width": 315,
+        "height": 388
+      }
+    },
+    {
+      "id": "f800df_543f2f12010240f5a1b0a37221155b7e-mv2-jpg",
+      "category": "photos",
+      "role": "content",
+      "name": "DSC08716.jpg",
+      "alt": "",
+      "sourcePage": "https://www.texassandfest.org/kidscorner",
+      "publicPath": "/assets/sandfest-media/photos/f800df-543f2f12010240f5a1b0a37221155b7e-mv2-jpg-dsc08716-jpg.jpg",
+      "contentType": "image/jpeg",
+      "bytes": 12972279,
+      "transform": {
+        "width": 1827,
+        "height": 498
+      }
+    },
+    {
+      "id": "f800df_0da27b8877a14262a468e2572539bbb0-mv2-jpg",
+      "category": "photos",
+      "role": "content",
+      "name": "DSC07846.jpg",
+      "alt": "",
+      "sourcePage": "https://www.texassandfest.org/about",
+      "publicPath": "/assets/sandfest-media/photos/f800df-0da27b8877a14262a468e2572539bbb0-mv2-jpg-dsc07846-jpg.jpg",
+      "contentType": "image/jpeg",
+      "bytes": 15697582,
+      "transform": {
+        "width": 283,
+        "height": 283
+      }
+    },
+    {
+      "id": "f800df_0b0d8c05923a4af691a77fb72f85e4af-mv2-jpg",
+      "category": "photos",
+      "role": "content",
+      "name": "Photo Apr 27 2025, 12 19 49 PM.jpg",
+      "alt": "",
+      "sourcePage": "https://www.texassandfest.org/about",
+      "publicPath": "/assets/sandfest-media/photos/f800df-0b0d8c05923a4af691a77fb72f85e4af-mv2-jpg-photo-apr-27-2025-12-19-49-pm-jpg.jpg",
+      "contentType": "image/jpeg",
+      "bytes": 2572577,
+      "transform": {
+        "width": 283,
+        "height": 283
+      }
+    },
+    {
+      "id": "f800df_3ed94510587a4568952f8b05b049e00f-mv2-jpg",
+      "category": "photos",
+      "role": "content",
+      "name": "Copy of DSC08906.jpg",
+      "alt": "",
+      "sourcePage": "https://www.texassandfest.org/livemusic",
+      "publicPath": "/assets/sandfest-media/photos/f800df-3ed94510587a4568952f8b05b049e00f-mv2-jpg-copy-of-dsc08906-jpg.jpg",
+      "contentType": "image/jpeg",
+      "bytes": 5066563,
+      "transform": {
+        "width": 292,
+        "height": 300
+      }
+    },
+    {
+      "id": "f800df_f833ad5b44a44ac081d792ffc30bbfca-mv2-jpg",
+      "category": "photos",
+      "role": "content",
+      "name": "DSC08225.jpg",
+      "alt": "",
+      "sourcePage": "https://www.texassandfest.org/things-to-do",
+      "publicPath": "/assets/sandfest-media/photos/f800df-f833ad5b44a44ac081d792ffc30bbfca-mv2-jpg-dsc08225-jpg.jpg",
+      "contentType": "image/jpeg",
+      "bytes": 10019104,
+      "transform": {
+        "width": 940,
+        "height": 440
+      }
+    }
+  ]
+}

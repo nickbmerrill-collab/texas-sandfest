@@ -1,0 +1,9 @@
+This is the public visitor application. No account or sign-in is required.
+
+The app opens with a bundled event guide and attempts to refresh approved public content. If current daily programming or the reviewed sculptor roster has not yet been published, the relevant screen deliberately explains that the information is coming soon instead of showing sample data.
+
+Ask Sandy sends a bounded visitor question to the public concierge endpoint and displays source-linked answers. If the endpoint is unavailable, the app retains the offline guide and provides the event contact rather than generating an unsupported answer.
+
+The camera permission is used only when the visitor elects to scan a supported Eventeny ticket QR code. The app does not require camera access to browse visitor information.
+
+The internal synthetic board demonstration is loopback-only and cannot be enabled in this production review build. Native staff administration remains disabled until authenticated role enforcement is implemented.

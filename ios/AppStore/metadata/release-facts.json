@@ -1,0 +1,450 @@
+{
+  "bundleIdentifier": "com.portalcodex.texassandfest",
+  "appleAppStoreId": "6801541375",
+  "appStoreRecordCreated": true,
+  "sku": "texas-sandfest-ios",
+  "version": "1.0.0",
+  "build": "1",
+  "primaryLanguage": "English (U.S.)",
+  "primaryCategory": "Travel",
+  "secondaryCategory": "Entertainment",
+  "contentRights": "The app displays first-party Texas SandFest event content and approved public sources.",
+  "copyright": "2026 Texas SandFest",
+  "supportUrlCandidate": "https://www.heyelab.com/texas-sandfest/support",
+  "marketingUrlCandidate": "https://www.texassandfest.org/",
+  "privacyPolicyUrl": "https://www.heyelab.com/texas-sandfest/privacy",
+  "appPrivacy": {
+    "status": "published",
+    "published": true,
+    "publishedBy": "Nick Merrill",
+    "portalPublishedLabel": "Published 8 hours ago",
+    "verifiedAt": "2026-08-14T20:12:05-05:00",
+    "privacyPolicyUrl": "https://www.heyelab.com/texas-sandfest/privacy",
+    "productPageDisclosure": "Data Not Linked to You",
+    "dataTypes": [
+      "Other Data"
+    ],
+    "purposes": [
+      "App Functionality"
+    ],
+    "linkedToIdentity": false,
+    "tracking": false
+  },
+  "appInformation": {
+    "name": "Texas SandFest",
+    "subtitle": "Plan your festival weekend",
+    "bundleIdentifier": "com.portalcodex.texassandfest",
+    "sku": "texas-sandfest-ios",
+    "appleAppStoreId": "6801541375",
+    "contentRightsConfirmed": true,
+    "licenseAgreement": "Apple Standard End User License Agreement",
+    "primaryCategory": "Travel",
+    "secondaryCategory": "Entertainment",
+    "verifiedAt": "2026-08-14T20:16:23-05:00"
+  },
+  "ageRating": {
+    "global": "13+",
+    "regionalExceptions": {
+      "Vietnam": "12+",
+      "Brazil": "14+",
+      "Korea": "12+"
+    },
+    "questionnaire": {
+      "alcoholTobaccoOrDrugReferences": "Infrequent",
+      "allOtherFrequencyResponses": "None",
+      "allBooleanRiskResponses": false,
+      "overrideApplied": false,
+      "ageSuitabilityUrlProvided": false
+    },
+    "contentEvidence": [
+      "Bundled visitor guidance states that outside alcohol is not allowed.",
+      "The South Entrance summary identifies the south beer tent."
+    ],
+    "portalQuestionnaireLeftUnchanged": true,
+    "verifiedAt": "2026-08-14T20:16:23-05:00"
+  },
+  "submittedBuildMetadata": {
+    "version": "1.0.0",
+    "build": "1",
+    "binaryState": "Validated",
+    "uploadedAt": "2026-08-14T08:32:00-05:00",
+    "compressedFileSize": "2.14 MB",
+    "includesSymbols": true,
+    "usesNonExemptEncryption": false,
+    "minimumIOSVersion": "18.0",
+    "minimumMacOSVersion": "15.0",
+    "minimumVisionOSVersion": "2.0",
+    "supportedArchitectures": [
+      "arm64"
+    ],
+    "deviceFamily": [
+      "iPhone",
+      "iPad"
+    ],
+    "associatedDomains": [
+      "applinks:sandfest.heyelab.com"
+    ],
+    "pushEnvironment": "production",
+    "verifiedAt": "2026-08-14T20:16:23-05:00"
+  },
+  "reviewContact": {
+    "firstName": "Nick",
+    "lastName": "Merrill",
+    "phone": "361-267-2474",
+    "email": "info@texassandfest.org"
+  },
+  "metadataPreparedInAppStoreConnect": true,
+  "metadataSavedInAppStoreConnect": true,
+  "buildUploadedToAppStoreConnect": true,
+  "uploadedBuildProcessing": false,
+  "selectedBuild": "1.0.0 (1)",
+  "screenshots": {
+    "iPhone65InchUploaded": 6
+  },
+  "universalLinks": {
+    "applicationIdentifierPrefix": "J2459M36QV",
+    "domain": "sandfest.heyelab.com",
+    "aasaUrl": "https://sandfest.heyelab.com/.well-known/apple-app-site-association",
+    "verifiedHttpStatus": 200,
+    "verifiedContentType": "application/json",
+    "verifiedExactMatch": true,
+    "appleCdnVerifiedHttpStatus": 200,
+    "appleCdnVerifiedExactMatch": true,
+    "verifiedAt": "2026-08-14"
+  },
+  "appStoreState": "Waiting for Review",
+  "appStoreStateVerifiedAt": "2026-08-14T20:56:29-05:00",
+  "appReviewMessagePresent": false,
+  "appReviewActionRequired": false,
+  "addedForReview": true,
+  "submissionConfirmed": true,
+  "submissionId": "cdbaad8e-75a7-4cd3-be37-4c88b10797d2",
+  "submittedAt": "2026-08-14T13:07:00-05:00",
+  "submittedBy": "Nick Merrill",
+  "releaseMethod": "automatic_after_approval",
+  "releaseConfiguration": {
+    "distributionMethod": "public",
+    "availableCountriesOrRegions": 175,
+    "baseCountryOrRegion": "United States (USD)",
+    "price": "free",
+    "taxCategory": "App Store software",
+    "automaticReleaseAfterReview": true,
+    "manualReleaseRequired": false,
+    "appleSiliconMacAvailable": true,
+    "appleVisionProAvailable": true,
+    "verifiedAt": "2026-08-14T20:08:48-05:00"
+  },
+  "digitalServicesAct": {
+    "status": "notConfigured",
+    "portalAction": "Complete Compliance Requirements",
+    "requiresAccountHolderLegalClassification": true,
+    "selectionMade": false,
+    "affectsEuropeanUnionAvailability": true,
+    "portalChoices": [
+      "I'm a trader under the DSA",
+      "I'm not a trader under the DSA or I don't plan to distribute in the EU"
+    ],
+    "verifiedAt": "2026-08-14T20:12:05-05:00"
+  },
+  "appStoreAgreements": {
+    "freeApps": {
+      "status": "Active",
+      "countriesOrRegions": "All Countries or Regions",
+      "effectiveFrom": "2026-07-21",
+      "effectiveThrough": "2027-03-23"
+    },
+    "paidApps": {
+      "status": "New",
+      "signed": false,
+      "currentReleaseUsesPaidFeatures": false
+    },
+    "verifiedAt": "2026-08-14T20:12:05-05:00"
+  },
+  "accessibilityNutritionLabels": {
+    "status": "evidence_in_progress",
+    "published": false,
+    "portalAction": "Get Started",
+    "portalVerifiedAt": "2026-08-14T20:12:05-05:00",
+    "portalQuestionnaireLeftUnchanged": true,
+    "evidenceDocument": "ios/AppStore/accessibility-evidence.md",
+    "supportedClaims": [],
+    "automatedEvidence": {
+      "commonTaskAuditPassed": true,
+      "largerTextSetting": "AX3 accessibility-extra-large, greater than 200%",
+      "increaseContrastEnabled": true,
+      "reduceMotionEnvironmentVerified": true,
+      "boldTextEnvironmentVerified": true,
+      "reduceTransparencyEnvironmentVerified": true,
+      "differentiateWithoutColorEnvironmentVerified": true,
+      "offlineVisitorPathVerified": true,
+      "devices": [
+        "iPhone 17 Pro simulator, iOS 26.5",
+        "iPad Pro 13-inch (M5) simulator, iPadOS 26.5"
+      ],
+      "verifiedAt": "2026-08-14T19:36:02-05:00"
+    },
+    "manualEvidenceOutstanding": [
+      "proficient_voiceover_on_iphone_and_ipad",
+      "grayscale_without_color_alone",
+      "apple_silicon_mac_and_vision_pro"
+    ],
+    "verifiedAt": "2026-08-14T19:36:02-05:00"
+  },
+  "webProductionReadiness": {
+    "status": "local_production_artifact_verified",
+    "publishedToLiveSite": false,
+    "chromiumWorkflowTestsPassed": 36,
+    "webkitWorkflowTestsPassed": 36,
+    "compiledAdminArtifactSmokePassed": true,
+    "compiledAdminPrimaryHeading": "Festival operations command center",
+    "compiledAdminSafeSignedOutState": true,
+    "adminModuleEvaluationDeadlockRegressionCovered": true,
+    "bundleBudgets": {
+      "publicInitialJavaScriptGzipKiB": 46,
+      "publicOptionalJavaScriptGzipKiB": 14,
+      "publicCombinedJavaScriptCssGzipKiB": 89,
+      "adminInitialJavaScriptGzipKiB": 123,
+      "adminOptionalJavaScriptGzipKiB": 10,
+      "adminCombinedJavaScriptCssGzipKiB": 157
+    },
+    "adminChunks": {
+      "runtimeBeforeMinifiedKiB": 523,
+      "runtimeAfterMinifiedKiB": 401,
+      "oidcAuthenticationMinifiedKiB": 74,
+      "operationsUiMinifiedKiB": 48
+    },
+    "liveCustomerSiteVerification": {
+      "url": "https://www.heyelab.com/texas-sandfest/app",
+      "httpStatus": 200,
+      "primaryNavigationOpened": true,
+      "primaryNavigationItems": 12,
+      "askSandyTicketFallbackPassed": true,
+      "unpublishedPartnerIntakeFailedClosed": true,
+      "verifiedAt": "2026-08-14T20:03:44-05:00"
+    },
+    "verifiedAt": "2026-08-14T20:03:44-05:00"
+  },
+  "boardWorkflowReadiness": {
+    "status": "local_supervised_workflow_testing_passed",
+    "syntheticOnly": true,
+    "externalMessagesOrChargesCreated": false,
+    "readinessChecksPassed": 12,
+    "readinessChecksTotal": 12,
+    "applications": {
+      "vendors": 6,
+      "sponsors": 4
+    },
+    "invoices": 2,
+    "payments": 1,
+    "tasks": 16,
+    "prospects": 2,
+    "vendorJourneyPassed": true,
+    "sponsorJourneyPassed": true,
+    "exactBaselineRestoredAfterJourneys": true,
+    "lastJourneyEvidence": {
+      "vendor": {
+        "reference": "TSF-V-143376",
+        "offering": "Marketplace booth",
+        "complianceApproved": "5/5",
+        "assignment": "M-27",
+        "localNoticesDelivered": 3,
+        "baselineRestored": true
+      },
+      "sponsor": {
+        "reference": "TSF-S-516089",
+        "package": "Tarpon",
+        "outreachConverted": true,
+        "brandingApproved": true,
+        "publicShowcaseVerified": true,
+        "baselineRestored": true
+      }
+    },
+    "presentationCertificateIssued": false,
+    "presentationCertificateBoundary": "A presentation certificate requires clean main at local origin/main; the supervised test used the explicitly allowed dirty-source lane.",
+    "verifiedAt": "2026-08-14T20:19:47-05:00"
+  },
+  "nextCandidate": {
+    "version": "1.0.0",
+    "build": "2",
+    "status": "processed",
+    "uploadedToAppStoreConnect": true,
+    "uploadedAt": "2026-08-14T16:33:55-05:00",
+    "processingVerifiedAt": "2026-08-14T16:34:30-05:00",
+    "processingCompletedAt": "2026-08-14T16:38:00-05:00",
+    "testFlightStatus": "Ready to Submit",
+    "testFlightBuildId": "6274d3dc-1af4-445b-a552-514be92c117a",
+    "binaryState": "Validated",
+    "includesSymbols": true,
+    "usesNonExemptEncryption": false,
+    "whatToTestSaved": true,
+    "whatToTestSavedAt": "2026-08-14T17:04:00-05:00",
+    "portalMetadataVerifiedAt": "2026-08-14T18:02:00-05:00",
+    "attachedToReview": false,
+    "uploadBlockedByActiveReview": false,
+    "signedArchiveVerified": true,
+    "verifiedAt": "2026-08-14T16:33:55-05:00",
+    "nativeTestsPassed": 32,
+    "liveConciergeShortcutTestPassed": true,
+    "conciergeShortcutFix": "Preserve the SwiftUI request identity until the live concierge response completes.",
+    "accessibilityAuditPassed": true,
+    "accessibilityAuditDevice": "iPhone 17 Pro simulator, iOS 26.5",
+    "visitorTabsAudited": [
+      "Today",
+      "Schedule",
+      "Beach",
+      "Sandy",
+      "Tickets"
+    ],
+    "webBuildPassed": true,
+    "webAccessibilityRegressionPassed": true,
+    "webFocusedBrowserTestsPassed": 5,
+    "webInitialJavaScriptGzipKiB": 46,
+    "webCombinedJavaScriptCssGzipKiB": 89,
+    "webRuntimeMediaManifestBytes": 17851,
+    "webRosterHydrationIsNonBlocking": true,
+    "staffAdaptiveLayoutVerified": true,
+    "accessibilityWork": [
+      "reduce_motion",
+      "voiceover_actions",
+      "dynamic_type_layout",
+      "contrast_tokens",
+      "minimum_hit_targets",
+      "staff_adaptive_layout"
+    ],
+    "performanceWork": [
+      "deferred_below_fold_public_hydration",
+      "non_blocking_live_roster_refresh",
+      "trimmed_runtime_media_catalog",
+      "parallel_staff_workspace_loading"
+    ]
+  },
+  "workingCandidate": {
+    "version": "1.0.0",
+    "build": "3",
+    "status": "local_app_store_export_verified",
+    "uploadedToAppStoreConnect": false,
+    "attachedToReview": false,
+    "uploadApproved": false,
+    "signedArchiveVerified": true,
+    "appStoreExportVerified": true,
+    "signedIdentity": "J2459M36QV.com.portalcodex.texassandfest",
+    "signedEntitlements": {
+      "applicationIdentifier": "J2459M36QV.com.portalcodex.texassandfest",
+      "teamIdentifier": "J2459M36QV",
+      "pushEnvironment": "production",
+      "getTaskAllow": false,
+      "associatedDomains": [
+        "applinks:www.heyelab.com",
+        "applinks:sandfest.heyelab.com"
+      ],
+      "verifiedInExportedIPA": true
+    },
+    "universalLinks": {
+      "canonicalWebOrigin": "https://www.heyelab.com",
+      "canonicalBasePath": "/texas-sandfest/app",
+      "canonicalBrowserFallbackVerified": true,
+      "canonicalRoutesAcceptedByNativeParser": true,
+      "legacySandfestRoutesRetained": true,
+      "localAasaContractIncludesCanonicalAndLegacyRoutes": true,
+      "expandedAasaContractPublished": false,
+      "publicationBoundary": "Do not publish the expanded AASA contract while build 1 is the active submitted candidate."
+    },
+    "physicalDeviceInstall": {
+      "status": "deferred_no_available_device",
+      "signedReleaseBuildPassed": true,
+      "pairedDevices": [
+        {
+          "name": "iPad",
+          "model": "iPad Air (4th generation)",
+          "state": "unavailable"
+        },
+        {
+          "name": "iPhone (677)",
+          "model": "iPhone 17 Pro",
+          "state": "unavailable"
+        }
+      ],
+      "verifiedAt": "2026-08-14T20:56:29-05:00"
+    },
+    "verifiedAt": "2026-08-14T20:56:29-05:00",
+    "nativeTestsPassed": 32,
+    "fullAppStoreReadinessGatePassed": true,
+    "fullAppStoreReadinessGateStatus": "passed",
+    "fullAppStoreReadinessGateVerifiedAt": "2026-08-14T20:56:29-05:00",
+    "accessibilityAuditPassed": true,
+    "accessibilityAuditVerifiedAt": "2026-08-14T20:39:16-05:00",
+    "accessibilityAuditDevices": [
+      "iPhone 17 Pro simulator, iOS 26.5",
+      "iPad Pro 13-inch (M5) simulator, iPadOS 26.5"
+    ],
+    "visitorTabsAudited": [
+      "Today",
+      "Schedule",
+      "Beach",
+      "Sandy",
+      "Tickets"
+    ],
+    "releaseSmokeTestsPassedPerDevice": 2,
+    "releaseSmokeTestExecutionsPassed": 4,
+    "releaseSmokeVerifiedAt": "2026-08-14T20:52:25-05:00",
+    "releaseSmokeDevices": [
+      "iPhone 17 Pro simulator, iOS 26.5",
+      "iPad Pro 13-inch (M5) simulator, iPadOS 26.5"
+    ],
+    "productionAdminBoundaryPassed": true,
+    "offlineFiveTabNavigationPassed": true,
+    "privacyManifest": {
+      "embeddedAtAppBundleRoot": true,
+      "archiveGatePassed": true,
+      "tracking": false,
+      "trackingDomains": [],
+      "requiredReasonAPIs": {
+        "NSPrivacyAccessedAPICategoryUserDefaults": [
+          "CA92.1"
+        ]
+      },
+      "collectedData": {
+        "type": "NSPrivacyCollectedDataTypeOtherDataTypes",
+        "linkedToIdentity": false,
+        "tracking": false,
+        "purposes": [
+          "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+        ]
+      },
+      "verifiedAt": "2026-08-14T20:56:29-05:00"
+    },
+    "accessibilityHardening": [
+      "device_independent_floating_tab_navigation_audit",
+      "deep_navy_standby_guidance",
+      "eight_to_one_secondary_text_contrast",
+      "ax3_common_task_layout",
+      "increase_contrast_common_task_audit",
+      "reduce_motion_environment_verification",
+      "bold_text_environment_verification",
+      "reduce_transparency_environment_verification",
+      "differentiate_without_color_environment_verification",
+      "deterministic_four_point_five_to_one_palette_contrast_gate",
+      "ios_26_exact_label_sampler_regression_coverage",
+      "full_screen_accessible_qr_scanner"
+    ],
+    "accessibilityNutritionLabelEvidence": {
+      "status": "evidence_in_progress",
+      "supportedClaims": [],
+      "commonTaskAuditPassedOnIPhoneAndIPad": true,
+      "displaySettingAuditPassedOnIPhoneAndIPad": true,
+      "displaySettingsVerified": [
+        "bold_text",
+        "reduce_transparency",
+        "differentiate_without_color"
+      ],
+      "verifiedAt": "2026-08-14T20:50:01-05:00"
+    },
+    "iPadFullScreenDeprecationWarningCleared": true,
+    "iPadSupportedOrientations": [
+      "portrait",
+      "portrait_upside_down",
+      "landscape_left",
+      "landscape_right"
+    ]
+  }
+}
