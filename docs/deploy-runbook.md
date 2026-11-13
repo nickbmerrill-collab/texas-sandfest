@@ -129,6 +129,73 @@ Vercel builds (`VERCEL=1`) always use `/` and ignore `DEPLOY_BASE`, so
 `/assets/...` from the domain root. Only the GitHub Pages workflow sets
 `DEPLOY_BASE=/<repo>/`. `npm run test:vercel-artifact` enforces this.
 
+## Read-only public launch (opt-in, interim)
+
+Use this only while the full production backend (Phase 2) does not exist yet and the
+board wants the visitor site live. It is **off by default**; the full production
+gate in `scripts/verify-vercel-release.mjs` is unchanged and stays the normal path.
+
+**What it is.** `sandfest.heyelab.com` is published from the Vercel `texas-sandfest`
+project against the *read-only public bridge* (`https://sandfest-api.heyelab.com`,
+a Cloudflare Worker whose source is `cloudflare/public-api/`). The bridge serves
+governed public event data and Ask Sandy answers. It stores nothing, has no staff or
+admin routes, no checkout, and every other write returns 503.
+
+**Enable it.** In Vercel (project `texas-sandfest`, Environment: **Production** only),
+add one variable, then redeploy `main`:
+
+```
+SANDFEST_VERCEL_PUBLIC_BRIDGE_MODE=read_only
+```
+
+Any other value (including `true`) fails the build; there is no implicit mode.
+Previews are unaffected. No other variable changes are needed. The Turnstile key is
+ignored in this mode because every intake is disabled.
+
+**What the gate verifies** (all fail closed): the bridge `/health` reports
+`mode: read_only` and `/ready` reports `visitorApiReady: true` with
+`staffPlatformReady: false`; HSTS, Permissions-Policy, nosniff and no-referrer on the
+bridge; the site's `vercel.json` headers and a tight CSP; CORS granted to exactly
+`https://sandfest.heyelab.com` (no wildcard, no unsafe methods) and refused for
+lookalike, `http://` and admin origins; vendor, partner, guest-services, passport and
+Stripe checkout writes and `/api/admin` routes are refused (write probes are only sent
+after the target proves it is the read-only bridge); ticket checkout is off with no
+products; partner and Guest Services intake are off; sponsor and vendor catalogs are
+unpublished; weather, ferry and cameras are not claimed live and show no readings;
+the bootstrap data is safe, is for the current event, and its official-source check is
+no older than 90 days.
+
+**What the build does.** `vite.config.js` marks the page `sandfest-launch-mode`,
+the bundle refuses (before any network call) every request except GETs of public data
+and the Ask Sandy POST, never loads Turnstile, hides the order-draft/checkout panel,
+and drops the internal "sponsorship packages" count. Run
+`npm run test:read-only-launch` and `npm run test:read-only-browser` to prove it.
+
+**It logs loudly.** The release step prints a `READ-ONLY PUBLIC LAUNCH` banner with the
+full-mode checks it skips (production identity, JWT/Postgres, Stripe, email,
+QuickBooks, camera ingest, SMS, durable runtime, published catalogs, live feeds,
+8/8 cameras, staff admin CORS).
+
+**Bridge changes.** Deploy the Worker only with Cloudflare credentials that can edit
+Workers (`wrangler login`, or `CLOUDFLARE_API_TOKEN` with Workers Scripts: Edit):
+
+```bash
+npx wrangler@4 deploy --env= --config cloudflare/public-api/wrangler.jsonc
+```
+
+The Worker bundles `data/processed/*.json`. After re-verifying the event facts against
+the official site and updating `sourceCheckedAt`, redeploy the Worker or the 90-day
+freshness check will keep failing.
+
+**Exit read-only mode** once Phase 2 (Render API, Postgres, worker, auth) is live:
+
+1. Point `sandfest-api.heyelab.com` at the Render API (Phase 3 DNS) and remove the
+   Worker custom domain in Cloudflare.
+2. In Vercel, **delete** `SANDFEST_VERCEL_PUBLIC_BRIDGE_MODE` from Production.
+3. Confirm the real `VITE_SANDFEST_TURNSTILE_SITE_KEY` is set, then redeploy `main`.
+   The full gate now runs and must pass; the read-only gate would in any case refuse a
+   backend whose `/health` does not say `mode: read_only`.
+
 ## Phase 2 — API on Render (Blueprint)
 
 `render.yaml` is a complete Render Blueprint. It stands up:

@@ -23,3 +23,6 @@ public/assets/sandfest-media/sponsor-logos
 
 .env
 .env.*
+
+# The read-only bridge Worker is deployed with wrangler, not built on Vercel.
+cloudflare
