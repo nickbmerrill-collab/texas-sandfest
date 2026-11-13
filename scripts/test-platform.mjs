@@ -5482,13 +5482,13 @@ EV-V-OLD,vendor,Old Event Vendor,Old Contact,old-import@example.com,retail,Marke
   });
   const rotatedSponsorInvitationToken = new URLSearchParams(new URL(rotatedInvitation.invitationUrl).hash.split("?")[1]).get("token");
   ok("sponsor invitation rotation returns outreach to review", rotatedInvitation.ok && rotatedInvitation.invitation.version === 2 && rotatedInvitation.refreshedDrafts === 1 && rotatedInvitation.doc.followups[0].status === "draft_ready" && rotatedInvitation.doc.followups[0].approvedBy === null && !rotatedInvitation.doc.followups[0].body.includes(issuedInvitation.invitationUrl));
-  ok("sponsor invitation rotation revokes old token", !verifySponsorInvitationToken(rotatedInvitation.doc, invitationToken, { config: sponsorInviteConfig }).ok && verifySponsorInvitationToken(rotatedInvitation.doc, rotatedSponsorInvitationToken, { config: sponsorInviteConfig }).ok);
+  ok("sponsor invitation rotation revokes old token", !verifySponsorInvitationToken(rotatedInvitation.doc, invitationToken, { config: sponsorInviteConfig, now: new Date(now).getTime() }).ok && verifySponsorInvitationToken(rotatedInvitation.doc, rotatedSponsorInvitationToken, { config: sponsorInviteConfig, now: new Date(now).getTime() }).ok);
   const queuedInvitationDoc = { ...rotatedInvitation.doc, followups: rotatedInvitation.doc.followups.map(item => ({ ...item, status: "queued" })) };
   const blockedInvitationRotation = createOutreachSponsorInvitation(queuedInvitationDoc, prospect.prospect.id, sponsorPackage, { now, invitationUrlForProspect });
   const blockedInvitationRevoke = revokeOutreachSponsorInvitation(queuedInvitationDoc, prospect.prospect.id, { now });
   ok("queued outreach protects sponsor invitation", !blockedInvitationRotation.ok && !blockedInvitationRevoke.ok && blockedInvitationRotation.error.includes("queued"));
   const revokedInvitation = revokeOutreachSponsorInvitation(rotatedInvitation.doc, prospect.prospect.id, { actorId: "sponsor_1", idFactory, now: "2026-07-16T14:00:00.000Z" });
-  ok("sponsor invitation revocation dismisses unsent outreach", revokedInvitation.ok && revokedInvitation.dismissedDrafts === 1 && revokedInvitation.doc.followups[0].status === "dismissed" && !verifySponsorInvitationToken(revokedInvitation.doc, rotatedSponsorInvitationToken, { config: sponsorInviteConfig }).ok);
+  ok("sponsor invitation revocation dismisses unsent outreach", revokedInvitation.ok && revokedInvitation.dismissedDrafts === 1 && revokedInvitation.doc.followups[0].status === "dismissed" && !verifySponsorInvitationToken(revokedInvitation.doc, rotatedSponsorInvitationToken, { config: sponsorInviteConfig, now: new Date(now).getTime() }).ok);
   const invitedApplicationInput = {
     type: "sponsor",
     organizationName: "Island Hotel",
