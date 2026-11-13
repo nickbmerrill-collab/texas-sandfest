@@ -43,6 +43,10 @@ const concierge = await request("/api/public/concierge", {
   body: JSON.stringify({ question: "When is Texas SandFest?" })
 });
 const conciergeSafety = publicConciergeResponseSafety(concierge.payload);
+for (const [question, topic] of [["When is Texas SandFest?", "schedule"], ["When is SandFest?", "schedule"], ["What time does SandFest open?", "schedule"], ["What should I bring?", "at-the-festival"], ["Are pets allowed?", "family"], ["Where should I park?", "parking"]]) {
+  const asked = await request("/api/public/concierge", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ question }) });
+  check(`Ask Sandy routes "${question}" to ${topic}, not an unrelated policy`, asked.response.status === 200 && asked.payload.topic === topic);
+}
 check("Ask Sandy returns a governed answer", concierge.response.status === 200 && conciergeSafety.ready && concierge.payload.topic === "schedule");
 check("Ask Sandy cites a public source", concierge.payload.sources.some(source => /^https:\/\//.test(source.href)));
 
