@@ -121,7 +121,13 @@ as an intentional hosting migration:
    CNAME  sandfest  → nickbmerrill-collab.github.io
    ```
 3. Wait for the cert to provision (a few minutes), then enable **Enforce HTTPS**.
-4. Update `vite.config.js` to use `DEPLOY_BASE=/` for the custom-domain build (or set the workflow env var to `/` when on the custom domain).
+4. Build the custom-domain site with the default base (`/`, i.e. leave `DEPLOY_BASE` unset or set it to `/`); the Pages workflow pins `DEPLOY_BASE=/<repo>/` only for the `github.io/<repo>/` URL.
+
+Base path: `vite.config.js` resolves the asset base through `resolveDeployBase()`.
+Vercel builds (`VERCEL=1`) always use `/` and ignore `DEPLOY_BASE`, so
+`https://texas-sandfest-ten.vercel.app` and `https://sandfest.heyelab.com` serve
+`/assets/...` from the domain root. Only the GitHub Pages workflow sets
+`DEPLOY_BASE=/<repo>/`. `npm run test:vercel-artifact` enforces this.
 
 ## Phase 2 — API on Render (Blueprint)
 
