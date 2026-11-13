@@ -31,6 +31,10 @@ import {
 } from "../lib/public-media-selection.mjs";
 import { publicPartnerIntakeReadiness } from "../lib/public-partner-intake.mjs";
 
+// Opt-in read-only public launch (see docs/deploy-runbook.md). The build flag is set by
+// vite.config.js only when SANDFEST_VERCEL_PUBLIC_BRIDGE_MODE=read_only.
+const READ_ONLY_LAUNCH = import.meta.env.VITE_SANDFEST_READ_ONLY === "true";
+
 const ADMIN_UI_ENABLED = import.meta.env.DEV || import.meta.env.VITE_SANDFEST_SURFACE === "admin";
 const adminOperationsUi = ADMIN_UI_ENABLED
   ? await import("./admin-operations-ui.js")
@@ -46,6 +50,10 @@ const sitePath = value => {
 const REQUEST_TIMEOUT_MS = 20_000;
 
 async function fetchWithTimeout(input, init = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
+  if (READ_ONLY_LAUNCH) {
+    const blocked = (await import("../lib/read-only-launch-policy.mjs")).readOnlyLaunchGuard(input, init);
+    if (blocked) throw blocked;
+  }
   const controller = new AbortController();
   const timeout = globalThis.setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -98,10 +106,12 @@ const ADMIN_AUTH_MODE = ADMIN_ENTRY
   ? String(import.meta.env.VITE_SANDFEST_AUTH_MODE || "token").trim().toLowerCase()
   : "token";
 const CONFIGURED_ADMIN_API_BASE = String(import.meta.env.VITE_SANDFEST_API_BASE_URL || "").replace(/\/+$/, "");
-const TURNSTILE_SITE_KEY = ADMIN_ENTRY ? "" : String(import.meta.env.VITE_SANDFEST_TURNSTILE_SITE_KEY || "").trim();
+// A read-only launch never loads Turnstile: every protected intake stays disabled.
+const TURNSTILE_SITE_KEY = ADMIN_ENTRY || READ_ONLY_LAUNCH ? "" : String(import.meta.env.VITE_SANDFEST_TURNSTILE_SITE_KEY || "").trim();
 const PUBLIC_PARTNER_INTAKE = publicPartnerIntakeReadiness({
-  production: import.meta.env.PROD && !ADMIN_ENTRY,
-  turnstileSiteKey: TURNSTILE_SITE_KEY
+  production: (import.meta.env.PROD && !ADMIN_ENTRY) || READ_ONLY_LAUNCH,
+  turnstileSiteKey: TURNSTILE_SITE_KEY,
+  readOnlyLaunch: READ_ONLY_LAUNCH
 });
 const canonicalPublicRoute = ADMIN_ENTRY
   ? null
@@ -337,10 +347,12 @@ const defaultEventGuide = {
 };
 const event = normalizeEventGuide(appBootstrap?.guide ?? defaultEventGuide);
 
+// The sponsorship package count is an internal planning figure; a read-only launch publishes
+// no sponsor catalog, so it must not claim one.
 const quickStats = [
   ["3", "festival days"],
   ["9", "beach zones"],
-  ["11", "sponsorship packages"],
+  ...(READ_ONLY_LAUNCH ? [] : [["11", "sponsorship packages"]]),
   ["1", "island celebration"]
 ];
 
@@ -686,7 +698,7 @@ app.innerHTML = `
         <h1 id="public-event-name">${event.name}</h1>
         <p id="public-event-mission" class="hero-copy">${event.mission}</p>
         <div class="hero-actions">
-          <a class="button primary" href="#tickets">Get tickets</a>
+          <a class="button primary" href="#tickets">${READ_ONLY_LAUNCH ? "Ticket information" : "Get tickets"}</a>
           <a class="button secondary" href="#live-beach">Open Live Beach →</a>
         </div>
       </div>
@@ -928,7 +940,7 @@ app.innerHTML = `
         <div id="ticket-product-grid" class="ticket-product-grid">
           ${ticketProductCardsMarkup()}
         </div>
-        <aside class="checkout-panel">
+        <aside class="checkout-panel"${READ_ONLY_LAUNCH ? ' hidden style="display:none"' : ""}>
           <div>
             <p class="eyebrow">Order draft</p>
             <h3>Customer checkout</h3>

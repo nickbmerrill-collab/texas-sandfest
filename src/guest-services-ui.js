@@ -29,7 +29,13 @@ function friendlyError(error, fallback) {
   return error?.message || fallback;
 }
 
-function requestWithTimeout(input, init = {}, timeoutMs = 20_000) {
+const READ_ONLY_LAUNCH = import.meta.env?.VITE_SANDFEST_READ_ONLY === "true";
+
+async function requestWithTimeout(input, init = {}, timeoutMs = 20_000) {
+  if (READ_ONLY_LAUNCH) {
+    const blocked = (await import("../lib/read-only-launch-policy.mjs")).readOnlyLaunchGuard(input, init);
+    if (blocked) throw blocked;
+  }
   const controller = new AbortController();
   const timeout = globalThis.setTimeout(() => controller.abort(), timeoutMs);
   return fetch(input, { ...init, signal: controller.signal }).finally(() => globalThis.clearTimeout(timeout));

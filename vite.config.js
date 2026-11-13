@@ -1,6 +1,7 @@
 import { defineConfig, loadEnv } from "vite";
 import { resolve } from "node:path";
 import { normalizeAppleApplicationIdentifierPrefix } from "./lib/public-deep-links.mjs";
+import { READ_ONLY_LAUNCH_ENV, readOnlyLaunchSetting } from "./lib/read-only-launch-policy.mjs";
 
 // Deploy base path.
 // - Vercel (production, preview) and any custom domain serve from the domain root, so the
@@ -115,6 +116,43 @@ export function validatePublicBuildEnvironment(env, target = buildTarget) {
   }
 }
 
+const READ_ONLY_BRIDGE_API_BASE = "https://sandfest-api.heyelab.com";
+
+// Opt-in read-only public launch: the visitor bundle talks only to the read-only bridge, and
+// every staff, payment, and intake request is refused client-side (see src/main.js and
+// lib/read-only-launch-policy.mjs). Off unless SANDFEST_VERCEL_PUBLIC_BRIDGE_MODE=read_only.
+export function validateReadOnlyLaunchBuildEnvironment(env, target = buildTarget) {
+  const setting = readOnlyLaunchSetting(env);
+  if (setting.error) throw new Error(setting.error);
+  if (!setting.enabled) return false;
+  if (target !== "public") {
+    throw new Error(`${READ_ONLY_LAUNCH_ENV}=read_only only applies to the isolated public build (SANDFEST_BUILD_TARGET=public).`);
+  }
+  if (String(env.VITE_SANDFEST_OPS_DEMO || "").toLowerCase() === "true") {
+    throw new Error(`${READ_ONLY_LAUNCH_ENV}=read_only cannot be combined with VITE_SANDFEST_OPS_DEMO=true.`);
+  }
+  const apiBase = String(env.VITE_SANDFEST_API_BASE_URL || "").replace(/\/+$/, "");
+  if (apiBase && apiBase !== READ_ONLY_BRIDGE_API_BASE) {
+    throw new Error(`${READ_ONLY_LAUNCH_ENV}=read_only requires the public API base to be ${READ_ONLY_BRIDGE_API_BASE}; received ${apiBase}.`);
+  }
+  return true;
+}
+
+function readOnlyLaunchMarkerPlugin(enabled) {
+  if (!enabled) return null;
+  return {
+    name: "sandfest-read-only-launch-marker",
+    transformIndexHtml(html) {
+      const marker = '<meta name="sandfest-surface" content="public" />';
+      if (!html.includes(marker)) {
+        throw new Error("Read-only launch build is missing the surface marker required for the launch-mode marker.");
+      }
+      console.warn(`[sandfest] READ-ONLY LAUNCH BUILD (${READ_ONLY_LAUNCH_ENV}=read_only): checkout, intake, staff and admin requests are disabled in this bundle.`);
+      return html.replace(marker, `${marker}\n    <meta name="sandfest-launch-mode" content="read_only" />`);
+    }
+  };
+}
+
 function publicProductionSecurityPlugin(env, target = buildTarget) {
   if (target !== "public" || env.SANDFEST_DEPLOYMENT_ENV !== "production") return null;
   return {
@@ -194,9 +232,13 @@ export default defineConfig(({ mode }) => {
   const env = { ...loadEnv(mode, process.cwd(), ""), ...process.env };
   validateAdminBuildEnvironment(env);
   validatePublicBuildEnvironment(env);
+  const readOnlyLaunch = validateReadOnlyLaunchBuildEnvironment(env);
   return {
     base,
-    plugins: [publicProductionSecurityPlugin(env), boardDemoAccessPlugin(env)].filter(Boolean),
+    define: {
+      "import.meta.env.VITE_SANDFEST_READ_ONLY": JSON.stringify(readOnlyLaunch ? "true" : "false")
+    },
+    plugins: [publicProductionSecurityPlugin(env), readOnlyLaunchMarkerPlugin(readOnlyLaunch), boardDemoAccessPlugin(env)].filter(Boolean),
     css: {
       postcss: {
         plugins: [adminCssPrunePlugin()].filter(Boolean)
