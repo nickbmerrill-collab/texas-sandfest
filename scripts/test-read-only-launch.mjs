@@ -20,7 +20,10 @@ import { verifyVercelRelease } from "./verify-vercel-release.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const vercelConfig = JSON.parse(await readFile(path.join(root, "vercel.json"), "utf8"));
-const NOW = Date.parse("2026-08-14T15:00:00Z"); // inside the 90-day source freshness window
+const DAY = 86_400_000;
+const bootstrapData = JSON.parse(await readFile(path.join(root, "data/processed/app-bootstrap.json"), "utf8"));
+const CHECKED_AT = Date.parse(bootstrapData.guide.sourceCheckedAt);
+const NOW = CHECKED_AT + 14 * DAY; // inside the 90-day source freshness window, whatever the data refresh date
 let checks = 0;
 const ok = (condition, message) => { assert.ok(condition, message); checks += 1; };
 const throws = (fn, pattern, message) => { assert.throws(fn, pattern, message); checks += 1; };
@@ -167,9 +170,9 @@ for (const [label, mutate, expected] of [
   ok(!result.ok && failed(result).includes(expected), `${label} fails closed on ${expected}`);
 }
 {
-  const stale = await verifyReadOnlyLaunch({ vercelConfig, now: Date.parse("2026-11-13T18:00:00Z"), fetchImpl: bridgeFetch().fetchImpl });
+  const stale = await verifyReadOnlyLaunch({ vercelConfig, now: CHECKED_AT + 91 * DAY, fetchImpl: bridgeFetch().fetchImpl });
   ok(!stale.ok && failed(stale).join() === "bridge.event_facts_fresh", "event facts older than 90 days fail closed (and only that check fails)");
-  const future = await verifyReadOnlyLaunch({ vercelConfig, now: Date.parse("2026-01-01T00:00:00Z"), fetchImpl: bridgeFetch().fetchImpl });
+  const future = await verifyReadOnlyLaunch({ vercelConfig, now: CHECKED_AT - 5 * DAY, fetchImpl: bridgeFetch().fetchImpl });
   ok(failed(future).includes("bridge.event_facts_fresh"), "a source check dated in the future fails closed");
 }
 ok(!(await verifyReadOnlyLaunch({ apiUrl: "http://sandfest-api.heyelab.com/", vercelConfig, fetchImpl: bridgeFetch().fetchImpl })).ok, "a non-HTTPS bridge URL fails closed");
@@ -177,16 +180,22 @@ ok(!(await verifyReadOnlyLaunch({ vercelConfig, now: NOW, fetchImpl: async () =>
 
 // ---- verifyVercelRelease wiring ---------------------------------------------------------------
 const productionEnv = { VERCEL: "1", VERCEL_ENV: "production", [READ_ONLY_LAUNCH_ENV]: "read_only" };
-const staleClockFetch = bridgeFetch().fetchImpl;
+const freshClockFetch = bridgeFetch().fetchImpl;
 const realNow = Date.now;
 Date.now = () => NOW;
 try {
-  const release = await verifyVercelRelease({ env: productionEnv, fetchImpl: staleClockFetch, vercelConfig });
+  const release = await verifyVercelRelease({ env: productionEnv, fetchImpl: freshClockFetch, vercelConfig });
   ok(release.ok && release.mode === "read_only" && release.skippedChecks === READ_ONLY_SKIPPED_CHECKS && release.skippedChecks.length >= 8, "read-only release passes and lists the skipped full-mode checks (no Turnstile key required)");
 } finally {
   Date.now = realNow;
 }
-const releaseStale = await verifyVercelRelease({ env: productionEnv, fetchImpl: bridgeFetch().fetchImpl, vercelConfig });
+Date.now = () => CHECKED_AT + 91 * DAY;
+let releaseStale;
+try {
+  releaseStale = await verifyVercelRelease({ env: productionEnv, fetchImpl: bridgeFetch().fetchImpl, vercelConfig });
+} finally {
+  Date.now = realNow;
+}
 ok(!releaseStale.ok && releaseStale.mode === "read_only" && /Read-only launch contract failed/.test(releaseStale.failures[0]), "read-only release fails closed when a check fails");
 const badMode = await verifyVercelRelease({ env: { ...productionEnv, [READ_ONLY_LAUNCH_ENV]: "yes" }, fetchImpl: async () => { throw new Error("must not fetch"); } });
 ok(!badMode.ok && /must be unset or "read_only"/.test(badMode.failures[0]), "an unrecognised mode value fails closed without calling the network");

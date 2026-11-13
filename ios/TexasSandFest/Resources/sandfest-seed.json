@@ -15,18 +15,18 @@
     "email": "info@texassandfest.org",
     "address": "200 S. Alister Street, Suite E, Port Aransas, TX 78373",
     "sourceUrl": "https://www.texassandfest.org/knowbeforeyougo",
-    "sourceCheckedAt": "2026-07-17T00:00:00.000Z",
+    "sourceCheckedAt": "2026-11-13T00:00:00.000Z",
     "volunteer": {
       "informationUrl": "https://www.texassandfest.org/volunteer",
       "registrationStatus": "upcoming",
       "registrationUrl": null,
-      "sourceCheckedAt": "2026-07-22T00:00:00.000Z",
-      "note": "2027 registration has not opened yet. Review the official volunteer page for current guidelines and return when shift selection is published."
+      "sourceCheckedAt": "2026-11-13T00:00:00.000Z",
+      "note": "The official volunteer page does not list a 2027 registration link or deadline yet. Review its current guidelines and check back when shift selection is published."
     },
     "status": "published",
     "publishedAt": "2026-07-17T00:00:00.000Z",
     "publishedBy": "content-import:official-site",
-    "lastUpdated": "2026-07-17T00:00:00.000Z"
+    "lastUpdated": "2026-11-13T00:00:00.000Z"
   },
   "guidance": [
     {
@@ -48,7 +48,7 @@
       ],
       "sourceLabel": "Official Know Before You Go",
       "sourceUrl": "https://www.texassandfest.org/knowbeforeyougo",
-      "sourceCheckedAt": "2026-07-22T00:00:00.000Z",
+      "sourceCheckedAt": "2026-11-13T00:00:00.000Z",
       "effectiveAt": "2026-06-01T00:00:00.000Z",
       "expiresAt": "2027-04-19T23:59:59.000Z",
       "audience": "public",
@@ -75,7 +75,7 @@
       ],
       "sourceLabel": "Official Pet Policy",
       "sourceUrl": "https://www.texassandfest.org/petpolicy",
-      "sourceCheckedAt": "2026-07-22T00:00:00.000Z",
+      "sourceCheckedAt": "2026-11-13T00:00:00.000Z",
       "effectiveAt": "2026-02-02T00:00:00.000Z",
       "expiresAt": "2027-04-19T23:59:59.000Z",
       "audience": "public",
@@ -102,7 +102,7 @@
       ],
       "sourceLabel": "Official Parking and Shuttles",
       "sourceUrl": "https://www.texassandfest.org/parking-shuttles",
-      "sourceCheckedAt": "2026-07-22T00:00:00.000Z",
+      "sourceCheckedAt": "2026-11-13T00:00:00.000Z",
       "effectiveAt": "2026-06-01T00:00:00.000Z",
       "expiresAt": "2027-04-19T23:59:59.000Z",
       "audience": "public",
@@ -115,7 +115,7 @@
       "id": "accessibility-and-beach-wheelchairs",
       "category": "Accessibility",
       "question": "What accessibility support and beach wheelchairs are available?",
-      "answer": "Accessible parking is available near the North entrance for vehicles displaying a valid state-issued accessible placard or plate; spaces are limited and first come, first served. A limited number of non-motorized beach wheelchairs are available free of charge, and advance reservation is strongly recommended. Accessible toilets are available at multiple locations across the grounds.",
+      "answer": "Accessible parking is available near the North entrance for vehicles displaying a valid state-issued accessible placard or plate; spaces are limited and first come, first served. A limited number of non-motorized beach wheelchairs are free to use for 1 hour 45 minutes per reservation; a signed usage agreement and a refundable $20 cash deposit are required, and advance reservation is highly recommended. Accessible toilets are available at multiple locations across the grounds.",
       "keywords": [
         "accessibility",
         "accessible",
@@ -128,7 +128,7 @@
       ],
       "sourceLabel": "Official Accessibility Guide",
       "sourceUrl": "https://www.texassandfest.org/accessibility",
-      "sourceCheckedAt": "2026-07-22T00:00:00.000Z",
+      "sourceCheckedAt": "2026-11-13T00:00:00.000Z",
       "effectiveAt": "2026-06-01T00:00:00.000Z",
       "expiresAt": "2027-04-19T23:59:59.000Z",
       "audience": "public",
@@ -141,7 +141,7 @@
       "id": "lost-found-and-separated-children",
       "category": "Family and safety",
       "question": "Where do I go for lost items or a separated child?",
-      "answer": "During the event, go to the Guest Relations Tent next to the North Gate for lost-and-found help. For a separated child, notify the nearest volunteer or go directly to Guest Relations. In an immediate emergency, call 911 or alert on-site security or medical staff.",
+      "answer": "During the event, go to the Guest Relations Tent next to the North Gate for lost-and-found help. For a separated child, notify the nearest volunteer or go directly to Guest Relations. In an emergency, call 911 or alert any volunteer; professional medical teams and security are on site, and the First Aid Tent is in the center of the grounds across from the VIP Tent.",
       "keywords": [
         "lost and found",
         "lost item",
@@ -153,7 +153,7 @@
       ],
       "sourceLabel": "Official Know Before You Go",
       "sourceUrl": "https://www.texassandfest.org/knowbeforeyougo",
-      "sourceCheckedAt": "2026-07-22T00:00:00.000Z",
+      "sourceCheckedAt": "2026-11-13T00:00:00.000Z",
       "effectiveAt": "2026-06-01T00:00:00.000Z",
       "expiresAt": "2027-04-19T23:59:59.000Z",
       "audience": "public",
@@ -179,7 +179,7 @@
       ],
       "sourceLabel": "Official FAQ",
       "sourceUrl": "https://www.texassandfest.org/faq",
-      "sourceCheckedAt": "2026-07-22T00:00:00.000Z",
+      "sourceCheckedAt": "2026-11-13T00:00:00.000Z",
       "effectiveAt": "2026-06-01T00:00:00.000Z",
       "expiresAt": "2027-04-19T23:59:59.000Z",
       "audience": "public",
@@ -193,13 +193,13 @@
     "status": "published",
     "eventId": "texas-sandfest-2027",
     "sourceUrl": "https://www.texassandfest.org/faq",
-    "sourceCheckedAt": "2026-07-22T00:00:00.000Z",
+    "sourceCheckedAt": "2026-11-13T00:00:00.000Z",
     "publishedAt": "2026-07-22T00:00:00.000Z",
     "publishedBy": "content-import:official-site",
     "heldAt": null,
     "heldBy": null,
     "holdReason": null,
-    "lastUpdated": "2026-07-22T00:00:00.000Z"
+    "lastUpdated": "2026-11-13T00:00:00.000Z"
   },
   "alert": {
     "id": "alert_none",
@@ -218,13 +218,13 @@
     "status": "pending",
     "eventId": "texas-sandfest-2027",
     "sourceUrl": "https://www.texassandfest.org/daily-schedule",
-    "sourceCheckedAt": "2026-07-21T00:00:00.000Z",
+    "sourceCheckedAt": "2026-11-13T00:00:00.000Z",
     "publishedAt": null,
     "publishedBy": null,
     "heldAt": "2026-07-21T00:00:00.000Z",
     "heldBy": "content-audit:official-site",
     "holdReason": "Official daily schedule currently identifies its detailed program as the 2026 schedule.",
-    "lastUpdated": "2026-07-21T00:00:00.000Z"
+    "lastUpdated": "2026-11-13T00:00:00.000Z"
   },
   "zones": [
     {
