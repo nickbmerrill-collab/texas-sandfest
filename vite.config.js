@@ -2,9 +2,27 @@ import { defineConfig, loadEnv } from "vite";
 import { resolve } from "node:path";
 import { normalizeAppleApplicationIdentifierPrefix } from "./lib/public-deep-links.mjs";
 
-// On GitHub Pages we live at /<repo>/; custom domains use root-relative paths.
-// we live at the root. The DEPLOY_BASE env var lets the workflow pin this.
-const base = process.env.DEPLOY_BASE || "/";
+// Deploy base path.
+// - Vercel (production, preview) and any custom domain serve from the domain root, so the
+//   base is always "/". A stray DEPLOY_BASE in a Vercel project or shell must never move
+//   the visitor assets under a subpath, or every script, stylesheet and image 404s.
+// - GitHub Pages serves from /<repo>/, so the Pages workflow pins DEPLOY_BASE explicitly.
+export function resolveDeployBase(env = process.env) {
+  const requested = String(env.DEPLOY_BASE || "").trim();
+  if (env.VERCEL) {
+    if (requested && requested !== "/") {
+      console.warn(`[sandfest] Ignoring DEPLOY_BASE=${requested}: Vercel builds are served from the domain root ("/").`);
+    }
+    return "/";
+  }
+  if (!requested) return "/";
+  if (!/^\/(?:[A-Za-z0-9._~-]+\/)*$/.test(requested)) {
+    throw new Error(`DEPLOY_BASE must start and end with "/" (for example "/" or "/texas-sandfest/"); received "${requested}".`);
+  }
+  return requested;
+}
+
+const base = resolveDeployBase();
 const sourcemap = process.env.SOURCE_MAPS === "true";
 const buildTarget = process.env.SANDFEST_BUILD_TARGET || "all";
 const outDir = process.env.SANDFEST_BUILD_OUT_DIR || "dist";

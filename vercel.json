@@ -3,7 +3,25 @@
   "framework": "vite",
   "buildCommand": "node scripts/verify-vercel-project.mjs && node scripts/verify-vercel-release.mjs && SANDFEST_DEPLOYMENT_ENV=$VERCEL_ENV npm run build:public",
   "outputDirectory": "dist-public",
+  "rewrites": [
+    { "source": "/today", "destination": "/index.html" },
+    { "source": "/tickets", "destination": "/index.html" },
+    { "source": "/schedule", "destination": "/index.html" },
+    { "source": "/schedule/:path*", "destination": "/index.html" },
+    { "source": "/island-conditions", "destination": "/index.html" },
+    { "source": "/sculptors", "destination": "/index.html" },
+    { "source": "/sandy", "destination": "/index.html" }
+  ],
   "headers": [
+    {
+      "source": "/.well-known/apple-app-site-association",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/json"
+        }
+      ]
+    },
     {
       "source": "/(.*)",
       "headers": [

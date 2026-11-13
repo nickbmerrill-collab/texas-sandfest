@@ -5,6 +5,7 @@ from pathlib import Path
 
 import soundfile as sf
 from kokoro import KPipeline
+import numpy as np
 
 
 def main():
@@ -17,20 +18,20 @@ def main():
     items = json.loads(Path(args.manifest).read_text())
     pipeline = KPipeline(lang_code="a", repo_id="hexgrad/Kokoro-82M")
     for item in items:
-        text = item["text"].strip()
+        passages = [passage.strip() for passage in item["text"].split("|") if passage.strip()]
         out = Path(item["out"])
         out.parent.mkdir(parents=True, exist_ok=True)
         chunks = []
-        for _, _, audio in pipeline(text, voice=args.voice, speed=args.speed):
-            chunks.append(audio)
+        for passage_index, passage in enumerate(passages):
+            passage_chunks = [audio for _, _, audio in pipeline(passage, voice=args.voice, speed=args.speed)]
+            if passage_chunks:
+                chunks.append(np.concatenate(passage_chunks))
+            if passage_index < len(passages) - 1:
+                pause_seconds = 0.42 if passage.endswith((".", "!", "?")) else 0.28
+                chunks.append(np.zeros(int(24000 * pause_seconds), dtype=np.float32))
         if not chunks:
             raise RuntimeError(f"No audio generated for {item['id']}")
-        if len(chunks) == 1:
-            merged = chunks[0]
-        else:
-            import numpy as np
-            silence = np.zeros(int(24000 * 0.18), dtype=chunks[0].dtype)
-            merged = np.concatenate([part for chunk in chunks for part in (chunk, silence)])
+        merged = chunks[0] if len(chunks) == 1 else np.concatenate(chunks)
         sf.write(out, merged, 24000)
         print(f"{item['id']}: {out}")
 
